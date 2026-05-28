@@ -10,6 +10,8 @@ namespace Procedure
     public class ProcedureInitResources : ProcedureBase
     {
         private bool _initResourcesComplete;
+        private bool _usedLocalPackageVersion;
+        private bool _handledLocalPackageVersionNotice;
 
         public override bool UseNativeDialog => true;
 
@@ -22,6 +24,8 @@ namespace Procedure
             base.OnEnter(procedureOwner);
 
             _initResourcesComplete = false;
+            _usedLocalPackageVersion = false;
+            _handledLocalPackageVersionNotice = false;
             LauncherMgr.ShowUI<LoadUpdateUI>("初始化资源中...");
             Utility.Unity.StartCoroutine(InitResources(procedureOwner));
         }
@@ -37,6 +41,12 @@ namespace Procedure
 
             if (!_initResourcesComplete)
             {
+                return;
+            }
+
+            if (_usedLocalPackageVersion)
+            {
+                HandleLocalPackageVersionFallback(procedureOwner);
                 return;
             }
 
@@ -58,40 +68,75 @@ namespace Procedure
 
         private IEnumerator InitResources(ProcedureOwner procedureOwner)
         {
-            Log.Info("更新资源清单！！！");
+            var runtimePackages = GetRuntimePackages();
+            Log.Info($"开始更新资源清单，共 {runtimePackages.Count} 个包：{GetPackageNamesLogText(runtimePackages)}");
 
-            foreach (var packageName in GetRuntimePackageNames())
+            foreach (var runtimePackage in runtimePackages)
             {
-                LauncherMgr.ShowUI<LoadUpdateUI>($"更新清单文件...({packageName})");
+                if (!runtimePackage.UpdateManifestOnStartup)
+                {
+                    Log.Info($"跳过资源包清单更新：{runtimePackage.PackageName}");
+                    continue;
+                }
 
-                var versionOperation = _resourceModule.RequestPackageVersionAsync(customPackageName: packageName);
+                LauncherMgr.ShowUI<LoadUpdateUI>($"更新清单文件...({runtimePackage.PackageName})");
+                Log.Info($"请求资源包版本：{runtimePackage.PackageName}");
+
+                var versionOperation = _resourceModule.RequestPackageVersionAsync(customPackageName: runtimePackage.PackageName);
                 yield return versionOperation;
                 if (versionOperation.Status != EOperationStatus.Succeed)
                 {
-                    OnInitResourcesError(procedureOwner, packageName, versionOperation.Error);
+                    if (TryGetLocalPackageVersion(runtimePackage, out var localPackageVersion))
+                    {
+                        Log.Warning($"请求资源包版本失败，尝试使用本地版本记录继续：{runtimePackage.PackageName} => {localPackageVersion}");
+                        var localManifestOperation = _resourceModule.UpdatePackageManifestAsync(localPackageVersion,
+                            customPackageName: runtimePackage.PackageName);
+                        yield return localManifestOperation;
+                        if (localManifestOperation.Status == EOperationStatus.Succeed)
+                        {
+                            procedureOwner.SetData(GetPackageVersionDataKey(runtimePackage.PackageName), localPackageVersion);
+                            if (runtimePackage.PackageName == _resourceModule.DefaultPackageName)
+                            {
+                                _resourceModule.PackageVersion = localPackageVersion;
+                            }
+
+                            _usedLocalPackageVersion = true;
+                            Log.Warning($"资源包已回退到本地版本：{runtimePackage.PackageName} => {localPackageVersion}");
+                            continue;
+                        }
+
+                        OnInitResourcesError(procedureOwner, runtimePackage.PackageName,
+                            $"{versionOperation.Error}\n本地版本清单恢复失败：{localManifestOperation.Error}");
+                        yield break;
+                    }
+
+                    OnInitResourcesError(procedureOwner, runtimePackage.PackageName, versionOperation.Error);
                     yield break;
                 }
 
                 var packageVersion = versionOperation.PackageVersion;
-                procedureOwner.SetData(GetPackageVersionKey(packageName), packageVersion);
-                if (packageName == _resourceModule.DefaultPackageName)
+                procedureOwner.SetData(GetPackageVersionDataKey(runtimePackage.PackageName), packageVersion);
+                if (runtimePackage.PackageName == _resourceModule.DefaultPackageName)
                 {
                     _resourceModule.PackageVersion = packageVersion;
-                    if (Utility.PlayerPrefs.HasKey(GameVersionPlayerPrefsKey))
+                    var versionKey = GetVersionPlayerPrefsKey(runtimePackage);
+                    if (!string.IsNullOrEmpty(versionKey) && Utility.PlayerPrefs.HasKey(versionKey))
                     {
-                        Utility.PlayerPrefs.SetString(GameVersionPlayerPrefsKey, _resourceModule.PackageVersion);
+                        Utility.PlayerPrefs.SetString(versionKey, _resourceModule.PackageVersion);
                     }
                 }
 
-                Log.Info($"Init resource package version : {packageName} => {packageVersion}");
+                Log.Info($"资源包版本获取完成：{runtimePackage.PackageName} => {packageVersion}");
 
-                var manifestOperation = _resourceModule.UpdatePackageManifestAsync(packageVersion, customPackageName: packageName);
+                var manifestOperation = _resourceModule.UpdatePackageManifestAsync(packageVersion, customPackageName: runtimePackage.PackageName);
                 yield return manifestOperation;
                 if (manifestOperation.Status != EOperationStatus.Succeed)
                 {
-                    OnInitResourcesError(procedureOwner, packageName, manifestOperation.Error);
+                    OnInitResourcesError(procedureOwner, runtimePackage.PackageName, manifestOperation.Error);
                     yield break;
                 }
+
+                Log.Info($"资源包清单更新完成：{runtimePackage.PackageName} => {packageVersion}");
             }
 
             _initResourcesComplete = true;
@@ -104,57 +149,66 @@ namespace Procedure
 
         private void OnInitResourcesError(ProcedureOwner procedureOwner, string packageName, string message)
         {
-            if (_resourceModule.PlayMode == EPlayMode.HostPlayMode)
-            {
-                if (!IsNeedUpdate())
-                {
-                    return;
-                }
-
-                Log.Error(message);
-                LauncherMgr.ShowMessageBox($"获取远程版本失败！点击确认重试\n包名：{packageName}\n <color=#FF0000>{message}</color>",
-                    () => { Utility.Unity.StartCoroutine(InitResources(procedureOwner)); },
-                    Application.Quit);
-                return;
-            }
-
             Log.Error(message);
             LauncherMgr.ShowMessageBox($"初始化资源失败！点击确认重试 \n包名：{packageName}\n <color=#FF0000>{message}</color>",
-                () => { Utility.Unity.StartCoroutine(InitResources(procedureOwner)); }, Application.Quit);
+                () => { RetryInitResources(procedureOwner); }, Application.Quit);
         }
 
-        private bool IsNeedUpdate()
+        private void RetryInitResources(ProcedureOwner procedureOwner)
         {
-            if (Settings.UpdateSetting.UpdateStyle == UpdateStyle.Optional && !_resourceModule.UpdatableWhilePlaying)
+            _initResourcesComplete = false;
+            _usedLocalPackageVersion = false;
+            _handledLocalPackageVersionNotice = false;
+            Utility.Unity.StartCoroutine(InitResources(procedureOwner));
+        }
+
+        private bool TryGetLocalPackageVersion(RuntimePackageEntry runtimePackage, out string packageVersion)
+        {
+            packageVersion = string.Empty;
+            if (_resourceModule.PlayMode != EPlayMode.HostPlayMode)
             {
-                string packageVersion = Utility.PlayerPrefs.GetString(GameVersionPlayerPrefsKey, string.Empty);
-                if (string.IsNullOrEmpty(packageVersion))
-                {
-                    LauncherMgr.ShowUI<LoadUpdateUI>(LoadText.Instance.Label_Net_UnReachable);
-                    LauncherMgr.ShowMessageBox("没有找到本地版本记录，需要更新资源！",
-                        () => { Utility.Unity.StartCoroutine(InitResources(_procedureOwner)); },
-                        Application.Quit);
-                    return false;
-                }
-
-                _resourceModule.PackageVersion = packageVersion;
-
-                if (Settings.UpdateSetting.UpdateNotice == UpdateNotice.Notice)
-                {
-                    LauncherMgr.ShowUI<LoadUpdateUI>(LoadText.Instance.Label_Load_Notice);
-                    LauncherMgr.ShowMessageBox("更新失败，检测到可选资源更新，推荐完成更新提升游戏体验！ \\n \\n 确定再试一次，取消进入游戏",
-                        () => { Utility.Unity.StartCoroutine(InitResources(_procedureOwner)); },
-                        () => { ChangeState<ProcedurePreload>(_procedureOwner); });
-                }
-                else
-                {
-                    ChangeState<ProcedurePreload>(_procedureOwner);
-                }
-
                 return false;
             }
 
-            return true;
+            if (Settings.UpdateSetting.UpdateStyle != UpdateStyle.Optional || _resourceModule.UpdatableWhilePlaying)
+            {
+                return false;
+            }
+
+            if (runtimePackage == null || !runtimePackage.SaveVersion)
+            {
+                return false;
+            }
+
+            var versionKey = GetVersionPlayerPrefsKey(runtimePackage);
+            if (string.IsNullOrEmpty(versionKey))
+            {
+                return false;
+            }
+
+            packageVersion = Utility.PlayerPrefs.GetString(versionKey, string.Empty);
+            return !string.IsNullOrEmpty(packageVersion);
+        }
+
+        private void HandleLocalPackageVersionFallback(ProcedureOwner procedureOwner)
+        {
+            if (_handledLocalPackageVersionNotice)
+            {
+                return;
+            }
+
+            _handledLocalPackageVersionNotice = true;
+            Log.Warning("远程版本获取失败，已使用本地版本记录完成资源初始化。\n");
+            if (Settings.UpdateSetting.UpdateNotice == UpdateNotice.Notice)
+            {
+                LauncherMgr.ShowUI<LoadUpdateUI>(LoadText.Instance.Label_Load_Notice);
+                LauncherMgr.ShowMessageBox("更新失败，已使用本地版本继续初始化资源！\n\n确定再试一次，取消继续进入游戏",
+                    () => { RetryInitResources(procedureOwner); },
+                    () => { ChangeState<ProcedurePreload>(procedureOwner); });
+                return;
+            }
+
+            ChangeToPreloadState(procedureOwner);
         }
     }
 }

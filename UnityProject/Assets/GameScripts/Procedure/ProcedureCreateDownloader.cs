@@ -28,19 +28,29 @@ namespace Procedure
         {
             await UniTask.Delay(TimeSpan.FromSeconds(0.5f));
 
+            var runtimePackages = GetRuntimePackages();
+            Log.Info($"开始检查资源包下载需求，共 {runtimePackages.Count} 个包：{GetPackageNamesLogText(runtimePackages)}");
+
             var downloadPackageNames = new List<string>();
             var totalDownloadCount = 0;
             long totalDownloadBytes = 0;
 
-            foreach (var packageName in GetRuntimePackageNames())
+            foreach (var runtimePackage in runtimePackages)
             {
-                var downloader = _resourceModule.CreateResourceDownloader(packageName);
+                if (!runtimePackage.DownloadOnDemand)
+                {
+                    Log.Info($"跳过资源包下载检查：{runtimePackage.PackageName}");
+                    continue;
+                }
+
+                var downloader = _resourceModule.CreateResourceDownloader(runtimePackage.PackageName);
+                Log.Info($"资源包下载检查：{runtimePackage.PackageName} => count:{downloader.TotalDownloadCount}, bytes:{downloader.TotalDownloadBytes}");
                 if (downloader.TotalDownloadCount <= 0)
                 {
                     continue;
                 }
 
-                downloadPackageNames.Add(packageName);
+                downloadPackageNames.Add(runtimePackage.PackageName);
                 totalDownloadCount += downloader.TotalDownloadCount;
                 totalDownloadBytes += downloader.TotalDownloadBytes;
             }
@@ -54,6 +64,8 @@ namespace Procedure
                 ChangeState<ProcedureDownloadOver>(_procedureOwner);
                 return;
             }
+
+            Log.Info($"待下载资源包：{string.Join(", ", downloadPackageNames)}");
 
             float sizeMb = totalDownloadBytes / 1048576f;
             sizeMb = Mathf.Clamp(sizeMb, 0.1f, float.MaxValue);

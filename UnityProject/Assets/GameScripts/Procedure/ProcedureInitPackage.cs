@@ -22,27 +22,42 @@ namespace Procedure
             base.OnEnter(procedureOwner);
 
             _procedureOwner = procedureOwner;
-            procedureOwner.RemoveData(MainPackageVersionKey);
-            procedureOwner.RemoveData(CodePackageVersionKey);
             procedureOwner.RemoveData(DownloadPackageNamesKey);
             procedureOwner.RemoveData(CurrentDownloadPackageKey);
+
+            foreach (var runtimePackage in GetRuntimePackages())
+            {
+                procedureOwner.RemoveData(GetPackageVersionDataKey(runtimePackage.PackageName));
+            }
 
             InitPackage(procedureOwner).Forget();
         }
 
         private async UniTaskVoid InitPackage(ProcedureOwner procedureOwner)
         {
+            var runtimePackages = GetRuntimePackages();
+            Log.Info($"开始初始化资源包，共 {runtimePackages.Count} 个：{GetPackageNamesLogText(runtimePackages)}");
+
             try
             {
-                foreach (var packageName in GetRuntimePackageNames())
+                foreach (var runtimePackage in runtimePackages)
                 {
-                    var initializationOperation = await _resourceModule.InitPackage(packageName);
+                    if (!runtimePackage.InitOnStartup)
+                    {
+                        Log.Info($"跳过初始化资源包：{runtimePackage.PackageName}");
+                        continue;
+                    }
+
+                    Log.Info($"初始化资源包：{runtimePackage.PackageName}");
+                    var initializationOperation = await _resourceModule.InitPackage(runtimePackage.PackageName);
                     if (initializationOperation == null || initializationOperation.Status != EOperationStatus.Succeed)
                     {
-                        var error = initializationOperation == null ? $"{packageName} 初始化返回空结果" : initializationOperation.Error;
-                        OnInitPackageFailed(procedureOwner, packageName, error);
+                        var error = initializationOperation == null ? $"{runtimePackage.PackageName} 初始化返回空结果" : initializationOperation.Error;
+                        OnInitPackageFailed(procedureOwner, runtimePackage.PackageName, error);
                         return;
                     }
+
+                    Log.Info($"资源包初始化完成：{runtimePackage.PackageName}");
                 }
 
                 LoadText.Instance.InitConfigData(null);

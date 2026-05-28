@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -30,7 +30,7 @@ namespace TEngine
             return $"{_fallbackHostServer}/{fileName}";
         }
     }
-    
+
     /// <summary>
     /// 文件流加密方式
     /// </summary>
@@ -93,7 +93,7 @@ namespace TEngine
         {
             return new DecryptResult();
         }
-        
+
         /// <summary>
         /// 获取解密的字节数据
         /// </summary>
@@ -165,7 +165,7 @@ namespace TEngine
                 AssetBundle.LoadFromFileAsync(fileInfo.FileLoadPath, 0, GetFileOffset());
             return decryptResult;
         }
-        
+
         /// <summary>
         /// 后备方式获取解密的资源包对象
         /// </summary>
@@ -195,8 +195,8 @@ namespace TEngine
             return 32;
         }
     }
-    
-    
+
+
     #region WebDecryptionServices
     /// <summary>
     /// 资源文件偏移加载解密类
@@ -219,7 +219,7 @@ namespace TEngine
             return 32;
         }
     }
-    
+
     public class FileStreamWebDecryption : IWebDecryptionServices
     {
         public WebDecryptResult LoadAssetBundle(WebDecryptFileInfo fileInfo)
@@ -227,7 +227,7 @@ namespace TEngine
             // 优化：使用Buffer批量操作替代逐字节异或
             byte[] decryptedData = new byte[fileInfo.FileData.Length];
             Buffer.BlockCopy(fileInfo.FileData, 0, decryptedData, 0, fileInfo.FileData.Length);
-            
+
             for (int i = 0; i < decryptedData.Length; i++)
             {
                 decryptedData[i] ^= BundleStream.KEY;

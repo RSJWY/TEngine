@@ -1,7 +1,5 @@
-using System.Collections.Generic;
 using Launcher;
 using TEngine;
-using UnityEngine;
 using ProcedureOwner = TEngine.IFsm<TEngine.IProcedureModule>;
 
 namespace Procedure
@@ -17,15 +15,27 @@ namespace Procedure
             Log.Info("下载完成!!!");
             LauncherMgr.ShowUI<LoadUpdateUI>("下载完成...");
 
-            if (procedureOwner.HasData(MainPackageVersionKey))
+            foreach (var runtimePackage in GetRuntimePackages())
             {
-                Utility.PlayerPrefs.SetString(GameVersionPlayerPrefsKey, procedureOwner.GetData<string>(MainPackageVersionKey));
-                _resourceModule.PackageVersion = procedureOwner.GetData<string>(MainPackageVersionKey);
-            }
+                if (!runtimePackage.SaveVersion)
+                {
+                    continue;
+                }
 
-            if (procedureOwner.HasData(CodePackageVersionKey))
-            {
-                Utility.PlayerPrefs.SetString(CodeVersionPlayerPrefsKey, procedureOwner.GetData<string>(CodePackageVersionKey));
+                var versionDataKey = GetPackageVersionDataKey(runtimePackage.PackageName);
+                if (!procedureOwner.HasData(versionDataKey))
+                {
+                    continue;
+                }
+
+                var packageVersion = procedureOwner.GetData<string>(versionDataKey);
+                Utility.PlayerPrefs.SetString(GetVersionPlayerPrefsKey(runtimePackage), packageVersion);
+                if (runtimePackage.PackageName == _resourceModule.DefaultPackageName)
+                {
+                    _resourceModule.PackageVersion = packageVersion;
+                }
+
+                Log.Info($"写入资源包版本记录：{runtimePackage.PackageName} => {packageVersion}");
             }
 
             procedureOwner.RemoveData(DownloadPackageNamesKey);

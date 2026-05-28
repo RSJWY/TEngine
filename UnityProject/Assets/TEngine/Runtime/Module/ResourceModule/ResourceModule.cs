@@ -196,8 +196,9 @@ namespace TEngine
             // 联机运行模式
             if (playMode == EPlayMode.HostPlayMode)
             {
-                string defaultHostServer = HostServerURL;
-                string fallbackHostServer = FallbackHostServerURL;
+                string defaultHostServer = Settings.UpdateSetting.GetPackageHostServerURL(packageName);
+                string fallbackHostServer = Settings.UpdateSetting.GetPackageFallbackHostServerURL(packageName);
+                Log.Info($"HostPlay 资源包远端目录：{packageName} => {defaultHostServer}");
                 IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
                 var createParameters = new HostPlayModeParameters();
                 createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters(decryptionServices);
@@ -211,12 +212,12 @@ namespace TEngine
             {
                 var createParameters = new WebPlayModeParameters();
                 IWebDecryptionServices webDecryptionServices = CreateWebDecryptionServices();
-                string defaultHostServer = HostServerURL;
-                string fallbackHostServer = FallbackHostServerURL;
+                string defaultHostServer = Settings.UpdateSetting.GetPackageHostServerURL(packageName);
+                string fallbackHostServer = Settings.UpdateSetting.GetPackageFallbackHostServerURL(packageName);
+                Log.Info($"WebPlay 资源包远端目录：{packageName} => {defaultHostServer}");
                 IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
 #if UNITY_WEBGL && WEIXINMINIGAME && !UNITY_EDITOR
                 Log.Info("=======================WEIXINMINIGAME=======================");
-                // 注意：如果有子目录，请修改此处！
                 string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE";
                 createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateFileSystemParameters(packageRoot, remoteServices, webDecryptionServices);
 #else

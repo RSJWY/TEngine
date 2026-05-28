@@ -28,10 +28,28 @@ MonoBehaviour:
   AssemblyTextAssetExtension: .bytes
   AssemblyTextAssetPath: AssetRaw/DLL
   AssemblyPackageName: CodePackage
-  UpdateStyle: 1
+  RuntimePackages:
+  - PackageName: DefaultPackage
+    Enable: 1
+    InitOnStartup: 1
+    UpdateManifestOnStartup: 1
+    DownloadOnDemand: 1
+    SaveVersion: 1
+    VersionKey: GAME_VERSION
+    IsAssemblyPackage: 0
+  - PackageName: CodePackage
+    Enable: 1
+    InitOnStartup: 1
+    UpdateManifestOnStartup: 1
+    DownloadOnDemand: 1
+    SaveVersion: 1
+    VersionKey: CODE_VERSION
+    IsAssemblyPackage: 1
+  UpdateStyle: 2
   UpdateNotice: 1
-  ResDownLoadPath: http://127.0.0.1:8081
-  FallbackResDownLoadPath: http://127.0.0.1:8082
+  ResDownLoadPath: http://127.0.0.1:80
+  FallbackResDownLoadPath: http://127.0.0.1:80
   LoadResWayWebGL: 0
   isAutoAssetCopeToBuildAddress: 0
   BuildAddress: ../../Builds/Unity_Data/StreamingAssets
+  ReplaceAssetPathWithAddress: 0

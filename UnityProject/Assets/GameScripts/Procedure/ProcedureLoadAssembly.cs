@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -38,13 +38,13 @@ namespace Procedure
         {
             base.OnInit(procedureOwner);
             _setting = Settings.UpdateSetting;
-            _assemblyPackageName = string.IsNullOrWhiteSpace(_setting.AssemblyPackageName) ? "CodePackage" : _setting.AssemblyPackageName;
+            _assemblyPackageName = _setting.GetAssemblyPackageName();
         }
 
         protected override void OnEnter(IFsm<IProcedureModule> procedureOwner)
         {
             base.OnEnter(procedureOwner);
-            Log.Debug("HybridCLR ProcedureLoadAssembly OnEnter");
+            Log.Debug($"HybridCLR ProcedureLoadAssembly OnEnter, package: {_assemblyPackageName}");
             _procedureOwner = procedureOwner;
             LoadAssembly().Forget();
         }
@@ -54,7 +54,6 @@ namespace Procedure
             _loadAssemblyComplete = false;
             _hotfixAssemblyList = new List<Assembly>();
 
-            //AOT Assembly加载原始metadata
             if (_setting.Enable)
             {
 #if !UNITY_EDITOR
@@ -89,7 +88,7 @@ namespace Procedure
                                     $"{hotUpdateDllName}{_setting.AssemblyTextAssetExtension}"));
                         }
 
-                        Log.Debug($"LoadAsset: [ {assetLocation} ]");
+                        Log.Debug($"LoadAsset: [ {assetLocation} ] from package [ {_assemblyPackageName} ]");
                         _loadAssetCount++;
                         var result = await _resourceModule.LoadAssetAsync<TextAsset>(assetLocation, default, _assemblyPackageName);
                         LoadAssetSuccess(result);
@@ -131,20 +130,20 @@ namespace Procedure
 #endif
             if (_mainLogicAssembly == null)
             {
-                Log.Fatal($"Main logic assembly missing. Please check \'ENABLE_HYBRIDCLR\' is defined in Player Settings And check the file of {_setting.LogicMainDllName}.bytes is exits.");
+                Log.Fatal($"Main logic assembly missing. Please check 'ENABLE_HYBRIDCLR' is defined in Player Settings And check the file of {_setting.LogicMainDllName}.bytes is exits.");
                 return;
             }
-            
+
             var appType = _mainLogicAssembly.GetType("GameApp");
             if (appType == null)
             {
-                Log.Fatal($"Main logic type 'GameMain' missing.");
+                Log.Fatal("Main logic type 'GameMain' missing.");
                 return;
             }
             var entryMethod = appType.GetMethod("Entrance");
             if (entryMethod == null)
             {
-                Log.Fatal($"Main logic entry method 'Entrance' missing.");
+                Log.Fatal("Main logic entry method 'Entrance' missing.");
                 return;
             }
             object[] objects = new object[] { new object[] { _hotfixAssemblyList } };
@@ -180,21 +179,17 @@ namespace Procedure
             return mainLogicAssembly;
         }
 
-        /// <summary>
-        /// 加载代码资源成功回调。
-        /// </summary>
-        /// <param name="textAsset">代码资产。</param>
         private void LoadAssetSuccess(TextAsset textAsset)
         {
             _loadAssetCount--;
             if (textAsset == null)
             {
-                Log.Warning($"Load Assembly failed.");
+                Log.Warning("Load Assembly failed.");
                 return;
             }
 
             var assetName = textAsset.name;
-            Log.Debug($"LoadAssetSuccess, assetName: [ {assetName} ]");
+            Log.Debug($"LoadAssetSuccess, assetName: [ {assetName} ], package: [ {_assemblyPackageName} ]");
 
             try
             {
@@ -219,17 +214,8 @@ namespace Procedure
             _resourceModule.UnloadAsset(textAsset);
         }
 
-        /// <summary>
-        /// 为Aot Assembly加载原始metadata， 这个代码放Aot或者热更新都行。
-        /// 一旦加载后，如果AOT泛型函数对应native实现不存在，则自动替换为解释模式执行。
-        /// </summary>
         public void LoadMetadataForAOTAssembly()
         {
-            // 可以加载任意aot assembly的对应的dll。但要求dll必须与unity build过程中生成的裁剪后的dll一致，而不能直接使用原始dll。
-            // 我们在BuildProcessor_xxx里添加了处理代码，这些裁剪后的dll在打包时自动被复制到 {项目目录}/HybridCLRData/AssembliesPostIl2CppStrip/{Target} 目录。
-
-            // 注意，补充元数据是给AOT dll补充元数据，而不是给热更新dll补充元数据。
-            // 热更新dll不缺元数据，不需要补充，如果调用LoadMetadataForAOTAssembly会返回错误
             if (_setting.AOTMetaAssemblies.Count == 0)
             {
                 _loadMetadataAssemblyComplete = true;
@@ -247,37 +233,31 @@ namespace Procedure
                             $"{aotDllName}{_setting.AssemblyTextAssetExtension}"));
                 }
 
-
-                Log.Debug($"LoadMetadataAsset: [ {assetLocation} ]");
+                Log.Debug($"LoadMetadataAsset: [ {assetLocation} ] from package [ {_assemblyPackageName} ]");
                 _loadMetadataAssetCount++;
                 _resourceModule.LoadAsset<TextAsset>(assetLocation, LoadMetadataAssetSuccess, _assemblyPackageName);
             }
             _loadMetadataAssemblyWait = true;
         }
 
-        /// <summary>
-        /// 加载元数据资源成功回调。
-        /// </summary>
-        /// <param name="textAsset">代码资产。</param>
         private void LoadMetadataAssetSuccess(TextAsset textAsset)
         {
             _loadMetadataAssetCount--;
             if (null == textAsset)
             {
-                Log.Debug($"LoadMetadataAssetSuccess:Load Metadata failed.");
+                Log.Debug("LoadMetadataAssetSuccess:Load Metadata failed.");
                 return;
             }
 
             string assetName = textAsset.name;
-            Log.Debug($"LoadMetadataAssetSuccess, assetName: [ {assetName} ]");
+            Log.Debug($"LoadMetadataAssetSuccess, assetName: [ {assetName} ], package: [ {_assemblyPackageName} ]");
             try
             {
                 byte[] dllBytes = textAsset.bytes;
 #if ENABLE_HYBRIDCLR
-                    // 加载assembly对应的dll，会自动为它hook。一旦Aot泛型函数的native函数不存在，用解释器版本代码
-                    HomologousImageMode mode = HomologousImageMode.SuperSet;
-                    LoadImageErrorCode err = (LoadImageErrorCode)HybridCLR.RuntimeApi.LoadMetadataForAOTAssembly(dllBytes,mode); 
-                    Log.Warning($"LoadMetadataForAOTAssembly:{assetName}. mode:{mode} ret:{err}");
+                HomologousImageMode mode = HomologousImageMode.SuperSet;
+                LoadImageErrorCode err = (LoadImageErrorCode)HybridCLR.RuntimeApi.LoadMetadataForAOTAssembly(dllBytes, mode);
+                Log.Warning($"LoadMetadataForAOTAssembly:{assetName}. mode:{mode} ret:{err}");
 #endif
             }
             catch (Exception e)
