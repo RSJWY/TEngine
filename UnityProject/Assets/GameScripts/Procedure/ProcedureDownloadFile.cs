@@ -12,12 +12,15 @@ namespace Procedure
 {
     public class ProcedureDownloadFile : ProcedureBase
     {
+        private static readonly int[] RetryDelaysSeconds = { 2, 5, 10 };
+
         public override bool UseNativeDialog { get; }
 
         private ProcedureOwner _procedureOwner;
         private float _lastUpdateDownloadedSize;
         private float _totalSpeed;
         private int _speedSampleCount;
+        private bool _downloadFailedHandled;
 
         private float CurrentSpeed(ResourceDownloaderOperation downloader)
         {
@@ -33,8 +36,72 @@ namespace Procedure
         protected override void OnEnter(ProcedureOwner procedureOwner)
         {
             _procedureOwner = procedureOwner;
+            _downloadFailedHandled = false;
             Log.Info("开始下载更新文件！");
             BeginDownload().Forget();
+        }
+
+        protected override void OnLeave(ProcedureOwner procedureOwner, bool isShutdown)
+        {
+            _downloadFailedHandled = false;
+            base.OnLeave(procedureOwner, isShutdown);
+        }
+
+        private async UniTaskVoid RetryCurrentDownloadWithDelay(DownloadErrorData downloadErrorData)
+        {
+            if (_downloadFailedHandled)
+            {
+                return;
+            }
+
+            int downloadRetryCount = _procedureOwner.HasData(DownloadRetryCountKey)
+                ? _procedureOwner.GetData<int>(DownloadRetryCountKey)
+                : 0;
+            if (downloadRetryCount >= RetryDelaysSeconds.Length)
+            {
+                _downloadFailedHandled = true;
+                ShowDownloadFailedDialog(downloadErrorData, downloadRetryCount);
+                return;
+            }
+
+            int retryAttempt = downloadRetryCount + 1;
+            int delaySeconds = RetryDelaysSeconds[downloadRetryCount];
+            _procedureOwner.SetData(DownloadRetryCountKey, retryAttempt);
+
+            string packageName = string.IsNullOrEmpty(downloadErrorData.PackageName)
+                ? (_procedureOwner.HasData(CurrentDownloadPackageKey)
+                    ? _procedureOwner.GetData<string>(CurrentDownloadPackageKey)
+                    : "UnknownPackage")
+                : downloadErrorData.PackageName;
+            string errorInfo = string.IsNullOrEmpty(downloadErrorData.ErrorInfo) ? "Unknown Error" : downloadErrorData.ErrorInfo;
+
+            Log.Warning($"下载失败，{delaySeconds}秒后开始第{retryAttempt}次重试。包名：{packageName}，文件：{downloadErrorData.FileName}，原因：{errorInfo}");
+            LauncherMgr.ShowUI<LoadUpdateUI>($"下载失败，{delaySeconds} 秒后自动重试...\n当前资源包 {packageName}\n失败文件 {downloadErrorData.FileName}\n原因：{errorInfo}\n正在进行第 {retryAttempt}/{RetryDelaysSeconds.Length} 次重试准备");
+            await UniTask.Delay(TimeSpan.FromSeconds(delaySeconds));
+
+            if (_downloadFailedHandled)
+            {
+                return;
+            }
+
+            ChangeState<ProcedureCreateDownloader>(_procedureOwner);
+        }
+
+        private void ShowDownloadFailedDialog(DownloadErrorData downloadErrorData, int downloadRetryCount)
+        {
+            string packageName = string.IsNullOrEmpty(downloadErrorData.PackageName)
+                ? (_procedureOwner.HasData(CurrentDownloadPackageKey)
+                    ? _procedureOwner.GetData<string>(CurrentDownloadPackageKey)
+                    : "UnknownPackage")
+                : downloadErrorData.PackageName;
+            string errorInfo = string.IsNullOrEmpty(downloadErrorData.ErrorInfo) ? "Unknown Error" : downloadErrorData.ErrorInfo;
+
+            LauncherMgr.ShowMessageBox($"Failed to download file : {downloadErrorData.FileName}\nPackage: {packageName}\nError: {errorInfo}\n\n已自动重试 {downloadRetryCount} 次，点击确认重新检查更新，取消退出应用",
+                () =>
+                {
+                    _procedureOwner.RemoveData(DownloadRetryCountKey);
+                    ChangeState<ProcedureCreateDownloader>(_procedureOwner);
+                }, Application.Quit);
         }
 
         private async UniTaskVoid BeginDownload()
@@ -44,6 +111,7 @@ namespace Procedure
                 : null;
             if (downloadPackageNames == null || downloadPackageNames.Count == 0)
             {
+                _procedureOwner.RemoveData(DownloadRetryCountKey);
                 ChangeState<ProcedureDownloadOver>(_procedureOwner);
                 return;
             }
@@ -70,20 +138,18 @@ namespace Procedure
                     return;
                 }
 
+                _procedureOwner.RemoveData(DownloadRetryCountKey);
                 downloadPackageNames.RemoveAt(0);
                 _procedureOwner.SetData(DownloadPackageNamesKey, downloadPackageNames);
             }
 
+            _procedureOwner.RemoveData(DownloadRetryCountKey);
             ChangeState<ProcedureDownloadOver>(_procedureOwner);
         }
 
         private void OnDownloadErrorCallback(DownloadErrorData downloadErrorData)
         {
-            var packageName = _procedureOwner.HasData(CurrentDownloadPackageKey)
-                ? _procedureOwner.GetData<string>(CurrentDownloadPackageKey)
-                : "UnknownPackage";
-            LauncherMgr.ShowMessageBox($"Failed to download file : {downloadErrorData.FileName}\nPackage: {packageName}",
-                () => { ChangeState<ProcedureCreateDownloader>(_procedureOwner); }, Application.Quit);
+            RetryCurrentDownloadWithDelay(downloadErrorData).Forget();
         }
 
         private void OnDownloadProgressCallback(DownloadUpdateData downloadUpdateData)

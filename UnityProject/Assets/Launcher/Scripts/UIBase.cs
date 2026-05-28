@@ -30,9 +30,16 @@ namespace Launcher
 
         protected virtual void ScriptGenerator() { }
 
+        protected virtual void OnClose() { }
+
         public void CallScriptGenerator()
         {
             ScriptGenerator();
+        }
+
+        public void CallOnClose()
+        {
+            OnClose();
         }
 
         public virtual void OnInit(object param)

@@ -9,6 +9,8 @@ namespace Procedure
 {
     public class ProcedureInitResources : ProcedureBase
     {
+        private const float LocalVersionFallbackAutoContinueDelaySeconds = 10f;
+
         private bool _initResourcesComplete;
         private bool _usedLocalPackageVersion;
         private bool _handledLocalPackageVersionNotice;
@@ -204,7 +206,9 @@ namespace Procedure
                 LauncherMgr.ShowUI<LoadUpdateUI>(LoadText.Instance.Label_Load_Notice);
                 LauncherMgr.ShowMessageBox("更新失败，已使用本地版本继续初始化资源！\n\n确定再试一次，取消继续进入游戏",
                     () => { RetryInitResources(procedureOwner); },
-                    () => { ChangeState<ProcedurePreload>(procedureOwner); });
+                    () => { ChangeState<ProcedurePreload>(procedureOwner); },
+                    autoConfirmDelay: LocalVersionFallbackAutoContinueDelaySeconds,
+                    autoConfirmUsesCancel: true);
                 return;
             }
 

@@ -89,6 +89,7 @@ namespace Launcher
             }
 
             uiWindow?.Hide();
+            uiWindow?.CallOnClose();
             Object.DestroyImmediate(uiWindow?.gameObject);
             m_uiMapDict.Remove(uiName);
         }
@@ -108,6 +109,7 @@ namespace Launcher
             foreach (var ui in m_uiMapDict.Values)
             {
                 ui?.Hide();
+                ui?.CallOnClose();
                 Object.Destroy(ui?.gameObject);
             }
             m_uiMapDict.Clear();
@@ -116,11 +118,11 @@ namespace Launcher
         #region UI调用
 
         public static void ShowMessageBox(string desc, Action onConfirm = null,
-            Action onCancel = null, Action onUpdate = null)
+            Action onCancel = null, Action onUpdate = null, float autoConfirmDelay = 0f, bool autoConfirmUsesCancel = false)
         {
             ShowUI<LoadTipsUI>(desc);
             var ui = GetActiveUI<LoadTipsUI>();
-            ui?.SetAllCallback(onConfirm, onUpdate, onCancel);
+            ui?.SetAllCallback(onConfirm, onUpdate, onCancel, autoConfirmDelay, autoConfirmUsesCancel);
         }
 
         public static void RefreshProgress(float progress)

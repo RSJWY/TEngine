@@ -11,6 +11,8 @@ namespace Procedure
 {
     public class ProcedureCreateDownloader : ProcedureBase
     {
+        private const float AutoStartDownloadDelaySeconds = 10f;
+
         public override bool UseNativeDialog { get; }
 
         private ProcedureOwner _procedureOwner;
@@ -72,7 +74,7 @@ namespace Procedure
             string totalSizeMb = sizeMb.ToString("f1");
 
             LauncherMgr.ShowMessageBox($"Found update patch files, Total count {totalDownloadCount} Total size {totalSizeMb}MB",
-                StartDownFile, Application.Quit);
+                StartDownFile, Application.Quit, autoConfirmDelay: AutoStartDownloadDelaySeconds);
         }
 
         private void StartDownFile()
