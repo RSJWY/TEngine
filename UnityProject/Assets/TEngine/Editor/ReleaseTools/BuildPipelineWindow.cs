@@ -270,7 +270,6 @@ namespace TEngine
                                 runtimePackage.DownloadOnDemand = EditorGUILayout.ToggleLeft("参与下载检查", runtimePackage.DownloadOnDemand);
                                 runtimePackage.SaveVersion = EditorGUILayout.ToggleLeft("保存版本记录", runtimePackage.SaveVersion);
                                 runtimePackage.VersionKey = EditorGUILayout.TextField("版本键", runtimePackage.VersionKey);
-                                runtimePackage.IsAssemblyPackage = EditorGUILayout.ToggleLeft("程序集包", runtimePackage.IsAssemblyPackage);
                             }
                             EditorGUILayout.EndVertical();
                         }
@@ -744,7 +743,6 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName),
-                IsAssemblyPackage = string.Equals(packageName, "CodePackage", StringComparison.Ordinal),
             };
         }
 

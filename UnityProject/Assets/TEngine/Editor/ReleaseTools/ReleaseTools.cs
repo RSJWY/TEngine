@@ -379,7 +379,6 @@ namespace TEngine
                     DownloadOnDemand = true,
                     SaveVersion = true,
                     VersionKey = "GAME_VERSION",
-                    IsAssemblyPackage = false,
                 }
             };
         }

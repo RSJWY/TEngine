@@ -88,11 +88,6 @@ namespace TEngine
         /// 资源包版本记录键。
         /// </summary>
         public string VersionKey = "GAME_VERSION";
-
-        /// <summary>
-        /// 是否为程序集资源包。
-        /// </summary>
-        public bool IsAssemblyPackage;
     }
 
     [CreateAssetMenu(menuName = "TEngine/UpdateSetting", fileName = "UpdateSetting")]
@@ -237,15 +232,7 @@ namespace TEngine
 
         public RuntimePackageEntry GetAssemblyPackage()
         {
-            foreach (var runtimePackage in GetEnabledRuntimePackages())
-            {
-                if (runtimePackage.IsAssemblyPackage)
-                {
-                    return runtimePackage;
-                }
-            }
-
-            return null;
+            return GetRuntimePackage(GetConfiguredAssemblyPackageName());
         }
 
         public string GetAssemblyPackageName()
@@ -311,20 +298,13 @@ namespace TEngine
                 return;
             }
 
-            foreach (var runtimePackage in runtimePackages)
-            {
-                if (runtimePackage.IsAssemblyPackage)
-                {
-                    return;
-                }
-            }
-
-            var assemblyPackage = CreateAssemblyPackageEntry();
-            if (packageNames.Contains(assemblyPackage.PackageName))
+            var assemblyPackageName = GetConfiguredAssemblyPackageName();
+            if (packageNames.Contains(assemblyPackageName))
             {
                 return;
             }
 
+            var assemblyPackage = CreateAssemblyPackageEntry();
             runtimePackages.Add(assemblyPackage);
             packageNames.Add(assemblyPackage.PackageName);
         }
@@ -332,7 +312,7 @@ namespace TEngine
         private RuntimePackageEntry NormalizeRuntimePackageEntry(RuntimePackageEntry sourcePackage)
         {
             var packageName = sourcePackage.PackageName.Trim();
-            var isAssemblyPackage = sourcePackage.IsAssemblyPackage || string.Equals(packageName, GetConfiguredAssemblyPackageName(), StringComparison.Ordinal);
+            var isAssemblyPackage = string.Equals(packageName, GetConfiguredAssemblyPackageName(), StringComparison.Ordinal);
             return new RuntimePackageEntry
             {
                 Enable = true,
@@ -344,7 +324,6 @@ namespace TEngine
                 VersionKey = string.IsNullOrWhiteSpace(sourcePackage.VersionKey)
                     ? GetDefaultVersionKey(packageName, isAssemblyPackage)
                     : sourcePackage.VersionKey.Trim(),
-                IsAssemblyPackage = isAssemblyPackage,
             };
         }
 
@@ -359,7 +338,6 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = DefaultGameVersionKey,
-                IsAssemblyPackage = false,
             };
         }
 
@@ -375,7 +353,6 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName, true),
-                IsAssemblyPackage = true,
             };
         }
 
