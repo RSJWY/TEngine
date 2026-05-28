@@ -15,7 +15,6 @@ namespace TEngine
         public EncryptionType EncryptionType = EncryptionType.None;
         public string PackageVersion = "";
         public string OutputRoot = "./Builds/";
-        public List<string> PackageNames = new List<string> { "DefaultPackage", "CodePackage" };
 
         // 最小包设置
         public bool MinimalPackage;
@@ -39,7 +38,7 @@ namespace TEngine
 
         public static BuildConfig CreateDefault()
         {
-            var config = new BuildConfig
+            return new BuildConfig
             {
                 BuildTarget = EditorUserBuildSettings.activeBuildTarget,
                 PlayerPlatform = EditorUserBuildSettings.activeBuildTarget,
@@ -47,18 +46,32 @@ namespace TEngine
                 OutputRoot = "./Builds/",
                 PlayerOutputPath = GetDefaultPlayerOutputPath(EditorUserBuildSettings.activeBuildTarget),
             };
-
-            config.PackageNames = GetDefaultPackageNames();
-            return config;
         }
 
         public static List<string> GetDefaultPackageNames()
         {
-            var packageNames = new List<string> { "DefaultPackage" };
-            var assemblyPackageName = Settings.UpdateSetting != null ? Settings.UpdateSetting.AssemblyPackageName : string.Empty;
-            if (!string.IsNullOrEmpty(assemblyPackageName) && !packageNames.Contains(assemblyPackageName))
+            var packageNames = new List<string>();
+            var runtimePackages = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetEnabledRuntimePackages() : null;
+            if (runtimePackages != null)
             {
-                packageNames.Add(assemblyPackageName);
+                foreach (var runtimePackage in runtimePackages)
+                {
+                    if (runtimePackage == null || string.IsNullOrWhiteSpace(runtimePackage.PackageName))
+                    {
+                        continue;
+                    }
+
+                    var packageName = runtimePackage.PackageName.Trim();
+                    if (!packageNames.Contains(packageName))
+                    {
+                        packageNames.Add(packageName);
+                    }
+                }
+            }
+
+            if (packageNames.Count <= 0)
+            {
+                packageNames.Add("DefaultPackage");
             }
 
             return packageNames;

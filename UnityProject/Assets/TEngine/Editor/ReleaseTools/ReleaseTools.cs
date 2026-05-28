@@ -126,24 +126,25 @@ namespace TEngine
 
             AssetDatabase.Refresh();
 
-            var packageNames = GetBuildPackageNames(config);
+            var runtimePackages = GetBuildPackages();
             YooAsset.Editor.BuildResult firstBuildResult = null;
-            foreach (var packageName in packageNames)
+            foreach (var runtimePackage in runtimePackages)
             {
-                var buildResult = BuildInternalWithConfig(config, packageName, firstBuildResult != null);
+                var buildResult = BuildInternalWithConfig(config, runtimePackage, firstBuildResult != null);
                 if (!buildResult.Success)
                 {
-                    Debug.LogError($"[BuildWithConfig] AssetBundle构建失败: {packageName} - {buildResult.ErrorInfo}");
+                    Debug.LogError($"[BuildWithConfig] AssetBundle构建失败: {runtimePackage.PackageName} - {buildResult.ErrorInfo}");
                     return;
                 }
 
                 firstBuildResult ??= buildResult;
-                Debug.Log($"[BuildWithConfig] AssetBundle构建成功: {packageName} => {buildResult.OutputPackageDirectory}");
+                Debug.Log($"[BuildWithConfig] AssetBundle构建成功: {runtimePackage.PackageName} => {buildResult.OutputPackageDirectory}");
             }
 
             if (config.MinimalPackage && firstBuildResult != null)
             {
-                ProcessMinimalPackage(packageNames, config.PackageVersion, config.RetainTags, firstBuildResult.OutputPackageDirectory);
+                ProcessMinimalPackage(runtimePackages.Select(x => x.PackageName).ToList(), config.PackageVersion,
+                    config.RetainTags, firstBuildResult.OutputPackageDirectory);
             }
 
             AssetDatabase.Refresh();
@@ -158,14 +159,13 @@ namespace TEngine
             }
         }
 
-
         #endregion
 
         #region AssetBundle 构建
 
-        private static YooAsset.Editor.BuildResult BuildInternalWithConfig(BuildConfig config, string packageName, bool appendBuildinFiles)
+        private static YooAsset.Editor.BuildResult BuildInternalWithConfig(BuildConfig config, RuntimePackageEntry runtimePackage, bool appendBuildinFiles)
         {
-            Debug.Log($"开始构建 : {config.BuildTarget} - {packageName}");
+            Debug.Log($"开始构建 : {config.BuildTarget} - {runtimePackage.PackageName}");
 
             IBuildPipeline pipeline;
             BuildParameters buildParameters;
@@ -183,7 +183,7 @@ namespace TEngine
                 pipeline = new ScriptableBuildPipeline();
                 buildParameters = scriptableBuildParameters;
                 scriptableBuildParameters.CompressOption = config.CompressOption;
-                scriptableBuildParameters.BuiltinShadersBundleName = GetBuiltinShaderBundleName(packageName);
+                scriptableBuildParameters.BuiltinShadersBundleName = GetBuiltinShaderBundleName(runtimePackage.PackageName);
                 scriptableBuildParameters.ReplaceAssetPathWithAddress = Settings.UpdateSetting.GetReplaceAssetPathWithAddress();
             }
 
@@ -199,7 +199,7 @@ namespace TEngine
             buildParameters.BuildPipeline = config.BuildPipeline.ToString();
             buildParameters.BuildTarget = config.BuildTarget;
             buildParameters.BuildBundleType = (int)EBuildBundleType.AssetBundle;
-            buildParameters.PackageName = packageName;
+            buildParameters.PackageName = runtimePackage.PackageName;
             buildParameters.PackageVersion = config.PackageVersion;
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
             buildParameters.EnableSharePackRule = config.EnableSharePackRule;
@@ -210,10 +210,8 @@ namespace TEngine
             buildParameters.ClearBuildCacheFiles = config.ClearBuildCache;
             buildParameters.UseAssetDependencyDB = config.UseAssetDependencyDB;
 
-            var result = pipeline.Run(buildParameters, true);
-            return result;
+            return pipeline.Run(buildParameters, true);
         }
-
 
         /// <summary>
         /// 旧版 BuildInternal，供 CLI 入口兼容
@@ -230,27 +228,27 @@ namespace TEngine
             config.BuildPlayer = false;
             config.BuildHotFixDll = false;
 
-            var packageNames = GetBuildPackageNames(config);
-            for (var i = 0; i < packageNames.Count; i++)
+            var runtimePackages = GetBuildPackages();
+            for (var i = 0; i < runtimePackages.Count; i++)
             {
-                var packageName = packageNames[i];
-                var buildResult = BuildInternalWithConfig(config, packageName, i > 0);
+                var runtimePackage = runtimePackages[i];
+                var buildResult = BuildInternalWithConfig(config, runtimePackage, i > 0);
                 if (buildResult.Success)
                 {
-                    Debug.Log($"构建成功 : {packageName} => {buildResult.OutputPackageDirectory}");
+                    Debug.Log($"构建成功 : {runtimePackage.PackageName} => {buildResult.OutputPackageDirectory}");
                 }
                 else
                 {
-                    Debug.LogError($"构建失败 : {packageName} => {buildResult.ErrorInfo}");
+                    Debug.LogError($"构建失败 : {runtimePackage.PackageName} => {buildResult.ErrorInfo}");
                     break;
                 }
             }
         }
 
-
         #endregion
 
         #region 最小包后处理
+
         /// <summary>
         /// 读取文件的文本数据
         /// </summary>
@@ -345,7 +343,6 @@ namespace TEngine
             CleanEmptyDirectories(streamingRoot);
         }
 
-
         private static EBuildinFileCopyOption GetBuildinFileCopyOption(EBuildinFileCopyOption option, bool appendBuildinFiles)
         {
             if (!appendBuildinFiles)
@@ -361,18 +358,30 @@ namespace TEngine
             };
         }
 
-        private static List<string> GetBuildPackageNames(BuildConfig config)
+        private static List<RuntimePackageEntry> GetBuildPackages()
         {
-            var packageNames = config.PackageNames != null && config.PackageNames.Count > 0
-                ? config.PackageNames.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList()
-                : BuildConfig.GetDefaultPackageNames();
-
-            if (packageNames.Count <= 0)
+            var runtimePackages = Settings.UpdateSetting != null
+                ? Settings.UpdateSetting.GetEnabledRuntimePackages()
+                : null;
+            if (runtimePackages != null && runtimePackages.Count > 0)
             {
-                packageNames.Add("DefaultPackage");
+                return runtimePackages;
             }
 
-            return packageNames;
+            return new List<RuntimePackageEntry>
+            {
+                new RuntimePackageEntry
+                {
+                    Enable = true,
+                    PackageName = "DefaultPackage",
+                    InitOnStartup = true,
+                    UpdateManifestOnStartup = true,
+                    DownloadOnDemand = true,
+                    SaveVersion = true,
+                    VersionKey = "GAME_VERSION",
+                    IsAssemblyPackage = false,
+                }
+            };
         }
 
         private static bool HasTag(string[] bundleTags, string[] matchTags)
@@ -394,7 +403,7 @@ namespace TEngine
                 return Array.Empty<string>();
 
             return retainTags
-                .Split(',', '，') // 支持中英文逗号
+                .Split(',', '，')
                 .Select(t => t.Trim())
                 .Where(t => !string.IsNullOrEmpty(t))
                 .ToArray();

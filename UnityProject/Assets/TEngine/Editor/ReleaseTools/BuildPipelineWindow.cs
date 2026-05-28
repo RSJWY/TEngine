@@ -57,7 +57,7 @@ namespace TEngine
             "OnlyCopyAll (仅拷贝全部)",
             "OnlyCopyByTags (仅按Tag拷贝)",
         };
-        
+
         private static readonly string[] FileNameStyleNames = new string[]
         {
             "HashName (哈希名)",
@@ -65,12 +65,10 @@ namespace TEngine
             "BundleName_HashName (资源包名称 + 哈希值名称)",
         };
 
-        // 配置状态
         private BuildConfig _config;
-
-        // UI 状态
         private Vector2 _scrollPosition;
         private bool _showBasicSettings = true;
+        private bool _showPackageSettings = true;
         private bool _showMinimalPackageSettings = true;
         private bool _showAdvancedSettings;
         private bool _showDllSettings = true;
@@ -78,9 +76,7 @@ namespace TEngine
         private bool _showBuildLog;
         private int _platformIndex;
         private int _playerPlatformIndex;
-
-        // 构建日志
-        private List<string> _buildLogs = new List<string>();
+        private readonly List<string> _buildLogs = new List<string>();
         private Vector2 _logScrollPosition;
 
         [MenuItem("TEngine/Build/打包工具窗口", false, 0)]
@@ -99,12 +95,15 @@ namespace TEngine
         private void OnGUI()
         {
             if (_config == null)
+            {
                 LoadSettings();
+            }
 
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
             {
                 DrawHeader();
                 DrawBasicSettings();
+                DrawPackageSettings();
                 DrawMinimalPackageSettings();
                 DrawAdvancedSettings();
                 DrawDllSettings();
@@ -137,7 +136,6 @@ namespace TEngine
 
             EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
 
-            // 刷新按钮
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("刷新", GUILayout.Width(60), GUILayout.Height(22)))
@@ -149,7 +147,7 @@ namespace TEngine
             {
                 _config = BuildConfig.CreateDefault();
                 SaveSettings();
-                AddLog("已重置为默认配置");
+                AddLog("已重置打包工具默认配置");
             }
             EditorGUILayout.EndHorizontal();
 
@@ -169,30 +167,25 @@ namespace TEngine
             {
                 EditorGUILayout.BeginVertical("HelpBox");
                 {
-                    // 目标平台
                     _platformIndex = EditorGUILayout.Popup("目标平台", _platformIndex, PlatformNames);
                     _config.BuildTarget = PlatformTargets[_platformIndex];
 
                     EditorGUILayout.Space(3);
 
-                    // 构建管线
                     int pipelineIndex = _config.BuildPipeline == EBuildPipeline.BuiltinBuildPipeline ? 1 : 0;
                     pipelineIndex = EditorGUILayout.Popup("构建管线", pipelineIndex, PipelineNames);
                     _config.BuildPipeline = pipelineIndex == 1
                         ? EBuildPipeline.BuiltinBuildPipeline
                         : EBuildPipeline.ScriptableBuildPipeline;
 
-                    // 压缩方式
                     _config.CompressOption = (ECompressOption)EditorGUILayout.Popup("压缩方式",
                         (int)_config.CompressOption, CompressNames);
 
-                    // 加密方式
                     _config.EncryptionType = (EncryptionType)EditorGUILayout.Popup("加密方式",
                         (int)_config.EncryptionType, EncryptionNames);
 
                     EditorGUILayout.Space(3);
 
-                    // 资源版本号
                     EditorGUILayout.BeginHorizontal();
                     _config.PackageVersion = EditorGUILayout.TextField("资源版本号", _config.PackageVersion);
                     if (GUILayout.Button("自动", GUILayout.Width(50)))
@@ -201,7 +194,6 @@ namespace TEngine
                     }
                     EditorGUILayout.EndHorizontal();
 
-                    // 输出目录
                     EditorGUILayout.BeginHorizontal();
                     _config.OutputRoot = EditorGUILayout.TextField("AB输出目录", _config.OutputRoot);
                     if (GUILayout.Button("浏览", GUILayout.Width(50)))
@@ -217,6 +209,91 @@ namespace TEngine
 
                     EditorGUILayout.Space(3);
                     EditorGUILayout.HelpBox("选择构建目标平台和基础参数。AB输出目录支持相对路径（相对于项目根目录）。", MessageType.Info);
+                }
+                EditorGUILayout.EndVertical();
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+            GUILayout.Space(5);
+        }
+
+        #endregion
+
+        #region 包列表设置
+
+        private void DrawPackageSettings()
+        {
+            _showPackageSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showPackageSettings,
+                new GUIContent("资源包列表", "直接编辑 UpdateSetting.RuntimePackages"));
+
+            if (_showPackageSettings)
+            {
+                EditorGUILayout.BeginVertical("HelpBox");
+                {
+                    var updateSetting = Settings.UpdateSetting;
+                    if (updateSetting == null)
+                    {
+                        EditorGUILayout.HelpBox("未找到 UpdateSetting 资源，无法编辑运行时资源包列表。", MessageType.Warning);
+                    }
+                    else
+                    {
+                        EnsureRuntimePackages(updateSetting);
+
+                        var removeIndex = -1;
+                        var addedPackage = false;
+                        EditorGUI.BeginChangeCheck();
+                        for (var i = 0; i < updateSetting.RuntimePackages.Count; i++)
+                        {
+                            var runtimePackage = updateSetting.RuntimePackages[i];
+                            if (runtimePackage == null)
+                            {
+                                runtimePackage = CreateRuntimePackageEntry(GetNextPackageName(updateSetting));
+                                updateSetting.RuntimePackages[i] = runtimePackage;
+                            }
+
+                            EditorGUILayout.BeginVertical("box");
+                            {
+                                EditorGUILayout.BeginHorizontal();
+                                runtimePackage.Enable = EditorGUILayout.ToggleLeft($"资源包 {i + 1}", runtimePackage.Enable, GUILayout.Width(90));
+                                GUILayout.FlexibleSpace();
+                                using (new EditorGUI.DisabledScope(updateSetting.RuntimePackages.Count <= 1))
+                                {
+                                    if (GUILayout.Button("删除", GUILayout.Width(50)))
+                                    {
+                                        removeIndex = i;
+                                    }
+                                }
+                                EditorGUILayout.EndHorizontal();
+
+                                runtimePackage.PackageName = EditorGUILayout.TextField("包名", runtimePackage.PackageName);
+                                runtimePackage.InitOnStartup = EditorGUILayout.ToggleLeft("启动时初始化", runtimePackage.InitOnStartup);
+                                runtimePackage.UpdateManifestOnStartup = EditorGUILayout.ToggleLeft("启动时更新清单", runtimePackage.UpdateManifestOnStartup);
+                                runtimePackage.DownloadOnDemand = EditorGUILayout.ToggleLeft("参与下载检查", runtimePackage.DownloadOnDemand);
+                                runtimePackage.SaveVersion = EditorGUILayout.ToggleLeft("保存版本记录", runtimePackage.SaveVersion);
+                                runtimePackage.VersionKey = EditorGUILayout.TextField("版本键", runtimePackage.VersionKey);
+                                runtimePackage.IsAssemblyPackage = EditorGUILayout.ToggleLeft("程序集包", runtimePackage.IsAssemblyPackage);
+                            }
+                            EditorGUILayout.EndVertical();
+                        }
+
+                        if (removeIndex >= 0)
+                        {
+                            updateSetting.RuntimePackages.RemoveAt(removeIndex);
+                        }
+
+                        if (GUILayout.Button("添加资源包", GUILayout.Height(24)))
+                        {
+                            updateSetting.RuntimePackages.Add(CreateRuntimePackageEntry(GetNextPackageName(updateSetting)));
+                            addedPackage = true;
+                        }
+
+                        if (EditorGUI.EndChangeCheck() || removeIndex >= 0 || addedPackage)
+                        {
+                            SaveUpdateSetting(updateSetting);
+                        }
+
+                        EditorGUILayout.Space(3);
+                        EditorGUILayout.HelpBox("这里直接编辑运行时资源包配置，构建流程和运行时初始化都会复用这份列表。", MessageType.Info);
+                    }
                 }
                 EditorGUILayout.EndVertical();
             }
@@ -387,7 +464,6 @@ namespace TEngine
             EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
             GUILayout.Space(5);
 
-            // 主按钮行
             EditorGUILayout.BeginHorizontal();
             {
                 var abStyle = new GUIStyle(GUI.skin.button)
@@ -410,7 +486,6 @@ namespace TEngine
             }
             EditorGUILayout.EndHorizontal();
 
-            // 一键构建按钮
             var fullBuildStyle = new GUIStyle(GUI.skin.button)
             {
                 fontSize = 13,
@@ -468,8 +543,9 @@ namespace TEngine
         private void ExecuteBuild(bool buildPlayer)
         {
             _buildLogs.Clear();
-            AddLog($"========== 开始构建 ==========");
+            AddLog("========== 开始构建 ==========");
             AddLog($"平台: {_config.BuildTarget} | 管线: {_config.BuildPipeline} | 最小包: {_config.MinimalPackage}");
+            AddLog($"资源包: {GetBuildPackageLogText()}");
 
             if (string.IsNullOrWhiteSpace(_config.PackageVersion))
             {
@@ -479,7 +555,6 @@ namespace TEngine
 
             try
             {
-                // 注册日志回调
                 Application.logMessageReceived += OnBuildLogReceived;
 
                 if (buildPlayer)
@@ -488,13 +563,12 @@ namespace TEngine
                 }
                 else
                 {
-                    // 仅构建AB，不走Player
                     var configCopy = CloneConfig(_config);
                     configCopy.BuildPlayer = false;
                     ReleaseTools.BuildWithConfig(configCopy, buildPlayer: false);
                 }
 
-                AddLog($"========== 构建完成 ==========");
+                AddLog("========== 构建完成 ==========");
             }
             catch (Exception e)
             {
@@ -506,7 +580,6 @@ namespace TEngine
                 Application.logMessageReceived -= OnBuildLogReceived;
             }
 
-            // 自动滚动到底部并展开日志
             _showBuildLog = true;
             Repaint();
         }
@@ -514,7 +587,7 @@ namespace TEngine
         private void ExecuteBuildPlayerOnly()
         {
             _buildLogs.Clear();
-            AddLog($"========== 仅构建 Player ==========");
+            AddLog("========== 仅构建 Player ==========");
             AddLog($"平台: {_config.PlayerPlatform} | 输出: {_config.PlayerOutputPath}");
 
             try
@@ -525,7 +598,7 @@ namespace TEngine
                     _config.PlayerPlatform,
                     _config.PlayerOutputPath
                 );
-                AddLog($"========== Player 构建完成 ==========");
+                AddLog("========== Player 构建完成 ==========");
             }
             catch (Exception e)
             {
@@ -584,22 +657,17 @@ namespace TEngine
 
             _config.CompressOption = (ECompressOption)EditorPrefs.GetInt("TEngine_BP_CompressOption", 1);
             _config.EncryptionType = (EncryptionType)EditorPrefs.GetInt("TEngine_BP_EncryptionType", 0);
-
             _config.PackageVersion = EditorPrefs.GetString("TEngine_BP_PackageVersion", "");
             _config.OutputRoot = EditorPrefs.GetString("TEngine_BP_OutputRoot", "./Builds/");
-
             _config.MinimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
             _config.RetainTags = EditorPrefs.GetString("TEngine_BP_RetainTags", "");
-
             _config.EnableSharePackRule = EditorPrefs.GetBool("TEngine_BP_EnableSharePack", true);
             _config.UseAssetDependencyDB = EditorPrefs.GetBool("TEngine_BP_UseDepDB", true);
             _config.ClearBuildCache = EditorPrefs.GetBool("TEngine_BP_ClearCache", false);
             _config.VerifyBuildingResult = EditorPrefs.GetBool("TEngine_BP_VerifyResult", true);
             _config.BuildinFileCopyOption = (EBuildinFileCopyOption)EditorPrefs.GetInt("TEngine_BP_CopyOption", 0);
             _config.FileNameStyle = (EFileNameStyle)EditorPrefs.GetInt("TEngine_BP_FileNameStyle", 1);
-
             _config.BuildHotFixDll = EditorPrefs.GetBool("TEngine_BP_BuildDll", true);
-
             _config.BuildPlayer = EditorPrefs.GetBool("TEngine_BP_BuildPlayer", false);
 
             _playerPlatformIndex = EditorPrefs.GetInt("TEngine_BP_PlayerPlatform", -1);
@@ -641,7 +709,9 @@ namespace TEngine
             for (int i = 0; i < PlatformTargets.Length; i++)
             {
                 if (PlatformTargets[i] == active)
+                {
                     return i;
+                }
             }
             return 0;
         }
@@ -649,6 +719,92 @@ namespace TEngine
         #endregion
 
         #region 工具方法
+
+        private static void EnsureRuntimePackages(UpdateSetting updateSetting)
+        {
+            if (updateSetting.RuntimePackages == null)
+            {
+                updateSetting.RuntimePackages = new List<RuntimePackageEntry>();
+            }
+
+            if (updateSetting.RuntimePackages.Count <= 0)
+            {
+                updateSetting.RuntimePackages.Add(CreateRuntimePackageEntry("DefaultPackage"));
+            }
+        }
+
+        private static RuntimePackageEntry CreateRuntimePackageEntry(string packageName)
+        {
+            return new RuntimePackageEntry
+            {
+                Enable = true,
+                PackageName = packageName,
+                InitOnStartup = true,
+                UpdateManifestOnStartup = true,
+                DownloadOnDemand = true,
+                SaveVersion = true,
+                VersionKey = GetDefaultVersionKey(packageName),
+                IsAssemblyPackage = string.Equals(packageName, "CodePackage", StringComparison.Ordinal),
+            };
+        }
+
+        private static string GetDefaultVersionKey(string packageName)
+        {
+            if (string.Equals(packageName, "DefaultPackage", StringComparison.Ordinal))
+            {
+                return "GAME_VERSION";
+            }
+
+            if (string.Equals(packageName, "CodePackage", StringComparison.Ordinal))
+            {
+                return "CODE_VERSION";
+            }
+
+            return $"PACKAGE_VERSION_{packageName}";
+        }
+
+        private static void SaveUpdateSetting(UpdateSetting updateSetting)
+        {
+            EditorUtility.SetDirty(updateSetting);
+            AssetDatabase.SaveAssets();
+        }
+
+        private static string GetNextPackageName(UpdateSetting updateSetting)
+        {
+            var index = updateSetting.RuntimePackages.Count + 1;
+            var packageName = $"NewPackage{index}";
+            while (updateSetting.RuntimePackages.Exists(x => x != null && string.Equals(x.PackageName, packageName, StringComparison.Ordinal)))
+            {
+                index++;
+                packageName = $"NewPackage{index}";
+            }
+
+            return packageName;
+        }
+
+        private static string GetBuildPackageLogText()
+        {
+            var runtimePackages = Settings.UpdateSetting != null
+                ? Settings.UpdateSetting.GetEnabledRuntimePackages()
+                : null;
+            if (runtimePackages == null || runtimePackages.Count <= 0)
+            {
+                return "DefaultPackage";
+            }
+
+            var packageNames = new List<string>(runtimePackages.Count);
+            foreach (var runtimePackage in runtimePackages)
+            {
+                if (runtimePackage == null || string.IsNullOrWhiteSpace(runtimePackage.PackageName))
+                {
+                    continue;
+                }
+
+                packageNames.Add(runtimePackage.PackageName.Trim());
+            }
+
+            return packageNames.Count > 0 ? string.Join(", ", packageNames) : "DefaultPackage";
+        }
 
         private static string PathGetRelative(string relativeTo, string path)
         {
@@ -686,7 +842,6 @@ namespace TEngine
                 BuildPlayer = source.BuildPlayer,
                 PlayerPlatform = source.PlayerPlatform,
                 PlayerOutputPath = source.PlayerOutputPath,
-                PackageNames = new List<string>(source.PackageNames ?? BuildConfig.GetDefaultPackageNames()),
             };
         }
 
