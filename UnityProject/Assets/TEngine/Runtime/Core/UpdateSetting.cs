@@ -89,6 +89,11 @@ namespace TEngine
         /// </summary>
         public string AssemblyTextAssetPath = "AssetRaw/DLL";
 
+        /// <summary>
+        /// 程序集文本资产资源包名
+        /// </summary>
+        public string AssemblyPackageName = "CodePackage";
+
         [Header("更新设置")]
         public UpdateStyle UpdateStyle = UpdateStyle.Force;
 

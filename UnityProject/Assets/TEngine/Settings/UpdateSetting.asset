@@ -27,6 +27,7 @@ MonoBehaviour:
   LogicMainDllName: GameLogic.dll
   AssemblyTextAssetExtension: .bytes
   AssemblyTextAssetPath: AssetRaw/DLL
+  AssemblyPackageName: CodePackage
   UpdateStyle: 1
   UpdateNotice: 1
   ResDownLoadPath: http://127.0.0.1:8081

@@ -64,19 +64,6 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
-    - GroupName: DLL
-      GroupDesc: 
-      AssetTags: 
-      ActiveRuleName: EnableGroup
-      Collectors:
-      - CollectPath: Assets/AssetRaw/DLL
-        CollectorGUID: 3aad79ec1ea08c24c891bd3c669d4125
-        CollectorType: 0
-        AddressRuleName: AddressByFileName
-        PackRuleName: PackDirectory
-        FilterRuleName: CollectAll
-        AssetTags: 
-        UserData: 
     - GroupName: Effects
       GroupDesc: 
       AssetTags: 
@@ -163,7 +150,7 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
-  - PackageName: OtherPackage
+  - PackageName: CodePackage
     PackageDesc: 
     EnableAddressable: 1
     SupportExtensionless: 1
@@ -172,46 +159,16 @@ MonoBehaviour:
     AutoCollectShaders: 1
     IgnoreRuleName: NormalIgnoreRule
     Groups:
-    - GroupName: ModelGroup
+    - GroupName: DLL
       GroupDesc: 
-      AssetTags: models
+      AssetTags: 
       ActiveRuleName: EnableGroup
-      Collectors: []
-    - GroupName: SceneGroup
-      GroupDesc: 
-      AssetTags: scenes
-      ActiveRuleName: EnableGroup
-      Collectors: []
-  - PackageName: Dlc1Package
-    PackageDesc: 
-    EnableAddressable: 1
-    SupportExtensionless: 1
-    LocationToLower: 0
-    IncludeAssetGUID: 0
-    AutoCollectShaders: 1
-    IgnoreRuleName: NormalIgnoreRule
-    Groups:
-    - GroupName: ModelGroup
-      GroupDesc: 
-      AssetTags: models
-      ActiveRuleName: EnableGroup
-      Collectors: []
-    - GroupName: SceneGroup
-      GroupDesc: 
-      AssetTags: scenes
-      ActiveRuleName: EnableGroup
-      Collectors: []
-  - PackageName: Dlc2Package
-    PackageDesc: 
-    EnableAddressable: 1
-    SupportExtensionless: 1
-    LocationToLower: 0
-    IncludeAssetGUID: 0
-    AutoCollectShaders: 1
-    IgnoreRuleName: NormalIgnoreRule
-    Groups:
-    - GroupName: ModelGroup
-      GroupDesc: 
-      AssetTags: models
-      ActiveRuleName: EnableGroup
-      Collectors: []
+      Collectors:
+      - CollectPath: Assets/AssetRaw/DLL
+        CollectorGUID: 3aad79ec1ea08c24c891bd3c669d4125
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
+        FilterRuleName: CollectAll
+        AssetTags: 
+        UserData: 

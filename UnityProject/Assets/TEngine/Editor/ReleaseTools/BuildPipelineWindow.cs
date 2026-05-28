@@ -570,7 +570,7 @@ namespace TEngine
 
         private void LoadSettings()
         {
-            _config = new BuildConfig();
+            _config = BuildConfig.CreateDefault();
 
             _platformIndex = EditorPrefs.GetInt("TEngine_BP_BuildTarget", -1);
             if (_platformIndex < 0 || _platformIndex >= PlatformTargets.Length)
@@ -686,6 +686,7 @@ namespace TEngine
                 BuildPlayer = source.BuildPlayer,
                 PlayerPlatform = source.PlayerPlatform,
                 PlayerOutputPath = source.PlayerOutputPath,
+                PackageNames = new List<string>(source.PackageNames ?? BuildConfig.GetDefaultPackageNames()),
             };
         }
 

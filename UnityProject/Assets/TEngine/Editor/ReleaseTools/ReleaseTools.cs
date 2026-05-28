@@ -57,7 +57,7 @@ namespace TEngine
             }
 
             BuildTarget target = GetBuildTarget(platform);
-            BuildInternal(target, outputRoot);
+            BuildInternal(target, outputRoot, packageVersion);
             Debug.LogWarning($"Start BuildPackage BuildTarget:{target} outputPath:{outputRoot}");
         }
 
@@ -118,36 +118,36 @@ namespace TEngine
         /// </summary>
         public static void BuildWithConfig(BuildConfig config, bool buildPlayer)
         {
-            // 1. [可选] 编译热更DLL
             if (config.BuildHotFixDll)
             {
                 Debug.Log("[BuildWithConfig] 编译热更DLL...");
                 BuildDLLCommand.BuildAndCopyDlls();
             }
 
-            // 2. 刷新资源
             AssetDatabase.Refresh();
 
-            // 3. 构建 AssetBundle
-            var buildResult = BuildInternalWithConfig(config);
-            if (!buildResult.Success)
+            var packageNames = GetBuildPackageNames(config);
+            YooAsset.Editor.BuildResult firstBuildResult = null;
+            foreach (var packageName in packageNames)
             {
-                Debug.LogError($"[BuildWithConfig] AssetBundle构建失败: {buildResult.ErrorInfo}");
-                return;
+                var buildResult = BuildInternalWithConfig(config, packageName, firstBuildResult != null);
+                if (!buildResult.Success)
+                {
+                    Debug.LogError($"[BuildWithConfig] AssetBundle构建失败: {packageName} - {buildResult.ErrorInfo}");
+                    return;
+                }
+
+                firstBuildResult ??= buildResult;
+                Debug.Log($"[BuildWithConfig] AssetBundle构建成功: {packageName} => {buildResult.OutputPackageDirectory}");
             }
 
-            Debug.Log($"[BuildWithConfig] AssetBundle构建成功: {buildResult.OutputPackageDirectory}");
-
-            // 4. [最小包] 删除 StreamingAssets 中的 .bundle 文件
-            if (config.MinimalPackage)
+            if (config.MinimalPackage && firstBuildResult != null)
             {
-                ProcessMinimalPackage(config.PackageVersion, config.RetainTags, buildResult.OutputPackageDirectory);
+                ProcessMinimalPackage(packageNames, config.PackageVersion, config.RetainTags, firstBuildResult.OutputPackageDirectory);
             }
 
-            // 5. 刷新资源
             AssetDatabase.Refresh();
 
-            // 7. [可选] 构建 Player
             if (buildPlayer || config.BuildPlayer)
             {
                 BuildImp(
@@ -158,13 +158,14 @@ namespace TEngine
             }
         }
 
+
         #endregion
 
         #region AssetBundle 构建
 
-        private static YooAsset.Editor.BuildResult BuildInternalWithConfig(BuildConfig config)
+        private static YooAsset.Editor.BuildResult BuildInternalWithConfig(BuildConfig config, string packageName, bool appendBuildinFiles)
         {
-            Debug.Log($"开始构建 : {config.BuildTarget}");
+            Debug.Log($"开始构建 : {config.BuildTarget} - {packageName}");
 
             IBuildPipeline pipeline;
             BuildParameters buildParameters;
@@ -182,7 +183,7 @@ namespace TEngine
                 pipeline = new ScriptableBuildPipeline();
                 buildParameters = scriptableBuildParameters;
                 scriptableBuildParameters.CompressOption = config.CompressOption;
-                scriptableBuildParameters.BuiltinShadersBundleName = GetBuiltinShaderBundleName("DefaultPackage");
+                scriptableBuildParameters.BuiltinShadersBundleName = GetBuiltinShaderBundleName(packageName);
                 scriptableBuildParameters.ReplaceAssetPathWithAddress = Settings.UpdateSetting.GetReplaceAssetPathWithAddress();
             }
 
@@ -198,12 +199,12 @@ namespace TEngine
             buildParameters.BuildPipeline = config.BuildPipeline.ToString();
             buildParameters.BuildTarget = config.BuildTarget;
             buildParameters.BuildBundleType = (int)EBuildBundleType.AssetBundle;
-            buildParameters.PackageName = "DefaultPackage";
+            buildParameters.PackageName = packageName;
             buildParameters.PackageVersion = config.PackageVersion;
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
             buildParameters.EnableSharePackRule = config.EnableSharePackRule;
             buildParameters.FileNameStyle = config.FileNameStyle;
-            buildParameters.BuildinFileCopyOption = config.BuildinFileCopyOption;
+            buildParameters.BuildinFileCopyOption = GetBuildinFileCopyOption(config.BuildinFileCopyOption, appendBuildinFiles);
             buildParameters.BuildinFileCopyParams = string.Empty;
             buildParameters.EncryptionServices = GetEncryptionFromType(config.EncryptionType);
             buildParameters.ClearBuildCacheFiles = config.ClearBuildCache;
@@ -213,60 +214,39 @@ namespace TEngine
             return result;
         }
 
+
         /// <summary>
         /// 旧版 BuildInternal，供 CLI 入口兼容
         /// </summary>
         private static void BuildInternal(BuildTarget buildTarget, string outputRoot, string packageVersion = "1.0",
             EBuildPipeline buildPipeline = EBuildPipeline.ScriptableBuildPipeline)
         {
-            Debug.Log($"开始构建 : {buildTarget}");
+            var config = BuildConfig.CreateDefault();
+            config.BuildTarget = buildTarget;
+            config.OutputRoot = outputRoot;
+            config.PackageVersion = packageVersion;
+            config.BuildPipeline = buildPipeline;
+            config.EncryptionType = EncryptionType.None;
+            config.BuildPlayer = false;
+            config.BuildHotFixDll = false;
 
-            IBuildPipeline pipeline = null;
-            BuildParameters buildParameters = null;
-
-            if (buildPipeline == EBuildPipeline.BuiltinBuildPipeline)
+            var packageNames = GetBuildPackageNames(config);
+            for (var i = 0; i < packageNames.Count; i++)
             {
-                BuiltinBuildParameters builtinBuildParameters = new BuiltinBuildParameters();
-                pipeline = new BuiltinBuildPipeline();
-                buildParameters = builtinBuildParameters;
-                builtinBuildParameters.CompressOption = ECompressOption.LZ4;
-            }
-            else
-            {
-                ScriptableBuildParameters scriptableBuildParameters = new ScriptableBuildParameters();
-                pipeline = new ScriptableBuildPipeline();
-                buildParameters = scriptableBuildParameters;
-                scriptableBuildParameters.CompressOption = ECompressOption.LZ4;
-                scriptableBuildParameters.BuiltinShadersBundleName = GetBuiltinShaderBundleName("DefaultPackage");
-                scriptableBuildParameters.ReplaceAssetPathWithAddress = Settings.UpdateSetting.GetReplaceAssetPathWithAddress();
-            }
-
-            buildParameters.BuildOutputRoot = outputRoot;
-            buildParameters.BuildinFileRoot = AssetBundleBuilderHelper.GetStreamingAssetsRoot();
-            buildParameters.BuildPipeline = buildPipeline.ToString();
-            buildParameters.BuildTarget = buildTarget;
-            buildParameters.BuildBundleType = (int)EBuildBundleType.AssetBundle;
-            buildParameters.PackageName = "DefaultPackage";
-            buildParameters.PackageVersion = packageVersion;
-            buildParameters.VerifyBuildingResult = true;
-            buildParameters.EnableSharePackRule = true;
-            buildParameters.FileNameStyle = EFileNameStyle.BundleName_HashName;
-            buildParameters.BuildinFileCopyOption = EBuildinFileCopyOption.ClearAndCopyAll;
-            buildParameters.BuildinFileCopyParams = string.Empty;
-            buildParameters.EncryptionServices = GetEncryptionFromResourceModuleDriver();
-            buildParameters.ClearBuildCacheFiles = false;
-            buildParameters.UseAssetDependencyDB = true;
-
-            var buildResult = pipeline.Run(buildParameters, true);
-            if (buildResult.Success)
-            {
-                Debug.Log($"构建成功 : {buildResult.OutputPackageDirectory}");
-            }
-            else
-            {
-                Debug.LogError($"构建失败 : {buildResult.ErrorInfo}");
+                var packageName = packageNames[i];
+                var buildResult = BuildInternalWithConfig(config, packageName, i > 0);
+                if (buildResult.Success)
+                {
+                    Debug.Log($"构建成功 : {packageName} => {buildResult.OutputPackageDirectory}");
+                }
+                else
+                {
+                    Debug.LogError($"构建失败 : {packageName} => {buildResult.ErrorInfo}");
+                    break;
+                }
             }
         }
+
 
         #endregion
 
@@ -287,40 +267,40 @@ namespace TEngine
         /// 最小包模式：删除 StreamingAssets 中不带保留 tag 的 .bundle 文件
         /// 使用构建输出的 BuildReport（JSON）获取 bundle 的 tag 信息
         /// </summary>
-        public static void ProcessMinimalPackage(string packageVersion, string retainTags, string outputPackageDirectory)
+        public static void ProcessMinimalPackage(IReadOnlyList<string> packageNames, string packageVersion, string retainTags, string outputPackageDirectory)
         {
             string streamingRoot = AssetBundleBuilderHelper.GetStreamingAssetsRoot();
-            string packageName = "DefaultPackage";
 
-            // 定位构建报告文件
-            string reportFileName = YooAssetSettingsData.GetBuildReportFileName(packageName, packageVersion);
-            string reportPath = $"{outputPackageDirectory}/{reportFileName}";
-
-            if (!File.Exists(reportPath))
-            {
-                Debug.LogError($"[最小包] 未找到构建报告: {reportPath}，跳过最小包处理");
-                return;
-            }
-
-            // 反序列化 BuildReport
-            YooAsset.Editor.BuildReport buildReport;
-            try
-            {
-                string jsonData = ReadAllText(reportPath);
-                buildReport = YooAsset.Editor.BuildReport.Deserialize(jsonData);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[最小包] 反序列化构建报告失败: {e.Message}");
-                return;
-            }
-
-            // 构建保留文件名集合
             HashSet<string> retainFileNames = new HashSet<string>();
             string[] retainTagArray = ParseRetainTags(retainTags);
 
-            if (retainTagArray.Length > 0)
+            foreach (var packageName in packageNames)
             {
+                string reportFileName = YooAssetSettingsData.GetBuildReportFileName(packageName, packageVersion);
+                string reportPath = $"{outputPackageDirectory}/{reportFileName}";
+                if (!File.Exists(reportPath))
+                {
+                    Debug.LogError($"[最小包] 未找到构建报告: {reportPath}，跳过 {packageName} 处理");
+                    continue;
+                }
+
+                YooAsset.Editor.BuildReport buildReport;
+                try
+                {
+                    string jsonData = ReadAllText(reportPath);
+                    buildReport = YooAsset.Editor.BuildReport.Deserialize(jsonData);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"[最小包] 反序列化构建报告失败: {packageName} - {e.Message}");
+                    continue;
+                }
+
+                if (retainTagArray.Length <= 0)
+                {
+                    continue;
+                }
+
                 foreach (var bundleInfo in buildReport.BundleInfos)
                 {
                     if (bundleInfo.Tags != null && HasTag(bundleInfo.Tags, retainTagArray))
@@ -328,10 +308,13 @@ namespace TEngine
                         retainFileNames.Add(bundleInfo.FileName);
                     }
                 }
+            }
+
+            if (retainTagArray.Length > 0)
+            {
                 Debug.Log($"[最小包] 保留 Tag: [{string.Join(", ", retainTagArray)}]，匹配 {retainFileNames.Count} 个 bundle");
             }
 
-            // 扫描 StreamingAssets 下的 .bundle 文件
             if (!Directory.Exists(streamingRoot))
             {
                 Debug.LogWarning($"[最小包] StreamingAssets 目录不存在: {streamingRoot}");
@@ -359,9 +342,37 @@ namespace TEngine
             }
 
             Debug.Log($"[最小包] 处理完成 - 删除 {deletedCount} 个 .bundle，保留 {retainedCount} 个 .bundle");
-
-            // 删除空目录
             CleanEmptyDirectories(streamingRoot);
+        }
+
+
+        private static EBuildinFileCopyOption GetBuildinFileCopyOption(EBuildinFileCopyOption option, bool appendBuildinFiles)
+        {
+            if (!appendBuildinFiles)
+            {
+                return option;
+            }
+
+            return option switch
+            {
+                EBuildinFileCopyOption.ClearAndCopyAll => EBuildinFileCopyOption.OnlyCopyAll,
+                EBuildinFileCopyOption.ClearAndCopyByTags => EBuildinFileCopyOption.OnlyCopyByTags,
+                _ => option
+            };
+        }
+
+        private static List<string> GetBuildPackageNames(BuildConfig config)
+        {
+            var packageNames = config.PackageNames != null && config.PackageNames.Count > 0
+                ? config.PackageNames.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList()
+                : BuildConfig.GetDefaultPackageNames();
+
+            if (packageNames.Count <= 0)
+            {
+                packageNames.Add("DefaultPackage");
+            }
+
+            return packageNames;
         }
 
         private static bool HasTag(string[] bundleTags, string[] matchTags)

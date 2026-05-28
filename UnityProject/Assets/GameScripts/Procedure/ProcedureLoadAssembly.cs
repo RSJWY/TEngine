@@ -19,6 +19,7 @@ namespace Procedure
     public class ProcedureLoadAssembly : ProcedureBase
     {
         private bool _enableAddressable = true;
+        private string _assemblyPackageName;
         public override bool UseNativeDialog => true;
         private int _loadAssetCount;
         private int _loadMetadataAssetCount;
@@ -37,6 +38,7 @@ namespace Procedure
         {
             base.OnInit(procedureOwner);
             _setting = Settings.UpdateSetting;
+            _assemblyPackageName = string.IsNullOrWhiteSpace(_setting.AssemblyPackageName) ? "CodePackage" : _setting.AssemblyPackageName;
         }
 
         protected override void OnEnter(IFsm<IProcedureModule> procedureOwner)
@@ -89,7 +91,7 @@ namespace Procedure
 
                         Log.Debug($"LoadAsset: [ {assetLocation} ]");
                         _loadAssetCount++;
-                        var result = await _resourceModule.LoadAssetAsync<TextAsset>(assetLocation);
+                        var result = await _resourceModule.LoadAssetAsync<TextAsset>(assetLocation, default, _assemblyPackageName);
                         LoadAssetSuccess(result);
                     }
 
@@ -248,7 +250,7 @@ namespace Procedure
 
                 Log.Debug($"LoadMetadataAsset: [ {assetLocation} ]");
                 _loadMetadataAssetCount++;
-                _resourceModule.LoadAsset<TextAsset>(assetLocation, LoadMetadataAssetSuccess);
+                _resourceModule.LoadAsset<TextAsset>(assetLocation, LoadMetadataAssetSuccess, _assemblyPackageName);
             }
             _loadMetadataAssemblyWait = true;
         }

@@ -1,11 +1,10 @@
-﻿using System;
+using System;
 using Cysharp.Threading.Tasks;
 using Launcher;
 using TEngine;
 using UnityEngine;
 using YooAsset;
 using ProcedureOwner = TEngine.IFsm<TEngine.IProcedureModule>;
-using Utility = TEngine.Utility;
 
 namespace Procedure
 {
@@ -23,8 +22,11 @@ namespace Procedure
             base.OnEnter(procedureOwner);
 
             _procedureOwner = procedureOwner;
+            procedureOwner.RemoveData(MainPackageVersionKey);
+            procedureOwner.RemoveData(CodePackageVersionKey);
+            procedureOwner.RemoveData(DownloadPackageNamesKey);
+            procedureOwner.RemoveData(CurrentDownloadPackageKey);
 
-            //Fire Forget立刻触发UniTask初始化Package
             InitPackage(procedureOwner).Forget();
         }
 
@@ -32,88 +34,67 @@ namespace Procedure
         {
             try
             {
-                var initializationOperation = await _resourceModule.InitPackage(_resourceModule.DefaultPackageName);
-
-                if (initializationOperation.Status == EOperationStatus.Succeed)
+                foreach (var packageName in GetRuntimePackageNames())
                 {
-                    //热更新阶段文本初始化
-                    LoadText.Instance.InitConfigData(null);
+                    var initializationOperation = await _resourceModule.InitPackage(packageName);
+                    if (initializationOperation == null || initializationOperation.Status != EOperationStatus.Succeed)
+                    {
+                        var error = initializationOperation == null ? $"{packageName} 初始化返回空结果" : initializationOperation.Error;
+                        OnInitPackageFailed(procedureOwner, packageName, error);
+                        return;
+                    }
+                }
 
-                    EPlayMode playMode = _resourceModule.PlayMode;
+                LoadText.Instance.InitConfigData(null);
 
-                    // 编辑器模式。
-                    if (playMode == EPlayMode.EditorSimulateMode)
-                    {
-                        Log.Info("Editor resource mode detected.");
-                        ChangeState<ProcedureInitResources>(procedureOwner);
-                    }
-                    // 单机模式。
-                    else if (playMode == EPlayMode.OfflinePlayMode)
-                    {
-                        Log.Info("Package resource mode detected.");
-                        ChangeState<ProcedureInitResources>(procedureOwner);
-                    }
-                    // 可更新模式。
-                    else if (playMode == EPlayMode.HostPlayMode ||
-                             playMode == EPlayMode.WebPlayMode)
-                    {
-                        // 打开启动UI。
-                        LauncherMgr.ShowUI<LoadUpdateUI>();
-
-                        Log.Info("Updatable resource mode detected.");
-                        ChangeState<ProcedureInitResources>(procedureOwner);
-                    }
-                    else
-                    {
-                        Log.Error("UnKnow resource mode detected Please check???");
-                    }
+                EPlayMode playMode = _resourceModule.PlayMode;
+                if (playMode == EPlayMode.EditorSimulateMode)
+                {
+                    Log.Info("Editor resource mode detected.");
+                    ChangeState<ProcedureInitResources>(procedureOwner);
+                }
+                else if (playMode == EPlayMode.OfflinePlayMode)
+                {
+                    Log.Info("Package resource mode detected.");
+                    ChangeState<ProcedureInitResources>(procedureOwner);
+                }
+                else if (playMode == EPlayMode.HostPlayMode || playMode == EPlayMode.WebPlayMode)
+                {
+                    LauncherMgr.ShowUI<LoadUpdateUI>();
+                    Log.Info("Updatable resource mode detected.");
+                    ChangeState<ProcedureInitResources>(procedureOwner);
                 }
                 else
                 {
-                    // 打开启动UI。
-                    LauncherMgr.ShowUI<LoadUpdateUI>();
-
-                    Log.Error($"{initializationOperation.Error}");
-
-                    // 打开启动UI。
-                    LauncherMgr.ShowUI<LoadUpdateUI>($"资源初始化失败！");
-
-                    LauncherMgr.ShowMessageBox(
-                        $"资源初始化失败！点击确认重试 \n \n <color=#FF0000>原因{initializationOperation.Error}</color>",
-                        () => { Retry(procedureOwner); }, UnityEngine.Application.Quit);
+                    Log.Error("UnKnow resource mode detected Please check???");
                 }
             }
             catch (Exception e)
             {
-                OnInitPackageFailed(procedureOwner, e.Message);
+                OnInitPackageFailed(procedureOwner, _resourceModule.DefaultPackageName, e.Message);
             }
         }
 
-        private void OnInitPackageFailed(ProcedureOwner procedureOwner, string message)
+        private void OnInitPackageFailed(ProcedureOwner procedureOwner, string packageName, string message)
         {
-            // 打开启动UI。
             LauncherMgr.ShowUI<LoadUpdateUI>();
 
-            Log.Error($"{message}");
+            Log.Error($"{packageName} init failed: {message}");
+            LauncherMgr.ShowUI<LoadUpdateUI>("资源初始化失败！");
 
-            // 打开启动UI。
-            LauncherMgr.ShowUI<LoadUpdateUI>($"资源初始化失败！");
-
-            if (message.Contains("PackageManifest_DefaultPackage.version Error : HTTP/1.1 404 Not Found"))
+            if (message.Contains($"PackageManifest_{packageName}.version Error : HTTP/1.1 404 Not Found"))
             {
-                message = "请检查StreamingAssets/package/DefaultPackage/PackageManifest_DefaultPackage.version是否存在";
+                message = $"请检查StreamingAssets/package/{packageName}/PackageManifest_{packageName}.version是否存在";
             }
 
-            LauncherMgr.ShowMessageBox($"资源初始化失败！点击确认重试 \n \n <color=#FF0000>原因{message}</color>",
+            LauncherMgr.ShowMessageBox($"资源初始化失败！点击确认重试 \n \n包名：{packageName}\n<color=#FF0000>原因{message}</color>",
                 () => { Retry(procedureOwner); },
                 Application.Quit);
         }
 
         private void Retry(ProcedureOwner procedureOwner)
         {
-            // 打开启动UI。
-            LauncherMgr.ShowUI<LoadUpdateUI>($"重新初始化资源中...");
-
+            LauncherMgr.ShowUI<LoadUpdateUI>("重新初始化资源中...");
             InitPackage(procedureOwner).Forget();
         }
     }

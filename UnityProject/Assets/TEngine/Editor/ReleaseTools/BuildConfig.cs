@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using YooAsset;
@@ -14,6 +15,7 @@ namespace TEngine
         public EncryptionType EncryptionType = EncryptionType.None;
         public string PackageVersion = "";
         public string OutputRoot = "./Builds/";
+        public List<string> PackageNames = new List<string> { "DefaultPackage", "CodePackage" };
 
         // 最小包设置
         public bool MinimalPackage;
@@ -37,7 +39,7 @@ namespace TEngine
 
         public static BuildConfig CreateDefault()
         {
-            return new BuildConfig
+            var config = new BuildConfig
             {
                 BuildTarget = EditorUserBuildSettings.activeBuildTarget,
                 PlayerPlatform = EditorUserBuildSettings.activeBuildTarget,
@@ -45,6 +47,21 @@ namespace TEngine
                 OutputRoot = "./Builds/",
                 PlayerOutputPath = GetDefaultPlayerOutputPath(EditorUserBuildSettings.activeBuildTarget),
             };
+
+            config.PackageNames = GetDefaultPackageNames();
+            return config;
+        }
+
+        public static List<string> GetDefaultPackageNames()
+        {
+            var packageNames = new List<string> { "DefaultPackage" };
+            var assemblyPackageName = Settings.UpdateSetting != null ? Settings.UpdateSetting.AssemblyPackageName : string.Empty;
+            if (!string.IsNullOrEmpty(assemblyPackageName) && !packageNames.Contains(assemblyPackageName))
+            {
+                packageNames.Add(assemblyPackageName);
+            }
+
+            return packageNames;
         }
 
         public static string GetDefaultPackageVersion()
