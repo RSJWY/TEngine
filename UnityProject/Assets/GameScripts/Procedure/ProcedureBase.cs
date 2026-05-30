@@ -9,6 +9,7 @@ namespace Procedure
         protected const string CurrentDownloadPackageKey = "Procedure.CurrentDownloadPackage";
         protected const string DownloadRetryCountKey = "Procedure.DownloadRetryCount";
         protected const string SkipDownloadVersionSaveKey = "Procedure.SkipDownloadVersionSave";
+        protected const string ConfirmedVersionUpdateKey = "Procedure.ConfirmedVersionUpdate";
 
         public abstract bool UseNativeDialog { get; }
 

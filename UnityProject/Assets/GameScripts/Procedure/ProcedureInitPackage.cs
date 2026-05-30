@@ -24,6 +24,7 @@ namespace Procedure
             _procedureOwner = procedureOwner;
             procedureOwner.RemoveData(DownloadPackageNamesKey);
             procedureOwner.RemoveData(CurrentDownloadPackageKey);
+            procedureOwner.RemoveData(ConfirmedVersionUpdateKey);
 
             foreach (var runtimePackage in GetRuntimePackages())
             {

@@ -46,6 +46,7 @@ namespace Procedure
 
             procedureOwner.RemoveData(DownloadPackageNamesKey);
             procedureOwner.RemoveData(CurrentDownloadPackageKey);
+            procedureOwner.RemoveData(ConfirmedVersionUpdateKey);
         }
 
         protected override void OnUpdate(ProcedureOwner procedureOwner, float elapseSeconds, float realElapseSeconds)

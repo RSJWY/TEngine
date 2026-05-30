@@ -34,9 +34,9 @@ namespace Launcher
 
         #endregion
 
-        private const string m_cancelText = "Cancel";
-        private const string m_confirmText = "Confirm";
-        private const string m_updateText = "Update";
+        private const string m_cancelText = "取消";
+        private const string m_confirmText = "确定";
+        private const string m_updateText = "更新";
 
         public Action OnConfirmClick { get; set; }
         public Action OnUpdateClick { get; set; }
@@ -166,6 +166,8 @@ namespace Launcher
 
         private void RefreshDesc()
         {
+            RefreshButtonText();
+
             if (_autoConfirmDelay > 0f && !_handled && (OnConfirmClick != null || (_autoConfirmUsesCancel && OnCancelClick != null)))
             {
                 var remainSeconds = Mathf.CeilToInt(Mathf.Max(0f, _remainingSeconds));
@@ -175,6 +177,30 @@ namespace Launcher
             }
 
             m_textDesc.text = _baseDesc;
+        }
+
+        private void RefreshButtonText()
+        {
+            m_textCancel.text = m_cancelText;
+            m_textUpdate.text = m_updateText;
+            m_textConfirm.text = m_confirmText;
+
+            if (_autoConfirmDelay <= 0f || _handled)
+            {
+                return;
+            }
+
+            var remainSeconds = Mathf.CeilToInt(Mathf.Max(0f, _remainingSeconds));
+            if (_autoConfirmUsesCancel && OnCancelClick != null)
+            {
+                m_textCancel.text = $"{m_cancelText}({remainSeconds})";
+                return;
+            }
+
+            if (OnConfirmClick != null)
+            {
+                m_textConfirm.text = $"{m_confirmText}({remainSeconds})";
+            }
         }
 
         private void CancelAutoConfirm()

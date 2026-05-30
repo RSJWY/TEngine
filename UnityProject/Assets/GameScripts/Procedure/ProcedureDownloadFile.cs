@@ -96,7 +96,7 @@ namespace Procedure
                 : downloadErrorData.PackageName;
             string errorInfo = string.IsNullOrEmpty(downloadErrorData.ErrorInfo) ? "Unknown Error" : downloadErrorData.ErrorInfo;
 
-            LauncherMgr.ShowMessageBox($"Failed to download file : {downloadErrorData.FileName}\nPackage: {packageName}\nError: {errorInfo}\n\n已自动重试 {downloadRetryCount} 次，点击确认重新检查更新，取消退出应用",
+            LauncherMgr.ShowMessageBox($"下载文件失败：{downloadErrorData.FileName}\n资源包：{packageName}\n原因：{errorInfo}\n\n已自动重试 {downloadRetryCount} 次，点击确定重新检查更新，点击取消退出应用",
                 () =>
                 {
                     _procedureOwner.RemoveData(DownloadRetryCountKey);
