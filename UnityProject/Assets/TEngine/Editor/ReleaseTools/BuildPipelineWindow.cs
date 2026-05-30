@@ -360,6 +360,12 @@ namespace TEngine
                             GUILayout.Height(EditorGUIUtility.singleLineHeight));
 
                         EditorGUILayout.HelpBox(
+                            $"发布整理源目录使用打包工具的 AB输出目录：{_config.OutputRoot}\n" +
+                            $"实际读取：{ReleaseTools.GetBuildPlatformOutputRoot(_config)}/<PackageName>/<Version>\n" +
+                            "不是额外去读取 YooAsset 的其他默认输出目录。",
+                            MessageType.Info);
+
+                        EditorGUILayout.HelpBox(
                             "发布整理使用运行时远端平台名，而不是 YooAsset 构建目录名，可避免平台目录不一致导致 404。",
                             MessageType.Info);
                     }
