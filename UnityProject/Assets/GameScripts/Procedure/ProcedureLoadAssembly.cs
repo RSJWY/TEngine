@@ -214,14 +214,20 @@ namespace Procedure
             _resourceModule.UnloadAsset(textAsset);
         }
 
-        public void LoadMetadataForAOTAssembly()
+        private async UniTaskVoid LoadMetadataForAOTAssembly()
         {
-            if (_setting.AOTMetaAssemblies.Count == 0)
+            Log.Debug($"[AOTMetadata] 开始准备加载AOT补充元数据。Package:{_assemblyPackageName}, Addressable:{_enableAddressable}, AssetPath:{_setting.AssemblyTextAssetPath}, Extension:{_setting.AssemblyTextAssetExtension}");
+            var aotMetaAssemblies = await GetAOTMetaAssembliesAsync();
+            if (aotMetaAssemblies.Count == 0)
             {
+                Log.Warning("[AOTMetadata] AOT补充元数据列表为空，跳过加载。");
                 _loadMetadataAssemblyComplete = true;
                 return;
             }
-            foreach (string aotDllName in _setting.AOTMetaAssemblies)
+
+            Log.Debug($"[AOTMetadata] 最终运行时AOT补充元数据加载列表，Count:{aotMetaAssemblies.Count}, List:{string.Join(", ", aotMetaAssemblies)}");
+            _loadMetadataAssemblyWait = true;
+            foreach (string aotDllName in aotMetaAssemblies)
             {
                 var assetLocation = aotDllName;
                 if (!_enableAddressable)
@@ -233,31 +239,79 @@ namespace Procedure
                             $"{aotDllName}{_setting.AssemblyTextAssetExtension}"));
                 }
 
-                Log.Debug($"LoadMetadataAsset: [ {assetLocation} ] from package [ {_assemblyPackageName} ]");
+                Log.Debug($"[AOTMetadata] 请求加载AOT元数据资源。Dll:{aotDllName}, Location:{assetLocation}, Package:{_assemblyPackageName}");
                 _loadMetadataAssetCount++;
                 _resourceModule.LoadAsset<TextAsset>(assetLocation, LoadMetadataAssetSuccess, _assemblyPackageName);
             }
-            _loadMetadataAssemblyWait = true;
+        }
+
+        private async UniTask<List<string>> GetAOTMetaAssembliesAsync()
+        {
+            var manifestLocation = AOTMetadataManifest.ManifestAssetName;
+            if (!_enableAddressable)
+            {
+                manifestLocation = Utility.Path.GetRegularPath(
+                    Path.Combine("Assets", _setting.AssemblyTextAssetPath, $"{AOTMetadataManifest.ManifestAssetName}.asset"));
+            }
+
+            Log.Debug($"[AOTMetadata] 查找运行时AOTMetadataManifest。Location:{manifestLocation}, Package:{_assemblyPackageName}");
+            if (_resourceModule.CheckLocationValid(manifestLocation, _assemblyPackageName))
+            {
+                Log.Debug($"[AOTMetadata] AOTMetadataManifest location有效，开始加载。Location:{manifestLocation}, Package:{_assemblyPackageName}");
+                var manifest = await _resourceModule.LoadAssetAsync<AOTMetadataManifest>(manifestLocation, default, _assemblyPackageName);
+                if (manifest != null && manifest.AOTMetaAssemblies != null && manifest.AOTMetaAssemblies.Count > 0)
+                {
+                    var assemblies = manifest.AOTMetaAssemblies
+                        .Where(assembly => !string.IsNullOrWhiteSpace(assembly))
+                        .Distinct(StringComparer.Ordinal)
+                        .ToList();
+                    _resourceModule.UnloadAsset(manifest);
+                    Log.Debug($"[AOTMetadata] 使用热更AOTMetadataManifest列表。Location:{manifestLocation}, Count:{assemblies.Count}, List:{string.Join(", ", assemblies)}");
+                    return assemblies;
+                }
+
+                if (manifest != null)
+                {
+                    Log.Warning($"[AOTMetadata] AOTMetadataManifest已加载但列表为空，回退 UpdateSetting.AOTMetaAssemblies。Location:{manifestLocation}");
+                    _resourceModule.UnloadAsset(manifest);
+                }
+                else
+                {
+                    Log.Warning($"[AOTMetadata] AOTMetadataManifest加载结果为空，回退 UpdateSetting.AOTMetaAssemblies。Location:{manifestLocation}");
+                }
+            }
+            else
+            {
+                Log.Warning($"[AOTMetadata] AOTMetadataManifest location无效，回退 UpdateSetting.AOTMetaAssemblies。Location:{manifestLocation}, Package:{_assemblyPackageName}");
+            }
+
+            var fallbackAssemblies = _setting.AOTMetaAssemblies
+                .Where(assembly => !string.IsNullOrWhiteSpace(assembly))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            Log.Debug($"[AOTMetadata] 使用 UpdateSetting.AOTMetaAssemblies 回退列表，Count:{fallbackAssemblies.Count}, List:{string.Join(", ", fallbackAssemblies)}");
+            return fallbackAssemblies;
         }
 
         private void LoadMetadataAssetSuccess(TextAsset textAsset)
         {
             _loadMetadataAssetCount--;
-            if (null == textAsset)
+            if (textAsset == null)
             {
-                Log.Debug("LoadMetadataAssetSuccess:Load Metadata failed.");
+                Log.Warning("[AOTMetadata] AOT元数据资源加载失败，TextAsset为空。");
+                _loadMetadataAssemblyComplete = _loadMetadataAssemblyWait && 0 == _loadMetadataAssetCount;
                 return;
             }
 
             string assetName = textAsset.name;
-            Log.Debug($"LoadMetadataAssetSuccess, assetName: [ {assetName} ], package: [ {_assemblyPackageName} ]");
+            Log.Debug($"[AOTMetadata] AOT元数据资源加载成功。Asset:{assetName}, Package:{_assemblyPackageName}, Size:{textAsset.bytes.Length} bytes, Remaining:{_loadMetadataAssetCount}");
             try
             {
                 byte[] dllBytes = textAsset.bytes;
 #if ENABLE_HYBRIDCLR
                 HomologousImageMode mode = HomologousImageMode.SuperSet;
                 LoadImageErrorCode err = (LoadImageErrorCode)HybridCLR.RuntimeApi.LoadMetadataForAOTAssembly(dllBytes, mode);
-                Log.Warning($"LoadMetadataForAOTAssembly:{assetName}. mode:{mode} ret:{err}");
+                Log.Warning($"[AOTMetadata] HybridCLR LoadMetadataForAOTAssembly 完成。Asset:{assetName}, Mode:{mode}, Ret:{err}");
 #endif
             }
             catch (Exception e)
@@ -269,8 +323,8 @@ namespace Procedure
             finally
             {
                 _loadMetadataAssemblyComplete = _loadMetadataAssemblyWait && 0 == _loadMetadataAssetCount;
+                _resourceModule.UnloadAsset(textAsset);
             }
-            _resourceModule.UnloadAsset(textAsset);
         }
     }
 }
