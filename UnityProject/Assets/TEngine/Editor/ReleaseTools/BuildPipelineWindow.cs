@@ -563,19 +563,32 @@ namespace TEngine
             }
             EditorGUILayout.EndHorizontal();
 
-            var fullBuildStyle = new GUIStyle(GUI.skin.button)
+            EditorGUILayout.BeginHorizontal();
             {
-                fontSize = 13,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = new Color(0.2f, 0.6f, 1f) },
-            };
+                var fullBuildStyle = new GUIStyle(GUI.skin.button)
+                {
+                    fontSize = 13,
+                    fontStyle = FontStyle.Bold,
+                    normal = { textColor = new Color(0.2f, 0.6f, 1f) },
+                };
 
-            if (GUILayout.Button("一键构建 (AB + Player)", fullBuildStyle, GUILayout.Height(38)))
-            {
-                SaveSettings();
-                _config.BuildPlayer = true;
-                ExecuteBuild(buildPlayer: true);
+                if (GUILayout.Button("一键构建 (AB + Player)", fullBuildStyle, GUILayout.Height(38)))
+                {
+                    SaveSettings();
+                    _config.BuildPlayer = true;
+                    ExecuteBuild(buildPlayer: true);
+                }
+
+                using (new EditorGUI.DisabledScope(!_config.EnablePublishCopy))
+                {
+                    if (GUILayout.Button("仅执行发布整理", GUILayout.Height(38)))
+                    {
+                        SaveSettings();
+                        ExecutePublishOnly();
+                    }
+                }
             }
+            EditorGUILayout.EndHorizontal();
 
             GUILayout.Space(5);
         }
@@ -630,6 +643,12 @@ namespace TEngine
                 AddLog($"版本号为空，自动生成: {_config.PackageVersion}");
             }
 
+            if (_config.EnablePublishCopy)
+            {
+                AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(_config)}");
+                AddLog($"发布平台目录: {ReleaseTools.GetRemotePlatformName(_config.BuildTarget)}");
+            }
+
             try
             {
                 Application.logMessageReceived += OnBuildLogReceived;
@@ -659,6 +678,91 @@ namespace TEngine
 
             _showBuildLog = true;
             Repaint();
+        }
+
+        private void ExecutePublishOnly()
+        {
+            _buildLogs.Clear();
+            AddLog("========== 仅执行发布整理 ==========");
+            AddLog($"构建输出目录: {ReleaseTools.GetBuildPlatformOutputRoot(_config)}");
+            AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(_config)}");
+
+            var versions = ReleaseTools.GetPublishableVersions(_config);
+            if (versions.Count <= 0)
+            {
+                AddLog("[错误] 未找到可整理的公共版本目录。请先完成 AssetBundle 构建。");
+                _showBuildLog = true;
+                Repaint();
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_config.PackageVersion) && versions.Contains(_config.PackageVersion))
+            {
+                RunPublishOnly(_config.PackageVersion);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_config.PackageVersion))
+            {
+                AddLog($"[WARN] 当前版本号未命中现有构建目录: {_config.PackageVersion}");
+            }
+
+            if (versions.Count == 1)
+            {
+                RunPublishOnly(versions[0]);
+                return;
+            }
+
+            ShowPublishVersionMenu(versions);
+            ShowNotification(new GUIContent("请选择要整理的版本"));
+            _showBuildLog = true;
+            Repaint();
+        }
+
+        private void RunPublishOnly(string packageVersion)
+        {
+            AddLog($"整理版本: {packageVersion}");
+
+            try
+            {
+                Application.logMessageReceived += OnBuildLogReceived;
+                if (ReleaseTools.PublishFromExistingBuild(_config, packageVersion))
+                {
+                    AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(_config)}");
+                    AddLog($"发布平台目录: {ReleaseTools.GetRemotePlatformName(_config.BuildTarget)}");
+                    AddLog("========== 发布整理完成 ==========");
+                }
+                else
+                {
+                    AddLog("[错误] 发布整理执行失败。");
+                }
+            }
+            catch (Exception e)
+            {
+                AddLog($"[错误] {e.Message}");
+                Debug.LogException(e);
+            }
+            finally
+            {
+                Application.logMessageReceived -= OnBuildLogReceived;
+            }
+
+            _showBuildLog = true;
+            Repaint();
+        }
+
+        private void ShowPublishVersionMenu(IReadOnlyList<string> versions)
+        {
+            var menu = new GenericMenu();
+            for (var i = 0; i < versions.Count; i++)
+            {
+                var version = versions[i];
+                var isRecommended = i == 0;
+                var menuLabel = isRecommended ? $"{version}（推荐）" : version;
+                menu.AddItem(new GUIContent(menuLabel), false, () => RunPublishOnly(version));
+            }
+
+            menu.ShowAsContext();
         }
 
         private void ExecuteBuildPlayerOnly()

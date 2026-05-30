@@ -258,6 +258,23 @@ namespace TEngine
 
         #region 发布整理
 
+        public static string GetResolvedOutputRoot(BuildConfig config)
+        {
+            var outputRoot = string.IsNullOrWhiteSpace(config.OutputRoot) ? "./Builds/" : config.OutputRoot;
+            if (!Path.IsPathRooted(outputRoot))
+            {
+                outputRoot = Path.Combine(Application.dataPath + "/../", outputRoot);
+            }
+
+            return Path.GetFullPath(outputRoot).Replace('\\', '/');
+        }
+
+        public static string GetBuildPlatformOutputRoot(BuildConfig config)
+        {
+            var outputRoot = GetResolvedOutputRoot(config);
+            return Path.Combine(outputRoot, config.BuildTarget.ToString()).Replace('\\', '/');
+        }
+
         public static string GetPublishOutputRoot(BuildConfig config)
         {
             var publishRoot = string.IsNullOrWhiteSpace(config.PublishRoot) ? "./Publish/" : config.PublishRoot;
@@ -284,7 +301,88 @@ namespace TEngine
             };
         }
 
+        public static List<string> GetPublishableVersions(BuildConfig config)
+        {
+            var runtimePackages = GetBuildPackages();
+            if (runtimePackages.Count <= 0)
+            {
+                return new List<string>();
+            }
+
+            var versionTimes = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+            var candidateVersions = new HashSet<string>(StringComparer.Ordinal);
+            var isFirstPackage = true;
+
+            foreach (var runtimePackage in runtimePackages)
+            {
+                var packageVersions = GetPackageVersionDirectories(config, runtimePackage.PackageName);
+                if (isFirstPackage)
+                {
+                    foreach (var packageVersion in packageVersions)
+                    {
+                        candidateVersions.Add(packageVersion.Key);
+                        versionTimes[packageVersion.Key] = packageVersion.Value;
+                    }
+
+                    isFirstPackage = false;
+                    continue;
+                }
+
+                candidateVersions.IntersectWith(packageVersions.Keys);
+                foreach (var version in candidateVersions.ToArray())
+                {
+                    if (packageVersions.TryGetValue(version, out var lastWriteTimeUtc) && versionTimes.TryGetValue(version, out var existingTime))
+                    {
+                        versionTimes[version] = existingTime > lastWriteTimeUtc ? existingTime : lastWriteTimeUtc;
+                    }
+                }
+            }
+
+            return candidateVersions
+                .OrderByDescending(version => versionTimes.TryGetValue(version, out var lastWriteTimeUtc)
+                    ? lastWriteTimeUtc
+                    : DateTime.MinValue)
+                .ThenByDescending(version => version, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        public static bool PublishFromExistingBuild(BuildConfig config, string packageVersion)
+        {
+            if (string.IsNullOrWhiteSpace(packageVersion))
+            {
+                Debug.LogError("[Publish] 发布整理失败：版本号为空。");
+                return false;
+            }
+
+            var runtimePackages = GetBuildPackages();
+            var packageDirectories = new List<(string PackageName, string SourceDirectory)>();
+            foreach (var runtimePackage in runtimePackages)
+            {
+                var sourceDirectory = GetPackageVersionDirectory(config, runtimePackage.PackageName, packageVersion);
+                if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
+                {
+                    Debug.LogError($"[Publish] 发布整理失败：未找到版本目录 {runtimePackage.PackageName}/{packageVersion}");
+                    return false;
+                }
+
+                packageDirectories.Add((runtimePackage.PackageName, sourceDirectory));
+            }
+
+            foreach (var packageDirectory in packageDirectories)
+            {
+                PublishBuiltPackage(config, packageDirectory.PackageName, packageDirectory.SourceDirectory, packageVersion);
+            }
+
+            Debug.Log($"[Publish] 已按版本整理完成：{packageVersion} => {GetPublishOutputRoot(config)}");
+            return true;
+        }
+
         private static void PublishBuiltPackage(BuildConfig config, string packageName, string outputPackageDirectory)
+        {
+            PublishBuiltPackage(config, packageName, outputPackageDirectory, config.PackageVersion);
+        }
+
+        private static void PublishBuiltPackage(BuildConfig config, string packageName, string outputPackageDirectory, string packageVersion)
         {
             if (string.IsNullOrWhiteSpace(outputPackageDirectory) || !Directory.Exists(outputPackageDirectory))
             {
@@ -307,8 +405,37 @@ namespace TEngine
             CopyDirectory(outputPackageDirectory, targetDirectory);
 
             var versionRecordPath = Path.Combine(targetDirectory, "_build_version.txt");
-            File.WriteAllText(versionRecordPath, config.PackageVersion ?? string.Empty);
+            File.WriteAllText(versionRecordPath, packageVersion ?? string.Empty);
             Debug.Log($"[Publish] 发布整理完成: {packageName} => {targetDirectory}");
+        }
+
+        private static Dictionary<string, DateTime> GetPackageVersionDirectories(BuildConfig config, string packageName)
+        {
+            var packageRoot = Path.Combine(GetBuildPlatformOutputRoot(config), packageName);
+            if (!Directory.Exists(packageRoot))
+            {
+                return new Dictionary<string, DateTime>(StringComparer.Ordinal);
+            }
+
+            var packageVersions = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+            foreach (var directory in Directory.GetDirectories(packageRoot, "*", SearchOption.TopDirectoryOnly))
+            {
+                var directoryName = Path.GetFileName(directory);
+                if (string.IsNullOrWhiteSpace(directoryName) || string.Equals(directoryName, "OutputCache", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                packageVersions[directoryName] = Directory.GetLastWriteTimeUtc(directory);
+            }
+
+            return packageVersions;
+        }
+
+        private static string GetPackageVersionDirectory(BuildConfig config, string packageName, string packageVersion)
+        {
+            var packageRoot = Path.Combine(GetBuildPlatformOutputRoot(config), packageName, packageVersion);
+            return Path.GetFullPath(packageRoot).Replace('\\', '/');
         }
 
         private static void CopyDirectory(string sourceDirectory, string targetDirectory)
