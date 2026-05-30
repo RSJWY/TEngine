@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using YooAsset;
@@ -353,15 +354,32 @@ namespace TEngine
 
                         string remotePlatform = ReleaseTools.GetRemotePlatformName(_config.BuildTarget);
                         string projectName = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
+                        var runtimePackages = Settings.UpdateSetting != null
+                            ? Settings.UpdateSetting.GetEnabledRuntimePackages()
+                            : null;
+                        var packageNames = runtimePackages != null && runtimePackages.Count > 0
+                            ? runtimePackages
+                                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.PackageName))
+                                .Select(x => x.PackageName.Trim())
+                                .Distinct(StringComparer.Ordinal)
+                                .ToList()
+                            : new List<string> { "DefaultPackage" };
                         EditorGUILayout.LabelField("平台目录名", remotePlatform);
                         EditorGUILayout.SelectableLabel(
-                            $"{_config.PublishRoot}/{projectName}/{remotePlatform}/<PackageName>",
+                            $"输出规则：{_config.PublishRoot}/{projectName}/{remotePlatform}/{{资源包名}}",
                             EditorStyles.textField,
                             GUILayout.Height(EditorGUIUtility.singleLineHeight));
 
+                        EditorGUILayout.LabelField("当前包示例", string.Join("，", packageNames));
+                        EditorGUILayout.SelectableLabel(
+                            string.Join("\n", packageNames.Select(packageName =>
+                                $"{_config.PublishRoot}/{projectName}/{remotePlatform}/{packageName}")),
+                            EditorStyles.textArea,
+                            GUILayout.MinHeight(EditorGUIUtility.singleLineHeight * Math.Max(2, packageNames.Count)));
+
                         EditorGUILayout.HelpBox(
                             $"发布整理源目录使用打包工具的 AB输出目录：{_config.OutputRoot}\n" +
-                            $"实际读取：{ReleaseTools.GetBuildPlatformOutputRoot(_config)}/<PackageName>/<Version>\n" +
+                            $"实际读取：{ReleaseTools.GetBuildPlatformOutputRoot(_config)}/{{资源包名}}/<Version>\n" +
                             "不是额外去读取 YooAsset 的其他默认输出目录。",
                             MessageType.Info);
 
