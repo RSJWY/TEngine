@@ -165,26 +165,30 @@ namespace TEngine
 
         private static YooAsset.Editor.BuildResult BuildInternalWithConfig(BuildConfig config, RuntimePackageEntry runtimePackage, bool appendBuildinFiles)
         {
-            Debug.Log($"开始构建 : {config.BuildTarget} - {runtimePackage.PackageName}");
+            var buildPipeline = ResolveBuildPipeline(config, runtimePackage);
+            Debug.Log($"开始构建 : {config.BuildTarget} - {runtimePackage.PackageName} - {buildPipeline}");
 
             IBuildPipeline pipeline;
             BuildParameters buildParameters;
 
-            if (config.BuildPipeline == EBuildPipeline.BuiltinBuildPipeline)
+            switch (buildPipeline)
             {
-                var builtinBuildParameters = new BuiltinBuildParameters();
-                pipeline = new BuiltinBuildPipeline();
-                buildParameters = builtinBuildParameters;
-                builtinBuildParameters.CompressOption = config.CompressOption;
-            }
-            else
-            {
-                var scriptableBuildParameters = new ScriptableBuildParameters();
-                pipeline = new ScriptableBuildPipeline();
-                buildParameters = scriptableBuildParameters;
-                scriptableBuildParameters.CompressOption = config.CompressOption;
-                scriptableBuildParameters.BuiltinShadersBundleName = GetBuiltinShaderBundleName(runtimePackage.PackageName);
-                scriptableBuildParameters.ReplaceAssetPathWithAddress = Settings.UpdateSetting.GetReplaceAssetPathWithAddress();
+                case EBuildPipeline.RawFileBuildPipeline:
+                {
+                    pipeline = new RawFileBuildPipeline();
+                    buildParameters = new RawFileBuildParameters();
+                    break;
+                }
+                default:
+                {
+                    var scriptableBuildParameters = new ScriptableBuildParameters();
+                    pipeline = new ScriptableBuildPipeline();
+                    buildParameters = scriptableBuildParameters;
+                    scriptableBuildParameters.CompressOption = config.CompressOption;
+                    scriptableBuildParameters.BuiltinShadersBundleName = GetBuiltinShaderBundleName(runtimePackage.PackageName);
+                    scriptableBuildParameters.ReplaceAssetPathWithAddress = Settings.UpdateSetting.GetReplaceAssetPathWithAddress();
+                    break;
+                }
             }
 
             string outputRoot = config.OutputRoot;
@@ -196,9 +200,9 @@ namespace TEngine
 
             buildParameters.BuildOutputRoot = outputRoot;
             buildParameters.BuildinFileRoot = AssetBundleBuilderHelper.GetStreamingAssetsRoot();
-            buildParameters.BuildPipeline = config.BuildPipeline.ToString();
+            buildParameters.BuildPipeline = buildPipeline.ToString();
             buildParameters.BuildTarget = config.BuildTarget;
-            buildParameters.BuildBundleType = (int)EBuildBundleType.AssetBundle;
+            buildParameters.BuildBundleType = GetBuildBundleType(buildPipeline);
             buildParameters.PackageName = runtimePackage.PackageName;
             buildParameters.PackageVersion = config.PackageVersion;
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
@@ -342,6 +346,24 @@ namespace TEngine
             CleanEmptyDirectories(streamingRoot);
         }
 
+        private static EBuildPipeline ResolveBuildPipeline(BuildConfig config, RuntimePackageEntry runtimePackage)
+        {
+            return runtimePackage.BuildPipeline switch
+            {
+                RuntimePackageBuildPipeline.ScriptableBuildPipeline => EBuildPipeline.ScriptableBuildPipeline,
+                RuntimePackageBuildPipeline.BuiltinBuildPipeline => EBuildPipeline.ScriptableBuildPipeline,
+                RuntimePackageBuildPipeline.RawFileBuildPipeline => EBuildPipeline.RawFileBuildPipeline,
+                _ => config.BuildPipeline,
+            };
+        }
+
+        private static int GetBuildBundleType(EBuildPipeline buildPipeline)
+        {
+            return buildPipeline == EBuildPipeline.RawFileBuildPipeline
+                ? (int)EBuildBundleType.RawBundle
+                : (int)EBuildBundleType.AssetBundle;
+        }
+
         private static EBuildinFileCopyOption GetBuildinFileCopyOption(EBuildinFileCopyOption option, bool appendBuildinFiles)
         {
             if (!appendBuildinFiles)
@@ -378,6 +400,7 @@ namespace TEngine
                     DownloadOnDemand = true,
                     SaveVersion = true,
                     VersionKey = "GAME_VERSION",
+                    BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
                 }
             };
         }

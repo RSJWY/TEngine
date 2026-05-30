@@ -48,6 +48,14 @@ namespace TEngine
         StreamingAssets,
     }
 
+    public enum RuntimePackageBuildPipeline
+    {
+        UseGlobal,
+        ScriptableBuildPipeline,
+        BuiltinBuildPipeline,
+        RawFileBuildPipeline,
+    }
+
     [Serializable]
     /// <summary>
     /// 运行时资源包配置。
@@ -88,6 +96,11 @@ namespace TEngine
         /// 资源包版本记录键。
         /// </summary>
         public string VersionKey = "GAME_VERSION";
+
+        /// <summary>
+        /// 资源包构建管线。
+        /// </summary>
+        public RuntimePackageBuildPipeline BuildPipeline = RuntimePackageBuildPipeline.UseGlobal;
 
         /// <summary>
         /// 资源包加密方式。
@@ -217,6 +230,12 @@ namespace TEngine
             return runtimePackages;
         }
 
+        public string GetDefaultPackageName()
+        {
+            var runtimePackages = GetEnabledRuntimePackages();
+            return runtimePackages.Count > 0 ? runtimePackages[0].PackageName : DefaultPackageName;
+        }
+
         public RuntimePackageEntry GetRuntimePackage(string packageName)
         {
             if (string.IsNullOrWhiteSpace(packageName))
@@ -329,6 +348,11 @@ namespace TEngine
                 VersionKey = string.IsNullOrWhiteSpace(sourcePackage.VersionKey)
                     ? GetDefaultVersionKey(packageName, isAssemblyPackage)
                     : sourcePackage.VersionKey.Trim(),
+                BuildPipeline = sourcePackage.BuildPipeline switch
+                {
+                    RuntimePackageBuildPipeline.BuiltinBuildPipeline => RuntimePackageBuildPipeline.ScriptableBuildPipeline,
+                    _ => sourcePackage.BuildPipeline,
+                },
                 EncryptionType = sourcePackage.EncryptionType,
             };
         }
@@ -344,6 +368,7 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = DefaultGameVersionKey,
+                BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
                 EncryptionType = EncryptionType.None,
             };
         }
@@ -360,6 +385,7 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName, true),
+                BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
                 EncryptionType = EncryptionType.XXTEA,
             };
         }

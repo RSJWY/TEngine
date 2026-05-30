@@ -38,12 +38,9 @@ namespace TEngine.Editor.Inspector
         private SerializedProperty m_assetExpireTime;
         private SerializedProperty m_assetPoolPriority;
         private SerializedProperty m_failedTryAgain;
-        private SerializedProperty m_packageName;
         private SerializedProperty m_downloadingMaxNum;
         private int m_playModeIndex;
-        private int m_packageNameIndex;
         private int m_encryptionNameIndex;
-        private string[] m_packageNames;
 
         // UI状态
         private Vector2 m_scrollPosition;
@@ -170,21 +167,7 @@ namespace TEngine.Editor.Inspector
                     }
 
                     EditorGUILayout.Space(5);
-
-                    // 资源包名
-                    EditorGUILayout.LabelField("资源包配置", EditorStyles.boldLabel);
-                    m_packageNames = GetBuildPackageNames().ToArray();
-                    m_packageNameIndex = Array.IndexOf(m_packageNames, m_packageName.stringValue);
-
-                    if (m_packageNameIndex < 0)
-                    {
-                        m_packageNameIndex = 0;
-                    }
-                    m_packageNameIndex = EditorGUILayout.Popup("资源包名", m_packageNameIndex, m_packageNames);
-                    if (m_packageName.stringValue != m_packageNames[m_packageNameIndex])
-                    {
-                        m_packageName.stringValue = m_packageNames[m_packageNameIndex];
-                    }
+                    EditorGUILayout.HelpBox($"默认包名：{GetDefaultPackageName()}\n资源包列表已改为由 UpdateSetting.RuntimePackages 统一管理。", MessageType.Info);
 
                     EditorGUILayout.Space(3);
                     EditorGUILayout.HelpBox(GetPlayModeDescription(m_playModeIndex), MessageType.Info);
@@ -519,7 +502,7 @@ namespace TEngine.Editor.Inspector
                 EditorGUILayout.BeginHorizontal();
                 {
                     EditorGUILayout.LabelField("资源包:", GUILayout.Width(80));
-                    EditorGUILayout.LabelField(m_packageName.stringValue, EditorStyles.miniLabel);
+                    EditorGUILayout.LabelField(GetDefaultPackageName(), EditorStyles.miniLabel);
                 }
                 EditorGUILayout.EndHorizontal();
 
@@ -583,21 +566,16 @@ namespace TEngine.Editor.Inspector
             }
         }
 
+        private string GetDefaultPackageName()
+        {
+            var updateSetting = Settings.UpdateSetting;
+            return updateSetting != null ? updateSetting.GetDefaultPackageName() : "DefaultPackage";
+        }
+
         protected override void OnCompileComplete()
         {
             base.OnCompileComplete();
             RefreshTypeNames();
-        }
-
-        private List<string> GetBuildPackageNames()
-        {
-            List<string> packageNames = new List<string>();
-
-            foreach (var package in AssetBundleCollectorSettingData.Setting.Packages)
-            {
-                packageNames.Add(package.PackageName);
-            }
-            return packageNames;
         }
 
         private void OnEnable()
@@ -615,7 +593,6 @@ namespace TEngine.Editor.Inspector
             m_assetExpireTime = serializedObject.FindProperty("assetExpireTime");
             m_assetPoolPriority = serializedObject.FindProperty("assetPriority");
             m_failedTryAgain = serializedObject.FindProperty("failedTryAgain");
-            m_packageName = serializedObject.FindProperty("packageName");
             m_downloadingMaxNum = serializedObject.FindProperty("downloadingMaxNum");
 
             RefreshPlayModeNames();

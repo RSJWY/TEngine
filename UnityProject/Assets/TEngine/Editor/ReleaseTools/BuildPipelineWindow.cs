@@ -32,7 +32,14 @@ namespace TEngine
         private static readonly string[] PipelineNames = new string[]
         {
             "ScriptableBuildPipeline (SBP)",
-            "BuiltinBuildPipeline (内置)",
+            "RawFileBuildPipeline (原生文件)",
+        };
+
+        private static readonly string[] PackagePipelineNames = new string[]
+        {
+            "使用全局设置",
+            "ScriptableBuildPipeline (SBP)",
+            "RawFileBuildPipeline (原生文件)",
         };
 
         private static readonly string[] CompressNames = new string[]
@@ -173,10 +180,10 @@ namespace TEngine
 
                     EditorGUILayout.Space(3);
 
-                    int pipelineIndex = _config.BuildPipeline == EBuildPipeline.BuiltinBuildPipeline ? 1 : 0;
-                    pipelineIndex = EditorGUILayout.Popup("构建管线", pipelineIndex, PipelineNames);
+                    int pipelineIndex = _config.BuildPipeline == EBuildPipeline.RawFileBuildPipeline ? 1 : 0;
+                    pipelineIndex = EditorGUILayout.Popup("默认构建管线", pipelineIndex, PipelineNames);
                     _config.BuildPipeline = pipelineIndex == 1
-                        ? EBuildPipeline.BuiltinBuildPipeline
+                        ? EBuildPipeline.RawFileBuildPipeline
                         : EBuildPipeline.ScriptableBuildPipeline;
 
                     _config.CompressOption = (ECompressOption)EditorGUILayout.Popup("压缩方式",
@@ -265,6 +272,7 @@ namespace TEngine
                                 EditorGUILayout.EndHorizontal();
 
                                 runtimePackage.PackageName = EditorGUILayout.TextField("包名", runtimePackage.PackageName);
+                                runtimePackage.BuildPipeline = (RuntimePackageBuildPipeline)EditorGUILayout.Popup("构建管线", (int)runtimePackage.BuildPipeline, PackagePipelineNames);
                                 runtimePackage.EncryptionType = (EncryptionType)EditorGUILayout.Popup("加密方式", (int)runtimePackage.EncryptionType, EncryptionNames);
                                 runtimePackage.InitOnStartup = EditorGUILayout.ToggleLeft("启动时初始化", runtimePackage.InitOnStartup);
                                 runtimePackage.UpdateManifestOnStartup = EditorGUILayout.ToggleLeft("启动时更新清单", runtimePackage.UpdateManifestOnStartup);
@@ -544,8 +552,8 @@ namespace TEngine
         {
             _buildLogs.Clear();
             AddLog("========== 开始构建 ==========");
-            AddLog($"平台: {_config.BuildTarget} | 管线: {_config.BuildPipeline} | 最小包: {_config.MinimalPackage}");
-            AddLog($"资源包: {GetBuildPackageLogText()}");
+            AddLog($"平台: {_config.BuildTarget} | 默认管线: {_config.BuildPipeline} | 最小包: {_config.MinimalPackage}");
+            AddLog($"资源包: {GetBuildPackageLogText(_config)}");
 
             if (string.IsNullOrWhiteSpace(_config.PackageVersion))
             {
@@ -652,8 +660,13 @@ namespace TEngine
             }
             _config.BuildTarget = PlatformTargets[_platformIndex];
 
-            int pipelineIndex = EditorPrefs.GetInt("TEngine_BP_BuildPipeline", 0);
-            _config.BuildPipeline = pipelineIndex == 1 ? EBuildPipeline.BuiltinBuildPipeline : EBuildPipeline.ScriptableBuildPipeline;
+            const string buildPipelineKey = "TEngine_BP_BuildPipeline";
+            var savedBuildPipeline = EditorPrefs.GetString(buildPipelineKey, EBuildPipeline.ScriptableBuildPipeline.ToString());
+            if (!Enum.TryParse(savedBuildPipeline, out EBuildPipeline buildPipeline) || buildPipeline == EBuildPipeline.BuiltinBuildPipeline)
+            {
+                buildPipeline = EBuildPipeline.ScriptableBuildPipeline;
+            }
+            _config.BuildPipeline = buildPipeline;
 
             _config.CompressOption = (ECompressOption)EditorPrefs.GetInt("TEngine_BP_CompressOption", 1);
             _config.PackageVersion = EditorPrefs.GetString("TEngine_BP_PackageVersion", "");
@@ -683,7 +696,8 @@ namespace TEngine
         private void SaveSettings()
         {
             EditorPrefs.SetInt("TEngine_BP_BuildTarget", _platformIndex);
-            EditorPrefs.SetInt("TEngine_BP_BuildPipeline", _config.BuildPipeline == EBuildPipeline.BuiltinBuildPipeline ? 1 : 0);
+            const string buildPipelineKey = "TEngine_BP_BuildPipeline";
+            EditorPrefs.SetString(buildPipelineKey, _config.BuildPipeline.ToString());
             EditorPrefs.SetInt("TEngine_BP_CompressOption", (int)_config.CompressOption);
             EditorPrefs.SetString("TEngine_BP_PackageVersion", _config.PackageVersion);
             EditorPrefs.SetString("TEngine_BP_OutputRoot", _config.OutputRoot);
@@ -745,6 +759,7 @@ namespace TEngine
                 EncryptionType = Settings.UpdateSetting != null && string.Equals(packageName, Settings.UpdateSetting.AssemblyPackageName, StringComparison.Ordinal)
                     ? EncryptionType.XXTEA
                     : EncryptionType.None,
+                BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
             };
         }
 
@@ -782,14 +797,14 @@ namespace TEngine
             return packageName;
         }
 
-        private static string GetBuildPackageLogText()
+        private static string GetBuildPackageLogText(BuildConfig config)
         {
             var runtimePackages = Settings.UpdateSetting != null
                 ? Settings.UpdateSetting.GetEnabledRuntimePackages()
                 : null;
             if (runtimePackages == null || runtimePackages.Count <= 0)
             {
-                return "DefaultPackage";
+                return $"DefaultPackage({config.BuildPipeline})";
             }
 
             var packageNames = new List<string>(runtimePackages.Count);
@@ -800,10 +815,21 @@ namespace TEngine
                     continue;
                 }
 
-                packageNames.Add(runtimePackage.PackageName.Trim());
+                packageNames.Add($"{runtimePackage.PackageName.Trim()}({GetDisplayBuildPipeline(config, runtimePackage)})");
             }
 
-            return packageNames.Count > 0 ? string.Join(", ", packageNames) : "DefaultPackage";
+            return packageNames.Count > 0 ? string.Join(", ", packageNames) : $"DefaultPackage({config.BuildPipeline})";
+        }
+
+        private static EBuildPipeline GetDisplayBuildPipeline(BuildConfig config, RuntimePackageEntry runtimePackage)
+        {
+            return runtimePackage.BuildPipeline switch
+            {
+                RuntimePackageBuildPipeline.ScriptableBuildPipeline => EBuildPipeline.ScriptableBuildPipeline,
+                RuntimePackageBuildPipeline.BuiltinBuildPipeline => EBuildPipeline.ScriptableBuildPipeline,
+                RuntimePackageBuildPipeline.RawFileBuildPipeline => EBuildPipeline.RawFileBuildPipeline,
+                _ => config.BuildPipeline,
+            };
         }
 
         private static string PathGetRelative(string relativeTo, string path)

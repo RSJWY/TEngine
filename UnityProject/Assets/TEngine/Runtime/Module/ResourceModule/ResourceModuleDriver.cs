@@ -42,21 +42,6 @@ namespace TEngine
         public string PackageVersion { set; get; }
 
         /// <summary>
-        /// 资源包名称。
-        /// </summary>
-        [SerializeField]
-        private string packageName = "DefaultPackage";
-
-        /// <summary>
-        /// 资源包名称。
-        /// </summary>
-        public string PackageName
-        {
-            get => packageName;
-            set => packageName = value;
-        }
-
-        /// <summary>
         /// 资源系统运行模式。
         /// </summary>
         [SerializeField]
@@ -250,7 +235,7 @@ namespace TEngine
 #endif
             }
 
-            _resourceModule.DefaultPackageName = PackageName;
+            _resourceModule.DefaultPackageName = Settings.UpdateSetting.GetDefaultPackageName();
             _resourceModule.PlayMode = PlayMode;
             _resourceModule.EncryptionType = encryptionType;
             _resourceModule.Milliseconds = milliseconds;
