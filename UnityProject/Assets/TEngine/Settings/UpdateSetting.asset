@@ -36,6 +36,7 @@ MonoBehaviour:
     DownloadOnDemand: 1
     SaveVersion: 1
     VersionKey: GAME_VERSION
+    BuildPipeline: 0
     EncryptionType: 0
   - PackageName: CodePackage
     Enable: 1
@@ -44,6 +45,7 @@ MonoBehaviour:
     DownloadOnDemand: 1
     SaveVersion: 1
     VersionKey: CODE_VERSION
+    BuildPipeline: 0
     EncryptionType: 3
   UpdateStyle: 1
   UpdateNotice: 1

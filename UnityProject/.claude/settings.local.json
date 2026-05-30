@@ -6,7 +6,8 @@
       "Bash(openspec status:*)",
       "Bash(openspec instructions:*)",
       "Bash(msbuild:*)",
-      "Bash(openspec:*)"
+      "Bash(openspec:*)",
+      "Bash(git grep *)"
     ]
   }
 }
