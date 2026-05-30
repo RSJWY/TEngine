@@ -463,9 +463,14 @@ namespace TEngine
         /// <summary>
         /// 获取资源下载路径。
         /// </summary>
+        public string GetProjectName()
+        {
+            return string.IsNullOrWhiteSpace(projectName) ? "Demo" : projectName.Trim();
+        }
+
         public string GetResDownLoadPath()
         {
-            return Path.Combine(ResDownLoadPath, projectName, GetPlatformName()).Replace("\\", "/");
+            return Path.Combine(ResDownLoadPath, GetProjectName(), GetPlatformName()).Replace("\\", "/");
         }
 
         /// <summary>
@@ -473,7 +478,7 @@ namespace TEngine
         /// </summary>
         public string GetFallbackResDownLoadPath()
         {
-            return Path.Combine(FallbackResDownLoadPath, projectName, GetPlatformName()).Replace("\\", "/");
+            return Path.Combine(FallbackResDownLoadPath, GetProjectName(), GetPlatformName()).Replace("\\", "/");
         }
 
         /// <summary>
@@ -502,6 +507,10 @@ namespace TEngine
 
                 case RuntimePlatform.IPhonePlayer:
                     return "IOS";
+
+                case RuntimePlatform.LinuxEditor:
+                case RuntimePlatform.LinuxPlayer:
+                    return "Linux";
 
                 case RuntimePlatform.Android:
                     return "Android";

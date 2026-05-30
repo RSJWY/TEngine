@@ -8,6 +8,7 @@ using UnityEngine;
 using YooAsset;
 using YooAsset.Editor;
 using BuildResult = UnityEditor.Build.Reporting.BuildResult;
+using Debug = UnityEngine.Debug;
 
 namespace TEngine
 {
@@ -139,6 +140,11 @@ namespace TEngine
 
                 firstBuildResult ??= buildResult;
                 Debug.Log($"[BuildWithConfig] AssetBundle构建成功: {runtimePackage.PackageName} => {buildResult.OutputPackageDirectory}");
+
+                if (config.EnablePublishCopy)
+                {
+                    PublishBuiltPackage(config, runtimePackage.PackageName, buildResult.OutputPackageDirectory);
+                }
             }
 
             if (config.MinimalPackage && firstBuildResult != null)
@@ -245,6 +251,85 @@ namespace TEngine
                     Debug.LogError($"构建失败 : {runtimePackage.PackageName} => {buildResult.ErrorInfo}");
                     break;
                 }
+            }
+        }
+
+        #endregion
+
+        #region 发布整理
+
+        public static string GetPublishOutputRoot(BuildConfig config)
+        {
+            var publishRoot = string.IsNullOrWhiteSpace(config.PublishRoot) ? "./Publish/" : config.PublishRoot;
+            if (!Path.IsPathRooted(publishRoot))
+            {
+                publishRoot = Path.Combine(Application.dataPath + "/../", publishRoot);
+            }
+
+            return Path.GetFullPath(publishRoot).Replace('\\', '/');
+        }
+
+        public static string GetRemotePlatformName(BuildTarget target)
+        {
+            return target switch
+            {
+                BuildTarget.StandaloneWindows64 => "Windows64",
+                BuildTarget.StandaloneOSX => "MacOS",
+                BuildTarget.StandaloneLinux64 => "Linux",
+                BuildTarget.Android => "Android",
+                BuildTarget.iOS => "IOS",
+                BuildTarget.WebGL => "WebGL",
+                BuildTarget.PS5 => "PS5",
+                _ => target.ToString()
+            };
+        }
+
+        private static void PublishBuiltPackage(BuildConfig config, string packageName, string outputPackageDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(outputPackageDirectory) || !Directory.Exists(outputPackageDirectory))
+            {
+                Debug.LogWarning($"[Publish] 构建输出目录不存在，跳过整理: {packageName} => {outputPackageDirectory}");
+                return;
+            }
+
+            var projectName = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
+            var publishRoot = GetPublishOutputRoot(config);
+            var remotePlatformName = GetRemotePlatformName(config.BuildTarget);
+            var targetDirectory = Path.Combine(publishRoot, projectName, remotePlatformName, packageName);
+            targetDirectory = Path.GetFullPath(targetDirectory).Replace('\\', '/');
+
+            if (config.CleanPublishPackageDirectory && Directory.Exists(targetDirectory))
+            {
+                Directory.Delete(targetDirectory, true);
+            }
+
+            Directory.CreateDirectory(targetDirectory);
+            CopyDirectory(outputPackageDirectory, targetDirectory);
+
+            var versionRecordPath = Path.Combine(targetDirectory, "_build_version.txt");
+            File.WriteAllText(versionRecordPath, config.PackageVersion ?? string.Empty);
+            Debug.Log($"[Publish] 发布整理完成: {packageName} => {targetDirectory}");
+        }
+
+        private static void CopyDirectory(string sourceDirectory, string targetDirectory)
+        {
+            foreach (var directory in Directory.GetDirectories(sourceDirectory, "*", SearchOption.AllDirectories))
+            {
+                var relativePath = Path.GetRelativePath(sourceDirectory, directory);
+                Directory.CreateDirectory(Path.Combine(targetDirectory, relativePath));
+            }
+
+            foreach (var file in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+            {
+                var relativePath = Path.GetRelativePath(sourceDirectory, file);
+                var targetFile = Path.Combine(targetDirectory, relativePath);
+                var targetParent = Path.GetDirectoryName(targetFile);
+                if (!string.IsNullOrEmpty(targetParent))
+                {
+                    Directory.CreateDirectory(targetParent);
+                }
+
+                File.Copy(file, targetFile, true);
             }
         }
 

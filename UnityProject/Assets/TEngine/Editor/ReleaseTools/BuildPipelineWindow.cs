@@ -77,6 +77,7 @@ namespace TEngine
         private Vector2 _scrollPosition;
         private bool _showBasicSettings = true;
         private bool _showPackageSettings = true;
+        private bool _showPublishSettings = true;
         private bool _showMinimalPackageSettings = true;
         private bool _showAdvancedSettings;
         private bool _showDllSettings = true;
@@ -112,6 +113,7 @@ namespace TEngine
                 DrawHeader();
                 DrawBasicSettings();
                 DrawPackageSettings();
+                DrawPublishSettings();
                 DrawMinimalPackageSettings();
                 DrawAdvancedSettings();
                 DrawDllSettings();
@@ -311,6 +313,65 @@ namespace TEngine
 
         #endregion
 
+        #region 发布整理设置
+
+        private void DrawPublishSettings()
+        {
+            _showPublishSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showPublishSettings,
+                new GUIContent("发布整理", "构建完成后将资源整理到便于上传的目录"));
+
+            if (_showPublishSettings)
+            {
+                EditorGUILayout.BeginVertical("HelpBox");
+                {
+                    _config.EnablePublishCopy = EditorGUILayout.ToggleLeft(
+                        new GUIContent("启用发布整理", "构建成功后自动整理到发布目录"),
+                        _config.EnablePublishCopy);
+
+                    if (_config.EnablePublishCopy)
+                    {
+                        EditorGUILayout.Space(3);
+
+                        EditorGUILayout.BeginHorizontal();
+                        _config.PublishRoot = EditorGUILayout.TextField("发布根目录", _config.PublishRoot);
+                        if (GUILayout.Button("浏览", GUILayout.Width(50)))
+                        {
+                            string selected = EditorUtility.OpenFolderPanel("选择发布目录", _config.PublishRoot, "");
+                            if (!string.IsNullOrEmpty(selected))
+                            {
+                                string projectPath = PathGetRelative(Application.dataPath + "/../", selected);
+                                _config.PublishRoot = string.IsNullOrEmpty(projectPath) ? selected : projectPath;
+                            }
+                        }
+                        EditorGUILayout.EndHorizontal();
+
+                        _config.CleanPublishPackageDirectory = EditorGUILayout.ToggleLeft(
+                            new GUIContent("清空目标包目录后再拷贝", "避免旧 bundle 残留"),
+                            _config.CleanPublishPackageDirectory);
+
+                        EditorGUILayout.Space(3);
+
+                        string remotePlatform = ReleaseTools.GetRemotePlatformName(_config.BuildTarget);
+                        string projectName = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
+                        EditorGUILayout.LabelField("平台目录名", remotePlatform);
+                        EditorGUILayout.SelectableLabel(
+                            $"{_config.PublishRoot}/{projectName}/{remotePlatform}/<PackageName>",
+                            EditorStyles.textField,
+                            GUILayout.Height(EditorGUIUtility.singleLineHeight));
+
+                        EditorGUILayout.HelpBox(
+                            "发布整理使用运行时远端平台名，而不是 YooAsset 构建目录名，可避免平台目录不一致导致 404。",
+                            MessageType.Info);
+                    }
+                }
+                EditorGUILayout.EndVertical();
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+            GUILayout.Space(5);
+        }
+
+        #endregion
+
         #region 最小包设置
 
         private void DrawMinimalPackageSettings()
@@ -490,6 +551,14 @@ namespace TEngine
                 {
                     SaveSettings();
                     ExecuteBuildPlayerOnly();
+                }
+
+                using (new EditorGUI.DisabledScope(!_config.EnablePublishCopy))
+                {
+                    if (GUILayout.Button("打开发布目录", GUILayout.Height(35)))
+                    {
+                        EditorUtility.RevealInFinder(ReleaseTools.GetPublishOutputRoot(_config));
+                    }
                 }
             }
             EditorGUILayout.EndHorizontal();
@@ -671,6 +740,9 @@ namespace TEngine
             _config.CompressOption = (ECompressOption)EditorPrefs.GetInt("TEngine_BP_CompressOption", 1);
             _config.PackageVersion = EditorPrefs.GetString("TEngine_BP_PackageVersion", "");
             _config.OutputRoot = EditorPrefs.GetString("TEngine_BP_OutputRoot", "./Builds/");
+            _config.EnablePublishCopy = EditorPrefs.GetBool("TEngine_BP_EnablePublishCopy", false);
+            _config.PublishRoot = EditorPrefs.GetString("TEngine_BP_PublishRoot", "./Publish/");
+            _config.CleanPublishPackageDirectory = EditorPrefs.GetBool("TEngine_BP_CleanPublishPackageDirectory", true);
             _config.MinimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
             _config.RetainTags = EditorPrefs.GetString("TEngine_BP_RetainTags", "");
             _config.EnableSharePackRule = EditorPrefs.GetBool("TEngine_BP_EnableSharePack", true);
@@ -701,6 +773,9 @@ namespace TEngine
             EditorPrefs.SetInt("TEngine_BP_CompressOption", (int)_config.CompressOption);
             EditorPrefs.SetString("TEngine_BP_PackageVersion", _config.PackageVersion);
             EditorPrefs.SetString("TEngine_BP_OutputRoot", _config.OutputRoot);
+            EditorPrefs.SetBool("TEngine_BP_EnablePublishCopy", _config.EnablePublishCopy);
+            EditorPrefs.SetString("TEngine_BP_PublishRoot", _config.PublishRoot);
+            EditorPrefs.SetBool("TEngine_BP_CleanPublishPackageDirectory", _config.CleanPublishPackageDirectory);
             EditorPrefs.SetBool("TEngine_BP_MinimalPackage", _config.MinimalPackage);
             EditorPrefs.SetString("TEngine_BP_RetainTags", _config.RetainTags);
             EditorPrefs.SetBool("TEngine_BP_EnableSharePack", _config.EnableSharePackRule);
@@ -855,6 +930,9 @@ namespace TEngine
                 CompressOption = source.CompressOption,
                 PackageVersion = source.PackageVersion,
                 OutputRoot = source.OutputRoot,
+                EnablePublishCopy = source.EnablePublishCopy,
+                PublishRoot = source.PublishRoot,
+                CleanPublishPackageDirectory = source.CleanPublishPackageDirectory,
                 MinimalPackage = source.MinimalPackage,
                 RetainTags = source.RetainTags,
                 EnableSharePackRule = source.EnableSharePackRule,

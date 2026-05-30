@@ -15,6 +15,11 @@ namespace TEngine
         public string PackageVersion = "";
         public string OutputRoot = "./Builds/";
 
+        // 发布整理设置
+        public bool EnablePublishCopy;
+        public string PublishRoot = "./Publish/";
+        public bool CleanPublishPackageDirectory = true;
+
         // 最小包设置
         public bool MinimalPackage;
         public string RetainTags = "";
@@ -43,6 +48,8 @@ namespace TEngine
                 PlayerPlatform = EditorUserBuildSettings.activeBuildTarget,
                 PackageVersion = GetDefaultPackageVersion(),
                 OutputRoot = "./Builds/",
+                PublishRoot = "./Publish/",
+                CleanPublishPackageDirectory = true,
                 PlayerOutputPath = GetDefaultPlayerOutputPath(EditorUserBuildSettings.activeBuildTarget),
             };
         }
