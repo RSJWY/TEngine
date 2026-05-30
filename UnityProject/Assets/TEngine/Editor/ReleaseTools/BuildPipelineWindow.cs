@@ -47,6 +47,7 @@ namespace TEngine
             "无加密",
             "文件偏移加密",
             "文件流加密",
+            "XXTEA加密",
         };
 
         private static readonly string[] CopyOptionNames = new string[]
@@ -181,8 +182,7 @@ namespace TEngine
                     _config.CompressOption = (ECompressOption)EditorGUILayout.Popup("压缩方式",
                         (int)_config.CompressOption, CompressNames);
 
-                    _config.EncryptionType = (EncryptionType)EditorGUILayout.Popup("加密方式",
-                        (int)_config.EncryptionType, EncryptionNames);
+                    EditorGUILayout.HelpBox("加密方式请在资源包列表中按包配置，资源清单不做自定义加解密。", MessageType.Info);
 
                     EditorGUILayout.Space(3);
 
@@ -265,6 +265,7 @@ namespace TEngine
                                 EditorGUILayout.EndHorizontal();
 
                                 runtimePackage.PackageName = EditorGUILayout.TextField("包名", runtimePackage.PackageName);
+                                runtimePackage.EncryptionType = (EncryptionType)EditorGUILayout.Popup("加密方式", (int)runtimePackage.EncryptionType, EncryptionNames);
                                 runtimePackage.InitOnStartup = EditorGUILayout.ToggleLeft("启动时初始化", runtimePackage.InitOnStartup);
                                 runtimePackage.UpdateManifestOnStartup = EditorGUILayout.ToggleLeft("启动时更新清单", runtimePackage.UpdateManifestOnStartup);
                                 runtimePackage.DownloadOnDemand = EditorGUILayout.ToggleLeft("参与下载检查", runtimePackage.DownloadOnDemand);
@@ -655,7 +656,6 @@ namespace TEngine
             _config.BuildPipeline = pipelineIndex == 1 ? EBuildPipeline.BuiltinBuildPipeline : EBuildPipeline.ScriptableBuildPipeline;
 
             _config.CompressOption = (ECompressOption)EditorPrefs.GetInt("TEngine_BP_CompressOption", 1);
-            _config.EncryptionType = (EncryptionType)EditorPrefs.GetInt("TEngine_BP_EncryptionType", 0);
             _config.PackageVersion = EditorPrefs.GetString("TEngine_BP_PackageVersion", "");
             _config.OutputRoot = EditorPrefs.GetString("TEngine_BP_OutputRoot", "./Builds/");
             _config.MinimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
@@ -685,7 +685,6 @@ namespace TEngine
             EditorPrefs.SetInt("TEngine_BP_BuildTarget", _platformIndex);
             EditorPrefs.SetInt("TEngine_BP_BuildPipeline", _config.BuildPipeline == EBuildPipeline.BuiltinBuildPipeline ? 1 : 0);
             EditorPrefs.SetInt("TEngine_BP_CompressOption", (int)_config.CompressOption);
-            EditorPrefs.SetInt("TEngine_BP_EncryptionType", (int)_config.EncryptionType);
             EditorPrefs.SetString("TEngine_BP_PackageVersion", _config.PackageVersion);
             EditorPrefs.SetString("TEngine_BP_OutputRoot", _config.OutputRoot);
             EditorPrefs.SetBool("TEngine_BP_MinimalPackage", _config.MinimalPackage);
@@ -743,6 +742,9 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName),
+                EncryptionType = Settings.UpdateSetting != null && string.Equals(packageName, Settings.UpdateSetting.AssemblyPackageName, StringComparison.Ordinal)
+                    ? EncryptionType.XXTEA
+                    : EncryptionType.None,
             };
         }
 
@@ -825,7 +827,6 @@ namespace TEngine
                 BuildTarget = source.BuildTarget,
                 BuildPipeline = source.BuildPipeline,
                 CompressOption = source.CompressOption,
-                EncryptionType = source.EncryptionType,
                 PackageVersion = source.PackageVersion,
                 OutputRoot = source.OutputRoot,
                 MinimalPackage = source.MinimalPackage,

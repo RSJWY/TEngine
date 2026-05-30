@@ -88,6 +88,11 @@ namespace TEngine
         /// 资源包版本记录键。
         /// </summary>
         public string VersionKey = "GAME_VERSION";
+
+        /// <summary>
+        /// 资源包加密方式。
+        /// </summary>
+        public EncryptionType EncryptionType = EncryptionType.None;
     }
 
     [CreateAssetMenu(menuName = "TEngine/UpdateSetting", fileName = "UpdateSetting")]
@@ -324,6 +329,7 @@ namespace TEngine
                 VersionKey = string.IsNullOrWhiteSpace(sourcePackage.VersionKey)
                     ? GetDefaultVersionKey(packageName, isAssemblyPackage)
                     : sourcePackage.VersionKey.Trim(),
+                EncryptionType = sourcePackage.EncryptionType,
             };
         }
 
@@ -338,6 +344,7 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = DefaultGameVersionKey,
+                EncryptionType = EncryptionType.None,
             };
         }
 
@@ -353,6 +360,7 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName, true),
+                EncryptionType = EncryptionType.XXTEA,
             };
         }
 

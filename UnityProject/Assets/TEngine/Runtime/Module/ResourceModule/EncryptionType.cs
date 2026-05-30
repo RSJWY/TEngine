@@ -23,5 +23,10 @@ namespace TEngine
         /// <remarks>使用加密流对文件内容进行加密处理的加密方式。</remarks>
         /// </summary>
         FileStream,
+
+        /// <summary>
+        /// XXTEA 加密。
+        /// </summary>
+        XXTEA,
     }
 }

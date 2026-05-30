@@ -22,6 +22,7 @@ namespace TEngine.Editor.Inspector
             "无加密",
             "文件偏移加密",
             "文件流加密",
+            "XXTEA加密",
         };
 
         private SerializedProperty m_playMode;

@@ -36,6 +36,7 @@ MonoBehaviour:
     DownloadOnDemand: 1
     SaveVersion: 1
     VersionKey: GAME_VERSION
+    EncryptionType: 0
   - PackageName: CodePackage
     Enable: 1
     InitOnStartup: 1
@@ -43,6 +44,7 @@ MonoBehaviour:
     DownloadOnDemand: 1
     SaveVersion: 1
     VersionKey: CODE_VERSION
+    EncryptionType: 3
   UpdateStyle: 2
   UpdateNotice: 1
   ResDownLoadPath: http://127.0.0.1:80

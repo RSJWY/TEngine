@@ -12,7 +12,6 @@ namespace TEngine
         public BuildTarget BuildTarget;
         public EBuildPipeline BuildPipeline = EBuildPipeline.ScriptableBuildPipeline;
         public ECompressOption CompressOption = ECompressOption.LZ4;
-        public EncryptionType EncryptionType = EncryptionType.None;
         public string PackageVersion = "";
         public string OutputRoot = "./Builds/";
 

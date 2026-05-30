@@ -206,7 +206,7 @@ namespace TEngine
             buildParameters.FileNameStyle = config.FileNameStyle;
             buildParameters.BuildinFileCopyOption = GetBuildinFileCopyOption(config.BuildinFileCopyOption, appendBuildinFiles);
             buildParameters.BuildinFileCopyParams = string.Empty;
-            buildParameters.EncryptionServices = GetEncryptionFromType(config.EncryptionType);
+            buildParameters.EncryptionServices = GetEncryptionFromType(runtimePackage.EncryptionType);
             buildParameters.ClearBuildCacheFiles = config.ClearBuildCache;
             buildParameters.UseAssetDependencyDB = config.UseAssetDependencyDB;
 
@@ -224,7 +224,6 @@ namespace TEngine
             config.OutputRoot = outputRoot;
             config.PackageVersion = packageVersion;
             config.BuildPipeline = buildPipeline;
-            config.EncryptionType = EncryptionType.None;
             config.BuildPlayer = false;
             config.BuildHotFixDll = false;
 
@@ -506,6 +505,7 @@ namespace TEngine
             {
                 EncryptionType.FileOffSet => new FileOffsetEncryption(),
                 EncryptionType.FileStream => new FileStreamEncryption(),
+                EncryptionType.XXTEA => new XXTEAEncryption(),
                 _ => null
             };
         }

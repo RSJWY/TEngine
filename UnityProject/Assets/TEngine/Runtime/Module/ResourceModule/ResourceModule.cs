@@ -182,7 +182,7 @@ namespace TEngine
                 initializationOperation = package.InitializeAsync(createParameters);
             }
 
-            IDecryptionServices decryptionServices = CreateDecryptionServices();
+            IDecryptionServices decryptionServices = CreateDecryptionServices(packageName);
 
             // 单机运行模式
             if (playMode == EPlayMode.OfflinePlayMode)
@@ -211,7 +211,7 @@ namespace TEngine
             if (playMode == EPlayMode.WebPlayMode)
             {
                 var createParameters = new WebPlayModeParameters();
-                IWebDecryptionServices webDecryptionServices = CreateWebDecryptionServices();
+                IWebDecryptionServices webDecryptionServices = CreateWebDecryptionServices(packageName);
                 string defaultHostServer = Settings.UpdateSetting.GetPackageHostServerURL(packageName);
                 string fallbackHostServer = Settings.UpdateSetting.GetPackageFallbackHostServerURL(packageName);
                 Log.Info($"WebPlay 资源包远端目录：{packageName} => {defaultHostServer}");
@@ -264,12 +264,13 @@ namespace TEngine
         /// <summary>
         /// 创建解密服务。
         /// </summary>
-        private IDecryptionServices CreateDecryptionServices()
+        private IDecryptionServices CreateDecryptionServices(string packageName)
         {
-            return EncryptionType switch
+            return GetEncryptionType(packageName) switch
             {
                 EncryptionType.FileOffSet => new FileOffsetDecryption(),
                 EncryptionType.FileStream => new FileStreamDecryption(),
+                EncryptionType.XXTEA => new XXTEADecryption(),
                 _ => null
             };
         }
@@ -277,14 +278,21 @@ namespace TEngine
         /// <summary>
         /// 创建Web解密服务。
         /// </summary>
-        private IWebDecryptionServices CreateWebDecryptionServices()
+        private IWebDecryptionServices CreateWebDecryptionServices(string packageName)
         {
-            return EncryptionType switch
+            return GetEncryptionType(packageName) switch
             {
                 EncryptionType.FileOffSet => new FileOffsetWebDecryption(),
                 EncryptionType.FileStream => new FileStreamWebDecryption(),
+                EncryptionType.XXTEA => new XXTEAWebDecryption(),
                 _ => null
             };
+        }
+
+        private EncryptionType GetEncryptionType(string packageName)
+        {
+            var runtimePackage = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetRuntimePackage(packageName) : null;
+            return runtimePackage != null ? runtimePackage.EncryptionType : EncryptionType;
         }
 
         /// <summary>
