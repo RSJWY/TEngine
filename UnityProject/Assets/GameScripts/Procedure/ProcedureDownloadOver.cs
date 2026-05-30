@@ -15,9 +15,15 @@ namespace Procedure
             Log.Info("下载完成!!!");
             LauncherMgr.ShowUI<LoadUpdateUI>("下载完成...");
 
+            var skipDownloadVersionSave = procedureOwner.HasData(SkipDownloadVersionSaveKey) && procedureOwner.GetData<bool>(SkipDownloadVersionSaveKey);
+            if (skipDownloadVersionSave)
+            {
+                procedureOwner.RemoveData(SkipDownloadVersionSaveKey);
+            }
+
             foreach (var runtimePackage in GetRuntimePackages())
             {
-                if (!runtimePackage.SaveVersion)
+                if (!runtimePackage.SaveVersion || skipDownloadVersionSave)
                 {
                     continue;
                 }
