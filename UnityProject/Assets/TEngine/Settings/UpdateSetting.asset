@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0320e56ed14c4f7981ce8f4d27b13316, type: 3}
   m_Name: UpdateSetting
   m_EditorClassIdentifier: 
-  projectName: Demo
+  projectName: HotUpdateDemo
   HotUpdateAssemblies:
   - GameProto.dll
   - GameLogic.dll
@@ -45,10 +45,10 @@ MonoBehaviour:
     SaveVersion: 1
     VersionKey: CODE_VERSION
     EncryptionType: 3
-  UpdateStyle: 2
+  UpdateStyle: 1
   UpdateNotice: 1
-  ResDownLoadPath: http://127.0.0.1:80
-  FallbackResDownLoadPath: http://127.0.0.1:80
+  ResDownLoadPath: http://127.0.0.1:80/ProjectHotupdate
+  FallbackResDownLoadPath: http://127.0.0.1:80/ProjectHotupdate
   LoadResWayWebGL: 0
   isAutoAssetCopeToBuildAddress: 0
   BuildAddress: ../../Builds/Unity_Data/StreamingAssets
