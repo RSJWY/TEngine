@@ -9,6 +9,9 @@ namespace TEngine
     [Serializable]
     public sealed class JsonConfigManifest
     {
+        /// <summary>
+        /// 需要加载的 JSON 文件名列表（相对 StreamingAssets/Configs）。
+        /// </summary>
         public List<string> files = new List<string>();
     }
 }
