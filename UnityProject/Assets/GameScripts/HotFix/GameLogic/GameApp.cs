@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Cysharp.Threading.Tasks;
 using GameLogic;
 #if ENABLE_OBFUZ
 using Obfuz;
@@ -38,20 +36,7 @@ public partial class GameApp
     
     private static void StartGameLogic()
     {
-        StartGameLogicAsync().Forget();
-    }
-
-    private static async UniTaskVoid StartGameLogicAsync()
-    {
-        try
-        {
-            await GameModule.JsonConfig.LoadAllAsync();
-        }
-        catch (Exception exception)
-        {
-            Log.Error($"Load json config failed: {exception}");
-        }
-
+        // 部署配置已在主包 ProcedureLaunch（资源初始化前）加载，此处直接使用 GameModule.JsonConfig 即可
         GameModule.UI.ShowUIAsync<BattleMainUI>();
     }
     

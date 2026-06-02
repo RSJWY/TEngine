@@ -9,7 +9,8 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Mm]emoryCaptures/
-/[Aa]ssets/StreamingAssets
+/[Aa]ssets/StreamingAssets/*
+!/[Aa]ssets/StreamingAssets/Configs/
 /[Aa]ssets/StreamingAssets.meta
 # Asset meta data should only be ignored when the corresponding asset is also ignored
 !/[Aa]ssets/**/*.meta
@@ -71,8 +72,9 @@ crashlytics-build.properties
 [Aa]ssets/AATemp/
 [Aa]ssets/AATemp.meta
 
-[Aa]ssets/StreamingAssets/
-[Aa]ssets/StreamingAssets.meta
+[Aa]ssets/StreamingAssets/*
+![Aa]ssets/StreamingAssets/Configs/
+![Aa]ssets/StreamingAssets/Configs.meta
 
 #Rider
 /.idea/

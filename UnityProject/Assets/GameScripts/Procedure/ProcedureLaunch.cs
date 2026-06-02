@@ -1,4 +1,6 @@
-﻿using Launcher;
+﻿using System;
+using Cysharp.Threading.Tasks;
+using Launcher;
 using TEngine;
 using YooAsset;
 using ProcedureOwner = TEngine.IFsm<TEngine.IProcedureModule>;
@@ -11,8 +13,10 @@ namespace Procedure
     public class ProcedureLaunch : ProcedureBase
     {
         public override bool UseNativeDialog => true;
-        
+
         private IAudioModule _audioModule;
+
+        private bool _deployConfigLoaded;
 
         protected override void OnInit(ProcedureOwner procedureOwner)
         {
@@ -32,14 +36,36 @@ namespace Procedure
 
             // 声音配置：根据用户配置数据，设置即将使用的声音选项
             InitSoundSettings();
+
+            // 资源初始化前加载部署配置（现场可覆盖热更地址），主包侧通过 ModuleSystem 访问
+            LoadDeployConfigAsync().Forget();
         }
 
         protected override void OnUpdate(ProcedureOwner procedureOwner, float elapseSeconds, float realElapseSeconds)
         {
             base.OnUpdate(procedureOwner, elapseSeconds, realElapseSeconds);
 
-            // 运行一帧即切换到 Splash 展示流程
+            // 等待部署配置加载完成后再进入 Splash，确保资源初始化时已读到现场地址
+            if (!_deployConfigLoaded)
+            {
+                return;
+            }
+
             ChangeState<ProcedureSplash>(procedureOwner);
+        }
+
+        private async UniTaskVoid LoadDeployConfigAsync()
+        {
+            try
+            {
+                await ModuleSystem.GetModule<IJsonConfigModule>().LoadAllAsync();
+            }
+            catch (Exception exception)
+            {
+                Log.Error("Load deploy config failed, fallback to UpdateSetting defaults. reason {0}", exception.ToString());
+            }
+
+            _deployConfigLoaded = true;
         }
 
         private void InitLanguageSettings()

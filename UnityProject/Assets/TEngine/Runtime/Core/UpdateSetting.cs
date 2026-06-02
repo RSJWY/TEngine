@@ -470,7 +470,13 @@ namespace TEngine
 
         public string GetResDownLoadPath()
         {
-            return Path.Combine(ResDownLoadPath, GetProjectName(), GetPlatformName()).Replace("\\", "/");
+            string root = GetDeployOverride()?.ResDownloadPath;
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                root = ResDownLoadPath;
+            }
+
+            return Path.Combine(root, GetProjectName(), GetPlatformName()).Replace("\\", "/");
         }
 
         /// <summary>
@@ -478,7 +484,35 @@ namespace TEngine
         /// </summary>
         public string GetFallbackResDownLoadPath()
         {
-            return Path.Combine(FallbackResDownLoadPath, GetProjectName(), GetPlatformName()).Replace("\\", "/");
+            string root = GetDeployOverride()?.FallbackResDownloadPath;
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                root = FallbackResDownLoadPath;
+            }
+
+            return Path.Combine(root, GetProjectName(), GetPlatformName()).Replace("\\", "/");
+        }
+
+        /// <summary>
+        /// 读取外部部署配置（StreamingAssets/Configs/DeployConfig.json），用于现场覆盖资源服务器地址。
+        /// 读取不到时返回 null，调用方回退 Inspector 默认值。
+        /// </summary>
+        private static DeployConfig GetDeployOverride()
+        {
+            try
+            {
+                var configModule = ModuleSystem.GetModule<IJsonConfigModule>();
+                if (configModule == null || !configModule.IsLoaded)
+                {
+                    return null;
+                }
+
+                return configModule.TryGet<DeployConfig>(out var deployConfig, "DeployConfig") ? deployConfig : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         /// <summary>
