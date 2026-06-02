@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>TouchSocket</id>
+    <version>4.2.12</version>
+    <title>TouchSocket</title>
+    <authors>若汝棋茗</authors>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <license type="file">LICENSE.txt</license>
+    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+    <icon>logo.png</icon>
+    <readme>Readme.md</readme>
+    <projectUrl>https://touchsocket.net/</projectUrl>
+    <description>TouchSocket是.Net(包括 C# 、VB.Net、F#)的一个整合性的socket网络通信框架。包含了 tcp、udp、ssl等一系列的通信模块。一键式解决 tcp 黏分包问题，udp大数据包分片组合问题等。使用协议模板，可快速实现「固定包头」、「固定长度」、「区间字符」等一系列的数据报文解析。
+
+TouchSocket is Net (including C #, VB An integrated socket network communication framework based on Net and F #. It includes a series of communication modules such as TCP, UDP, SSL, etc. One click solution to TCP packet sticking and UDP packet fragmentation and combination problems. By using protocol templates, a series of data message parsing techniques such as "fixed packet header", "fixed length", and "interval characters" can be quickly implemented.</description>
+    <copyright>Copyright © 2026 若汝棋茗</copyright>
+    <tags>Tcp Udp Ssl Socket Saea TouchSocket</tags>
+    <repository type="git" url="https://github.com/RRQM/TouchSocket" commit="85bd764eef1fa8f134a4a6eb792ecb23bfbf4ad7" />
+    <dependencies>
+      <group targetFramework="net10.0">
+        <dependency id="TouchSocket.Core" version="4.2.12" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETFramework4.6.2">
+        <dependency id="TouchSocket.Core" version="4.2.12" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net6.0">
+        <dependency id="TouchSocket.Core" version="4.2.12" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net8.0">
+        <dependency id="TouchSocket.Core" version="4.2.12" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="TouchSocket.Core" version="4.2.12" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.1">
+        <dependency id="TouchSocket.Core" version="4.2.12" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>

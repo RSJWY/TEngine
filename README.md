@@ -21,6 +21,10 @@
 
 > 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上做了一系列围绕**热更新、资源打包、运行时配置**的定制改造。以下为相对上游新增/修改的能力清单（按主题归类，最新在前）。
 
+### 🧾 日志系统
+
+- **TouchSocket 日志桥接** — 新增 `TouchSocketContainerUnityDebugLogger`、`UnityLoggerBridge` 与 `AddUnityDebugLogger` 扩展：TouchSocket.Core 日志可进入 Unity Console，Unity/Task/UniTask 日志与未观察异常通过 TouchSocket `FileLogger` 落盘，并带重入保护、过期日志清理与 Editor Console 跳转过滤。
+
 ### 📡 事件系统
 
 - **按事件类型批量取消监听（`GameEvent.RemoveAllListeners`）** — 在 `GameEvent`/`EventDispatcher`/`EventDelegateData` 三层新增，无需持有注册时的委托，凭事件 ID（手写 `const` 或接口事件生成的 `IXxx_Event.OnXxx`）即可清空该事件下的全部监听，且不影响其他事件；支持 int / string 两种事件 ID。复用底层既有的延迟增删机制，回调过程中调用也安全。补足原框架"取消必须传回注册委托、无法从别处取消"的短板。

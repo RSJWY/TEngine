@@ -200,6 +200,9 @@ namespace TEngine.Editor
                                    assetPath.Contains("DefaultLogHelper.cs") ||
                                    assetPath.Contains("GameFrameworkLog.cs") ||
                                    assetPath.Contains("AssetsLogger.cs") ||
+                                   assetPath.Contains("UnityLoggerBridge.cs") ||
+                                   assetPath.Contains("TouchSocketContainerUnityDebugLogger.cs") ||
+                                   assetPath.Contains("TouchSocketUnityLoggerExtensions.cs") ||
                                    assetPath.Contains("Log.cs");
             
             var stackTrace = GetStackTrace();
@@ -227,10 +230,13 @@ namespace TEngine.Editor
                 {
                     var pathLine = matches.Groups[1].Value;
 
-                    if (!pathLine.Contains("Logger.cs") && 
+                    if (!pathLine.Contains("Logger.cs") &&
                         !pathLine.Contains("DefaultLogHelper.cs") &&
-                        !pathLine.Contains("GameFrameworkLog.cs") && 
-                        !pathLine.Contains("AssetsLogger.cs") && 
+                        !pathLine.Contains("GameFrameworkLog.cs") &&
+                        !pathLine.Contains("AssetsLogger.cs") &&
+                        !pathLine.Contains("UnityLoggerBridge.cs") &&
+                        !pathLine.Contains("TouchSocketContainerUnityDebugLogger.cs") &&
+                        !pathLine.Contains("TouchSocketUnityLoggerExtensions.cs") &&
                         !pathLine.Contains("Log.cs"))
                     {
                         var splitIndex = pathLine.LastIndexOf(":", StringComparison.Ordinal);

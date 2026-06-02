@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>TouchSocket.Core</id>
+    <version>4.2.12</version>
+    <title>TouchSocket.Core</title>
+    <authors>若汝棋茗</authors>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <license type="file">LICENSE.txt</license>
+    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+    <icon>logo.png</icon>
+    <readme>Readme.md</readme>
+    <projectUrl>https://touchsocket.net/</projectUrl>
+    <description>这是一个基础服务功能的库，其中包含：内存池、对象池、文件池、流式数据解包器、等待逻辑池、AppMessenger、3DES加密、Xml快速存储、运行时间测量器、文件快捷操作、高性能二进制序列化器、规范日志接口等。
+
+说明文档：https://touchsocket.net/</description>
+    <copyright>Copyright © 2026 若汝棋茗</copyright>
+    <tags>Message ArrayPool Logger Plugin 3DES Xml FilePool Serialize TouchSocket</tags>
+    <repository type="git" url="https://github.com/RRQM/TouchSocket" commit="85bd764eef1fa8f134a4a6eb792ecb23bfbf4ad7" />
+    <dependencies>
+      <group targetFramework="net10.0" />
+      <group targetFramework=".NETFramework4.6.2">
+        <dependency id="System.IO.Pipelines" version="6.0.3" exclude="Build,Analyzers" />
+        <dependency id="System.Text.Json" version="8.0.5" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net6.0">
+        <dependency id="System.IO.Pipelines" version="6.0.3" exclude="Build,Analyzers" />
+        <dependency id="System.Text.Json" version="8.0.5" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net8.0">
+        <dependency id="System.IO.Pipelines" version="8.0.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="System.IO.Pipelines" version="6.0.3" exclude="Build,Analyzers" />
+        <dependency id="System.Text.Json" version="8.0.5" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.1">
+        <dependency id="System.IO.Pipelines" version="6.0.3" exclude="Build,Analyzers" />
+        <dependency id="System.Text.Json" version="8.0.5" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>
