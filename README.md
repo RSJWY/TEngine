@@ -17,6 +17,32 @@
 
 ---
 
+## 🛠️ 本 Fork 的定制改动
+
+> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上做了一系列围绕**热更新、资源打包、运行时配置**的定制改造。以下为相对上游新增/修改的能力清单（按主题归类，最新在前）。
+
+### 🔧 运行时配置
+
+- **轻量 JSON 配置模块（`JsonConfigModule`）** — 在 `TEngine.Runtime` 内新增，从 `StreamingAssets/Configs` 按 `config_manifest.json` 清单加载并缓存 JSON 配置，支持强类型 `Get/TryGet`、原始文本读取与对象缓存；通过 `GameModule.JsonConfig` 访问。保留原 Luban `ConfigSystem` 不动。JSON 序列化默认切换为 Newtonsoft。
+- **部署配置覆盖热更地址（`DeployConfig`）** — 打包后可通过明文 `StreamingAssets/Configs/DeployConfig.json` 现场覆盖 `UpdateSetting` 的资源服务器地址；`ProcedureLaunch` 在资源初始化前加载，读不到时回退 Inspector 默认值。
+
+### 🔄 热更新
+
+- **多包架构** — 将热更 DLL 从默认资源包中拆出为独立 `CodePackage`，编辑器打包工具与运行时配置共用同一份资源包数据源。
+- **代码包 XXTEA 加密** — 仅对代码包加密，不全局加密所有资源包。
+- **版本确认与下载流程** — 恢复“有本地版本可取消、无本地版本强制更新”的可选更新提示流程。
+- **AOT 元数据热更清单** — 将 AOT 元数据列表从基础包序列化引用中解耦，支持后续热更补充。
+- **PlayerPrefs 版本记录清理工具** — 项目内菜单/窗口，快速清理“上次成功更新版本号”，方便反复测试热更。
+
+### 📦 资源打包
+
+- **按包构建管线** — 资源包不再统一单一管线，支持按包指定 YooAsset 构建管线（保留 SBP / RawFile，移除 BBP）。
+- **发布整理流程** — 构建后自动整理产物到发布目录，统一运行时平台目录名与 YooAsset 构建目录名，避免 404。
+
+> 📄 各项改动的详细设计与排查过程见 `UnityProject/conversation-summaries/` 下对应日期的会话总结。
+
+---
+
 ## 📖 简介
 
 **TEngine** 是一个简单（新手友好、开箱即用）且强大的 Unity 框架全平台解决方案。对于需要一套上手快、文档清晰、高性能且可拓展性极强的商业级解决方案的开发者或团队来说，TEngine 是一个很好的选择。
@@ -36,6 +62,7 @@
 
 ## 📚 目录
 
+- [本 Fork 的定制改动](#️-本-fork-的定制改动)
 - [快速开始](#-快速开始)
 - [AI 开发工作流](#-ai-开发工作流)
 - [文档导航](#-文档导航)
