@@ -297,7 +297,7 @@ MonoBehaviour:
   editorLanguage: 0
   textHelperTypeName: TEngine.DefaultTextHelper
   logHelperTypeName: TEngine.DefaultLogHelper
-  jsonHelperTypeName: TEngine.DefaultJsonHelper
+  jsonHelperTypeName: TEngine.NewtonsoftJsonHelper
   frameRate: 120
   gameSpeed: 1
   runInBackground: 1

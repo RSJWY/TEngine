@@ -82,8 +82,15 @@ public class GameModule
     /// 获取本地化模块。
     /// </summary>
     public static ILocalizationModule Localization => _localization ??= Get<ILocalizationModule>();
-    
+
     private static ILocalizationModule _localization;
+
+    /// <summary>
+    /// 获取轻量 JSON 配置模块。
+    /// </summary>
+    public static IJsonConfigModule JsonConfig => _jsonConfig ??= Get<IJsonConfigModule>();
+
+    private static IJsonConfigModule _jsonConfig;
     #endregion
     
     /// <summary>
@@ -114,5 +121,6 @@ public class GameModule
         _scene = null;
         _timer = null;
         _localization = null;
+        _jsonConfig = null;
     }
 }

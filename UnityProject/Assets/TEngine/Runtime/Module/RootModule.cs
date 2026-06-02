@@ -37,7 +37,7 @@ namespace TEngine
         private string logHelperTypeName = "TEngine.DefaultLogHelper";
 
         [SerializeField]
-        private string jsonHelperTypeName = "TEngine.DefaultJsonHelper";
+        private string jsonHelperTypeName = "TEngine.NewtonsoftJsonHelper";
 
         [SerializeField]
         private int frameRate = 120;

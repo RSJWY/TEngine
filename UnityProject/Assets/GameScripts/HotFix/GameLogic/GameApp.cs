@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Cysharp.Threading.Tasks;
 using GameLogic;
 #if ENABLE_OBFUZ
 using Obfuz;
@@ -31,11 +33,25 @@ public partial class GameApp
         Utility.Unity.AddDestroyListener(Release);
         Log.Warning("======= StartGameLogic =======");
         StartGameLogic();
+        //Log.Warning("======= 我是热更代码 =======");
     }
     
     private static void StartGameLogic()
     {
-        // GameEvent.Get<ILoginUI>().ShowLoginUI();
+        StartGameLogicAsync().Forget();
+    }
+
+    private static async UniTaskVoid StartGameLogicAsync()
+    {
+        try
+        {
+            await GameModule.JsonConfig.LoadAllAsync();
+        }
+        catch (Exception exception)
+        {
+            Log.Error($"Load json config failed: {exception}");
+        }
+
         GameModule.UI.ShowUIAsync<BattleMainUI>();
     }
     
