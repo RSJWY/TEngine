@@ -71,6 +71,26 @@ namespace TEngine
         }
 
         /// <summary>
+        /// 移除本事件下的所有监听。
+        /// <remarks>无需传入注册时的委托，凭事件类型即可清空。</remarks>
+        /// </summary>
+        internal void RemoveAll()
+        {
+            if (_isExecute)
+            {
+                // 正在回调遍历中：走延迟删除，避免破坏 _listExist 的遍历。
+                _dirty = true;
+                _deleteList.AddRange(_listExist);
+                // 本帧尚未生效的待新增也一并取消，符合"全部清空"语义。
+                _addList.Clear();
+            }
+            else
+            {
+                _listExist.Clear();
+            }
+        }
+
+        /// <summary>
         /// 检测脏数据修正。
         /// </summary>
         private void CheckModify()

@@ -53,6 +53,19 @@ namespace TEngine
             }
         }
 
+        /// <summary>
+        /// 移除指定事件类型的所有监听。
+        /// <remarks>无需传入注册时的委托，凭事件类型即可清空，且不影响其他事件。</remarks>
+        /// </summary>
+        /// <param name="eventType">事件类型。</param>
+        public void RemoveAllListeners(int eventType)
+        {
+            if (_eventTable.TryGetValue(eventType, out var data))
+            {
+                data.RemoveAll();
+            }
+        }
+
         #endregion
 
         #region 事件分发接口

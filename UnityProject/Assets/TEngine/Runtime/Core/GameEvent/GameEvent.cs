@@ -369,6 +369,26 @@ namespace TEngine
             _eventMgr.Dispatcher.RemoveEventListener(RuntimeId.ToRuntimeId(eventType), handler);
         }
 
+        /// <summary>
+        /// 移除指定事件类型的所有监听。
+        /// <remarks>无需传入注册时的委托，凭事件类型即可清空该事件下的全部监听，且不影响其他事件。</remarks>
+        /// </summary>
+        /// <param name="eventType">事件类型。</param>
+        public static void RemoveAllListeners(int eventType)
+        {
+            _eventMgr.Dispatcher.RemoveAllListeners(eventType);
+        }
+
+        /// <summary>
+        /// 移除指定事件类型的所有监听。
+        /// <remarks>无需传入注册时的委托，凭事件类型即可清空该事件下的全部监听，且不影响其他事件。</remarks>
+        /// </summary>
+        /// <param name="eventType">事件类型。</param>
+        public static void RemoveAllListeners(string eventType)
+        {
+            _eventMgr.Dispatcher.RemoveAllListeners(RuntimeId.ToRuntimeId(eventType));
+        }
+
         #endregion
 
         #region 分发消息接口
