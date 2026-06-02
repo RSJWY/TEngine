@@ -5,6 +5,9 @@
 
 TEngine 基于 HybridCLR + YooAsset + UniTask + Luban 构建。
 
+
+conversation-summaries这是之前会话的总结，以后所有会话总结也存到这里。
+上级目录是整个我fork的项目的根目录，readme也在这里；当前目录为unity项目目录。
 ---
 
 ## ⚡ 强制工作流（所有任务必须遵守）
