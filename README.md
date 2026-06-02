@@ -39,7 +39,7 @@
 - **按包构建管线** — 资源包不再统一单一管线，支持按包指定 YooAsset 构建管线（保留 SBP / RawFile，移除 BBP）。
 - **发布整理流程** — 构建后自动整理产物到发布目录，统一运行时平台目录名与 YooAsset 构建目录名，避免 404。
 
-> 📄 各项改动的详细设计与排查过程见 `UnityProject/conversation-summaries/` 下对应日期的会话总结。
+> 📄 各项改动的详细设计、使用方式与排查过程见 [Fork 定制改动说明](Books/Fork-定制改动说明.md)，更细的过程记录见 `UnityProject/conversation-summaries/` 下对应日期的会话总结。
 
 ---
 
