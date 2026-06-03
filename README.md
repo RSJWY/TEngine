@@ -24,6 +24,7 @@
 ### 🧾 日志系统
 
 - **TouchSocket 日志桥接** — 新增 `TouchSocketContainerUnityDebugLogger`、`UnityLoggerBridge` 与 `AddUnityDebugLogger` 扩展：TouchSocket.Core 日志可进入 Unity Console，Unity/Task/UniTask 日志与未观察异常通过 TouchSocket `FileLogger` 落盘，并带重入保护、过期日志清理与 Editor Console 跳转过滤。
+- **Editor 打开日志目录菜单** — `OpenFolderHelper` 新增 `TEngine/Open Folder/Log Files Path`，一键打开 `persistentDataPath/Logs` 落盘目录（目录未生成时回退到 Persistent Data Path）。
 
 ### 📡 事件系统
 

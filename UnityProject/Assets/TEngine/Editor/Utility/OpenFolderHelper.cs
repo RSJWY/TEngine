@@ -59,6 +59,17 @@ namespace TEngine.Editor
 #endif
 
         /// <summary>
+        /// 打开日志落盘目录（UnityLoggerBridge 的输出根目录）。
+        /// 目录尚未生成时退回打开 Persistent Data Path。
+        /// </summary>
+        [MenuItem("TEngine/Open Folder/Log Files Path", false, 15)]
+        public static void OpenFolderLogFilesPath()
+        {
+            string logRootPath = System.IO.Path.Combine(Application.persistentDataPath, "Logs");
+            Execute(System.IO.Directory.Exists(logRootPath) ? logRootPath : Application.persistentDataPath);
+        }
+
+        /// <summary>
         /// 打开指定路径的文件夹。
         /// </summary>
         /// <param name="folder">要打开的文件夹的路径。</param>

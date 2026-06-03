@@ -4,6 +4,9 @@
 
 ## 📚 目录
 
+- [日志系统](#-日志系统)
+  - [TouchSocket 日志桥接与落盘](#1-touchsocket-日志桥接与落盘)
+  - [Editor 打开日志目录菜单](#2-editor-打开日志目录菜单)
 - [运行时配置](#-运行时配置)
   - [轻量 JSON 配置模块](#1-轻量-json-配置模块-jsonconfigmodule)
   - [部署配置覆盖热更地址](#2-部署配置覆盖热更地址-deployconfig)
@@ -16,6 +19,57 @@
 - [资源打包](#-资源打包)
   - [按包构建管线](#1-按包构建管线)
   - [发布整理流程](#2-发布整理流程)
+
+---
+
+## 🧾 日志系统
+
+### 1. TouchSocket 日志桥接与落盘
+
+在 `TEngine.Runtime` 内基于 `TouchSocket.Core` 新增日志双向桥接：TouchSocket 日志可进入 Unity Console，Unity/Task/UniTask 日志与未观察异常统一落盘到本地文件。
+
+**特性**
+
+- `TouchSocketContainerUnityDebugLogger` 继承 `LoggerBase`，将 TouchSocket 日志按级别映射到 `Debug.Log` / `LogWarning` / `LogError`，统一带 `[TouchSocket]` 前缀。
+- `AddUnityDebugLogger()` 扩展支持给 `IRegistrator` / `LoggerGroup` 注册 Unity Console 日志器，可指定日志级别。
+- `UnityLoggerBridge` 通过 `[RuntimeInitializeOnLoadMethod(BeforeSplashScreen)]` 自动初始化，监听 `Application.logMessageReceivedThreaded`、`TaskScheduler.UnobservedTaskException`、`UniTaskScheduler.UnobservedTaskException`，经 TouchSocket `FileLogger` 落盘。
+- 默认落盘到 `Application.persistentDataPath/Logs/yyyy-MM-dd/`，单文件 1 MB 滚动，保留最近 3 天日志目录。
+- 加入线程级重入保护避免日志系统递归，并用 `SubsystemRegistration` 重置静态状态，兼容关闭 Domain Reload 的 Editor Play Mode。
+- `DefaultLogHelper` 的 `LogRedirection` 过滤列表加入桥接脚本，避免 Console 双击日志时跳到桥接层。
+
+**使用方式**
+
+```csharp
+// TouchSocket 配置处注册 Unity Console 日志器（可选指定级别）
+registrator.AddUnityDebugLogger();
+registrator.AddUnityDebugLogger(LogLevel.Trace);
+
+// Unity/TEngine 普通日志无需额外注册，UnityLoggerBridge 自动落盘
+```
+
+**关键文件**
+
+- `Assets/TEngine/Runtime/Core/Log/TouchSocketContainerUnityDebugLogger.cs`
+- `Assets/TEngine/Runtime/Core/Log/TouchSocketUnityLoggerExtensions.cs`
+- `Assets/TEngine/Runtime/Core/Log/UnityLoggerBridge.cs`
+- `Assets/TEngine/Runtime/Core/Utility/DefaultHelper/DefaultLogHelper.cs`
+
+> 依赖 `Assets/Packages/TouchSocket.Core.4.2.12/`（经 NuGetForUnity 入库）。
+>
+> 详见 `conversation-summaries/2026-06-02-touchsocket-logger-summary.md`
+
+---
+
+### 2. Editor 打开日志目录菜单
+
+便于在编辑器下快速定位 `UnityLoggerBridge` 的落盘产物。
+
+- 在 `OpenFolderHelper` 新增菜单入口：`TEngine/Open Folder/Log Files Path`，与现有 Data Path / Persistent Data Path 等菜单同组。
+- 打开 `Application.persistentDataPath/Logs`；目录尚未生成时退回打开 `Persistent Data Path`，避免路径不存在报错。
+
+**关键文件**
+
+- `Assets/TEngine/Editor/Utility/OpenFolderHelper.cs`
 
 ---
 
