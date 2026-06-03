@@ -58,3 +58,30 @@
 
 - `README.md`「🧾 日志系统」新增 LogViewer 一行概述。
 - `Books/Fork-定制改动说明.md`「日志系统」新增「3. 日志查看工具 LogViewer」章节并更新目录锚点。
+
+## 后续：构建脚本编码修复与合并
+
+用户实跑 `build.bat` 报中文乱码（`'s@latest' 不是内部或外部命令` 等）。
+
+**根因**：build.bat 为 UTF-8 编码，Windows CMD 默认按 GBK(CP936) 解码 .bat，中文字节被错解成乱码并当命令执行。
+
+**修复**：
+
+- `build.bat` 改为纯英文输出（彻底规避 GBK 解码问题），并加 wails 定位回退：PATH 找不到时依次查 `go env GOPATH\bin`、`%USERPROFILE%\go\bin`。
+- 新增 `build.ps1`：写入 **UTF-8 BOM**，让 Windows PowerShell 正确识别中文（无 BOM 时 PS 5.x 按 GBK 读 UTF-8 会报「字符串缺少终止符」）。同样带 wails 定位回退。
+- `build.sh` 同步加 `$(go env GOPATH)/bin`、`~/go/bin` 回退。
+- LogViewer `README.md` 补充三种构建方式与编码说明。
+
+**验证**：
+
+- 确认 build.bat 已是纯 ASCII，无多字节字符。
+- PowerShell 实跑 `build.ps1` 完整通过，中文正常显示，产物 `build/bin/LogViewer.exe` 正常生成。
+
+**Git 流程与一个插曲**：
+
+- 本批改动（4 文件）提交为 `d32d72f4` 推送到 `origin/main`。
+- 推送 feat 分支同步时发现本地 main 多出一个提交 `2fb61eed 添加备注`（用户在 IDE/另一终端对 `UnityLoggerBridge.cs` +22 行备注的提交），此前误随 `git branch -f` 带到了 feat 远端。
+- 经确认，将 `2fb61eed` 一并推到 `origin/main`。
+- 最终 `main` = `origin/main` = `feat/touchsocket-logger` = `2fb61eed`，三者完全同步。
+
+> 经验：`git branch -f <branch> main` 会把 main 当时的 HEAD（可能含他人/另一终端的新提交）一并带过去，移动分支指针前应先 `git log` 确认 main 的实际 HEAD。
