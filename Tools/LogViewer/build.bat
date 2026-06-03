@@ -1,39 +1,56 @@
 @echo off
+setlocal enabledelayedexpansion
+
 echo ===================================
 echo TEngine Log Viewer - Build Script
 echo ===================================
 echo.
 
-REM 检查 Wails 是否安装
+REM ---- Locate Wails CLI ----
+set "WAILS_CMD="
 where wails >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [错误] 未找到 Wails CLI，请先安装：
+if %errorlevel%==0 (
+    set "WAILS_CMD=wails"
+) else (
+    for /f "delims=" %%i in ('go env GOPATH 2^>nul') do set "GOPATH_DIR=%%i"
+    if exist "!GOPATH_DIR!\bin\wails.exe" (
+        set "WAILS_CMD=!GOPATH_DIR!\bin\wails.exe"
+    ) else if exist "%USERPROFILE%\go\bin\wails.exe" (
+        set "WAILS_CMD=%USERPROFILE%\go\bin\wails.exe"
+    )
+)
+
+if not defined WAILS_CMD (
+    echo [ERROR] Wails CLI not found. Please install it first:
     echo   go install github.com/wailsapp/wails/v2/cmd/wails@latest
+    echo Make sure GOPATH\bin is in PATH, or reopen the terminal after install.
+    pause
     exit /b 1
 )
 
-echo [1/3] 下载依赖...
+echo [1/3] Downloading dependencies...
 go mod tidy
 if %errorlevel% neq 0 (
-    echo [错误] 依赖下载失败
+    echo [ERROR] Failed to download dependencies
+    pause
     exit /b 1
 )
 
 echo.
-echo [2/3] 构建应用...
-wails build -clean
+echo [2/3] Building application...
+"!WAILS_CMD!" build -clean
 if %errorlevel% neq 0 (
-    echo [错误] 构建失败
+    echo [ERROR] Build failed
+    pause
     exit /b 1
 )
 
 echo.
-echo [3/3] 完成
-echo 输出文件: build\bin\LogViewer.exe
+echo [3/3] Done
+echo Output: build\bin\LogViewer.exe
 echo.
 echo ===================================
-echo 构建成功！
-echo 双击 build\bin\LogViewer.exe 启动应用
+echo Build succeeded!
+echo Run build\bin\LogViewer.exe to start.
 echo ===================================
-
 pause

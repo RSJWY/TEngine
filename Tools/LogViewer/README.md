@@ -40,10 +40,17 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
 然后在本目录执行：
 
-```bash
-# Windows
+```bat
+:: Windows - 双击 build.bat，或在 CMD 中运行
 build.bat
+```
 
+```powershell
+# Windows - PowerShell（中文输出友好）
+powershell -ExecutionPolicy Bypass -File build.ps1
+```
+
+```bash
 # Linux / macOS
 ./build.sh
 ```
@@ -55,6 +62,10 @@ wails build -clean
 ```
 
 产物位于 `build/bin/LogViewer.exe`。
+
+> 三个脚本都会在 PATH 找不到 `wails` 时自动回退到 `GOPATH\bin` / `~/go/bin` 查找。
+>
+> `build.bat` 用纯英文输出，避免 CMD 默认 GBK 解码导致中文乱码；需要中文提示时用 `build.ps1`。
 
 > 注意：`frontend/wailsjs/` 是 Wails 构建时自动生成的绑定代码，已被 `.gitignore` 忽略。首次 clone 后直接执行 `wails build` 即可重新生成，无需手动创建。
 
