@@ -7,6 +7,7 @@
 - [日志系统](#-日志系统)
   - [TouchSocket 日志桥接与落盘](#1-touchsocket-日志桥接与落盘)
   - [Editor 打开日志目录菜单](#2-editor-打开日志目录菜单)
+  - [日志查看工具 LogViewer](#3-日志查看工具-logviewer)
 - [运行时配置](#-运行时配置)
   - [轻量 JSON 配置模块](#1-轻量-json-配置模块-jsonconfigmodule)
   - [部署配置覆盖热更地址](#2-部署配置覆盖热更地址-deployconfig)
@@ -70,6 +71,42 @@ registrator.AddUnityDebugLogger(LogLevel.Trace);
 **关键文件**
 
 - `Assets/TEngine/Editor/Utility/OpenFolderHelper.cs`
+
+---
+
+### 3. 日志查看工具 LogViewer
+
+仓库根 `Tools/LogViewer/` 下新增独立桌面工具，把 `UnityLoggerBridge` 落盘的 `.log` 文件以图形界面查看，免去直接翻阅满是富文本标签与堆栈的原始日志。
+
+基于 **Go + [Wails v2](https://wails.io)** 构建，编译为单体 `exe`，无运行时依赖（Windows 10/11 自带 WebView2）。
+
+**特性**
+
+- 打开 / 拖入 `.log` 文件查看，深色主题界面。
+- 按级别筛选（DEBUG / INFO / WARNING / ERROR），关键词实时检索并高亮。
+- 自动剥离 Unity 富文本标签（`<color>` / `<b>` 等）与 `[INFO] ►` 冗余前缀。
+- 堆栈默认折叠、点击展开；兼容编辑器（带 `at .../File.cs:行号`）与打包后（无路径）两种堆栈格式。
+- 一键打开默认日志目录 `%LOCALAPPDATA%\DefaultCompany\hotUnity\Logs`。
+
+**构建**
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+cd Tools/LogViewer
+build.bat        # 或 ./build.sh / wails build -clean
+```
+
+产物为 `Tools/LogViewer/build/bin/LogViewer.exe`。
+
+> `frontend/wailsjs/` 为 Wails 构建时自动生成的绑定，已被 `.gitignore` 忽略，clone 后首次 `wails build` 会重新生成。
+
+**关键文件**
+
+- `Tools/LogViewer/main.go`（Wails 入口与后端 API）
+- `Tools/LogViewer/parser/parser.go`（日志解析：富文本剥离、堆栈分组、过滤）
+- `Tools/LogViewer/frontend/`（index.html / style.css / app.js）
+
+> 详见 `conversation-summaries/2026-06-03-logviewer-tool-summary.md`
 
 ---
 

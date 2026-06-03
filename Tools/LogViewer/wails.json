@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "LogViewer",
+  "outputfilename": "LogViewer",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "TEngine Team",
+    "email": ""
+  },
+  "info": {
+    "companyName": "TEngine",
+    "productName": "TEngine Log Viewer",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2026",
+    "comments": "TEngine Unity 日志查看工具"
+  }
+}

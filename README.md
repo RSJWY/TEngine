@@ -25,6 +25,7 @@
 
 - **TouchSocket 日志桥接** — 新增 `TouchSocketContainerUnityDebugLogger`、`UnityLoggerBridge` 与 `AddUnityDebugLogger` 扩展：TouchSocket.Core 日志可进入 Unity Console，Unity/Task/UniTask 日志与未观察异常通过 TouchSocket `FileLogger` 落盘，并带重入保护、过期日志清理与 Editor Console 跳转过滤。
 - **Editor 打开日志目录菜单** — `OpenFolderHelper` 新增 `TEngine/Open Folder/Log Files Path`，一键打开 `persistentDataPath/Logs` 落盘目录（目录未生成时回退到 Persistent Data Path）。
+- **日志查看工具 LogViewer** — 仓库根 `Tools/LogViewer/` 下新增 Go + Wails 桌面工具，编译为单体 exe：打开/拖入 `.log` 即可查看，支持级别筛选、关键词检索高亮、自动剥离富文本标签、堆栈折叠，兼容编辑器与打包后两种堆栈格式。
 
 ### 📡 事件系统
 

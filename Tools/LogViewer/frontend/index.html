@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEngine Log Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部工具栏 -->
+        <header class="toolbar">
+            <div class="file-section">
+                <button id="openFileBtn" class="btn-primary">打开日志文件</button>
+                <button id="openDefaultBtn" class="btn-secondary">打开默认日志目录</button>
+                <span id="fileInfo" class="file-info"></span>
+            </div>
+            <div class="filter-section">
+                <div class="level-filters">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterDebug" checked>
+                        <span class="level-badge debug">DEBUG</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterInfo" checked>
+                        <span class="level-badge info">INFO</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterWarning" checked>
+                        <span class="level-badge warning">WARNING</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterError" checked>
+                        <span class="level-badge error">ERROR</span>
+                    </label>
+                </div>
+                <input type="text" id="searchInput" placeholder="搜索关键词..." class="search-input">
+            </div>
+        </header>
+
+        <!-- 日志内容区 -->
+        <main class="log-container" id="logContainer">
+            <div class="empty-state">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <p>点击"打开日志文件"或拖拽日志文件到此处</p>
+            </div>
+        </main>
+
+        <!-- 底部状态栏 -->
+        <footer class="statusbar">
+            <span id="statusText">就绪</span>
+            <span id="logCount"></span>
+        </footer>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
