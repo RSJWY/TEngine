@@ -1,5 +1,12 @@
 # TEngine Log Viewer
 
+> **📦 独立仓库**：本工具已拆分到 **[TEngine-LogView](https://github.com/RSJWY/TEngine-LogView)**  
+> - 前往独立仓库下载最新 [Releases](https://github.com/RSJWY/TEngine-LogView/releases)  
+> - 提交问题反馈或功能建议到 [Issues](https://github.com/RSJWY/TEngine-LogView/issues)  
+> - 代码仍在主仓库维护，通过 Git Subtree 自动同步
+
+---
+
 TEngine Unity 日志查看工具。把 `UnityLoggerBridge` 落盘的 `.log` 文件以图形界面展示，支持级别筛选、关键词检索、堆栈折叠。
 
 基于 Go + [Wails v2](https://wails.io) 构建，编译为单体 exe，无需运行时依赖（Windows 10/11 自带 WebView2）。
