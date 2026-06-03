@@ -293,7 +293,7 @@ body {
     color: var(--text-secondary);
 }
 
-/* 拖拽区域 */
+/* 拖拽悬停反馈：由 app.js 的 setupDragVisual 在拖入文件时切换 .drag-over */
 .log-container.drag-over {
     border: 2px dashed var(--accent-blue);
     background-color: rgba(0, 122, 204, 0.05);

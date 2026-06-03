@@ -1,6 +1,6 @@
 // 导入 Wails 生成的后端绑定与运行时事件
 import { LoadLogFile, OpenFileDialog, OpenDefaultLogDir } from './wailsjs/go/main/App.js';
-import { EventsOn } from './wailsjs/runtime/runtime.js';
+import { OnFileDrop } from './wailsjs/runtime/runtime.js';
 
 // 全局状态
 let allLogs = [];
@@ -42,14 +42,18 @@ window.addEventListener('DOMContentLoaded', () => {
         searchTimeout = setTimeout(applyFilters, 300);
     });
 
-    // 监听后端文件拖拽事件
-    EventsOn('file:dropped', (filePath) => {
-        if (filePath) {
-            loadLogFile(filePath);
+    // 注册 Wails 文件拖拽监听。
+    // 关键：必须由前端调用 OnFileDrop，它内部才会注册 dragover/drop 的 DOM 监听器
+    // 并 preventDefault，否则 WebView2 会把拖入的文件当 URL 直接导航打开。
+    // 第二参数 useDropTarget=false：整个窗口都可接收，不依赖 --wails-drop-target CSS 属性。
+    OnFileDrop((x, y, paths) => {
+        logContainer.classList.remove('drag-over');
+        if (paths && paths.length > 0) {
+            loadLogFile(paths[0]);
         }
-    });
+    }, false);
 
-    // 阻止浏览器默认拖拽行为，并提供视觉反馈
+    // 拖拽悬停视觉反馈（仅切换样式，不阻止默认行为，避免干扰 Wails 的 drop 处理）
     setupDragVisual();
 });
 
@@ -238,22 +242,24 @@ function showError(message) {
     }, 5000);
 }
 
-// 拖拽视觉反馈（实际文件路径由后端 OnFileDrop 提供）
+// 拖拽悬停视觉反馈。
+// 实际的 preventDefault 与文件路径解析由 Wails 的 OnFileDrop 内部监听器完成，
+// 这里只负责切换高亮样式，不调用 preventDefault，以免干扰 Wails 的 drop 流程。
 function setupDragVisual() {
     window.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        logContainer.classList.add('drag-over');
+        if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+            logContainer.classList.add('drag-over');
+        }
     });
 
     window.addEventListener('dragleave', (e) => {
-        // 仅当离开窗口时移除
+        // 离开窗口边界时才移除高亮
         if (e.relatedTarget === null) {
             logContainer.classList.remove('drag-over');
         }
     });
 
-    window.addEventListener('drop', (e) => {
-        e.preventDefault();
+    window.addEventListener('drop', () => {
         logContainer.classList.remove('drag-over');
     });
 }

@@ -31,14 +31,8 @@ func NewApp() *App {
 // startup 在应用启动时调用
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-
-	// 监听前端文件拖拽，拖入后直接读取首个文件
-	wailsruntime.OnFileDrop(ctx, func(x, y int, paths []string) {
-		if len(paths) == 0 {
-			return
-		}
-		wailsruntime.EventsEmit(a.ctx, "file:dropped", paths[0])
-	})
+	// 文件拖拽由前端 runtime.OnFileDrop 直接处理（注册 DOM 监听并解析路径），
+	// 无需在 Go 端再注册转发，避免重复链路。
 }
 
 // LoadLogFile 加载日志文件
