@@ -85,3 +85,27 @@
 - 最终 `main` = `origin/main` = `feat/touchsocket-logger` = `2fb61eed`，三者完全同步。
 
 > 经验：`git branch -f <branch> main` 会把 main 当时的 HEAD（可能含他人/另一终端的新提交）一并带过去，移动分支指针前应先 `git log` 确认 main 的实际 HEAD。
+
+## 后续：修复拖拽打开（拖入被 WebView2 当 URL 导航打开）
+
+用户实测拖拽 .log 文件无效，拖入后反而打开一个 webview 界面。
+
+**首次误判（仅补了一半）**：以为是 Wails v2.5+ 的 drop target 机制——`OnFileDrop` 回调只在落点元素带 CSS `--wails-drop-target: drop` 时才触发（`draganddrop.js` 第 253-261 行）。于是在 body 上加了该属性。但实测仍打开 webview。
+
+**真正根因**：Wails 的拖放 **DOM 监听器**（`dragover`/`drop` 上的 `preventDefault` 阻止导航 + `ResolveFilePaths` 把文件传回 Go）**只在前端 JS 调用 `runtime.OnFileDrop()` 时才注册**（`draganddrop.js` 第 248-250 行）。原实现只在 Go 端调了 `wailsruntime.OnFileDrop`，前端从未调用 JS 版的 `OnFileDrop`，所以：
+
+1. 无 `dragover`/`drop` DOM 监听 → 无人 `preventDefault` → WebView2 把拖入文件当 URL 直接导航（即「打开 webview 界面」现象）。
+2. `ResolveFilePaths` 从未被调用 → Go 端 `wails:file-drop` 永不触发 → `file:dropped` 发不出。
+
+完整链路：前端 `OnFileDrop()` 注册 DOM 监听 → drop 时 `preventDefault` + `ResolveFilePaths` 发 `file:drop:x:y` → Go 解析真实路径并 emit `wails:file-drop` → Go 端 `wailsruntime.OnFileDrop` 回调 → emit 自定义事件。缺的就是第一环。
+
+**修复（提交 `c82af1ec`，仅 LogViewer 3 文件）**：
+
+- `app.js`：前端直接调用 `OnFileDrop((x,y,paths) => loadLogFile(paths[0]), false)`。这一步才真正注册 DOM 监听并 `preventDefault`。`useDropTarget=false` 让整个窗口都能接收，不依赖 CSS 属性。
+- `app.js`：重写 `setupDragVisual`，仅切换 `.drag-over` 高亮，不调 `preventDefault`（交给 Wails）。
+- `main.go`：删除 Go 端冗余的 `file:dropped` 转发链路（`startup` 里的 `wailsruntime.OnFileDrop`），前端直接拿路径。
+- `style.css`：移除无用的 body `--wails-drop-target`，视觉反馈类改回 `.drag-over`。
+
+**验证**：`wails build -clean` 通过，用户实测拖拽正常加载，不再弹 webview。
+
+> 经验：Wails v2 文件拖拽必须由**前端** JS 显式调用 `runtime.OnFileDrop()` 才会装上 `preventDefault` 监听器；只在 Go 端注册 `wailsruntime.OnFileDrop` 不够，会导致 WebView2 把拖入文件当导航打开。`EnableFileDrop` 只是开关，不会自动注册前端监听。
