@@ -49,6 +49,10 @@
 - **按包构建管线** — 资源包不再统一单一管线，支持按包指定 YooAsset 构建管线（保留 SBP / RawFile，移除 BBP）。
 - **发布整理流程** — 构建后自动整理产物到发布目录，统一运行时平台目录名与 YooAsset 构建目录名，避免 404。
 
+### 🖥️ 窗口管理
+
+- **窗口布局控制模块（`ScreenModule`）** — 在 `TEngine.Runtime`（AOT 层）新增，Windows Standalone 下控制 Unity 多屏窗口的位置/大小/强制置顶/无边框；原生 P/Invoke 在 IL2CPP 下编译、不进 HybridCLR 解释域。配置可选（缺失时回退主显示器分辨率并告警），应用前自动切窗口化避免全屏覆盖，非 Windows 平台调用仅告警不执行。通过 `GameModule.Screen` 访问。
+
 > 📄 各项改动的详细设计、使用方式与排查过程见 [Fork 定制改动说明](Books/Fork-定制改动说明.md)，更细的过程记录见 `UnityProject/conversation-summaries/` 下对应日期的会话总结。
 
 ---

@@ -91,6 +91,13 @@ public class GameModule
     public static IJsonConfigModule JsonConfig => _jsonConfig ??= Get<IJsonConfigModule>();
 
     private static IJsonConfigModule _jsonConfig;
+
+    /// <summary>
+    /// 获取窗口布局控制模块（多屏，仅 Windows Standalone 生效）。
+    /// </summary>
+    public static IScreenModule Screen => _screen ??= Get<IScreenModule>();
+
+    private static IScreenModule _screen;
     #endregion
     
     /// <summary>
@@ -122,5 +129,6 @@ public class GameModule
         _timer = null;
         _localization = null;
         _jsonConfig = null;
+        _screen = null;
     }
 }

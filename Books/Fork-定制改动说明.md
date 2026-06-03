@@ -20,6 +20,8 @@
 - [资源打包](#-资源打包)
   - [按包构建管线](#1-按包构建管线)
   - [发布整理流程](#2-发布整理流程)
+- [窗口管理](#-窗口管理)
+  - [窗口布局控制模块 ScreenModule](#screenmodule)
 
 ---
 
@@ -308,6 +310,108 @@ Assets/StreamingAssets/Configs/
 - `Assets/TEngine/Runtime/Core/UpdateSetting.cs`
 
 > 详见 `conversation-summaries/2026-05-30-resource-package-publish-workflow-summary.md`
+
+---
+
+## 🖥️ 窗口管理
+
+<a id="screenmodule"></a>
+
+### 窗口布局控制模块 ScreenModule
+
+在 `TEngine.Runtime`（AOT 层）新增的窗口布局控制模块，参考自 [RSJWYFamework 的 Screen 模块](https://github.com/RSJWY/RSJWYFamework/tree/main/Assets/RSJWYFamework/Runtime/Screen)，在本项目中按 TEngine `Module` 规范重写。
+
+#### 功能
+
+Windows Standalone 下控制 Unity 多屏（Display）窗口的：
+
+- 位置与大小
+- 强制置顶（`HWND_TOPMOST`）
+- 无边框模式（去除 `WS_CAPTION | WS_THICKFRAME`）
+
+> Unity 应用本身无法创建多个独立 OS 窗口；这里的“多窗口”指 **多显示器（multi-display）**：激活副屏后，每块屏幕对应一个 Unity 窗口（窗口类名 `UnityWndClass`，同进程同线程），本模块分别控制它们。
+
+#### 设计要点
+
+- **放在 AOT 层（`TEngine.Runtime`），而非热更层**：`DllImport` 原生互操作在 HybridCLR 解释域中调用不稳定，因此整个模块（含 Win32 封装）放到 AOT 程序集，由 IL2CPP 直接编译。热更层仅通过 `GameModule.Screen`（`TEngine.IScreenModule`）调用。
+- **被动启动，由热更入口触发**：在 `GameApp.StartGameLogic()` 首次访问 `GameModule.Screen` 时，`ModuleSystem.GetModule` 自动创建模块并执行 `OnInit`（模块在 AOT 层，`Type.GetType` 可正常解析，无需 `RegisterModule`）。
+- **基于 TEngine `Module` 生命周期**：`OnInit` 读配置并按需应用，`Shutdown` 清缓存。
+- **Win32 全正向 P/Invoke**：句柄发现用 `FindWindowEx` 循环枚举顶层 `UnityWndClass` 窗口 + `GetWindowThreadProcessId` 按进程过滤，**不使用任何 native→managed 回调委托**；样式读写用 `GetWindowLongPtr` / `SetWindowLongPtr`（兼容 64 位）。
+- **应用前自动切窗口化**：全屏模式（默认 `FullScreenWindow`）下 `SetWindowPos` 会被 Unity/OS 覆盖而不生效，模块在应用布局前先 `Screen.SetResolution(..., FullScreenMode.Windowed)` 并等待数帧。这是打包后“看不到效果”的常见根因。
+- **平台隔离**：底层 `WindowsScreenNative` 整文件 `#if UNITY_STANDALONE_WIN || UNITY_EDITOR` 包裹（其他平台提供安全空实现）；`ScreenModule` 通过 `IsSupported` 分支；非 Windows 平台不编译任何 user32 调用，调用 API 仅输出警告。
+- **全程诊断日志**：配置读取、显示器激活、窗口发现与映射、布局应用逐条 `Log.Info`，失败带 `Win32Error`，便于打包后定位。
+
+#### 位置
+
+- 模块：`Assets/TEngine/Runtime/Module/ScreenModule/`
+  - `IScreenModule.cs` — 模块接口（`namespace TEngine`）
+  - `ScreenModule.cs` — 模块实现（生命周期 + 多屏编排 + 窗口化切换）
+  - `ScreenConfig.cs` — 配置模型
+  - `WindowsScreenNative.cs` — user32 / kernel32 P/Invoke 封装
+- 配置：`Assets/StreamingAssets/Configs/ScreenConfig.json`（已登记进 `config_manifest.json`）
+
+#### 使用方式
+
+```csharp
+// 已在 GameApp.StartGameLogic() 首次访问时自动创建并按配置应用，无需手动初始化。
+// 运行时动态调整：
+GameModule.Screen.ApplyAll();              // 重新应用全部配置
+GameModule.Screen.ApplyScreen(0);          // 重新应用主屏配置
+GameModule.Screen.SetTopmost(1, true);     // 副屏（DisplayIndex=1）强制置顶
+bool ok = GameModule.Screen.IsSupported;   // 当前平台是否支持
+```
+
+#### 配置说明
+
+```json
+{
+  "ApplyOnInit": true,
+  "Screens": [
+    {
+      "DisplayIndex": 0,
+      "Activate": true,
+      "X": 0,
+      "Y": 0,
+      "Width": 1920,
+      "Height": 1080,
+      "Topmost": false,
+      "Borderless": false
+    }
+  ]
+}
+```
+
+| 字段 | 含义 |
+|------|------|
+| `ApplyOnInit` | 模块初始化时是否自动应用配置 |
+| `DisplayIndex` | Unity Display 索引（0=主屏，1/2/… 为副屏） |
+| `Activate` | 是否激活该 Display（副屏必须激活才会创建窗口） |
+| `X` / `Y` | 窗口位置（屏幕坐标系） |
+| `Width` / `Height` | 窗口宽 / 高（像素） |
+| `Topmost` | 是否强制置顶 |
+| `Borderless` | 是否去除边框与标题栏 |
+
+#### 容错机制
+
+- **未配置或配置为空**：输出警告并使用主显示器默认分辨率（`Screen.currentResolution`，居中、保留边框、不置顶）。无论何种情况都至少有一个主显示器可用。
+- **`DisplayIndex` 越界**：跳过该项并告警，继续处理其余有效配置。
+- **非 Windows 平台**：仅输出警告，不执行任何窗口操作。
+
+#### 已知限制
+
+- 仅 Windows Standalone 真实生效；Editor 下 `GetActiveWindow` 拿到的是编辑器/Game 窗口，多屏行为无法在 Editor 完整验证，需打 Windows 包多显示器实测。
+- **必须为窗口化才生效**：全屏（`FullScreenWindow` / `ExclusiveFullScreen`）下 `SetWindowPos` 被覆盖，模块已在应用前自动切 `Windowed`；若 Player Settings 强制全屏或外部又切回全屏，位置/大小会失效。
+- `DisplayIndex → 窗口句柄` 映射：主屏取当前激活窗口，副屏按窗口发现顺序与已激活的副屏配置（按索引升序）依次配对。多副屏场景该顺序可能需打包后实测校正（必要时可改用 `MonitorFromWindow` 按显示器矩形精确匹配）。看日志 `映射 Display=x -> hWnd=y` 核对。
+- Display 激活必须在运行早期、渲染前进行，且激活后不可关闭（Unity 限制）。
+
+#### 排查（打包后无效果时）
+
+按日志定位：
+
+- `当前可用显示器数量 Display.displays.Length=N` —— N 是否符合预期。
+- `窗口发现：FindUnityWindows 命中 X 个` —— X=0 表示没找到 Unity 窗口（类名/进程过滤异常）。
+- `切换为 Windowed` —— 是否成功从全屏切窗口化。
+- `已应用：Display=... Rect=...` 或 `SetWindowPos 失败 ... Win32Error=...` —— 是否真正下发成功。
 
 ---
 

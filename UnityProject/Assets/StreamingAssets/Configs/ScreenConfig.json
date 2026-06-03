@@ -1,0 +1,15 @@
+{
+  "ApplyOnInit": true,
+  "Screens": [
+    {
+      "DisplayIndex": 0,
+      "Activate": true,
+      "X": 0,
+      "Y": 0,
+      "Width": 1920,
+      "Height": 1080,
+      "Topmost": false,
+      "Borderless": false
+    }
+  ]
+}
