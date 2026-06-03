@@ -10,14 +10,35 @@ namespace TEngine
 {
     /// <summary>
     /// Unity 日志到 TouchSocket 文件日志的桥接器。
+    /// <remarks>
+    /// 输出路径是示范：logs\[2024-09-08]\0000.log
+    /// </remarks>
     /// </summary>
     public static class UnityLoggerBridge
     {
+        /// <summary>
+        /// 保留天数
+        /// </summary>
         private const int LOG_RETENTION_DAYS = 3;
-        private const int MAX_LOG_FILE_SIZE = 1024 * 1024;
+        /// <summary>
+        /// 单文件大小 KB
+        /// </summary>
+        private const int MAX_LOG_FILE_SIZE = 1024 * 1024 * 5;
+        /// <summary>
+        /// 日志存放目录
+        /// </summary>
         private const string LOG_DIRECTORY_NAME = "Logs";
+        /// <summary>
+        /// 输出天格式（Log下的子文件夹）
+        /// </summary>
         private const string LOG_DATE_FORMAT = "yyyy-MM-dd";
+        /// <summary>
+        /// 输出时间格式化
+        /// </summary>
         private const string LOG_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.ffff";
+        /// <summary>
+        /// 文件名，滚动增加
+        /// </summary>
         private const string LOG_FILE_NAME_FORMAT = "0000";
 
         private static readonly object s_Lock = new object();
