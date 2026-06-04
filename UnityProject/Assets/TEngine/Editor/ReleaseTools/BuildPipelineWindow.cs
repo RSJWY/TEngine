@@ -83,6 +83,7 @@ namespace TEngine
         private bool _showAdvancedSettings;
         private bool _showDllSettings = true;
         private bool _showPlayerSettings;
+        private bool _showFlowPreview = true;
         private bool _showBuildLog;
         private int _platformIndex;
         private int _playerPlatformIndex;
@@ -119,6 +120,7 @@ namespace TEngine
                 DrawAdvancedSettings();
                 DrawDllSettings();
                 DrawPlayerSettings();
+                DrawFlowPreview();
                 DrawActionButtons();
                 DrawBuildLog();
             }
@@ -546,6 +548,145 @@ namespace TEngine
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
             GUILayout.Space(5);
+        }
+
+        #endregion
+
+        #region 构建流程预览
+
+        private enum FlowStepState
+        {
+            Enabled,
+            Skipped,
+        }
+
+        private readonly struct FlowStep
+        {
+            public readonly FlowStepState State;
+            public readonly string Title;
+            public readonly string Detail;
+
+            public FlowStep(FlowStepState state, string title, string detail)
+            {
+                State = state;
+                Title = title;
+                Detail = detail;
+            }
+        }
+
+        private void DrawFlowPreview()
+        {
+            _showFlowPreview = EditorGUILayout.BeginFoldoutHeaderGroup(_showFlowPreview,
+                new GUIContent("构建流程预览", "根据当前配置，点击下方按钮后将按此顺序执行"));
+
+            if (_showFlowPreview)
+            {
+                EditorGUILayout.BeginVertical("HelpBox");
+                {
+                    var steps = BuildFlowSteps();
+
+                    EditorGUILayout.LabelField(
+                        "点击「一键构建」后的实际执行顺序（灰色为当前配置下跳过的步骤）：",
+                        EditorStyles.miniLabel);
+                    GUILayout.Space(3);
+
+                    int orderNo = 0;
+                    var skippedStyle = new GUIStyle(EditorStyles.label)
+                    {
+                        normal = { textColor = new Color(0.55f, 0.55f, 0.55f) },
+                        wordWrap = true,
+                    };
+                    var enabledStyle = new GUIStyle(EditorStyles.label)
+                    {
+                        wordWrap = true,
+                    };
+                    var detailStyle = new GUIStyle(EditorStyles.miniLabel)
+                    {
+                        normal = { textColor = new Color(0.5f, 0.5f, 0.5f) },
+                        wordWrap = true,
+                    };
+
+                    foreach (var step in steps)
+                    {
+                        bool enabled = step.State == FlowStepState.Enabled;
+                        string indexLabel = enabled ? $"{++orderNo}." : "—";
+
+                        EditorGUILayout.BeginHorizontal();
+                        GUILayout.Label(indexLabel, GUILayout.Width(24));
+                        EditorGUILayout.BeginVertical();
+                        GUILayout.Label(step.Title, enabled ? enabledStyle : skippedStyle);
+                        if (!string.IsNullOrEmpty(step.Detail))
+                        {
+                            GUILayout.Label(step.Detail, detailStyle);
+                        }
+                        EditorGUILayout.EndVertical();
+                        EditorGUILayout.EndHorizontal();
+
+                        GUILayout.Space(2);
+                    }
+
+                    GUILayout.Space(3);
+                    EditorGUILayout.HelpBox(
+                        "说明：「构建 AssetBundle」按钮执行 1~4 步，「构建 Player」按钮单独执行第 5 步，「一键构建」执行全部步骤。",
+                        MessageType.None);
+                }
+                EditorGUILayout.EndVertical();
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+            GUILayout.Space(5);
+        }
+
+        private List<FlowStep> BuildFlowSteps()
+        {
+            var steps = new List<FlowStep>();
+
+            // Step 1: 热更DLL编译
+            steps.Add(_config.BuildHotFixDll
+                ? new FlowStep(FlowStepState.Enabled, "编译热更DLL",
+                    "执行 BuildDLLCommand.BuildAndCopyDlls")
+                : new FlowStep(FlowStepState.Skipped, "编译热更DLL（未启用）",
+                    "在「热更DLL设置」中勾选后执行"));
+
+            // Step 2: 构建AssetBundle（始终执行）
+            steps.Add(new FlowStep(FlowStepState.Enabled, "构建 AssetBundle",
+                $"平台 {_config.BuildTarget}｜版本 {GetPreviewVersionText()}｜{GetBuildPackageLogText(_config)}"));
+
+            // Step 3: 发布整理
+            steps.Add(_config.EnablePublishCopy
+                ? new FlowStep(FlowStepState.Enabled, "发布整理",
+                    $"拷贝到 {_config.PublishRoot}/{GetPreviewProjectName()}/{ReleaseTools.GetRemotePlatformName(_config.BuildTarget)}/{{资源包名}}")
+                : new FlowStep(FlowStepState.Skipped, "发布整理（未启用）",
+                    "在「发布整理」中勾选后执行"));
+
+            // Step 4: 最小包处理
+            steps.Add(_config.MinimalPackage
+                ? new FlowStep(FlowStepState.Enabled, "最小包处理",
+                    string.IsNullOrWhiteSpace(_config.RetainTags)
+                        ? "删除 StreamingAssets 中所有 .bundle（仅保留清单）"
+                        : $"保留 Tag [{_config.RetainTags}] 的 bundle，其余删除")
+                : new FlowStep(FlowStepState.Skipped, "最小包处理（未启用）",
+                    "在「最小包设置」中勾选后执行"));
+
+            // Step 5: 构建Player
+            steps.Add(_config.BuildPlayer
+                ? new FlowStep(FlowStepState.Enabled, "构建 Player",
+                    $"平台 {_config.PlayerPlatform}｜输出 {_config.PlayerOutputPath}")
+                : new FlowStep(FlowStepState.Skipped, "构建 Player（未启用）",
+                    "在「打包Player设置」中勾选，或点击「构建 Player」/「一键构建」"));
+
+            return steps;
+        }
+
+        private string GetPreviewVersionText()
+        {
+            return string.IsNullOrWhiteSpace(_config.PackageVersion)
+                ? "(自动生成)"
+                : _config.PackageVersion;
+        }
+
+        private static string GetPreviewProjectName()
+        {
+            return Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
         }
 
         #endregion
