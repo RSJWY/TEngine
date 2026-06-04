@@ -498,6 +498,25 @@ namespace TEngine
                     _config.BuildHotFixDll = EditorGUILayout.ToggleLeft(
                         new GUIContent("构建前编译热更DLL", "执行 BuildDLLCommand.BuildAndCopyDlls"),
                         _config.BuildHotFixDll);
+
+                    EditorGUILayout.Space(3);
+                    EditorGUILayout.BeginHorizontal();
+                    {
+                        if (GUILayout.Button(new GUIContent("编译并拷贝热更DLL",
+                            "执行 BuildDLLCommand.BuildAndCopyDlls：编译热更DLL并拷贝 AOT/热更 DLL 到 AssemblyTextAssetPath")))
+                        {
+                            BuildDLLCommand.BuildAndCopyDlls();
+                        }
+                        if (GUILayout.Button(new GUIContent("同步 AOT 元数据清单",
+                            "从 HybridCLR 生成的 AOTGenericReferences 同步到 AOTMetadataManifest.asset，保留手动添加项")))
+                        {
+                            BuildDLLCommand.SyncAOTMetadataManifest();
+                        }
+                    }
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.HelpBox(
+                        "构建会校验 AOTMetadataManifest 是否包含 AOTGenericReferences 的全部程序集，缺失将中断构建。新增泛型后请先点上方按钮同步。",
+                        MessageType.Info);
                 }
                 EditorGUILayout.EndVertical();
             }

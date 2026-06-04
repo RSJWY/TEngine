@@ -42,6 +42,7 @@
 - **代码包 XXTEA 加密** — 仅对代码包加密，不全局加密所有资源包。
 - **版本确认与下载流程** — 恢复“有本地版本可取消、无本地版本强制更新”的可选更新提示流程。
 - **AOT 元数据热更清单** — 将 AOT 元数据列表从基础包序列化引用中解耦，支持后续热更补充。
+- **AOT 元数据打包期校验** — 打 AB 包时单向校验 `AOTMetadataManifest.asset` 必须包含 `AOTGenericReferences.PatchedAOTAssemblyList` 的全部程序集，缺失即中断构建（避免运行时 `ExecutionEngineException`）；允许 manifest 含手动补充的额外项（仅告警）。拷贝 AOT DLL 时源文件不存在改为报错中断而非静默跳过。新增 `HybridCLR/Build/Sync AOT Metadata Manifest` 菜单与打包工具窗口「同步 AOT 元数据清单」「编译并拷贝热更DLL」按钮，同步时保留手动添加项。
 - **PlayerPrefs 版本记录清理工具** — 项目内菜单/窗口，快速清理“上次成功更新版本号”，方便反复测试热更。
 
 ### 📦 资源打包
