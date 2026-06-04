@@ -18,5 +18,12 @@ namespace TEngine
         /// 资源服务备用地址（覆盖 UpdateSetting.FallbackResDownLoadPath）。
         /// </summary>
         public string FallbackResDownloadPath;
+
+        /// <summary>
+        /// 调试器激活策略（覆盖 Debugger 组件 Inspector 的 activeWindow 字段）。
+        /// 取值：AlwaysOpen / OnlyOpenWhenDevelopment / OnlyOpenInEditor / AlwaysClose。
+        /// 留空或无法解析时回退 Inspector 配置。
+        /// </summary>
+        public string DebuggerActiveWindow;
     }
 }

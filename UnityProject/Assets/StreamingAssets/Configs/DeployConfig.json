@@ -1,4 +1,5 @@
 {
   "ResDownloadPath": "http://127.0.0.1:80/ProjectHotupdate",
-  "FallbackResDownloadPath": "http://127.0.0.1:80/ProjectHotupdate"
+  "FallbackResDownloadPath": "http://127.0.0.1:80/ProjectHotupdate",
+  "DebuggerActiveWindow": "OnlyOpenWhenDevelopment"
 }

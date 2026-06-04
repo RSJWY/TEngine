@@ -190,6 +190,40 @@ Assets/StreamingAssets/Configs/
 
 ---
 
+### 3. 部署配置控制调试器开关 (DeployConfig.DebuggerActiveWindow)
+
+将 `Debugger`（GameEntry 场景内的运行时调试器）的激活策略接入部署配置，打包后改 JSON 即可控制是否弹出调试器，无需改 Inspector/Prefab 重新出包。
+
+**工作方式**
+
+- `DeployConfig` 新增 `DebuggerActiveWindow` 字段（string），取值为 `DebuggerActiveWindowType` 枚举名：`AlwaysOpen` / `OnlyOpenWhenDevelopment` / `OnlyOpenInEditor` / `AlwaysClose`，大小写不敏感。
+- `Debugger` 将原 `Start()` 内的激活策略 switch 抽为公共方法 `ApplyActiveWindowType(DebuggerActiveWindowType)`：Start 仍按 Inspector 的 `activeWindow` 字段初始化，外部可二次覆盖。
+- `ProcedureLaunch.LoadDeployConfigAsync` 在配置加载完成后调用 `ApplyDebuggerConfig()`，用 `Enum.TryParse` 解析字段并应用到 `Debugger.Instance`。
+- 字段留空、值无法解析、或场景内无 `Debugger` 时回退 Inspector 默认行为，不会误开关。
+
+**时序说明**
+
+`Debugger` 是场景内 MonoBehaviour，`Start()` 早于 `JsonConfigModule` 加载完成，因此不能在 Start 内直接读配置。采用「Start 先按 Inspector 初始化 → 部署配置加载完成后由 `ProcedureLaunch` 二次覆盖」，与 `UpdateSetting` 消费 `ResDownloadPath` 的时机一致。
+
+```json
+// DeployConfig.json
+{
+  "ResDownloadPath": "http://127.0.0.1:80/ProjectHotupdate",
+  "FallbackResDownloadPath": "http://127.0.0.1:80/ProjectHotupdate",
+  "DebuggerActiveWindow": "OnlyOpenWhenDevelopment"
+}
+```
+
+**关键文件**
+
+- `Assets/TEngine/Runtime/Core/DeployConfig.cs`
+- `Assets/TEngine/Runtime/Module/DebugerModule/Debugger.cs`
+- `Assets/GameScripts/Procedure/ProcedureLaunch.cs`
+
+> 详见 `conversation-summaries/2026-06-04-deployconfig-debugger-toggle-summary.md`
+
+---
+
 ## 🔄 热更新
 
 ### 1. 多包架构 (CodePackage)

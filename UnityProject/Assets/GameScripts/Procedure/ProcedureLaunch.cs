@@ -59,6 +59,7 @@ namespace Procedure
             try
             {
                 await ModuleSystem.GetModule<IJsonConfigModule>().LoadAllAsync();
+                ApplyDebuggerConfig();
             }
             catch (Exception exception)
             {
@@ -66,6 +67,37 @@ namespace Procedure
             }
 
             _deployConfigLoaded = true;
+        }
+
+        /// <summary>
+        /// 读取 DeployConfig 的调试器激活策略并现场覆盖 Debugger 组件。
+        /// 未配置该字段、解析失败或场景无 Debugger 时保留 Inspector 默认行为。
+        /// </summary>
+        private void ApplyDebuggerConfig()
+        {
+            if (Debugger.Instance == null)
+            {
+                return;
+            }
+
+            IJsonConfigModule configModule = ModuleSystem.GetModule<IJsonConfigModule>();
+            if (configModule == null
+                || !configModule.TryGet<DeployConfig>(out DeployConfig deployConfig, "DeployConfig")
+                || deployConfig == null
+                || string.IsNullOrWhiteSpace(deployConfig.DebuggerActiveWindow))
+            {
+                return;
+            }
+
+            if (Enum.TryParse(deployConfig.DebuggerActiveWindow.Trim(), true, out DebuggerActiveWindowType type))
+            {
+                Debugger.Instance.ApplyActiveWindowType(type);
+                Log.Info("[Debugger] 已按 DeployConfig 应用激活策略：{0}。", type);
+            }
+            else
+            {
+                Log.Warning("[Debugger] DeployConfig.DebuggerActiveWindow 取值无法解析：{0}，保留 Inspector 配置。", deployConfig.DebuggerActiveWindow);
+            }
         }
 
         private void InitLanguageSettings()

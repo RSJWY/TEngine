@@ -214,7 +214,19 @@ namespace TEngine
             RegisterDebuggerWindow("Profiler/Reference Pool", _memoryPoolPoolInformationWindow);
             RegisterDebuggerWindow("Other/Settings", _settingsWindow);
 
-            switch (activeWindow)
+            ApplyActiveWindowType(activeWindow);
+        }
+
+        /// <summary>
+        /// 按激活策略设置调试器窗口是否激活。
+        /// <para>Start 时以 Inspector 的 <c>activeWindow</c> 字段调用；DeployConfig 加载完成后可再次调用以现场覆盖。</para>
+        /// </summary>
+        /// <param name="type">激活策略。</param>
+        public void ApplyActiveWindowType(DebuggerActiveWindowType type)
+        {
+            activeWindow = type;
+
+            switch (type)
             {
                 case DebuggerActiveWindowType.AlwaysOpen:
                     ActiveWindow = true;
