@@ -101,3 +101,13 @@ package/
 yoo/
 [Aa]ssets/TEngine/AssetSetting/Resources/BuiltinFileManifest.asset
 [Aa]ssets/TEngine/AssetSetting/Resources/BuiltinFileManifest.asset.meta
+
+#热更 DLL 构建产物（每次编译热更重新生成；同目录 AOTMetadataManifest.asset 需保留，故按文件名忽略）
+[Aa]ssets/AssetRaw/DLL/*.dll.bytes
+[Aa]ssets/AssetRaw/DLL/*.dll.bytes.meta
+
+#发布整理产物
+/Publish/
+
+#本地 Claude 权限配置
+.claude/settings.local.json
