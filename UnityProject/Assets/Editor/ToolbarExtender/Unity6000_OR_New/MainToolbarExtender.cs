@@ -114,31 +114,16 @@ public class MainToolbarSceneLauncherButton
 
             if (TEngine.EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch())
             {
-                string[] guids = AssetDatabase.FindAssets("t:scene " + m_sceneToOpen, null);
+                string scenePath = TEngine.EditorSceneTransitionUtility.FindScenePathInFolder(
+                    m_sceneToOpen,
+                    TEngine.EditorSceneTransitionUtility.InitialSceneFolder);
 
-                if (guids.Length <= 0)
+                if (string.IsNullOrEmpty(scenePath))
                 {
-                    Debug.LogWarning("找不到场景文件");
+                    Debug.LogWarning($"找不到 {TEngine.EditorSceneTransitionUtility.InitialSceneFolder} 下的场景文件：{m_sceneToOpen}");
                 }
                 else
                 {
-                    string scenePath = null;
-
-                    for (int i = 0; i < guids.Length; i++)
-                    {
-                        scenePath = AssetDatabase.GUIDToAssetPath(guids[i]);
-
-                        if (scenePath.EndsWith("/" + m_sceneToOpen + ".unity"))
-                        {
-                            break;
-                        }
-                    }
-
-                    if (string.IsNullOrEmpty(scenePath))
-                    {
-                        scenePath = AssetDatabase.GUIDToAssetPath(guids[0]);
-                    }
-
                     EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
                     EditorApplication.isPlaying = true;
                 }
