@@ -98,7 +98,16 @@ public class GameModule
     public static IScreenModule Screen => _screen ??= Get<IScreenModule>();
 
     private static IScreenModule _screen;
+    
+    
+    /// <summary>
+    /// 获取窗口布局控制模块（多屏，仅 Windows Standalone 生效）。
+    /// </summary>
+    public static UIJumpControl UIJumpControl => _uiJumpControl ??= Get<UIJumpControl>();
+
+    private static UIJumpControl _uiJumpControl;
     #endregion
+    
     
     /// <summary>
     /// 获取游戏框架模块类。
