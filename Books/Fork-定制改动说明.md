@@ -20,6 +20,7 @@
 - [资源打包](#-资源打包)
   - [按包构建管线](#1-按包构建管线)
   - [发布整理流程](#2-发布整理流程)
+  - [打包工具 Odin 化与卡顿优化](#3-打包工具-odin-化与卡顿优化)
 - [窗口管理](#-窗口管理)
   - [窗口布局控制模块 ScreenModule](#screenmodule)
 
@@ -344,6 +345,27 @@ Assets/StreamingAssets/Configs/
 - `Assets/TEngine/Runtime/Core/UpdateSetting.cs`
 
 > 详见 `conversation-summaries/2026-05-30-resource-package-publish-workflow-summary.md`
+
+---
+
+### 3. 打包工具 Odin 化与卡顿优化
+
+将 `BuildPipelineWindow` 从传统 IMGUI 迁移为 Odin 声明式窗口，同时保留原有构建逻辑和本地偏好键，降低维护成本并改善编辑体验。
+
+- 窗口继承 `OdinEditorWindow`，使用 `BoxGroup` / `TitleGroup` 组织基础设置、资源包列表、发布整理、最小包、高级设置、热更 DLL、Player 设置、构建流程预览、操作按钮与构建日志。
+- 使用 `TableList` 展示 `UpdateSetting.RuntimePackages` 与构建流程步骤；通过窗口内的 `RuntimePackageView` 包装运行时配置，避免给运行时程序集引入 Odin 依赖。
+- 使用 `ValueDropdown` 替代手写 Popup，统一平台、构建管线、压缩方式、包级加密、内置文件拷贝与文件名风格选项；继续隐藏/规避已废弃的 BBP 路径。
+- 保留原有 `EditorPrefs` key、菜单路径与 `ReleaseTools` 构建入口，原有一键构建、仅构建 AB、仅构建 Player、仅发布整理、编译热更 DLL、同步 AOT 元数据清单等行为不变。
+- 针对 Odin 表格编辑卡顿做性能收敛：资源包表格编辑先写内存并标脏，0.75 秒静默后统一 `AssetDatabase.SaveAssets()`；窗口关闭或点击保存时强制 flush。
+- 状态栏、发布目录预览、构建流程预览改为配置变化时刷新缓存，避免每次 `OnImGUI` 绘制都重新计算包摘要；构建日志 `Repaint()` 增加 0.1 秒节流。
+- 版本号、路径、保留 Tag、包名、版本键等文本字段使用 `DelayedProperty`，减少输入过程中反复触发同步。
+
+**关键文件**
+
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs.meta`
+
+> 详见 `conversation-summaries/2026-06-27-odin-build-pipeline-window-summary.md`
 
 ---
 

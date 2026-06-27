@@ -51,6 +51,7 @@
 - **按包构建管线** — 资源包不再统一单一管线，支持按包指定 YooAsset 构建管线（保留 SBP / RawFile，移除 BBP）。
 - **发布整理流程** — 构建后自动整理产物到发布目录，统一运行时平台目录名与 YooAsset 构建目录名，避免 404。
 - **打包工具构建流程预览** — 打包工具窗口新增「构建流程预览」面板，按实际执行顺序（编译热更DLL → 构建AB → 发布整理 → 最小包处理 → 构建Player）动态展示步骤，启用步骤递增编号、未启用步骤灰显跳过，并随配置实时刷新，解决 UI 折叠区域顺序与执行顺序错位导致的困惑。
+- **打包工具 Odin 化与卡顿优化** — `BuildPipelineWindow` 迁移为 `OdinEditorWindow`，用 `BoxGroup` / `TableList` / `ValueDropdown` 等 Odin 特性声明式组织资源包、发布整理、热更 DLL、Player 与构建日志；资源包编辑改为延迟落盘，状态栏/发布预览走缓存，日志刷新节流，避免编辑时频繁 `AssetDatabase.SaveAssets()` 与 `Repaint()`。
 
 ### 🖥️ 窗口管理
 

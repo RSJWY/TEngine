@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Sirenix.OdinInspector;
+using Sirenix.OdinInspector.Editor;
+using Sirenix.Utilities.Editor;
 using UnityEditor;
 using UnityEngine;
 using YooAsset;
@@ -8,19 +12,11 @@ using YooAsset.Editor;
 
 namespace TEngine
 {
-    public class BuildPipelineWindow : EditorWindow
+    public class BuildPipelineWindow : OdinEditorWindow
     {
-        private static readonly string[] PlatformNames = new string[]
-        {
-            "Windows 64-bit",
-            "macOS",
-            "Linux",
-            "Android",
-            "iOS",
-            "WebGL",
-        };
+        private const string MenuPath = "TEngine/Build/打包工具窗口";
 
-        private static readonly BuildTarget[] PlatformTargets = new BuildTarget[]
+        private static readonly BuildTarget[] PlatformTargets =
         {
             BuildTarget.StandaloneWindows64,
             BuildTarget.StandaloneOSX,
@@ -30,807 +26,424 @@ namespace TEngine
             BuildTarget.WebGL,
         };
 
-        private static readonly string[] PipelineNames = new string[]
-        {
-            "ScriptableBuildPipeline (SBP)",
-            "RawFileBuildPipeline (原生文件)",
-        };
+        private bool _isLoadingSettings;
+        private bool _isSavingRuntimePackages;
+        private bool _runtimePackagesDirty;
+        private bool _runtimePackageSaveQueued;
+        private double _nextRuntimePackageSaveTime;
+        private double _nextLogRepaintTime;
+        private string _cachedPackageSummary = "DefaultPackage(ScriptableBuildPipeline)";
+        private string _cachedToolbarStatus = string.Empty;
+        private string _cachedPublishPackagePreviewText = "DefaultPackage";
 
-        private static readonly string[] PackagePipelineNames = new string[]
-        {
-            "使用全局设置",
-            "ScriptableBuildPipeline (SBP)",
-            "RawFileBuildPipeline (原生文件)",
-        };
+        [BoxGroup("基础设置")]
+        [LabelText("目标平台")]
+        [ValueDropdown(nameof(BuildTargetOptions))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private BuildTarget _buildTarget;
 
-        private static readonly string[] CompressNames = new string[]
-        {
-            "Uncompressed (不压缩)",
-            "LZMA (高压缩)",
-            "LZ4 (快速压缩)",
-        };
+        [BoxGroup("基础设置")]
+        [LabelText("默认构建管线")]
+        [ValueDropdown(nameof(BuildPipelineOptions))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private EBuildPipeline _buildPipeline = EBuildPipeline.ScriptableBuildPipeline;
 
-        private static readonly string[] EncryptionNames = new string[]
-        {
-            "无加密",
-            "文件偏移加密",
-            "文件流加密",
-            "XXTEA加密",
-        };
+        [BoxGroup("基础设置")]
+        [LabelText("压缩方式")]
+        [ValueDropdown(nameof(CompressOptions))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private ECompressOption _compressOption = ECompressOption.LZ4;
 
-        private static readonly string[] CopyOptionNames = new string[]
-        {
-            "None (不拷贝)",
-            "ClearAndCopyAll (清空后拷贝全部)",
-            "ClearAndCopyByTags (清空后按Tag拷贝)",
-            "OnlyCopyAll (仅拷贝全部)",
-            "OnlyCopyByTags (仅按Tag拷贝)",
-        };
+        [BoxGroup("基础设置")]
+        [HorizontalGroup("基础设置/Version")]
+        [LabelText("资源版本号")]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _packageVersion = string.Empty;
 
-        private static readonly string[] FileNameStyleNames = new string[]
+        [HorizontalGroup("基础设置/Version", Width = 70)]
+        [Button("自动", ButtonSizes.Small)]
+        private void GeneratePackageVersion()
         {
-            "HashName (哈希名)",
-            "BundleName (资源包名称)",
-            "BundleName_HashName (资源包名称 + 哈希值名称)",
-        };
-
-        private BuildConfig _config;
-        private Vector2 _scrollPosition;
-        private bool _showBasicSettings = true;
-        private bool _showPackageSettings = true;
-        private bool _showPublishSettings = true;
-        private bool _showMinimalPackageSettings = true;
-        private bool _showAdvancedSettings;
-        private bool _showDllSettings = true;
-        private bool _showPlayerSettings;
-        private bool _showFlowPreview = true;
-        private bool _showBuildLog;
-        private int _platformIndex;
-        private int _playerPlatformIndex;
-        private readonly List<string> _buildLogs = new List<string>();
-        private Vector2 _logScrollPosition;
-
-        [MenuItem("TEngine/Build/打包工具窗口", false, 0)]
-        public static void ShowWindow()
-        {
-            var window = GetWindow<BuildPipelineWindow>("TEngine 打包工具");
-            window.minSize = new Vector2(450, 600);
-            window.Show();
+            _packageVersion = BuildConfig.GetDefaultPackageVersion();
+            OnSettingsChanged();
         }
 
-        private void OnEnable()
+        [BoxGroup("基础设置")]
+        [LabelText("AB输出目录")]
+        [InlineButton(nameof(ChooseOutputRoot), "浏览")]
+        [InlineButton(nameof(OpenOutputRoot), "打开")]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _outputRoot = "./Builds/";
+
+        [BoxGroup("资源包列表")]
+        [ShowInInspector]
+        [ReadOnly]
+        [HideLabel]
+        [MultiLineProperty(2)]
+        [ShowIf(nameof(IsUpdateSettingMissing))]
+        private string UpdateSettingMissingMessage => "未找到 UpdateSetting 资源。窗口仍可按默认包构建，但不能在这里编辑运行时资源包列表。";
+
+        [BoxGroup("资源包列表")]
+        [TableList(ShowIndexLabels = true, AlwaysExpanded = true, IsReadOnly = false)]
+        [ListDrawerSettings(Expanded = true, DraggableItems = true, HideAddButton = true)]
+        [OnValueChanged(nameof(MarkRuntimePackagesDirty), true)]
+        [ShowIf(nameof(HasUpdateSetting))]
+        [SerializeField]
+        private List<RuntimePackageView> _runtimePackages = new List<RuntimePackageView>();
+
+        [BoxGroup("资源包列表")]
+        [HorizontalGroup("资源包列表/Actions")]
+        [Button("添加资源包", ButtonSizes.Medium)]
+        [EnableIf(nameof(HasUpdateSetting))]
+        private void AddRuntimePackage()
+        {
+            var updateSetting = Settings.UpdateSetting;
+            if (updateSetting == null)
+            {
+                return;
+            }
+
+            EnsureRuntimePackages(updateSetting);
+            _runtimePackages.Add(RuntimePackageView.FromEntry(CreateRuntimePackageEntry(GetNextPackageName(updateSetting))));
+            MarkRuntimePackagesDirty();
+        }
+
+        [HorizontalGroup("资源包列表/Actions")]
+        [Button("重新读取", ButtonSizes.Medium)]
+        [EnableIf(nameof(HasUpdateSetting))]
+        private void ReloadRuntimePackageViewsButton()
+        {
+            ReloadRuntimePackageViews();
+        }
+
+        [HorizontalGroup("资源包列表/Actions")]
+        [Button("定位 UpdateSetting", ButtonSizes.Medium)]
+        [EnableIf(nameof(HasUpdateSetting))]
+        private void PingUpdateSetting()
+        {
+            Selection.activeObject = Settings.UpdateSetting;
+            EditorGUIUtility.PingObject(Settings.UpdateSetting);
+        }
+
+        [BoxGroup("发布整理")]
+        [LabelText("启用发布整理")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _enablePublishCopy;
+
+        [BoxGroup("发布整理")]
+        [LabelText("发布根目录")]
+        [InlineButton(nameof(ChoosePublishRoot), "浏览")]
+        [InlineButton(nameof(OpenPublishRoot), "打开")]
+        [ShowIf(nameof(IsPublishCopyEnabled))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _publishRoot = "./Publish/";
+
+        [BoxGroup("发布整理")]
+        [LabelText("清空目标包目录后再拷贝")]
+        [ToggleLeft]
+        [ShowIf(nameof(IsPublishCopyEnabled))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _cleanPublishPackageDirectory = true;
+
+        [BoxGroup("发布整理")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("平台目录名")]
+        [ShowIf(nameof(IsPublishCopyEnabled))]
+        private string PublishPlatformName => ReleaseTools.GetRemotePlatformName(_buildTarget);
+
+        [BoxGroup("发布整理")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("输出规则")]
+        [ShowIf(nameof(IsPublishCopyEnabled))]
+        private string PublishRuleText => $"{_publishRoot}/{GetPreviewProjectName()}/{PublishPlatformName}/{{资源包名}}";
+
+        [BoxGroup("发布整理")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("当前包示例")]
+        [MultiLineProperty(3)]
+        [ShowIf(nameof(IsPublishCopyEnabled))]
+        private string PublishPackagePreviewText => _cachedPublishPackagePreviewText;
+
+        [BoxGroup("最小包设置")]
+        [LabelText("启用最小包模式")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _minimalPackage;
+
+        [BoxGroup("最小包设置")]
+        [LabelText("保留Tag(逗号分隔)")]
+        [ShowIf(nameof(_minimalPackage))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _retainTags = string.Empty;
+
+        [BoxGroup("最小包设置")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("处理说明")]
+        [MultiLineProperty(3)]
+        [ShowIf(nameof(_minimalPackage))]
+        private string MinimalPackageInfo => string.IsNullOrWhiteSpace(_retainTags)
+            ? "构建后删除 StreamingAssets 中所有 .bundle 文件，仅保留清单文件，适合 HostPlayMode 在线下载资源。"
+            : $"构建后仅保留带 [{_retainTags}] Tag 的 bundle，其余 .bundle 文件会从 StreamingAssets 删除。";
+
+        [BoxGroup("高级设置")]
+        [LabelText("启用共享资源打包")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _enableSharePackRule = true;
+
+        [BoxGroup("高级设置")]
+        [LabelText("使用资源依赖数据库")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _useAssetDependencyDB = true;
+
+        [BoxGroup("高级设置")]
+        [LabelText("清理构建缓存")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _clearBuildCache;
+
+        [BoxGroup("高级设置")]
+        [LabelText("验证构建结果")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _verifyBuildingResult = true;
+
+        [BoxGroup("高级设置")]
+        [LabelText("内置文件拷贝")]
+        [ValueDropdown(nameof(BuildinFileCopyOptions))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private EBuildinFileCopyOption _buildinFileCopyOption = EBuildinFileCopyOption.ClearAndCopyAll;
+
+        [BoxGroup("高级设置")]
+        [LabelText("文件名风格")]
+        [ValueDropdown(nameof(FileNameStyleOptions))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private EFileNameStyle _fileNameStyle = EFileNameStyle.BundleName_HashName;
+
+        [BoxGroup("热更 DLL")]
+        [LabelText("构建前编译热更DLL")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _buildHotFixDll = true;
+
+        [BoxGroup("热更 DLL")]
+        [HorizontalGroup("热更 DLL/Actions")]
+        [Button("编译并拷贝热更DLL", ButtonSizes.Medium)]
+        private void BuildHotFixDllNow()
+        {
+            BuildDLLCommand.BuildAndCopyDlls();
+        }
+
+        [HorizontalGroup("热更 DLL/Actions")]
+        [Button("同步 AOT 元数据清单", ButtonSizes.Medium)]
+        private void SyncAOTMetadataManifestNow()
+        {
+            BuildDLLCommand.SyncAOTMetadataManifest();
+        }
+
+        [BoxGroup("Player 设置")]
+        [LabelText("构建 Player")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _buildPlayer;
+
+        [BoxGroup("Player 设置")]
+        [LabelText("Player平台")]
+        [ValueDropdown(nameof(BuildTargetOptions))]
+        [ShowIf(nameof(_buildPlayer))]
+        [OnValueChanged(nameof(OnPlayerPlatformChanged))]
+        [SerializeField]
+        private BuildTarget _playerPlatform;
+
+        [BoxGroup("Player 设置")]
+        [LabelText("输出路径")]
+        [InlineButton(nameof(ChoosePlayerOutputPath), "浏览")]
+        [ShowIf(nameof(_buildPlayer))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _playerOutputPath = string.Empty;
+
+        [BoxGroup("构建流程预览")]
+        [TableList(ShowIndexLabels = false, AlwaysExpanded = true, IsReadOnly = true)]
+        [ListDrawerSettings(Expanded = true, DraggableItems = false, HideAddButton = true, HideRemoveButton = true)]
+        [ReadOnly]
+        [SerializeField]
+        private List<FlowStepView> _flowSteps = new List<FlowStepView>();
+
+        [TitleGroup("操作")]
+        [ButtonGroup("操作/Settings")]
+        [Button("刷新设置", ButtonSizes.Medium)]
+        private void RefreshSettingsButton()
         {
             LoadSettings();
         }
 
-        private void OnGUI()
+        [ButtonGroup("操作/Settings")]
+        [Button("重置默认", ButtonSizes.Medium)]
+        private void ResetDefaultSettingsButton()
         {
-            if (_config == null)
-            {
-                LoadSettings();
-            }
-
-            _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
-            {
-                DrawHeader();
-                DrawBasicSettings();
-                DrawPackageSettings();
-                DrawPublishSettings();
-                DrawMinimalPackageSettings();
-                DrawAdvancedSettings();
-                DrawDllSettings();
-                DrawPlayerSettings();
-                DrawFlowPreview();
-                DrawActionButtons();
-                DrawBuildLog();
-            }
-            EditorGUILayout.EndScrollView();
+            ApplyConfig(BuildConfig.CreateDefault());
+            SaveSettings();
+            RefreshCachedTexts();
+            AddLog("已重置打包工具默认配置");
         }
 
-        #region Header
-
-        private void DrawHeader()
+        [TitleGroup("操作")]
+        [ButtonGroup("操作/Build")]
+        [Button("构建 AssetBundle", ButtonSizes.Large)]
+        [GUIColor(0.45f, 0.75f, 1f)]
+        private void BuildAssetBundleButton()
         {
-            GUILayout.Space(5);
+            SaveSettings();
+            ExecuteBuild(buildPlayer: false);
+        }
 
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
+        [ButtonGroup("操作/Build")]
+        [Button("构建 Player", ButtonSizes.Large)]
+        private void BuildPlayerButton()
+        {
+            SaveSettings();
+            ExecuteBuildPlayerOnly();
+        }
 
-            var titleStyle = new GUIStyle(EditorStyles.largeLabel)
+        [ButtonGroup("操作/Build")]
+        [Button("打开发布目录", ButtonSizes.Large)]
+        [EnableIf(nameof(IsPublishCopyEnabled))]
+        private void OpenPublishRootButton()
+        {
+            OpenPublishRoot();
+        }
+
+        [ButtonGroup("操作/FullBuild")]
+        [Button("一键构建 (AB + Player)", ButtonSizes.Large)]
+        [GUIColor(0.35f, 0.95f, 0.55f)]
+        private void FullBuildButton()
+        {
+            _buildPlayer = true;
+            SaveSettings();
+            ExecuteBuild(buildPlayer: true);
+        }
+
+        [ButtonGroup("操作/FullBuild")]
+        [Button("仅执行发布整理", ButtonSizes.Large)]
+        [EnableIf(nameof(IsPublishCopyEnabled))]
+        private void PublishOnlyButton()
+        {
+            SaveSettings();
+            ExecutePublishOnly();
+        }
+
+        [BoxGroup("构建日志")]
+        [HorizontalGroup("构建日志/Actions")]
+        [Button("清空日志", ButtonSizes.Small)]
+        [EnableIf(nameof(HasBuildLogs))]
+        private void ClearBuildLogs()
+        {
+            _buildLogs.Clear();
+        }
+
+        [BoxGroup("构建日志")]
+        [ShowInInspector]
+        [ReadOnly]
+        [HideLabel]
+        [ListDrawerSettings(Expanded = true, DraggableItems = false, HideAddButton = true, HideRemoveButton = true)]
+        private readonly List<string> _buildLogs = new List<string>();
+
+        [MenuItem(MenuPath, false, 0)]
+        public static void ShowWindow()
+        {
+            var window = GetWindow<BuildPipelineWindow>();
+            window.titleContent = new GUIContent("TEngine 打包工具", EditorGUIUtility.IconContent("BuildSettings.Editor.Small").image);
+            window.minSize = new Vector2(620, 760);
+            window.Show();
+        }
+
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            LoadSettings();
+        }
+
+        protected override void OnImGUI()
+        {
+            base.OnImGUI();
+
+            SirenixEditorGUI.DrawThickHorizontalSeparator();
+            GUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
-                fontSize = 16,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-            };
+                GUILayout.Label(_cachedToolbarStatus, EditorStyles.miniLabel);
 
-            EditorGUILayout.LabelField("TEngine 打包工具", titleStyle, GUILayout.Height(30));
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("刷新", GUILayout.Width(60), GUILayout.Height(22)))
-            {
-                LoadSettings();
-            }
-
-            if (GUILayout.Button("重置默认", GUILayout.Width(80), GUILayout.Height(22)))
-            {
-                _config = BuildConfig.CreateDefault();
-                SaveSettings();
-                AddLog("已重置打包工具默认配置");
-            }
-            EditorGUILayout.EndHorizontal();
-
-            GUILayout.Space(5);
-        }
-
-        #endregion
-
-        #region 基础设置
-
-        private void DrawBasicSettings()
-        {
-            _showBasicSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showBasicSettings,
-                new GUIContent("基础设置", "目标平台、构建管线、加密等核心参数"));
-
-            if (_showBasicSettings)
-            {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    _platformIndex = EditorGUILayout.Popup("目标平台", _platformIndex, PlatformNames);
-                    _config.BuildTarget = PlatformTargets[_platformIndex];
-
-                    EditorGUILayout.Space(3);
-
-                    int pipelineIndex = _config.BuildPipeline == EBuildPipeline.RawFileBuildPipeline ? 1 : 0;
-                    pipelineIndex = EditorGUILayout.Popup("默认构建管线", pipelineIndex, PipelineNames);
-                    _config.BuildPipeline = pipelineIndex == 1
-                        ? EBuildPipeline.RawFileBuildPipeline
-                        : EBuildPipeline.ScriptableBuildPipeline;
-
-                    _config.CompressOption = (ECompressOption)EditorGUILayout.Popup("压缩方式",
-                        (int)_config.CompressOption, CompressNames);
-
-                    EditorGUILayout.HelpBox("加密方式请在资源包列表中按包配置，资源清单不做自定义加解密。", MessageType.Info);
-
-                    EditorGUILayout.Space(3);
-
-                    EditorGUILayout.BeginHorizontal();
-                    _config.PackageVersion = EditorGUILayout.TextField("资源版本号", _config.PackageVersion);
-                    if (GUILayout.Button("自动", GUILayout.Width(50)))
-                    {
-                        _config.PackageVersion = BuildConfig.GetDefaultPackageVersion();
-                    }
-                    EditorGUILayout.EndHorizontal();
-
-                    EditorGUILayout.BeginHorizontal();
-                    _config.OutputRoot = EditorGUILayout.TextField("AB输出目录", _config.OutputRoot);
-                    if (GUILayout.Button("浏览", GUILayout.Width(50)))
-                    {
-                        string selected = EditorUtility.OpenFolderPanel("选择输出目录", _config.OutputRoot, "");
-                        if (!string.IsNullOrEmpty(selected))
-                        {
-                            string projectPath = PathGetRelative(Application.dataPath + "/../", selected);
-                            _config.OutputRoot = string.IsNullOrEmpty(projectPath) ? selected : projectPath;
-                        }
-                    }
-                    EditorGUILayout.EndHorizontal();
-
-                    EditorGUILayout.Space(3);
-                    EditorGUILayout.HelpBox("选择构建目标平台和基础参数。AB输出目录支持相对路径（相对于项目根目录）。", MessageType.Info);
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-            GUILayout.Space(5);
-        }
-
-        #endregion
-
-        #region 包列表设置
-
-        private void DrawPackageSettings()
-        {
-            _showPackageSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showPackageSettings,
-                new GUIContent("资源包列表", "直接编辑 UpdateSetting.RuntimePackages"));
-
-            if (_showPackageSettings)
-            {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    var updateSetting = Settings.UpdateSetting;
-                    if (updateSetting == null)
-                    {
-                        EditorGUILayout.HelpBox("未找到 UpdateSetting 资源，无法编辑运行时资源包列表。", MessageType.Warning);
-                    }
-                    else
-                    {
-                        EnsureRuntimePackages(updateSetting);
-
-                        var removeIndex = -1;
-                        var addedPackage = false;
-                        EditorGUI.BeginChangeCheck();
-                        for (var i = 0; i < updateSetting.RuntimePackages.Count; i++)
-                        {
-                            var runtimePackage = updateSetting.RuntimePackages[i];
-                            if (runtimePackage == null)
-                            {
-                                runtimePackage = CreateRuntimePackageEntry(GetNextPackageName(updateSetting));
-                                updateSetting.RuntimePackages[i] = runtimePackage;
-                            }
-
-                            EditorGUILayout.BeginVertical("box");
-                            {
-                                EditorGUILayout.BeginHorizontal();
-                                runtimePackage.Enable = EditorGUILayout.ToggleLeft($"资源包 {i + 1}", runtimePackage.Enable, GUILayout.Width(90));
-                                GUILayout.FlexibleSpace();
-                                using (new EditorGUI.DisabledScope(updateSetting.RuntimePackages.Count <= 1))
-                                {
-                                    if (GUILayout.Button("删除", GUILayout.Width(50)))
-                                    {
-                                        removeIndex = i;
-                                    }
-                                }
-                                EditorGUILayout.EndHorizontal();
-
-                                runtimePackage.PackageName = EditorGUILayout.TextField("包名", runtimePackage.PackageName);
-                                runtimePackage.BuildPipeline = (RuntimePackageBuildPipeline)EditorGUILayout.Popup("构建管线", (int)runtimePackage.BuildPipeline, PackagePipelineNames);
-                                runtimePackage.EncryptionType = (EncryptionType)EditorGUILayout.Popup("加密方式", (int)runtimePackage.EncryptionType, EncryptionNames);
-                                runtimePackage.InitOnStartup = EditorGUILayout.ToggleLeft("启动时初始化", runtimePackage.InitOnStartup);
-                                runtimePackage.UpdateManifestOnStartup = EditorGUILayout.ToggleLeft("启动时更新清单", runtimePackage.UpdateManifestOnStartup);
-                                runtimePackage.DownloadOnDemand = EditorGUILayout.ToggleLeft("参与下载检查", runtimePackage.DownloadOnDemand);
-                                runtimePackage.SaveVersion = EditorGUILayout.ToggleLeft("保存版本记录", runtimePackage.SaveVersion);
-                                runtimePackage.VersionKey = EditorGUILayout.TextField("版本键", runtimePackage.VersionKey);
-                            }
-                            EditorGUILayout.EndVertical();
-                        }
-
-                        if (removeIndex >= 0)
-                        {
-                            updateSetting.RuntimePackages.RemoveAt(removeIndex);
-                        }
-
-                        if (GUILayout.Button("添加资源包", GUILayout.Height(24)))
-                        {
-                            updateSetting.RuntimePackages.Add(CreateRuntimePackageEntry(GetNextPackageName(updateSetting)));
-                            addedPackage = true;
-                        }
-
-                        if (EditorGUI.EndChangeCheck() || removeIndex >= 0 || addedPackage)
-                        {
-                            SaveUpdateSetting(updateSetting);
-                        }
-
-                        EditorGUILayout.Space(3);
-                        EditorGUILayout.HelpBox("这里直接编辑运行时资源包配置，构建流程和运行时初始化都会复用这份列表。", MessageType.Info);
-                    }
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-            GUILayout.Space(5);
-        }
-
-        #endregion
-
-        #region 发布整理设置
-
-        private void DrawPublishSettings()
-        {
-            _showPublishSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showPublishSettings,
-                new GUIContent("发布整理", "构建完成后将资源整理到便于上传的目录"));
-
-            if (_showPublishSettings)
-            {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    _config.EnablePublishCopy = EditorGUILayout.ToggleLeft(
-                        new GUIContent("启用发布整理", "构建成功后自动整理到发布目录"),
-                        _config.EnablePublishCopy);
-
-                    if (_config.EnablePublishCopy)
-                    {
-                        EditorGUILayout.Space(3);
-
-                        EditorGUILayout.BeginHorizontal();
-                        _config.PublishRoot = EditorGUILayout.TextField("发布根目录", _config.PublishRoot);
-                        if (GUILayout.Button("浏览", GUILayout.Width(50)))
-                        {
-                            string selected = EditorUtility.OpenFolderPanel("选择发布目录", _config.PublishRoot, "");
-                            if (!string.IsNullOrEmpty(selected))
-                            {
-                                string projectPath = PathGetRelative(Application.dataPath + "/../", selected);
-                                _config.PublishRoot = string.IsNullOrEmpty(projectPath) ? selected : projectPath;
-                            }
-                        }
-                        EditorGUILayout.EndHorizontal();
-
-                        _config.CleanPublishPackageDirectory = EditorGUILayout.ToggleLeft(
-                            new GUIContent("清空目标包目录后再拷贝", "避免旧 bundle 残留"),
-                            _config.CleanPublishPackageDirectory);
-
-                        EditorGUILayout.Space(3);
-
-                        string remotePlatform = ReleaseTools.GetRemotePlatformName(_config.BuildTarget);
-                        string projectName = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
-                        var runtimePackages = Settings.UpdateSetting != null
-                            ? Settings.UpdateSetting.GetEnabledRuntimePackages()
-                            : null;
-                        var packageNames = runtimePackages != null && runtimePackages.Count > 0
-                            ? runtimePackages
-                                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.PackageName))
-                                .Select(x => x.PackageName.Trim())
-                                .Distinct(StringComparer.Ordinal)
-                                .ToList()
-                            : new List<string> { "DefaultPackage" };
-                        EditorGUILayout.LabelField("平台目录名", remotePlatform);
-                        EditorGUILayout.SelectableLabel(
-                            $"输出规则：{_config.PublishRoot}/{projectName}/{remotePlatform}/{{资源包名}}",
-                            EditorStyles.textField,
-                            GUILayout.Height(EditorGUIUtility.singleLineHeight));
-
-                        EditorGUILayout.LabelField("当前包示例", string.Join("，", packageNames));
-                        EditorGUILayout.SelectableLabel(
-                            string.Join("\n", packageNames.Select(packageName =>
-                                $"{_config.PublishRoot}/{projectName}/{remotePlatform}/{packageName}")),
-                            EditorStyles.textArea,
-                            GUILayout.MinHeight(EditorGUIUtility.singleLineHeight * Math.Max(2, packageNames.Count)));
-
-                        EditorGUILayout.HelpBox(
-                            $"发布整理源目录使用打包工具的 AB输出目录：{_config.OutputRoot}\n" +
-                            $"实际读取：{ReleaseTools.GetBuildPlatformOutputRoot(_config)}/{{资源包名}}/<Version>\n" +
-                            "不是额外去读取 YooAsset 的其他默认输出目录。",
-                            MessageType.Info);
-
-                        EditorGUILayout.HelpBox(
-                            "发布整理使用运行时远端平台名，而不是 YooAsset 构建目录名，可避免平台目录不一致导致 404。",
-                            MessageType.Info);
-                    }
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-            GUILayout.Space(5);
-        }
-
-        #endregion
-
-        #region 最小包设置
-
-        private void DrawMinimalPackageSettings()
-        {
-            _showMinimalPackageSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showMinimalPackageSettings,
-                new GUIContent("最小包设置", "删除 StreamingAssets 中的 .bundle 文件以减小首包体积"));
-
-            if (_showMinimalPackageSettings)
-            {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    _config.MinimalPackage = EditorGUILayout.ToggleLeft(
-                        new GUIContent("启用最小包模式", "构建后删除 StreamingAssets 中的 .bundle 文件"),
-                        _config.MinimalPackage);
-
-                    if (_config.MinimalPackage)
-                    {
-                        EditorGUILayout.Space(3);
-                        _config.RetainTags = EditorGUILayout.TextField(
-                            new GUIContent("保留Tag(逗号分隔)", "带这些Tag的bundle不会被删除"),
-                            _config.RetainTags);
-
-                        EditorGUILayout.Space(3);
-
-                        string tagInfo = string.IsNullOrWhiteSpace(_config.RetainTags)
-                            ? "所有 .bundle 文件将被删除（仅保留清单）"
-                            : $"保留带 [{_config.RetainTags}] Tag 的 bundle，其余删除";
-
-                        EditorGUILayout.HelpBox(
-                            $"最小包模式：删除 StreamingAssets 中所有 .bundle 文件，仅保留清单文件（.bytes/.hash/.version）。\n" +
-                            $"当前: {tagInfo}\n\n" +
-                            $"适用于 HostPlayMode 在线下载资源的场景，可大幅减小首包体积。",
-                            MessageType.Info);
-                    }
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-            GUILayout.Space(5);
-        }
-
-        #endregion
-
-        #region 高级设置
-
-        private void DrawAdvancedSettings()
-        {
-            _showAdvancedSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showAdvancedSettings,
-                new GUIContent("高级设置", "共享打包、依赖数据库、增量构建等"));
-
-            if (_showAdvancedSettings)
-            {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    _config.EnableSharePackRule = EditorGUILayout.ToggleLeft(
-                        new GUIContent("启用共享资源打包", "自动提取共享资源到独立bundle"),
-                        _config.EnableSharePackRule);
-
-                    _config.UseAssetDependencyDB = EditorGUILayout.ToggleLeft(
-                        new GUIContent("使用资源依赖数据库", "提高打包速度"),
-                        _config.UseAssetDependencyDB);
-
-                    _config.ClearBuildCache = EditorGUILayout.ToggleLeft(
-                        new GUIContent("清理构建缓存(禁用增量构建)", "全量重新构建"),
-                        _config.ClearBuildCache);
-
-                    _config.VerifyBuildingResult = EditorGUILayout.ToggleLeft(
-                        new GUIContent("验证构建结果", "构建后验证资源完整性"),
-                        _config.VerifyBuildingResult);
-
-                    EditorGUILayout.Space(3);
-
-                    _config.BuildinFileCopyOption = (EBuildinFileCopyOption)EditorGUILayout.Popup(
-                        "内置文件拷贝", (int)_config.BuildinFileCopyOption, CopyOptionNames);
-
-                    _config.FileNameStyle = (EFileNameStyle)EditorGUILayout.Popup(
-                        "文件名风格", (int)_config.FileNameStyle, FileNameStyleNames);
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-            GUILayout.Space(5);
-        }
-
-        #endregion
-
-        #region 热更DLL设置
-
-        private void DrawDllSettings()
-        {
-            _showDllSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showDllSettings,
-                new GUIContent("热更DLL设置", "HybridCLR 热更程序集编译"));
-
-            if (_showDllSettings)
-            {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    _config.BuildHotFixDll = EditorGUILayout.ToggleLeft(
-                        new GUIContent("构建前编译热更DLL", "执行 BuildDLLCommand.BuildAndCopyDlls"),
-                        _config.BuildHotFixDll);
-
-                    EditorGUILayout.Space(3);
-                    EditorGUILayout.BeginHorizontal();
-                    {
-                        if (GUILayout.Button(new GUIContent("编译并拷贝热更DLL",
-                            "执行 BuildDLLCommand.BuildAndCopyDlls：编译热更DLL并拷贝 AOT/热更 DLL 到 AssemblyTextAssetPath")))
-                        {
-                            BuildDLLCommand.BuildAndCopyDlls();
-                        }
-                        if (GUILayout.Button(new GUIContent("同步 AOT 元数据清单",
-                            "从 HybridCLR 生成的 AOTGenericReferences 同步到 AOTMetadataManifest.asset，保留手动添加项")))
-                        {
-                            BuildDLLCommand.SyncAOTMetadataManifest();
-                        }
-                    }
-                    EditorGUILayout.EndHorizontal();
-                    EditorGUILayout.HelpBox(
-                        "构建会校验 AOTMetadataManifest 是否包含 AOTGenericReferences 的全部程序集，缺失将中断构建。新增泛型后请先点上方按钮同步。",
-                        MessageType.Info);
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-            GUILayout.Space(5);
-        }
-
-        #endregion
-
-        #region 打包Player设置
-
-        private void DrawPlayerSettings()
-        {
-            _showPlayerSettings = EditorGUILayout.BeginFoldoutHeaderGroup(_showPlayerSettings,
-                new GUIContent("打包Player设置", "构建可执行程序"));
-
-            if (_showPlayerSettings)
-            {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    _config.BuildPlayer = EditorGUILayout.ToggleLeft(
-                        new GUIContent("构建Player", "构建可执行程序(exe/apk/ipa)"),
-                        _config.BuildPlayer);
-
-                    if (_config.BuildPlayer)
-                    {
-                        EditorGUILayout.Space(3);
-
-                        _playerPlatformIndex = EditorGUILayout.Popup("Player平台", _playerPlatformIndex, PlatformNames);
-                        _config.PlayerPlatform = PlatformTargets[_playerPlatformIndex];
-
-                        EditorGUILayout.BeginHorizontal();
-                        _config.PlayerOutputPath = EditorGUILayout.TextField("输出路径", _config.PlayerOutputPath);
-                        if (GUILayout.Button("浏览", GUILayout.Width(50)))
-                        {
-                            string selected = EditorUtility.SaveFilePanel("选择输出路径",
-                                System.IO.Path.GetDirectoryName(_config.PlayerOutputPath),
-                                System.IO.Path.GetFileName(_config.PlayerOutputPath), "");
-                            if (!string.IsNullOrEmpty(selected))
-                            {
-                                _config.PlayerOutputPath = selected;
-                            }
-                        }
-                        EditorGUILayout.EndHorizontal();
-                    }
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-            GUILayout.Space(5);
-        }
-
-        #endregion
-
-        #region 构建流程预览
-
-        private enum FlowStepState
-        {
-            Enabled,
-            Skipped,
-        }
-
-        private readonly struct FlowStep
-        {
-            public readonly FlowStepState State;
-            public readonly string Title;
-            public readonly string Detail;
-
-            public FlowStep(FlowStepState state, string title, string detail)
-            {
-                State = state;
-                Title = title;
-                Detail = detail;
-            }
-        }
-
-        private void DrawFlowPreview()
-        {
-            _showFlowPreview = EditorGUILayout.BeginFoldoutHeaderGroup(_showFlowPreview,
-                new GUIContent("构建流程预览", "根据当前配置，点击下方按钮后将按此顺序执行"));
-
-            if (_showFlowPreview)
-            {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    var steps = BuildFlowSteps();
-
-                    EditorGUILayout.LabelField(
-                        "点击「一键构建」后的实际执行顺序（灰色为当前配置下跳过的步骤）：",
-                        EditorStyles.miniLabel);
-                    GUILayout.Space(3);
-
-                    int orderNo = 0;
-                    var skippedStyle = new GUIStyle(EditorStyles.label)
-                    {
-                        normal = { textColor = new Color(0.55f, 0.55f, 0.55f) },
-                        wordWrap = true,
-                    };
-                    var enabledStyle = new GUIStyle(EditorStyles.label)
-                    {
-                        wordWrap = true,
-                    };
-                    var detailStyle = new GUIStyle(EditorStyles.miniLabel)
-                    {
-                        normal = { textColor = new Color(0.5f, 0.5f, 0.5f) },
-                        wordWrap = true,
-                    };
-
-                    foreach (var step in steps)
-                    {
-                        bool enabled = step.State == FlowStepState.Enabled;
-                        string indexLabel = enabled ? $"{++orderNo}." : "—";
-
-                        EditorGUILayout.BeginHorizontal();
-                        GUILayout.Label(indexLabel, GUILayout.Width(24));
-                        EditorGUILayout.BeginVertical();
-                        GUILayout.Label(step.Title, enabled ? enabledStyle : skippedStyle);
-                        if (!string.IsNullOrEmpty(step.Detail))
-                        {
-                            GUILayout.Label(step.Detail, detailStyle);
-                        }
-                        EditorGUILayout.EndVertical();
-                        EditorGUILayout.EndHorizontal();
-
-                        GUILayout.Space(2);
-                    }
-
-                    GUILayout.Space(3);
-                    EditorGUILayout.HelpBox(
-                        "说明：「构建 AssetBundle」按钮执行 1~4 步，「构建 Player」按钮单独执行第 5 步，「一键构建」执行全部步骤。",
-                        MessageType.None);
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-            GUILayout.Space(5);
-        }
-
-        private List<FlowStep> BuildFlowSteps()
-        {
-            var steps = new List<FlowStep>();
-
-            // Step 1: 热更DLL编译
-            steps.Add(_config.BuildHotFixDll
-                ? new FlowStep(FlowStepState.Enabled, "编译热更DLL",
-                    "执行 BuildDLLCommand.BuildAndCopyDlls")
-                : new FlowStep(FlowStepState.Skipped, "编译热更DLL（未启用）",
-                    "在「热更DLL设置」中勾选后执行"));
-
-            // Step 2: 构建AssetBundle（始终执行）
-            steps.Add(new FlowStep(FlowStepState.Enabled, "构建 AssetBundle",
-                $"平台 {_config.BuildTarget}｜版本 {GetPreviewVersionText()}｜{GetBuildPackageLogText(_config)}"));
-
-            // Step 3: 发布整理
-            steps.Add(_config.EnablePublishCopy
-                ? new FlowStep(FlowStepState.Enabled, "发布整理",
-                    $"拷贝到 {_config.PublishRoot}/{GetPreviewProjectName()}/{ReleaseTools.GetRemotePlatformName(_config.BuildTarget)}/{{资源包名}}")
-                : new FlowStep(FlowStepState.Skipped, "发布整理（未启用）",
-                    "在「发布整理」中勾选后执行"));
-
-            // Step 4: 最小包处理
-            steps.Add(_config.MinimalPackage
-                ? new FlowStep(FlowStepState.Enabled, "最小包处理",
-                    string.IsNullOrWhiteSpace(_config.RetainTags)
-                        ? "删除 StreamingAssets 中所有 .bundle（仅保留清单）"
-                        : $"保留 Tag [{_config.RetainTags}] 的 bundle，其余删除")
-                : new FlowStep(FlowStepState.Skipped, "最小包处理（未启用）",
-                    "在「最小包设置」中勾选后执行"));
-
-            // Step 5: 构建Player
-            steps.Add(_config.BuildPlayer
-                ? new FlowStep(FlowStepState.Enabled, "构建 Player",
-                    $"平台 {_config.PlayerPlatform}｜输出 {_config.PlayerOutputPath}")
-                : new FlowStep(FlowStepState.Skipped, "构建 Player（未启用）",
-                    "在「打包Player设置」中勾选，或点击「构建 Player」/「一键构建」"));
-
-            return steps;
-        }
-
-        private string GetPreviewVersionText()
-        {
-            return string.IsNullOrWhiteSpace(_config.PackageVersion)
-                ? "(自动生成)"
-                : _config.PackageVersion;
-        }
-
-        private static string GetPreviewProjectName()
-        {
-            return Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
-        }
-
-        #endregion
-
-        #region 操作按钮
-
-        private void DrawActionButtons()
-        {
-            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-            GUILayout.Space(5);
-
-            EditorGUILayout.BeginHorizontal();
-            {
-                var abStyle = new GUIStyle(GUI.skin.button)
-                {
-                    fontSize = 13,
-                    fontStyle = FontStyle.Bold,
-                };
-
-                if (GUILayout.Button("构建 AssetBundle", abStyle, GUILayout.Height(35)))
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("保存设置", EditorStyles.toolbarButton, GUILayout.Width(70)))
                 {
                     SaveSettings();
-                    ExecuteBuild(buildPlayer: false);
-                }
-
-                if (GUILayout.Button("构建 Player", abStyle, GUILayout.Height(35)))
-                {
-                    SaveSettings();
-                    ExecuteBuildPlayerOnly();
-                }
-
-                using (new EditorGUI.DisabledScope(!_config.EnablePublishCopy))
-                {
-                    if (GUILayout.Button("打开发布目录", GUILayout.Height(35)))
-                    {
-                        EditorUtility.RevealInFinder(ReleaseTools.GetPublishOutputRoot(_config));
-                    }
+                    SaveRuntimePackageViews(flushToDisk: true);
                 }
             }
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.BeginHorizontal();
-            {
-                var fullBuildStyle = new GUIStyle(GUI.skin.button)
-                {
-                    fontSize = 13,
-                    fontStyle = FontStyle.Bold,
-                    normal = { textColor = new Color(0.2f, 0.6f, 1f) },
-                };
-
-                if (GUILayout.Button("一键构建 (AB + Player)", fullBuildStyle, GUILayout.Height(38)))
-                {
-                    SaveSettings();
-                    _config.BuildPlayer = true;
-                    ExecuteBuild(buildPlayer: true);
-                }
-
-                using (new EditorGUI.DisabledScope(!_config.EnablePublishCopy))
-                {
-                    if (GUILayout.Button("仅执行发布整理", GUILayout.Height(38)))
-                    {
-                        SaveSettings();
-                        ExecutePublishOnly();
-                    }
-                }
-            }
-            EditorGUILayout.EndHorizontal();
-
-            GUILayout.Space(5);
+            GUILayout.EndHorizontal();
         }
 
-        #endregion
-
-        #region 构建日志
-
-        private void DrawBuildLog()
+        protected override void OnDestroy()
         {
-            _showBuildLog = EditorGUILayout.BeginFoldoutHeaderGroup(_showBuildLog,
-                new GUIContent($"构建日志 ({_buildLogs.Count})", "构建过程的日志输出"));
-
-            if (_showBuildLog)
+            base.OnDestroy();
+            EditorApplication.update -= FlushRuntimePackagesWhenReady;
+            if (_runtimePackagesDirty)
             {
-                EditorGUILayout.BeginVertical("HelpBox");
-                {
-                    if (GUILayout.Button("清空日志", GUILayout.Height(22)))
-                    {
-                        _buildLogs.Clear();
-                    }
-
-                    _logScrollPosition = EditorGUILayout.BeginScrollView(_logScrollPosition, GUILayout.Height(150));
-                    {
-                        foreach (var log in _buildLogs)
-                        {
-                            EditorGUILayout.SelectableLabel(log, EditorStyles.miniLabel,
-                                GUILayout.Height(EditorStyles.miniLabel.CalcHeight(new GUIContent(log), position.width - 30)));
-                        }
-                    }
-                    EditorGUILayout.EndScrollView();
-                }
-                EditorGUILayout.EndVertical();
+                SaveRuntimePackageViews(flushToDisk: true);
             }
-            EditorGUILayout.EndFoldoutHeaderGroup();
         }
-
-        #endregion
 
         #region 构建执行
 
         private void ExecuteBuild(bool buildPlayer)
         {
+            var config = CreateConfig();
             _buildLogs.Clear();
             AddLog("========== 开始构建 ==========");
-            AddLog($"平台: {_config.BuildTarget} | 默认管线: {_config.BuildPipeline} | 最小包: {_config.MinimalPackage}");
-            AddLog($"资源包: {GetBuildPackageLogText(_config)}");
+            AddLog($"平台: {config.BuildTarget} | 默认管线: {config.BuildPipeline} | 最小包: {config.MinimalPackage}");
+            AddLog($"资源包: {_cachedPackageSummary}");
 
-            if (string.IsNullOrWhiteSpace(_config.PackageVersion))
+            if (string.IsNullOrWhiteSpace(config.PackageVersion))
             {
-                _config.PackageVersion = BuildConfig.GetDefaultPackageVersion();
-                AddLog($"版本号为空，自动生成: {_config.PackageVersion}");
+                _packageVersion = BuildConfig.GetDefaultPackageVersion();
+                config.PackageVersion = _packageVersion;
+                SaveSettings();
+                AddLog($"版本号为空，自动生成: {config.PackageVersion}");
             }
 
-            if (_config.EnablePublishCopy)
+            if (config.EnablePublishCopy)
             {
-                AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(_config)}");
-                AddLog($"发布平台目录: {ReleaseTools.GetRemotePlatformName(_config.BuildTarget)}");
+                AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(config)}");
+                AddLog($"发布平台目录: {ReleaseTools.GetRemotePlatformName(config.BuildTarget)}");
             }
 
             try
@@ -839,13 +452,13 @@ namespace TEngine
 
                 if (buildPlayer)
                 {
-                    ReleaseTools.BuildWithConfig(_config, buildPlayer: true);
+                    config.BuildPlayer = true;
+                    ReleaseTools.BuildWithConfig(config, buildPlayer: true);
                 }
                 else
                 {
-                    var configCopy = CloneConfig(_config);
-                    configCopy.BuildPlayer = false;
-                    ReleaseTools.BuildWithConfig(configCopy, buildPlayer: false);
+                    config.BuildPlayer = false;
+                    ReleaseTools.BuildWithConfig(config, buildPlayer: false);
                 }
 
                 AddLog("========== 构建完成 ==========");
@@ -860,35 +473,34 @@ namespace TEngine
                 Application.logMessageReceived -= OnBuildLogReceived;
             }
 
-            _showBuildLog = true;
             Repaint();
         }
 
         private void ExecutePublishOnly()
         {
+            var config = CreateConfig();
             _buildLogs.Clear();
             AddLog("========== 仅执行发布整理 ==========");
-            AddLog($"构建输出目录: {ReleaseTools.GetBuildPlatformOutputRoot(_config)}");
-            AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(_config)}");
+            AddLog($"构建输出目录: {ReleaseTools.GetBuildPlatformOutputRoot(config)}");
+            AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(config)}");
 
-            var versions = ReleaseTools.GetPublishableVersions(_config);
+            var versions = ReleaseTools.GetPublishableVersions(config);
             if (versions.Count <= 0)
             {
                 AddLog("[错误] 未找到可整理的公共版本目录。请先完成 AssetBundle 构建。");
-                _showBuildLog = true;
                 Repaint();
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(_config.PackageVersion) && versions.Contains(_config.PackageVersion))
+            if (!string.IsNullOrWhiteSpace(config.PackageVersion) && versions.Contains(config.PackageVersion))
             {
-                RunPublishOnly(_config.PackageVersion);
+                RunPublishOnly(config.PackageVersion);
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(_config.PackageVersion))
+            if (!string.IsNullOrWhiteSpace(config.PackageVersion))
             {
-                AddLog($"[WARN] 当前版本号未命中现有构建目录: {_config.PackageVersion}");
+                AddLog($"[WARN] 当前版本号未命中现有构建目录: {config.PackageVersion}");
             }
 
             if (versions.Count == 1)
@@ -899,21 +511,21 @@ namespace TEngine
 
             ShowPublishVersionMenu(versions);
             ShowNotification(new GUIContent("请选择要整理的版本"));
-            _showBuildLog = true;
             Repaint();
         }
 
         private void RunPublishOnly(string packageVersion)
         {
+            var config = CreateConfig();
             AddLog($"整理版本: {packageVersion}");
 
             try
             {
                 Application.logMessageReceived += OnBuildLogReceived;
-                if (ReleaseTools.PublishFromExistingBuild(_config, packageVersion))
+                if (ReleaseTools.PublishFromExistingBuild(config, packageVersion))
                 {
-                    AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(_config)}");
-                    AddLog($"发布平台目录: {ReleaseTools.GetRemotePlatformName(_config.BuildTarget)}");
+                    AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(config)}");
+                    AddLog($"发布平台目录: {ReleaseTools.GetRemotePlatformName(config.BuildTarget)}");
                     AddLog("========== 发布整理完成 ==========");
                 }
                 else
@@ -931,7 +543,6 @@ namespace TEngine
                 Application.logMessageReceived -= OnBuildLogReceived;
             }
 
-            _showBuildLog = true;
             Repaint();
         }
 
@@ -951,17 +562,18 @@ namespace TEngine
 
         private void ExecuteBuildPlayerOnly()
         {
+            var config = CreateConfig();
             _buildLogs.Clear();
             AddLog("========== 仅构建 Player ==========");
-            AddLog($"平台: {_config.PlayerPlatform} | 输出: {_config.PlayerOutputPath}");
+            AddLog($"平台: {config.PlayerPlatform} | 输出: {config.PlayerOutputPath}");
 
             try
             {
                 Application.logMessageReceived += OnBuildLogReceived;
                 ReleaseTools.BuildImp(
-                    BuildConfig.GetBuildTargetGroup(_config.PlayerPlatform),
-                    _config.PlayerPlatform,
-                    _config.PlayerOutputPath
+                    BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
+                    config.PlayerPlatform,
+                    config.PlayerOutputPath
                 );
                 AddLog("========== Player 构建完成 ==========");
             }
@@ -975,7 +587,6 @@ namespace TEngine
                 Application.logMessageReceived -= OnBuildLogReceived;
             }
 
-            _showBuildLog = true;
             Repaint();
         }
 
@@ -986,10 +597,11 @@ namespace TEngine
                 LogType.Error => "[ERR]",
                 LogType.Warning => "[WARN]",
                 LogType.Assert => "[ASSERT]",
-                _ => ""
+                _ => string.Empty
             };
 
-            if (!string.IsNullOrEmpty(prefix) || condition.StartsWith("[") || condition.Contains("构建") || condition.Contains("Build"))
+            if (!string.IsNullOrEmpty(prefix) || condition.StartsWith("[", StringComparison.Ordinal) ||
+                condition.Contains("构建") || condition.Contains("Build"))
             {
                 AddLog($"{prefix}{condition}");
             }
@@ -999,101 +611,238 @@ namespace TEngine
         {
             string timestamp = DateTime.Now.ToString("HH:mm:ss");
             _buildLogs.Add($"[{timestamp}] {message}");
-            _logScrollPosition = new Vector2(0, float.MaxValue);
+
+            if (EditorApplication.timeSinceStartup < _nextLogRepaintTime)
+            {
+                return;
+            }
+
+            _nextLogRepaintTime = EditorApplication.timeSinceStartup + 0.1d;
+            Repaint();
         }
 
         #endregion
 
-        #region 持久化
+        #region 设置持久化
 
         private void LoadSettings()
         {
-            _config = BuildConfig.CreateDefault();
+            _isLoadingSettings = true;
 
-            _platformIndex = EditorPrefs.GetInt("TEngine_BP_BuildTarget", -1);
-            if (_platformIndex < 0 || _platformIndex >= PlatformTargets.Length)
-            {
-                _platformIndex = GetActivePlatformIndex();
-            }
-            _config.BuildTarget = PlatformTargets[_platformIndex];
+            var defaultConfig = BuildConfig.CreateDefault();
+            var buildTargetIndex = EditorPrefs.GetInt("TEngine_BP_BuildTarget", -1);
+            _buildTarget = IsValidPlatformIndex(buildTargetIndex)
+                ? PlatformTargets[buildTargetIndex]
+                : GetActiveSupportedBuildTarget();
 
             const string buildPipelineKey = "TEngine_BP_BuildPipeline";
             var savedBuildPipeline = EditorPrefs.GetString(buildPipelineKey, EBuildPipeline.ScriptableBuildPipeline.ToString());
-            if (!Enum.TryParse(savedBuildPipeline, out EBuildPipeline buildPipeline) || buildPipeline == EBuildPipeline.BuiltinBuildPipeline)
+            if (!Enum.TryParse(savedBuildPipeline, out EBuildPipeline buildPipeline) ||
+                buildPipeline == EBuildPipeline.BuiltinBuildPipeline)
             {
                 buildPipeline = EBuildPipeline.ScriptableBuildPipeline;
             }
-            _config.BuildPipeline = buildPipeline;
 
-            _config.CompressOption = (ECompressOption)EditorPrefs.GetInt("TEngine_BP_CompressOption", 1);
-            _config.PackageVersion = EditorPrefs.GetString("TEngine_BP_PackageVersion", "");
-            _config.OutputRoot = EditorPrefs.GetString("TEngine_BP_OutputRoot", "./Builds/");
-            _config.EnablePublishCopy = EditorPrefs.GetBool("TEngine_BP_EnablePublishCopy", false);
-            _config.PublishRoot = EditorPrefs.GetString("TEngine_BP_PublishRoot", "./Publish/");
-            _config.CleanPublishPackageDirectory = EditorPrefs.GetBool("TEngine_BP_CleanPublishPackageDirectory", true);
-            _config.MinimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
-            _config.RetainTags = EditorPrefs.GetString("TEngine_BP_RetainTags", "");
-            _config.EnableSharePackRule = EditorPrefs.GetBool("TEngine_BP_EnableSharePack", true);
-            _config.UseAssetDependencyDB = EditorPrefs.GetBool("TEngine_BP_UseDepDB", true);
-            _config.ClearBuildCache = EditorPrefs.GetBool("TEngine_BP_ClearCache", false);
-            _config.VerifyBuildingResult = EditorPrefs.GetBool("TEngine_BP_VerifyResult", true);
-            _config.BuildinFileCopyOption = (EBuildinFileCopyOption)EditorPrefs.GetInt("TEngine_BP_CopyOption", 0);
-            _config.FileNameStyle = (EFileNameStyle)EditorPrefs.GetInt("TEngine_BP_FileNameStyle", 1);
-            _config.BuildHotFixDll = EditorPrefs.GetBool("TEngine_BP_BuildDll", true);
-            _config.BuildPlayer = EditorPrefs.GetBool("TEngine_BP_BuildPlayer", false);
+            _buildPipeline = buildPipeline;
+            _compressOption = (ECompressOption)EditorPrefs.GetInt("TEngine_BP_CompressOption", (int)defaultConfig.CompressOption);
+            _packageVersion = EditorPrefs.GetString("TEngine_BP_PackageVersion", string.Empty);
+            _outputRoot = EditorPrefs.GetString("TEngine_BP_OutputRoot", "./Builds/");
+            _enablePublishCopy = EditorPrefs.GetBool("TEngine_BP_EnablePublishCopy", false);
+            _publishRoot = EditorPrefs.GetString("TEngine_BP_PublishRoot", "./Publish/");
+            _cleanPublishPackageDirectory = EditorPrefs.GetBool("TEngine_BP_CleanPublishPackageDirectory", true);
+            _minimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
+            _retainTags = EditorPrefs.GetString("TEngine_BP_RetainTags", string.Empty);
+            _enableSharePackRule = EditorPrefs.GetBool("TEngine_BP_EnableSharePack", true);
+            _useAssetDependencyDB = EditorPrefs.GetBool("TEngine_BP_UseDepDB", true);
+            _clearBuildCache = EditorPrefs.GetBool("TEngine_BP_ClearCache", false);
+            _verifyBuildingResult = EditorPrefs.GetBool("TEngine_BP_VerifyResult", true);
+            _buildinFileCopyOption = (EBuildinFileCopyOption)EditorPrefs.GetInt(
+                "TEngine_BP_CopyOption", (int)defaultConfig.BuildinFileCopyOption);
+            _fileNameStyle = (EFileNameStyle)EditorPrefs.GetInt("TEngine_BP_FileNameStyle", (int)defaultConfig.FileNameStyle);
+            _buildHotFixDll = EditorPrefs.GetBool("TEngine_BP_BuildDll", true);
+            _buildPlayer = EditorPrefs.GetBool("TEngine_BP_BuildPlayer", false);
 
-            _playerPlatformIndex = EditorPrefs.GetInt("TEngine_BP_PlayerPlatform", -1);
-            if (_playerPlatformIndex < 0 || _playerPlatformIndex >= PlatformTargets.Length)
-            {
-                _playerPlatformIndex = GetActivePlatformIndex();
-            }
-            _config.PlayerPlatform = PlatformTargets[_playerPlatformIndex];
+            var playerPlatformIndex = EditorPrefs.GetInt("TEngine_BP_PlayerPlatform", -1);
+            _playerPlatform = IsValidPlatformIndex(playerPlatformIndex)
+                ? PlatformTargets[playerPlatformIndex]
+                : GetActiveSupportedBuildTarget();
 
-            _config.PlayerOutputPath = EditorPrefs.GetString("TEngine_BP_PlayerOutput",
-                BuildConfig.GetDefaultPlayerOutputPath(_config.PlayerPlatform));
+            _playerOutputPath = EditorPrefs.GetString("TEngine_BP_PlayerOutput",
+                BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform));
+
+            ReloadRuntimePackageViews();
+            RefreshCachedTexts();
+            _isLoadingSettings = false;
         }
 
         private void SaveSettings()
         {
-            EditorPrefs.SetInt("TEngine_BP_BuildTarget", _platformIndex);
-            const string buildPipelineKey = "TEngine_BP_BuildPipeline";
-            EditorPrefs.SetString(buildPipelineKey, _config.BuildPipeline.ToString());
-            EditorPrefs.SetInt("TEngine_BP_CompressOption", (int)_config.CompressOption);
-            EditorPrefs.SetString("TEngine_BP_PackageVersion", _config.PackageVersion);
-            EditorPrefs.SetString("TEngine_BP_OutputRoot", _config.OutputRoot);
-            EditorPrefs.SetBool("TEngine_BP_EnablePublishCopy", _config.EnablePublishCopy);
-            EditorPrefs.SetString("TEngine_BP_PublishRoot", _config.PublishRoot);
-            EditorPrefs.SetBool("TEngine_BP_CleanPublishPackageDirectory", _config.CleanPublishPackageDirectory);
-            EditorPrefs.SetBool("TEngine_BP_MinimalPackage", _config.MinimalPackage);
-            EditorPrefs.SetString("TEngine_BP_RetainTags", _config.RetainTags);
-            EditorPrefs.SetBool("TEngine_BP_EnableSharePack", _config.EnableSharePackRule);
-            EditorPrefs.SetBool("TEngine_BP_UseDepDB", _config.UseAssetDependencyDB);
-            EditorPrefs.SetBool("TEngine_BP_ClearCache", _config.ClearBuildCache);
-            EditorPrefs.SetBool("TEngine_BP_VerifyResult", _config.VerifyBuildingResult);
-            EditorPrefs.SetInt("TEngine_BP_CopyOption", (int)_config.BuildinFileCopyOption);
-            EditorPrefs.SetInt("TEngine_BP_FileNameStyle", (int)_config.FileNameStyle);
-            EditorPrefs.SetBool("TEngine_BP_BuildDll", _config.BuildHotFixDll);
-            EditorPrefs.SetBool("TEngine_BP_BuildPlayer", _config.BuildPlayer);
-            EditorPrefs.SetInt("TEngine_BP_PlayerPlatform", _playerPlatformIndex);
-            EditorPrefs.SetString("TEngine_BP_PlayerOutput", _config.PlayerOutputPath);
+            EditorPrefs.SetInt("TEngine_BP_BuildTarget", GetPlatformIndex(_buildTarget));
+            EditorPrefs.SetString("TEngine_BP_BuildPipeline", _buildPipeline.ToString());
+            EditorPrefs.SetInt("TEngine_BP_CompressOption", (int)_compressOption);
+            EditorPrefs.SetString("TEngine_BP_PackageVersion", _packageVersion);
+            EditorPrefs.SetString("TEngine_BP_OutputRoot", _outputRoot);
+            EditorPrefs.SetBool("TEngine_BP_EnablePublishCopy", _enablePublishCopy);
+            EditorPrefs.SetString("TEngine_BP_PublishRoot", _publishRoot);
+            EditorPrefs.SetBool("TEngine_BP_CleanPublishPackageDirectory", _cleanPublishPackageDirectory);
+            EditorPrefs.SetBool("TEngine_BP_MinimalPackage", _minimalPackage);
+            EditorPrefs.SetString("TEngine_BP_RetainTags", _retainTags);
+            EditorPrefs.SetBool("TEngine_BP_EnableSharePack", _enableSharePackRule);
+            EditorPrefs.SetBool("TEngine_BP_UseDepDB", _useAssetDependencyDB);
+            EditorPrefs.SetBool("TEngine_BP_ClearCache", _clearBuildCache);
+            EditorPrefs.SetBool("TEngine_BP_VerifyResult", _verifyBuildingResult);
+            EditorPrefs.SetInt("TEngine_BP_CopyOption", (int)_buildinFileCopyOption);
+            EditorPrefs.SetInt("TEngine_BP_FileNameStyle", (int)_fileNameStyle);
+            EditorPrefs.SetBool("TEngine_BP_BuildDll", _buildHotFixDll);
+            EditorPrefs.SetBool("TEngine_BP_BuildPlayer", _buildPlayer);
+            EditorPrefs.SetInt("TEngine_BP_PlayerPlatform", GetPlatformIndex(_playerPlatform));
+            EditorPrefs.SetString("TEngine_BP_PlayerOutput", _playerOutputPath);
         }
 
-        private int GetActivePlatformIndex()
+        private void OnSettingsChanged()
         {
-            BuildTarget active = EditorUserBuildSettings.activeBuildTarget;
-            for (int i = 0; i < PlatformTargets.Length; i++)
+            if (_isLoadingSettings)
             {
-                if (PlatformTargets[i] == active)
-                {
-                    return i;
-                }
+                return;
             }
-            return 0;
+
+            NormalizeSettings();
+            SaveSettings();
+            RefreshCachedTexts();
+            Repaint();
+        }
+
+        private void OnPlayerPlatformChanged()
+        {
+            if (string.IsNullOrWhiteSpace(_playerOutputPath))
+            {
+                _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+            }
+
+            OnSettingsChanged();
+        }
+
+        private void NormalizeSettings()
+        {
+            if (_buildPipeline == EBuildPipeline.BuiltinBuildPipeline)
+            {
+                _buildPipeline = EBuildPipeline.ScriptableBuildPipeline;
+            }
+
+            if (Array.IndexOf(PlatformTargets, _buildTarget) < 0)
+            {
+                _buildTarget = GetActiveSupportedBuildTarget();
+            }
+
+            if (Array.IndexOf(PlatformTargets, _playerPlatform) < 0)
+            {
+                _playerPlatform = GetActiveSupportedBuildTarget();
+            }
         }
 
         #endregion
 
-        #region 工具方法
+        #region 资源包列表
+
+        private void ReloadRuntimePackageViews()
+        {
+            var updateSetting = Settings.UpdateSetting;
+            _runtimePackages.Clear();
+            if (updateSetting == null)
+            {
+                RefreshCachedTexts();
+                return;
+            }
+
+            EnsureRuntimePackages(updateSetting);
+            foreach (var runtimePackage in updateSetting.RuntimePackages)
+            {
+                _runtimePackages.Add(RuntimePackageView.FromEntry(runtimePackage));
+            }
+
+            _runtimePackagesDirty = false;
+            RefreshCachedTexts();
+        }
+
+        private void MarkRuntimePackagesDirty()
+        {
+            if (_isLoadingSettings || _isSavingRuntimePackages)
+            {
+                return;
+            }
+
+            _runtimePackagesDirty = true;
+            SaveRuntimePackageViews(flushToDisk: false);
+            QueueRuntimePackageSave();
+        }
+
+        private void QueueRuntimePackageSave()
+        {
+            _nextRuntimePackageSaveTime = EditorApplication.timeSinceStartup + 0.75d;
+            if (_runtimePackageSaveQueued)
+            {
+                return;
+            }
+
+            _runtimePackageSaveQueued = true;
+            EditorApplication.update += FlushRuntimePackagesWhenReady;
+        }
+
+        private void FlushRuntimePackagesWhenReady()
+        {
+            if (!_runtimePackagesDirty)
+            {
+                _runtimePackageSaveQueued = false;
+                EditorApplication.update -= FlushRuntimePackagesWhenReady;
+                return;
+            }
+
+            if (EditorApplication.timeSinceStartup < _nextRuntimePackageSaveTime)
+            {
+                return;
+            }
+
+            SaveRuntimePackageViews(flushToDisk: true);
+            _runtimePackageSaveQueued = false;
+            EditorApplication.update -= FlushRuntimePackagesWhenReady;
+        }
+
+        private void SaveRuntimePackageViews(bool flushToDisk)
+        {
+            if (_isLoadingSettings || _isSavingRuntimePackages)
+            {
+                return;
+            }
+
+            var updateSetting = Settings.UpdateSetting;
+            if (updateSetting == null)
+            {
+                return;
+            }
+
+            _isSavingRuntimePackages = true;
+
+            if (_runtimePackages.Count <= 0)
+            {
+                _runtimePackages.Add(RuntimePackageView.FromEntry(CreateRuntimePackageEntry("DefaultPackage")));
+            }
+
+            updateSetting.RuntimePackages = _runtimePackages
+                .Select(view => view.ToEntry())
+                .ToList();
+
+            EnsureRuntimePackages(updateSetting);
+            EditorUtility.SetDirty(updateSetting);
+            if (flushToDisk)
+            {
+                AssetDatabase.SaveAssets();
+                _runtimePackagesDirty = false;
+            }
+
+            RefreshCachedTexts();
+
+            _isSavingRuntimePackages = false;
+        }
 
         private static void EnsureRuntimePackages(UpdateSetting updateSetting)
         {
@@ -1119,7 +868,8 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName),
-                EncryptionType = Settings.UpdateSetting != null && string.Equals(packageName, Settings.UpdateSetting.AssemblyPackageName, StringComparison.Ordinal)
+                EncryptionType = Settings.UpdateSetting != null &&
+                                 string.Equals(packageName, Settings.UpdateSetting.AssemblyPackageName, StringComparison.Ordinal)
                     ? EncryptionType.XXTEA
                     : EncryptionType.None,
                 BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
@@ -1141,12 +891,6 @@ namespace TEngine
             return $"PACKAGE_VERSION_{packageName}";
         }
 
-        private static void SaveUpdateSetting(UpdateSetting updateSetting)
-        {
-            EditorUtility.SetDirty(updateSetting);
-            AssetDatabase.SaveAssets();
-        }
-
         private static string GetNextPackageName(UpdateSetting updateSetting)
         {
             var index = updateSetting.RuntimePackages.Count + 1;
@@ -1160,11 +904,143 @@ namespace TEngine
             return packageName;
         }
 
+        #endregion
+
+        #region 构建预览
+
+        private void RefreshCachedTexts()
+        {
+            var config = CreateConfig();
+            _cachedPackageSummary = GetBuildPackageLogText(config);
+            _cachedToolbarStatus =
+                $"平台: {_buildTarget}  |  版本: {GetPreviewVersionText()}  |  资源包: {_cachedPackageSummary}";
+            _cachedPublishPackagePreviewText = string.Join("\n", GetCurrentPackageNames().Select(packageName =>
+                $"{_publishRoot}/{GetPreviewProjectName()}/{PublishPlatformName}/{packageName}"));
+
+            RebuildFlowSteps(config);
+        }
+
+        private void RebuildFlowSteps(BuildConfig config)
+        {
+            _flowSteps.Clear();
+
+            AddFlowStep(config.BuildHotFixDll,
+                "编译热更DLL",
+                "执行 BuildDLLCommand.BuildAndCopyDlls",
+                "热更DLL未启用，跳过");
+
+            AddFlowStep(true,
+                "构建 AssetBundle",
+                $"平台 {config.BuildTarget} | 版本 {GetPreviewVersionText()} | {_cachedPackageSummary}",
+                string.Empty);
+
+            AddFlowStep(config.EnablePublishCopy,
+                "发布整理",
+                $"拷贝到 {config.PublishRoot}/{GetPreviewProjectName()}/{ReleaseTools.GetRemotePlatformName(config.BuildTarget)}/{{资源包名}}",
+                "发布整理未启用，跳过");
+
+            AddFlowStep(config.MinimalPackage,
+                "最小包处理",
+                string.IsNullOrWhiteSpace(config.RetainTags)
+                    ? "删除 StreamingAssets 中所有 .bundle，仅保留清单"
+                    : $"保留 Tag [{config.RetainTags}] 的 bundle，其余删除",
+                "最小包模式未启用，跳过");
+
+            AddFlowStep(config.BuildPlayer,
+                "构建 Player",
+                $"平台 {config.PlayerPlatform} | 输出 {config.PlayerOutputPath}",
+                "Player 构建未启用，跳过");
+        }
+
+        private void AddFlowStep(bool enabled, string title, string enabledDetail, string skippedDetail)
+        {
+            var order = enabled
+                ? (_flowSteps.Count(x => x.Enabled) + 1).ToString()
+                : "-";
+
+            _flowSteps.Add(new FlowStepView
+            {
+                Order = order,
+                Enabled = enabled,
+                Title = enabled ? title : $"{title}（跳过）",
+                Detail = enabled ? enabledDetail : skippedDetail,
+            });
+        }
+
+        private string GetPreviewVersionText()
+        {
+            return string.IsNullOrWhiteSpace(_packageVersion)
+                ? "(自动生成)"
+                : _packageVersion;
+        }
+
+        private static string GetPreviewProjectName()
+        {
+            return Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
+        }
+
+        #endregion
+
+        #region 配置转换
+
+        private void ApplyConfig(BuildConfig config)
+        {
+            _buildTarget = config.BuildTarget;
+            _buildPipeline = config.BuildPipeline;
+            _compressOption = config.CompressOption;
+            _packageVersion = config.PackageVersion;
+            _outputRoot = config.OutputRoot;
+            _enablePublishCopy = config.EnablePublishCopy;
+            _publishRoot = config.PublishRoot;
+            _cleanPublishPackageDirectory = config.CleanPublishPackageDirectory;
+            _minimalPackage = config.MinimalPackage;
+            _retainTags = config.RetainTags;
+            _enableSharePackRule = config.EnableSharePackRule;
+            _useAssetDependencyDB = config.UseAssetDependencyDB;
+            _clearBuildCache = config.ClearBuildCache;
+            _verifyBuildingResult = config.VerifyBuildingResult;
+            _buildinFileCopyOption = config.BuildinFileCopyOption;
+            _fileNameStyle = config.FileNameStyle;
+            _buildHotFixDll = config.BuildHotFixDll;
+            _buildPlayer = config.BuildPlayer;
+            _playerPlatform = config.PlayerPlatform;
+            _playerOutputPath = config.PlayerOutputPath;
+            NormalizeSettings();
+        }
+
+        private BuildConfig CreateConfig()
+        {
+            return new BuildConfig
+            {
+                BuildTarget = _buildTarget,
+                BuildPipeline = _buildPipeline,
+                CompressOption = _compressOption,
+                PackageVersion = _packageVersion,
+                OutputRoot = _outputRoot,
+                EnablePublishCopy = _enablePublishCopy,
+                PublishRoot = _publishRoot,
+                CleanPublishPackageDirectory = _cleanPublishPackageDirectory,
+                MinimalPackage = _minimalPackage,
+                RetainTags = _retainTags,
+                EnableSharePackRule = _enableSharePackRule,
+                UseAssetDependencyDB = _useAssetDependencyDB,
+                ClearBuildCache = _clearBuildCache,
+                VerifyBuildingResult = _verifyBuildingResult,
+                BuildinFileCopyOption = _buildinFileCopyOption,
+                FileNameStyle = _fileNameStyle,
+                BuildHotFixDll = _buildHotFixDll,
+                BuildPlayer = _buildPlayer,
+                PlayerPlatform = _playerPlatform,
+                PlayerOutputPath = _playerOutputPath,
+            };
+        }
+
         private static string GetBuildPackageLogText(BuildConfig config)
         {
             var runtimePackages = Settings.UpdateSetting != null
                 ? Settings.UpdateSetting.GetEnabledRuntimePackages()
                 : null;
+
             if (runtimePackages == null || runtimePackages.Count <= 0)
             {
                 return $"DefaultPackage({config.BuildPipeline})";
@@ -1195,45 +1071,324 @@ namespace TEngine
             };
         }
 
-        private static string PathGetRelative(string relativeTo, string path)
+        private List<string> GetCurrentPackageNames()
+        {
+            var runtimePackages = Settings.UpdateSetting != null
+                ? Settings.UpdateSetting.GetEnabledRuntimePackages()
+                : null;
+
+            if (runtimePackages == null || runtimePackages.Count <= 0)
+            {
+                return new List<string> { "DefaultPackage" };
+            }
+
+            return runtimePackages
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.PackageName))
+                .Select(x => x.PackageName.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+        }
+
+        #endregion
+
+        #region 路径与平台
+
+        private void ChooseOutputRoot()
+        {
+            var selected = EditorUtility.OpenFolderPanel("选择AB输出目录", ToAbsolutePath(_outputRoot), string.Empty);
+            if (string.IsNullOrEmpty(selected))
+            {
+                return;
+            }
+
+            _outputRoot = ToProjectRelativePath(selected);
+            OnSettingsChanged();
+        }
+
+        private void OpenOutputRoot()
+        {
+            EditorUtility.RevealInFinder(ReleaseTools.GetResolvedOutputRoot(CreateConfig()));
+        }
+
+        private void ChoosePublishRoot()
+        {
+            var selected = EditorUtility.OpenFolderPanel("选择发布目录", ToAbsolutePath(_publishRoot), string.Empty);
+            if (string.IsNullOrEmpty(selected))
+            {
+                return;
+            }
+
+            _publishRoot = ToProjectRelativePath(selected);
+            OnSettingsChanged();
+        }
+
+        private void OpenPublishRoot()
+        {
+            EditorUtility.RevealInFinder(ReleaseTools.GetPublishOutputRoot(CreateConfig()));
+        }
+
+        private void ChoosePlayerOutputPath()
+        {
+            string directory = Path.GetDirectoryName(_playerOutputPath);
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                directory = Application.dataPath;
+            }
+
+            string selected = EditorUtility.SaveFilePanel(
+                "选择输出路径",
+                directory,
+                Path.GetFileName(_playerOutputPath),
+                string.Empty);
+
+            if (string.IsNullOrEmpty(selected))
+            {
+                return;
+            }
+
+            _playerOutputPath = selected;
+            OnSettingsChanged();
+        }
+
+        private static string ToAbsolutePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return Application.dataPath;
+            }
+
+            if (Path.IsPathRooted(path))
+            {
+                return path;
+            }
+
+            return Path.GetFullPath(Path.Combine(Application.dataPath, "..", path));
+        }
+
+        private static string ToProjectRelativePath(string absolutePath)
         {
             try
             {
-                var uri = new Uri(relativeTo + "/");
-                var rel = Uri.UnescapeDataString(uri.MakeRelativeUri(new Uri(path)).ToString());
-                return rel.Replace('/', '\\');
+                var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..")).Replace('\\', '/').TrimEnd('/') + "/";
+                var fullPath = Path.GetFullPath(absolutePath).Replace('\\', '/');
+                if (fullPath.StartsWith(projectRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    return fullPath.Substring(projectRoot.Length);
+                }
+
+                return fullPath;
             }
             catch
             {
-                return "";
+                return absolutePath;
             }
         }
 
-        private static BuildConfig CloneConfig(BuildConfig source)
+        private static BuildTarget GetActiveSupportedBuildTarget()
         {
-            return new BuildConfig
+            var active = EditorUserBuildSettings.activeBuildTarget;
+            return Array.IndexOf(PlatformTargets, active) >= 0 ? active : PlatformTargets[0];
+        }
+
+        private static int GetPlatformIndex(BuildTarget target)
+        {
+            var index = Array.IndexOf(PlatformTargets, target);
+            return index >= 0 ? index : 0;
+        }
+
+        private static bool IsValidPlatformIndex(int index)
+        {
+            return index >= 0 && index < PlatformTargets.Length;
+        }
+
+        #endregion
+
+        #region Odin 数据
+
+        private bool HasUpdateSetting => Settings.UpdateSetting != null;
+        private bool IsUpdateSettingMissing => !HasUpdateSetting;
+        private bool IsPublishCopyEnabled => _enablePublishCopy;
+        private bool HasBuildLogs => _buildLogs.Count > 0;
+
+        private static ValueDropdownList<BuildTarget> BuildTargetOptions => new ValueDropdownList<BuildTarget>
+        {
+            { "Windows 64-bit", BuildTarget.StandaloneWindows64 },
+            { "macOS", BuildTarget.StandaloneOSX },
+            { "Linux", BuildTarget.StandaloneLinux64 },
+            { "Android", BuildTarget.Android },
+            { "iOS", BuildTarget.iOS },
+            { "WebGL", BuildTarget.WebGL },
+        };
+
+        private static ValueDropdownList<EBuildPipeline> BuildPipelineOptions => new ValueDropdownList<EBuildPipeline>
+        {
+            { "ScriptableBuildPipeline (SBP)", EBuildPipeline.ScriptableBuildPipeline },
+            { "RawFileBuildPipeline (原生文件)", EBuildPipeline.RawFileBuildPipeline },
+        };
+
+        private static ValueDropdownList<ECompressOption> CompressOptions => new ValueDropdownList<ECompressOption>
+        {
+            { "Uncompressed (不压缩)", ECompressOption.Uncompressed },
+            { "LZMA (高压缩)", ECompressOption.LZMA },
+            { "LZ4 (快速压缩)", ECompressOption.LZ4 },
+        };
+
+        private static ValueDropdownList<RuntimePackageBuildPipeline> PackageBuildPipelineOptions => new ValueDropdownList<RuntimePackageBuildPipeline>
+        {
+            { "使用全局设置", RuntimePackageBuildPipeline.UseGlobal },
+            { "ScriptableBuildPipeline (SBP)", RuntimePackageBuildPipeline.ScriptableBuildPipeline },
+            { "RawFileBuildPipeline (原生文件)", RuntimePackageBuildPipeline.RawFileBuildPipeline },
+        };
+
+        private static ValueDropdownList<EncryptionType> EncryptionOptions => new ValueDropdownList<EncryptionType>
+        {
+            { "无加密", EncryptionType.None },
+            { "文件偏移加密", EncryptionType.FileOffSet },
+            { "文件流加密", EncryptionType.FileStream },
+            { "XXTEA加密", EncryptionType.XXTEA },
+        };
+
+        private static ValueDropdownList<EBuildinFileCopyOption> BuildinFileCopyOptions => new ValueDropdownList<EBuildinFileCopyOption>
+        {
+            { "None (不拷贝)", EBuildinFileCopyOption.None },
+            { "ClearAndCopyAll (清空后拷贝全部)", EBuildinFileCopyOption.ClearAndCopyAll },
+            { "ClearAndCopyByTags (清空后按Tag拷贝)", EBuildinFileCopyOption.ClearAndCopyByTags },
+            { "OnlyCopyAll (仅拷贝全部)", EBuildinFileCopyOption.OnlyCopyAll },
+            { "OnlyCopyByTags (仅按Tag拷贝)", EBuildinFileCopyOption.OnlyCopyByTags },
+        };
+
+        private static ValueDropdownList<EFileNameStyle> FileNameStyleOptions => new ValueDropdownList<EFileNameStyle>
+        {
+            { "HashName (哈希名)", EFileNameStyle.HashName },
+            { "BundleName (资源包名)", EFileNameStyle.BundleName },
+            { "BundleName_HashName (资源包名 + 哈希值)", EFileNameStyle.BundleName_HashName },
+        };
+
+        [Serializable]
+        private sealed class RuntimePackageView
+        {
+            private static ValueDropdownList<RuntimePackageBuildPipeline> PackagePipelineDropdown =>
+                BuildPipelineWindow.PackageBuildPipelineOptions;
+
+            private static ValueDropdownList<EncryptionType> EncryptionDropdown =>
+                BuildPipelineWindow.EncryptionOptions;
+
+            [TableColumnWidth(45, Resizable = false)]
+            [LabelText("启用")]
+            [ToggleLeft]
+            public bool Enable = true;
+
+            [TableColumnWidth(150)]
+            [LabelText("包名")]
+            [DelayedProperty]
+            public string PackageName = "DefaultPackage";
+
+            [TableColumnWidth(180)]
+            [LabelText("构建管线")]
+            [ValueDropdown(nameof(PackagePipelineDropdown))]
+            public RuntimePackageBuildPipeline BuildPipeline = RuntimePackageBuildPipeline.UseGlobal;
+
+            [TableColumnWidth(120)]
+            [LabelText("加密")]
+            [ValueDropdown(nameof(EncryptionDropdown))]
+            public EncryptionType EncryptionType = EncryptionType.None;
+
+            [TableColumnWidth(70)]
+            [LabelText("初始化")]
+            [ToggleLeft]
+            public bool InitOnStartup = true;
+
+            [TableColumnWidth(80)]
+            [LabelText("更新清单")]
+            [ToggleLeft]
+            public bool UpdateManifestOnStartup = true;
+
+            [TableColumnWidth(80)]
+            [LabelText("下载检查")]
+            [ToggleLeft]
+            public bool DownloadOnDemand = true;
+
+            [TableColumnWidth(80)]
+            [LabelText("保存版本")]
+            [ToggleLeft]
+            public bool SaveVersion = true;
+
+            [TableColumnWidth(150)]
+            [LabelText("版本键")]
+            [DelayedProperty]
+            public string VersionKey = "GAME_VERSION";
+
+            public RuntimePackageEntry ToEntry()
             {
-                BuildTarget = source.BuildTarget,
-                BuildPipeline = source.BuildPipeline,
-                CompressOption = source.CompressOption,
-                PackageVersion = source.PackageVersion,
-                OutputRoot = source.OutputRoot,
-                EnablePublishCopy = source.EnablePublishCopy,
-                PublishRoot = source.PublishRoot,
-                CleanPublishPackageDirectory = source.CleanPublishPackageDirectory,
-                MinimalPackage = source.MinimalPackage,
-                RetainTags = source.RetainTags,
-                EnableSharePackRule = source.EnableSharePackRule,
-                UseAssetDependencyDB = source.UseAssetDependencyDB,
-                ClearBuildCache = source.ClearBuildCache,
-                VerifyBuildingResult = source.VerifyBuildingResult,
-                BuildinFileCopyOption = source.BuildinFileCopyOption,
-                FileNameStyle = source.FileNameStyle,
-                BuildHotFixDll = source.BuildHotFixDll,
-                BuildPlayer = source.BuildPlayer,
-                PlayerPlatform = source.PlayerPlatform,
-                PlayerOutputPath = source.PlayerOutputPath,
-            };
+                var packageName = string.IsNullOrWhiteSpace(PackageName) ? "DefaultPackage" : PackageName.Trim();
+                var buildPipeline = BuildPipeline == RuntimePackageBuildPipeline.BuiltinBuildPipeline
+                    ? RuntimePackageBuildPipeline.ScriptableBuildPipeline
+                    : BuildPipeline;
+
+                return new RuntimePackageEntry
+                {
+                    Enable = Enable,
+                    PackageName = packageName,
+                    InitOnStartup = InitOnStartup,
+                    UpdateManifestOnStartup = UpdateManifestOnStartup,
+                    DownloadOnDemand = DownloadOnDemand,
+                    SaveVersion = SaveVersion,
+                    VersionKey = string.IsNullOrWhiteSpace(VersionKey) ? GetDefaultVersionKey(packageName) : VersionKey.Trim(),
+                    BuildPipeline = buildPipeline,
+                    EncryptionType = EncryptionType,
+                };
+            }
+
+            public static RuntimePackageView FromEntry(RuntimePackageEntry entry)
+            {
+                if (entry == null)
+                {
+                    entry = CreateRuntimePackageEntry("DefaultPackage");
+                }
+
+                var packageName = string.IsNullOrWhiteSpace(entry.PackageName)
+                    ? "DefaultPackage"
+                    : entry.PackageName.Trim();
+                var buildPipeline = entry.BuildPipeline == RuntimePackageBuildPipeline.BuiltinBuildPipeline
+                    ? RuntimePackageBuildPipeline.ScriptableBuildPipeline
+                    : entry.BuildPipeline;
+
+                return new RuntimePackageView
+                {
+                    Enable = entry.Enable,
+                    PackageName = packageName,
+                    InitOnStartup = entry.InitOnStartup,
+                    UpdateManifestOnStartup = entry.UpdateManifestOnStartup,
+                    DownloadOnDemand = entry.DownloadOnDemand,
+                    SaveVersion = entry.SaveVersion,
+                    VersionKey = string.IsNullOrWhiteSpace(entry.VersionKey) ? GetDefaultVersionKey(packageName) : entry.VersionKey.Trim(),
+                    BuildPipeline = buildPipeline,
+                    EncryptionType = entry.EncryptionType,
+                };
+            }
+        }
+
+        [Serializable]
+        private sealed class FlowStepView
+        {
+            [TableColumnWidth(45, Resizable = false)]
+            [ReadOnly]
+            [LabelText("#")]
+            public string Order;
+
+            [TableColumnWidth(55, Resizable = false)]
+            [ReadOnly]
+            [LabelText("执行")]
+            public bool Enabled;
+
+            [TableColumnWidth(150)]
+            [ReadOnly]
+            [LabelText("步骤")]
+            public string Title;
+
+            [ReadOnly]
+            [LabelText("说明")]
+            public string Detail;
         }
 
         #endregion
