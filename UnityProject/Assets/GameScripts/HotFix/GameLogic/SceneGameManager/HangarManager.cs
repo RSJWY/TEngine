@@ -21,7 +21,7 @@ namespace GameLogic
         /// <summary>
         /// 当前 Manager 只响应机库场景的动态加载完成事件。
         /// </summary>
-        protected override SceneType TargetSceneType => SceneType.Hangar;
+        protected override SceneType TargetSceneType => SceneType.MainScene;
 
 
         /// <summary>

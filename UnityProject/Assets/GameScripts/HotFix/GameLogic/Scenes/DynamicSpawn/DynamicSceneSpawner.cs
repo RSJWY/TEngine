@@ -330,7 +330,7 @@ namespace GameLogic
 
             // 发送完成事件（携带当前场景类型，供监听方校验）
             GameEvent.Send<SceneType>(GlobalEventID.Event_DynamicSpawnComplete,
-                GameSceneManager.CurrentSceneType ?? SceneType.Main);
+                GameSceneManager.CurrentSceneType ?? SceneType.MainScene);
 
             // 子类钩子
             OnAllSpawned();

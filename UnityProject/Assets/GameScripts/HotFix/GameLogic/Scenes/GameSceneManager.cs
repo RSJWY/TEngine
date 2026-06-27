@@ -17,19 +17,7 @@ namespace GameLogic
         /// <summary>
         /// 主场景（空，保留，未启用，仅仅做纯UI）
         /// </summary>
-        Main,
-        /// <summary>
-        /// 主飞行场景
-        /// </summary>
-        FlyTest,
-        /// <summary>
-        /// 回放专用场景
-        /// </summary>
-        FlyTest_Replay,
-        /// <summary>
-        /// 机库场景
-        /// </summary>
-        Hangar
+        MainScene
     }
 
     /// <summary>
@@ -42,10 +30,6 @@ namespace GameLogic
     public static class SceneConstName
     {
         public const string MainSceneName = "MainScene";
-
-        public const string FlyTestName = "飞行测试";
-        
-        public const string FlyTest_Replay = "飞行测试_Replay";
 
         public  const string HangarUI = "机库";
     }
@@ -140,14 +124,8 @@ namespace GameLogic
         {
             switch (sceneType)
             {
-                case SceneType.Main:
+                case SceneType.MainScene:
                     return SceneConstName.MainSceneName;
-                case SceneType.FlyTest:
-                    return SceneConstName.FlyTestName;
-                case SceneType.FlyTest_Replay:
-                    return SceneConstName.FlyTest_Replay;
-                case SceneType.Hangar:
-                    return SceneConstName.HangarUI;
                 default:
                     Log.Error($"SceneType:[{sceneType}]未匹配资源地址");
                     return string.Empty;
@@ -174,13 +152,7 @@ namespace GameLogic
 
             // 优先匹配实际资源名
             if (sceneName == SceneConstName.MainSceneName)
-                return SceneType.Main;
-            if (sceneName == SceneConstName.FlyTestName)
-                return SceneType.FlyTest;
-            if (sceneName == SceneConstName.FlyTest_Replay)
-                return SceneType.FlyTest_Replay;
-            if (sceneName == SceneConstName.HangarUI)
-                return SceneType.Hangar;
+                return SceneType.MainScene;
 
             // 尝试解析枚举名（用于回放文件名格式：Replay_FlyTest_20260622.replay）
             if (System.Enum.TryParse<SceneType>(sceneName, true, out SceneType sceneType))
@@ -233,7 +205,7 @@ namespace GameLogic
         /// </remarks>
         public static void JumpToMainScene()
         {
-            RecordScene(SceneType.Main);
+            RecordScene(SceneType.MainScene);
 
             // 清理旧监听，避免上次加载异常退出时残留
             _eventMgr.Clear();
@@ -241,12 +213,12 @@ namespace GameLogic
 
             LoadSceneDataBody loadSceneData = new LoadSceneDataBody()
             {
-                sceneName = GetSceneName(SceneType.Main),
+                sceneName = GetSceneName(SceneType.MainScene),
                 finishCallBack = () =>
                 {
                     GameModule.UI.CloseAll();
                     jumpControl.JumpToMain();
-                    GameEvent.Send<SceneType>(GlobalEventID.Event_SceneReady, SceneType.Main);
+                    GameEvent.Send<SceneType>(GlobalEventID.Event_SceneReady, SceneType.MainScene);
                 }
             };
 
