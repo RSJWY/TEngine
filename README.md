@@ -19,7 +19,7 @@
 
 ## 🛠️ 本 Fork 的定制改动
 
-> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上做了一系列围绕**热更新、资源打包、运行时配置**的定制改造。以下为相对上游新增/修改的能力清单（按主题归类，最新在前）。
+> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上做了一系列围绕**热更新、资源打包、运行时配置、场景加载**的定制改造。以下为相对上游新增/修改的能力清单（按主题归类，最新在前）。
 
 ### 🧾 日志系统
 
@@ -52,6 +52,10 @@
 - **发布整理流程** — 构建后自动整理产物到发布目录，统一运行时平台目录名与 YooAsset 构建目录名，避免 404。
 - **打包工具构建流程预览** — 打包工具窗口新增「构建流程预览」面板，按实际执行顺序（编译热更DLL → 构建AB → 发布整理 → 最小包处理 → 构建Player）动态展示步骤，启用步骤递增编号、未启用步骤灰显跳过，并随配置实时刷新，解决 UI 折叠区域顺序与执行顺序错位导致的困惑。
 - **打包工具 Odin 化与卡顿优化** — `BuildPipelineWindow` 迁移为 `OdinEditorWindow`，用 `BoxGroup` / `TableList` / `ValueDropdown` 等 Odin 特性声明式组织资源包、发布整理、热更 DLL、Player 与构建日志；资源包编辑改为延迟落盘，状态栏/发布预览走缓存，日志刷新节流，避免编辑时频繁 `AssetDatabase.SaveAssets()` 与 `Repaint()`。
+
+### 🎬 场景系统
+
+- **DynamicSpawn 通用化与示例脚本** — 将仅调用 `CollectFromSpawnPoints()` 的机库专属 `HangarSceneSpawner` 收敛为通用 `SpawnPointSceneSpawner`，大多数场景可直接挂载；同时把 `HangarManager` 改为 `ExampleSceneGameManager` 示例，演示动态加载完成后如何按 `registerKey` 获取对象并执行场景初始化。
 
 ### 🖥️ 窗口管理
 

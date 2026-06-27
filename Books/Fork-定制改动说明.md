@@ -1,6 +1,6 @@
 # 本 Fork 定制改动说明
 
-> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置**做了一系列定制改造。本文档汇总相对上游新增/修改的能力，详细的设计与排查过程见 `UnityProject/conversation-summaries/` 下对应日期的会话总结。
+> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载**做了一系列定制改造。本文档汇总相对上游新增/修改的能力，详细的设计与排查过程见 `UnityProject/conversation-summaries/` 下对应日期的会话总结。
 
 ## 📚 目录
 
@@ -21,6 +21,8 @@
   - [按包构建管线](#1-按包构建管线)
   - [发布整理流程](#2-发布整理流程)
   - [打包工具 Odin 化与卡顿优化](#3-打包工具-odin-化与卡顿优化)
+- [场景系统](#-场景系统)
+  - [DynamicSpawn 通用 Spawner 与场景 Manager 示例](#dynamicspawn)
 - [窗口管理](#-窗口管理)
   - [窗口布局控制模块 ScreenModule](#screenmodule)
 
@@ -366,6 +368,65 @@ Assets/StreamingAssets/Configs/
 - `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs.meta`
 
 > 详见 `conversation-summaries/2026-06-27-odin-build-pipeline-window-summary.md`
+
+---
+
+## 🎬 场景系统
+
+<a id="dynamicspawn"></a>
+
+### DynamicSpawn 通用 Spawner 与场景 Manager 示例
+
+将原本带机库命名、但实际没有机库专属逻辑的动态场景加载脚本整理为通用实现，降低新场景接入成本。
+
+#### 背景
+
+原先 `HangarSceneSpawner` 只是继承 `DynamicSceneSpawner` 并返回 `CollectFromSpawnPoints()`，实际职责是“从子节点的 `DynamicSpawnPoint` 收集加载项”，并不属于机库专属逻辑。继续让每个场景复制一个空派生类，会增加无意义脚本数量，也容易让使用者误以为必须为每个场景写加载器。
+
+#### 改动
+
+- `HangarSceneSpawner` 重命名并改造为 `SpawnPointSceneSpawner`，作为大多数场景可直接挂载的通用加载脚本。
+- `SpawnPointSceneSpawner` 仍继承 `DynamicSceneSpawner`，只负责调用 `CollectFromSpawnPoints()`，保留原有批量异步加载、完成事件、注册表和 Editor 预览能力。
+- `HangarManager` 改为 `ExampleSceneGameManager`，仅作为场景业务管理器示例，不再承载机库业务逻辑。
+- `ExampleSceneGameManager` 继承 `SceneGameManagerBase<DynamicSceneSpawner>`，演示如何指定 `TargetSceneType`，以及如何在 `OnSceneSpawnCompleted()` 里通过 `GetSpawnedObject("PlayerSpawnRoot")` 获取动态加载出的对象。
+- `DynamicSpawn` 使用教程同步更新：默认挂 `SpawnPointSceneSpawner`，只有需要额外收集规则或完成钩子时才写 `XxxSceneSpawner`。
+
+#### 使用方式
+
+大多数场景只需要：
+
+1. 在场景中新建 `DynamicSpawnRoot`
+2. 给 `DynamicSpawnRoot` 挂 `SpawnPointSceneSpawner`
+3. 在其子节点挂 `DynamicSpawnPoint` 并填写 `location`
+4. 如需业务初始化，复制 `ExampleSceneGameManager` 为自己的 `XxxManager`
+5. 在 `DynamicSpawnPoint.registerKey` 填写 key 后，通过 `GetSpawnedObject("你的key")` 获取加载出的对象
+
+只有在以下情况才建议写专属 Spawner：
+
+- 加载项不完全来自 `DynamicSpawnPoint`
+- 需要混合代码生成的 `SpawnItem`
+- 需要 override `OnAllSpawned()` 做加载器层面的完成钩子
+
+#### 关键文件
+
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/DynamicSceneSpawner.cs`
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/DynamicSpawnPoint.cs`
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/Load/SpawnPointSceneSpawner.cs`
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/SceneGameManager/SceneGameManagerBase.cs`
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/SceneGameManager/ExampleSceneGameManager.cs`
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/README.md`
+
+#### 验证
+
+已执行：
+
+```powershell
+dotnet build GameLogic.csproj --no-restore
+```
+
+结果：0 错误，0 警告。
+
+> 详见 `UnityProject/conversation-summaries/2026-06-27-dynamic-spawn-generalization-summary.md`
 
 ---
 
