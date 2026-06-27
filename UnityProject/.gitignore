@@ -92,9 +92,9 @@ package/
 #Rider
 .idea/
 
-#Odin Inspector
-# [Aa]ssets/Plugins/Sirenix/
-# [Aa]ssets/Plugins/Sirenix.meta
+Odin Inspector
+[Aa]ssets/Plugins/Sirenix/
+[Aa]ssets/Plugins/Sirenix.meta
 
 #YooAssets
 package/
