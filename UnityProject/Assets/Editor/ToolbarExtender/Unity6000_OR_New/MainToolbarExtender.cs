@@ -60,7 +60,7 @@ public class MainToolbarSceneLauncherButton
             {
                 EditorApplication.delayCall += () =>
                 {
-                    if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                    if (TEngine.EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch())
                     {
                         EditorSceneManager.OpenScene(previousScenePath);
                     }
@@ -112,7 +112,7 @@ public class MainToolbarSceneLauncherButton
 
             EditorApplication.update -= OnUpdate;
 
-            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            if (TEngine.EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch())
             {
                 string[] guids = AssetDatabase.FindAssets("t:scene " + m_sceneToOpen, null);
 
@@ -228,7 +228,7 @@ public class MainToolbarDropdownSceneSelector
         {
             if (File.Exists(scenePath))
             {
-                if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                if (TEngine.EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch())
                 {
                     Debug.Log($"Switching to scene: {scenePath}");
                     EditorSceneManager.OpenScene(scenePath);
@@ -292,25 +292,7 @@ public class MainToolbarDropdownSceneSelector
 
         public static bool PromptSaveCurrentScene()
         {
-            if (SceneManager.GetActiveScene().isDirty)
-            {
-                bool saveScene = EditorUtility.DisplayDialog(
-                    "是否保存当前场景",
-                    "当前场景有未保存的更改，是否想保存？",
-                    "保存",
-                    "取消");
-
-                if (saveScene)
-                {
-                    EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
-                }
-                else
-                {
-                    return false;
-                }
-                return true;
-            }
-            return true;
+            return TEngine.EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch();
         }
     }
 }

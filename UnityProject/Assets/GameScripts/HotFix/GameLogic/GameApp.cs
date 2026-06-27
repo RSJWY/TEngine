@@ -51,6 +51,7 @@ public partial class GameApp
             Log.Info("[GameApp] 当前平台不支持窗口布局模块，已跳过。");
         }
 
+        GameSceneManager.LoadScene(SceneType.MainScene);
     }
     
     private static void Release()

@@ -107,32 +107,7 @@ namespace TEngine
     {
         public static bool PromptSaveCurrentScene()
         {
-            // 检查当前场景是否有未保存的更改
-            if (SceneManager.GetActiveScene().isDirty)
-            {
-                // 弹出保存对话框
-                bool saveScene = EditorUtility.DisplayDialog(
-                    "是否保存当前场景",
-                    "当前场景有未保存的更改. 你是否想保存?",
-                    "保存",
-                    "取消"
-                );
-
-                // 如果选择保存，保存场景
-                if (saveScene)
-                {
-                    EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
-                }
-                else
-                {
-                    // 如果选择取消，跳转到目标场景
-                    return false; // 表示取消
-                }
-
-                return true;
-            }
-
-            return true; // 如果场景没有更改，直接返回 true
+            return EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch();
         }
 
         public static List<(string sceneName, string scenePath)> GetScenesInPath(string path)

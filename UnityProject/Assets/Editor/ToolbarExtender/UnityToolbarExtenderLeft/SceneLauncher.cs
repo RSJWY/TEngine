@@ -44,7 +44,7 @@ namespace TEngine
                 {
                     EditorApplication.delayCall += () =>
                     {
-                        if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                        if (EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch())
                             EditorSceneManager.OpenScene(previousScenePath);
                     };
                 }
@@ -88,26 +88,18 @@ namespace TEngine
 
                 EditorApplication.update -= OnUpdate;
 
-                if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                if (EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch())
                 {
-                    string[] guids = AssetDatabase.FindAssets("t:scene " + _sceneToOpen, null);
-                    if (guids.Length == 0)
+                    string scenePath = EditorSceneTransitionUtility.FindScenePathInFolder(
+                        _sceneToOpen,
+                        EditorSceneTransitionUtility.InitialSceneFolder);
+
+                    if (string.IsNullOrEmpty(scenePath))
                     {
-                        Debug.LogWarning("Couldn't find scene file");
+                        Debug.LogWarning($"Couldn't find scene file '{_sceneToOpen}' in {EditorSceneTransitionUtility.InitialSceneFolder}");
                     }
                     else
                     {
-                        string scenePath = null;
-                        // 优先打开完全匹配_sceneToOpen的场景
-                        for (var i = 0; i < guids.Length; i++)
-                        {
-                            scenePath = AssetDatabase.GUIDToAssetPath(guids[i]);
-                            if (scenePath.EndsWith("/" + _sceneToOpen + ".unity")) break;
-                        }
-
-                        // 如果没有完全匹配的场景，默认显示找到的第一个场景
-                        if (string.IsNullOrEmpty(scenePath)) scenePath = AssetDatabase.GUIDToAssetPath(guids[0]);
-
                         EditorSceneManager.OpenScene(scenePath);
                         EditorApplication.isPlaying = true;
                     }
