@@ -17,14 +17,16 @@ namespace TEngine
 
         private static readonly string ButtonStyleName = "Tab middle";
         private static GUIStyle _buttonGuiStyle;
-        
+        private const float ToolbarButtonHeight = 22f;
+
         private static void OnToolbarGUI_SceneLauncher()
         {
             _buttonGuiStyle ??= new GUIStyle(ButtonStyleName)
             {
-                padding = new RectOffset(2, 8, 2, 2),
+                padding = new RectOffset(4, 4, 2, 2),
                 alignment = TextAnchor.MiddleCenter,
-                fontStyle = FontStyle.Bold
+                fontStyle = FontStyle.Bold,
+                fixedHeight = ToolbarButtonHeight
             };
 
             GUILayout.FlexibleSpace();
@@ -32,6 +34,13 @@ namespace TEngine
                     new GUIContent("Launcher", EditorGUIUtility.FindTexture("PlayButton"), "Start Scene Launcher"),
                     _buttonGuiStyle))
                 SceneHelper.StartScene(SceneMain);
+
+            GUILayout.Space(6);
+
+            if (GUILayout.Button(
+                    new GUIContent("前往主启动场景", EditorGUIUtility.FindTexture("SceneContent"), "切换到 Assets/Scenes/main.unity 主启动场景"),
+                    _buttonGuiStyle))
+                GoToMainScene();
         }
 
         private static void OnPlayModeStateChanged(PlayModeStateChange state)
