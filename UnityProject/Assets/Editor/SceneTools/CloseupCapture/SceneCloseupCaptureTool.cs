@@ -181,7 +181,7 @@ public sealed class SceneCloseupCaptureTool : OdinEditorWindow
         Quaternion relRot = Quaternion.Inverse(targetRot) * camRot;
 
         // 弹出保存对话框
-        string defaultDir = "Assets/Editor/SceneTools/CloseupAnglePresets";
+        string defaultDir = "Assets/Editor/SceneTools/CloseupCapture/CloseupAnglePresets";
         if (!System.IO.Directory.Exists(ToAbsolutePath(defaultDir)))
         {
             System.IO.Directory.CreateDirectory(ToAbsolutePath(defaultDir));
