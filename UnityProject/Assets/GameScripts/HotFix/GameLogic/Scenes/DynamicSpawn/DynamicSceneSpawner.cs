@@ -57,7 +57,7 @@ namespace GameLogic
         [InspectorName("OnEnable（每次激活触发）")]
         OnEnable,
 
-        /// <summary>收到 Event_SceneReady 时开始加载（LoadingUI 关闭后，最晚）。</summary>
+        /// <summary>收到 OnSceneReady 时开始加载（SwitchUI 关闭后，最晚）。</summary>
         [InspectorName("SceneReady（加载页关闭后）")]
         SceneReady,
 
@@ -77,7 +77,7 @@ namespace GameLogic
     /// <b>释放</b>：Single 模式切场景时整场景卸载，<c>LoadGameObjectAsync</c> 引用计数自动归还，无需手动 UnloadAsset。
     /// </para>
     /// <para>
-    /// <b>方案乙预留</b>：<see cref="SpawnAsync"/> 为 public，将来可由 GameSceneManager 在 finishCallBack 前 await 调用。
+    /// <b>方案乙预留</b>：<see cref="SpawnAsync"/> 为 public，将来可由 GameSceneModule 在 finishCallBack 前 await 调用。
     /// </para>
     /// </remarks>
     public abstract class DynamicSceneSpawner : MonoBehaviour
@@ -87,7 +87,7 @@ namespace GameLogic
         [SerializeField] protected int batchSize = 3;
 
         /// <summary>初始化模式：决定什么时候自动开始加载。</summary>
-        [Tooltip("Awake=最早 / Start=Awake后一帧 / OnEnable=每次激活 / SceneReady=LoadingUI关闭后 / Manual=手动调用")]
+        [Tooltip("Awake=最早 / Start=Awake后一帧 / OnEnable=每次激活 / SceneReady=SwitchUI关闭后 / Manual=手动调用")]
         [SerializeField] protected SpawnInitMode initMode = SpawnInitMode.Start;
 
         private CancellationTokenSource _cts;
@@ -149,7 +149,7 @@ namespace GameLogic
         {
             if (initMode == SpawnInitMode.SceneReady)
             {
-                GameEvent.AddEventListener<SceneType>(GlobalEventID.Event_SceneReady, OnSceneReady);
+                GameEvent.AddEventListener<SceneType>(IGameSceneEvent_Event.OnSceneReady, OnSceneReady);
             }
 
             if (initMode == SpawnInitMode.Awake)
@@ -182,7 +182,7 @@ namespace GameLogic
 
             if (initMode == SpawnInitMode.SceneReady)
             {
-                GameEvent.RemoveEventListener<SceneType>(GlobalEventID.Event_SceneReady, OnSceneReady);
+                GameEvent.RemoveEventListener<SceneType>(IGameSceneEvent_Event.OnSceneReady, OnSceneReady);
             }
         }
 
@@ -200,7 +200,7 @@ namespace GameLogic
         }
 
         /// <summary>
-        /// Event_SceneReady 回调。
+        /// OnSceneReady 回调。
         /// </summary>
         private void OnSceneReady(SceneType sceneType)
         {
@@ -208,13 +208,13 @@ namespace GameLogic
         }
 
         /// <summary>
-        /// 是否为正常流程启动（经过主场景 → GameSceneManager 记录了 CurrentSceneType）。
+        /// 是否为正常流程启动（经过主场景 → GameSceneModule 记录了 CurrentSceneType）。
         /// 如果 CurrentSceneType 为 null，说明是编辑器下直接打开测试场景，YooAsset 未初始化。
         /// </summary>
-        private static bool IsNormalBoot => GameSceneManager.CurrentSceneType != null;
+        private static bool IsNormalBoot => GameModule.GameScene.CurrentSceneType != null;
 
         /// <summary>
-        /// 公开异步加载入口（方案乙预留：将来可由 GameSceneManager await 调用）。
+        /// 公开异步加载入口（方案乙预留：将来可由 GameSceneModule await 调用）。
         /// </summary>
         public async UniTask SpawnAsync()
         {
@@ -329,8 +329,8 @@ namespace GameLogic
             _isSpawnCompleted = true;
 
             // 发送完成事件（携带当前场景类型，供监听方校验）
-            GameEvent.Send<SceneType>(GlobalEventID.Event_DynamicSpawnComplete,
-                GameSceneManager.CurrentSceneType ?? SceneType.MainScene);
+            GameEvent.Get<IGameSceneEvent>().OnDynamicSpawnComplete(
+                GameModule.GameScene.CurrentSceneType ?? SceneType.MainScene);
 
             // 子类钩子
             OnAllSpawned();

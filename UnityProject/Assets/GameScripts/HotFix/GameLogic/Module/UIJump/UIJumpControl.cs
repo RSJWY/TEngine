@@ -17,8 +17,8 @@ namespace GameLogic
     /// 最后修改：2026-06-24
     /// 修改内容：
     ///   1. 使用字典路由表替代 JumpTo if-else 分支，并增加返回栈安全检查。
-    ///   2. OnInit 注册 Loading → LoadingUI 路由，打通场景加载页跳转链路。
-    ///   3. 移除 Loading 路由：场景切换改由 GameModule.UI.ShowUI<LoadingUI> 直接打开加载页，
+    ///   2. OnInit 注册 Loading → SwitchUI 路由，打通场景加载页跳转链路。
+    ///   3. 移除 Loading 路由：场景切换改由 GameModule.UI.ShowUI<SwitchUI> 直接打开加载页，
     ///      不再经 UIJump，避免过渡页被压入导航栈导致返回栈残留。
     /// </summary>
     public sealed partial class UIJumpControl : Module, IUIJumpControl
@@ -62,7 +62,7 @@ namespace GameLogic
         public override void OnInit()
         {
             // 新增窗口在此注册一行即可，无需改动 JumpTo 方法体。
-            // 注意：加载页 LoadingUI 不在此注册——场景切换已改由 GameModule.UI.ShowUI<LoadingUI> 直接打开，
+            // 注意：加载页 SwitchUI 不在此注册——场景切换已改由 GameModule.UI.ShowUI<SwitchUI> 直接打开，
             // 不再经 UIJump 路由，避免过渡页被压入导航栈造成返回栈残留。
             //RegisterRoute(UIWindowType.MenuMain, typeof(MainMenuUI));
         }

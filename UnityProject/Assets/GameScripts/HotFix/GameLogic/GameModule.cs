@@ -101,11 +101,18 @@ public class GameModule
     
     
     /// <summary>
-    /// 获取窗口布局控制模块（多屏，仅 Windows Standalone 生效）。
+    /// 获取 UI 业务跳转控制模块。
     /// </summary>
-    public static UIJumpControl UIJumpControl => _uiJumpControl ??= Get<UIJumpControl>();
+    public static IUIJumpControl UIJumpControl => _uiJumpControl ??= Get<IUIJumpControl>();
 
-    private static UIJumpControl _uiJumpControl;
+    private static IUIJumpControl _uiJumpControl;
+
+    /// <summary>
+    /// 获取游戏业务场景模块。
+    /// </summary>
+    public static IGameSceneModule GameScene => _gameScene ??= Get<IGameSceneModule>();
+
+    private static IGameSceneModule _gameScene;
     #endregion
     
     
@@ -139,5 +146,7 @@ public class GameModule
         _localization = null;
         _jsonConfig = null;
         _screen = null;
+        _uiJumpControl = null;
+        _gameScene = null;
     }
 }

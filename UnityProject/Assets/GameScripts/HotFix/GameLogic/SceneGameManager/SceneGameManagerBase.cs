@@ -13,7 +13,7 @@ namespace GameLogic
     /// </para>
     /// <para>
     /// 完成判定采用“双保险”：
-    /// ① 被动监听 <see cref="GlobalEventID.Event_DynamicSpawnComplete"/>；
+    /// ① 被动监听 <see cref="IGameSceneEvent.OnDynamicSpawnComplete"/>；
     /// ② 主动轮询 <see cref="DynamicSceneSpawner.IsSpawnCompleted"/>。
     /// 这样可以兼容 Manager 和 Spawner 在场景中的不同 Awake/Start 执行顺序，避免事件先发出后监听方才注册导致漏初始化。
     /// </para>
@@ -93,7 +93,7 @@ namespace GameLogic
         /// </summary>
         protected virtual void Awake()
         {
-            GameEvent.AddEventListener<SceneType>(GlobalEventID.Event_DynamicSpawnComplete, OnSpawnComplete);
+            GameEvent.AddEventListener<SceneType>(IGameSceneEvent_Event.OnDynamicSpawnComplete, OnSpawnComplete);
             TryInitializeIfSpawnerCompleted();
             StartPollingSpawnerCompletion();
         }
@@ -111,7 +111,7 @@ namespace GameLogic
         /// </summary>
         protected virtual void OnDestroy()
         {
-            GameEvent.RemoveEventListener<SceneType>(GlobalEventID.Event_DynamicSpawnComplete, OnSpawnComplete);
+            GameEvent.RemoveEventListener<SceneType>(IGameSceneEvent_Event.OnDynamicSpawnComplete, OnSpawnComplete);
             StopPollingSpawnerCompletion();
         }
 
