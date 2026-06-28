@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Scene reference slimming</title>
+  <desc id="desc">Comparison between traditional Unity scene hard references and DynamicSpawn lightweight placeholder references.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbfbf9"/>
+      <stop offset="100%" stop-color="#eef7ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#059669"/>
+    </marker>
+    <style>
+      .title { font: 700 34px Arial, "Microsoft YaHei", sans-serif; fill: #111827; }
+      .subtitle { font: 400 18px Arial, "Microsoft YaHei", sans-serif; fill: #4b5563; }
+      .panel-title { font: 700 24px Arial, "Microsoft YaHei", sans-serif; fill: #111827; }
+      .label { font: 700 17px Arial, "Microsoft YaHei", sans-serif; fill: #1f2937; }
+      .text { font: 400 15px Arial, "Microsoft YaHei", sans-serif; fill: #4b5563; }
+      .tiny { font: 400 13px Arial, "Microsoft YaHei", sans-serif; fill: #64748b; }
+      .bad { stroke: #dc2626; stroke-width: 3; stroke-dasharray: 9 7; fill: none; marker-end: url(#arrow-red); }
+      .good { stroke: #059669; stroke-width: 3; fill: none; marker-end: url(#arrow-green); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <text x="60" y="68" class="title">从硬引用场景到轻量占位场景</text>
+  <text x="60" y="100" class="subtitle">DynamicSpawn 的关键收益是切断 .unity 场景文件对 Prefab 的 PPtr 依赖。</text>
+
+  <g filter="url(#shadow)">
+    <rect x="60" y="145" width="500" height="405" rx="22" fill="#ffffff" stroke="#e5e7eb"/>
+    <text x="92" y="195" class="panel-title">传统做法</text>
+    <text x="92" y="225" class="text">真实 Prefab 实例直接保存在场景中</text>
+
+    <rect x="92" y="270" width="170" height="92" rx="14" fill="#fee2e2" stroke="#fecaca"/>
+    <text x="177" y="307" text-anchor="middle" class="label">MainScene.unity</text>
+    <text x="177" y="334" text-anchor="middle" class="tiny">保存对象层级 + PPtr</text>
+
+    <rect x="350" y="245" width="145" height="55" rx="12" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="422" y="279" text-anchor="middle" class="label">Tree.prefab</text>
+
+    <rect x="350" y="325" width="145" height="55" rx="12" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="422" y="359" text-anchor="middle" class="label">Chest.prefab</text>
+
+    <rect x="350" y="405" width="145" height="55" rx="12" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="422" y="439" text-anchor="middle" class="label">Portal.prefab</text>
+
+    <path d="M262 304 C298 285, 318 273, 342 273" class="bad"/>
+    <path d="M262 316 C301 335, 320 352, 342 352" class="bad"/>
+    <path d="M262 330 C300 378, 321 430, 342 432" class="bad"/>
+
+    <text x="92" y="505" class="text">问题：场景 Bundle 容易被 Prefab 依赖拖住，</text>
+    <text x="92" y="530" class="text">热更新和资源分包的粒度变粗。</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="640" y="145" width="500" height="405" rx="22" fill="#ffffff" stroke="#e5e7eb"/>
+    <text x="672" y="195" class="panel-title">DynamicSpawn 做法</text>
+    <text x="672" y="225" class="text">场景只保存 SpawnPoint，Prefab 由 YooAsset 加载</text>
+
+    <rect x="672" y="270" width="190" height="92" rx="14" fill="#dcfce7" stroke="#bbf7d0"/>
+    <text x="767" y="307" text-anchor="middle" class="label">MainScene.unity</text>
+    <text x="767" y="329" text-anchor="middle" class="tiny">Transform + location</text>
+    <text x="767" y="348" text-anchor="middle" class="tiny">字符串</text>
+
+    <rect x="950" y="245" width="140" height="55" rx="12" fill="#e0f2fe" stroke="#bae6fd"/>
+    <text x="1020" y="279" text-anchor="middle" class="label">Tree</text>
+
+    <rect x="950" y="325" width="140" height="55" rx="12" fill="#e0f2fe" stroke="#bae6fd"/>
+    <text x="1020" y="359" text-anchor="middle" class="label">Chest</text>
+
+    <rect x="950" y="405" width="140" height="55" rx="12" fill="#e0f2fe" stroke="#bae6fd"/>
+    <text x="1020" y="439" text-anchor="middle" class="label">Portal</text>
+
+    <path d="M862 304 C900 285, 918 273, 942 273" class="good"/>
+    <path d="M862 316 C901 335, 920 352, 942 352" class="good"/>
+    <path d="M862 330 C900 378, 921 430, 942 432" class="good"/>
+
+    <text x="880" y="273" class="tiny">location</text>
+    <text x="880" y="353" class="tiny">location</text>
+    <text x="880" y="433" class="tiny">location</text>
+
+    <text x="672" y="505" class="text">收益：场景负责布局，资源系统负责加载，</text>
+    <text x="672" y="530" class="text">Prefab 可独立打包、下载和更新。</text>
+  </g>
+</svg>

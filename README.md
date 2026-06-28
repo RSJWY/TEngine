@@ -55,7 +55,7 @@
 
 ### 🎬 场景系统
 
-- **DynamicSpawn 通用化与示例脚本** — 将仅调用 `CollectFromSpawnPoints()` 的机库专属 `HangarSceneSpawner` 收敛为通用 `SpawnPointSceneSpawner`，大多数场景可直接挂载；同时把 `HangarManager` 改为 `ExampleSceneGameManager` 示例，演示动态加载完成后如何按 `registerKey` 获取对象并执行场景初始化。
+- **DynamicSpawn 通用化与示例脚本** — 将仅调用 `CollectFromSpawnPoints()` 的机库专属 `HangarSceneSpawner` 收敛为通用 `SpawnPointSceneSpawner`，大多数场景可直接挂载；同时把 `HangarManager` 改为 `ExampleSceneGameManager` 示例，演示动态加载完成后如何按 `registerKey` 获取对象并执行场景初始化。详见 [DynamicSpawn 动态场景加载实践](Books/DynamicSpawn-动态场景加载实践.md)。
 
 ### 🖥️ 窗口管理
 
