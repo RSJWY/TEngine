@@ -1,5 +1,7 @@
 # 把 Unity 场景从 Prefab 硬引用里解放出来：DynamicSpawn 动态场景加载实践
 
+![DynamicSpawn cover](src/dynamic-spawn/dynamic-spawn-cover.svg)
+
 > 本文基于项目中的 `DynamicSpawn` 实现编写，核心代码位于 `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/`，编辑器工具位于 `Assets/Editor/SceneTools/DynamicSpawn/`。
 
 在 Unity 项目里，场景经常会逐渐变成一个“巨型 Prefab 容器”：美术和关卡同学为了摆放方便，把大量装饰物、交互物、机关、UI 触发点、特效根节点直接拖进 `.unity` 场景文件。前期这很直观，打开场景就能看到全部内容；但项目进入资源分包、热更新、真机加载优化阶段后，这种做法会暴露出几个很现实的问题：

@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">DynamicSpawn cover</title>
+  <desc id="desc">Cover image for a technical article about DynamicSpawn dynamic scene loading in Unity.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="48%" stop-color="#eef7f4"/>
+      <stop offset="100%" stop-color="#fff7ed"/>
+    </linearGradient>
+    <linearGradient id="titleGradient" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0f3d5e"/>
+      <stop offset="54%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#0f172a" flood-opacity="0.16"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrow" markerWidth="16" markerHeight="16" refX="13" refY="8" orient="auto">
+      <path d="M3,3 L13,8 L3,13 Z" fill="#334155"/>
+    </marker>
+    <style>
+      .kicker { font: 700 24px Arial, "Microsoft YaHei", "PingFang SC", sans-serif; fill: #0f766e; letter-spacing: 0; }
+      .title { font: 800 92px Arial, "Microsoft YaHei", "PingFang SC", sans-serif; fill: url(#titleGradient); letter-spacing: 0; }
+      .subtitle { font: 700 42px Arial, "Microsoft YaHei", "PingFang SC", sans-serif; fill: #102a43; letter-spacing: 0; }
+      .body { font: 400 26px Arial, "Microsoft YaHei", "PingFang SC", sans-serif; fill: #486581; letter-spacing: 0; }
+      .chip { font: 700 21px Arial, "Microsoft YaHei", "PingFang SC", sans-serif; fill: #ffffff; letter-spacing: 0; }
+      .card-title { font: 700 25px Arial, "Microsoft YaHei", "PingFang SC", sans-serif; fill: #102a43; letter-spacing: 0; }
+      .card-text { font: 400 20px Arial, "Microsoft YaHei", "PingFang SC", sans-serif; fill: #52606d; letter-spacing: 0; }
+      .small { font: 700 18px Arial, "Microsoft YaHei", "PingFang SC", sans-serif; fill: #64748b; letter-spacing: 0; }
+      .line { stroke: #334155; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .thin { stroke: #94a3b8; stroke-width: 2; fill: none; stroke-dasharray: 8 9; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <g opacity="0.55">
+    <path d="M110 732 C300 620, 458 680, 664 562 C844 458, 995 480, 1160 358 C1308 249, 1438 236, 1546 178" class="thin"/>
+    <path d="M104 782 C309 704, 478 764, 698 651 C858 568, 1022 594, 1210 476 C1361 381, 1452 358, 1550 330" class="thin"/>
+  </g>
+
+  <g transform="translate(90 92)">
+    <text x="0" y="0" class="kicker">Unity 场景资源优化 / YooAsset 动态加载</text>
+    <text x="0" y="118" class="title">DynamicSpawn</text>
+    <text x="0" y="184" class="subtitle">动态场景加载实践</text>
+    <text x="0" y="245" class="body">把场景从 Prefab 硬引用中解放出来，</text>
+    <text x="0" y="284" class="body">让加载过程可分批、可等待、可调试。</text>
+
+    <g transform="translate(0 356)">
+      <rect x="0" y="0" width="154" height="44" rx="22" fill="#2563eb"/>
+      <text x="77" y="29" text-anchor="middle" class="chip">轻量场景</text>
+      <rect x="176" y="0" width="154" height="44" rx="22" fill="#0f766e"/>
+      <text x="253" y="29" text-anchor="middle" class="chip">分批加载</text>
+      <rect x="352" y="0" width="154" height="44" rx="22" fill="#ea580c"/>
+      <text x="429" y="29" text-anchor="middle" class="chip">热更友好</text>
+    </g>
+  </g>
+
+  <g transform="translate(820 145)" filter="url(#shadow)">
+    <rect x="0" y="0" width="650" height="590" rx="34" fill="#ffffff" stroke="#dbe4ee"/>
+
+    <g transform="translate(54 58)">
+      <rect x="0" y="0" width="210" height="148" rx="24" fill="#e0f2fe" stroke="#bae6fd"/>
+      <rect x="24" y="24" width="88" height="30" rx="15" fill="#2563eb"/>
+      <text x="68" y="45" text-anchor="middle" class="chip" font-size="17">Scene</text>
+      <text x="24" y="86" class="card-title">MainScene.unity</text>
+      <text x="24" y="119" class="card-text">只保存占位点</text>
+    </g>
+
+    <g transform="translate(390 58)">
+      <rect x="0" y="0" width="210" height="148" rx="24" fill="#dcfce7" stroke="#bbf7d0"/>
+      <rect x="24" y="24" width="118" height="30" rx="15" fill="#0f766e"/>
+      <text x="83" y="45" text-anchor="middle" class="chip" font-size="17">YooAsset</text>
+      <text x="24" y="86" class="card-title">Prefab 资源</text>
+      <text x="24" y="119" class="card-text">按 location 加载</text>
+    </g>
+
+    <path d="M286 132 C326 132, 344 132, 382 132" class="line"/>
+
+    <g transform="translate(72 276)">
+      <g filter="url(#softShadow)">
+        <rect x="0" y="0" width="150" height="72" rx="18" fill="#fff7ed" stroke="#fed7aa"/>
+        <text x="75" y="43" text-anchor="middle" class="card-title">[Spawn]</text>
+      </g>
+      <g transform="translate(196 0)" filter="url(#softShadow)">
+        <rect x="0" y="0" width="150" height="72" rx="18" fill="#fff7ed" stroke="#fed7aa"/>
+        <text x="75" y="43" text-anchor="middle" class="card-title">location</text>
+      </g>
+      <g transform="translate(392 0)" filter="url(#softShadow)">
+        <rect x="0" y="0" width="150" height="72" rx="18" fill="#fff7ed" stroke="#fed7aa"/>
+        <text x="75" y="43" text-anchor="middle" class="card-title">registerKey</text>
+      </g>
+    </g>
+
+    <g transform="translate(72 418)">
+      <rect x="0" y="0" width="542" height="88" rx="22" fill="#0f172a"/>
+      <text x="34" y="37" class="chip">Event_DynamicSpawnComplete</text>
+      <text x="34" y="67" class="card-text" fill="#cbd5e1">动态对象就位后，再启动相机、交互和 UI 逻辑</text>
+    </g>
+
+    <path d="M156 206 C156 244, 156 254, 156 268" class="line"/>
+    <path d="M494 206 C494 244, 494 254, 494 268" class="line"/>
+  </g>
+
+  <g transform="translate(92 792)">
+    <text x="0" y="0" class="small">TEngine Fork 定制改动 · DynamicSpawn</text>
+    <text x="0" y="34" class="small">SceneTools / HotFix GameLogic / YooAsset</text>
+  </g>
+</svg>
