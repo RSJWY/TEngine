@@ -1,10 +1,14 @@
 using System.Collections.Generic;
 using System.Reflection;
+using Cysharp.Threading.Tasks;
 using GameLogic;
 #if ENABLE_OBFUZ
 using Obfuz;
 #endif
 using TEngine;
+using UnityEngine;
+using YooAsset;
+
 #pragma warning disable CS0436
 
 
@@ -52,6 +56,11 @@ public partial class GameApp
         }
 
         GameModule.GameScene.LoadScene(SceneType.MainScene);
+        UniTask.Create(async () =>
+        {
+            var assetHandle = YooAssets.LoadAssetAsync<GameObject>("UIHome");
+            await assetHandle.ToUniTask();
+        });
     }
     
     private static void Release()
