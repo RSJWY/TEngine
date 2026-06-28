@@ -117,20 +117,29 @@ namespace TEngine
         /// <summary>
         /// 通过 BuildConfig 执行完整构建流程
         /// </summary>
-        public static void BuildWithConfig(BuildConfig config, bool buildPlayer)
+        public static void BuildWithConfig(BuildConfig config, bool buildPlayer, string packageName = null)
         {
-            if (config.BuildHotFixDll)
+            var runtimePackages = GetBuildPackages(packageName);
+            if (runtimePackages.Count <= 0)
             {
-                Debug.Log("[BuildWithConfig] 编译热更DLL...");
-                BuildDLLCommand.BuildAndCopyDlls();
+                Debug.LogError($"[BuildWithConfig] 未找到可构建的资源包: {packageName}");
+                return;
             }
 
             AssetDatabase.Refresh();
 
-            var runtimePackages = GetBuildPackages();
             YooAsset.Editor.BuildResult firstBuildResult = null;
+            var hotFixDllBuilt = false;
             foreach (var runtimePackage in runtimePackages)
             {
+                if (config.BuildHotFixDll && !hotFixDllBuilt && IsAssemblyPackage(runtimePackage.PackageName))
+                {
+                    Debug.Log($"[BuildWithConfig] 构建 {runtimePackage.PackageName} 前同步AOT元数据清单并编译热更DLL...");
+                    BuildDLLCommand.BuildAndCopyDlls();
+                    AssetDatabase.Refresh();
+                    hotFixDllBuilt = true;
+                }
+
                 var buildResult = BuildInternalWithConfig(config, runtimePackage, firstBuildResult != null);
                 if (!buildResult.Success)
                 {
@@ -591,30 +600,44 @@ namespace TEngine
             };
         }
 
-        private static List<RuntimePackageEntry> GetBuildPackages()
+        private static List<RuntimePackageEntry> GetBuildPackages(string packageName = null)
         {
             var runtimePackages = Settings.UpdateSetting != null
                 ? Settings.UpdateSetting.GetEnabledRuntimePackages()
                 : null;
-            if (runtimePackages != null && runtimePackages.Count > 0)
+            var buildPackages = runtimePackages != null && runtimePackages.Count > 0
+                ? runtimePackages
+                : new List<RuntimePackageEntry>
+                {
+                    new RuntimePackageEntry
+                    {
+                        Enable = true,
+                        PackageName = "DefaultPackage",
+                        InitOnStartup = true,
+                        UpdateManifestOnStartup = true,
+                        DownloadOnDemand = true,
+                        SaveVersion = true,
+                        VersionKey = "GAME_VERSION",
+                        BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
+                    }
+                };
+
+            if (string.IsNullOrWhiteSpace(packageName))
             {
-                return runtimePackages;
+                return buildPackages;
             }
 
-            return new List<RuntimePackageEntry>
-            {
-                new RuntimePackageEntry
-                {
-                    Enable = true,
-                    PackageName = "DefaultPackage",
-                    InitOnStartup = true,
-                    UpdateManifestOnStartup = true,
-                    DownloadOnDemand = true,
-                    SaveVersion = true,
-                    VersionKey = "GAME_VERSION",
-                    BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
-                }
-            };
+            return buildPackages
+                .Where(x => x != null && string.Equals(x.PackageName, packageName, StringComparison.Ordinal))
+                .ToList();
+        }
+
+        private static bool IsAssemblyPackage(string packageName)
+        {
+            var assemblyPackageName = Settings.UpdateSetting != null
+                ? Settings.UpdateSetting.GetAssemblyPackageName()
+                : "CodePackage";
+            return string.Equals(packageName, assemblyPackageName, StringComparison.Ordinal);
         }
 
         private static bool HasTag(string[] bundleTags, string[] matchTags)

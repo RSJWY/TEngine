@@ -144,6 +144,7 @@ public static class BuildDLLCommand
     public static void BuildAndCopyDlls()
     {
 #if ENABLE_HYBRIDCLR
+        SyncAOTMetadataManifest();
         BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
         CompileDllCommand.CompileDll(target);
         CopyAOTHotUpdateDlls(target);
@@ -153,6 +154,7 @@ public static class BuildDLLCommand
     public static void BuildAndCopyDlls(BuildTarget target)
     {
 #if ENABLE_HYBRIDCLR
+        SyncAOTMetadataManifest();
         CompileDllCommand.CompileDll(target);
         CopyAOTHotUpdateDlls(target);
 #endif

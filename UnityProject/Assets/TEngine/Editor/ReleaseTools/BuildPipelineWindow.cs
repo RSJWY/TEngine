@@ -15,6 +15,7 @@ namespace TEngine
     public class BuildPipelineWindow : OdinEditorWindow
     {
         private const string MenuPath = "TEngine/Build/打包工具窗口";
+        private const string AllBuildPackagesDisplayName = "全部资源包";
 
         private static readonly BuildTarget[] PlatformTargets =
         {
@@ -36,36 +37,41 @@ namespace TEngine
         private string _cachedToolbarStatus = string.Empty;
         private string _cachedPublishPackagePreviewText = "DefaultPackage";
 
-        [BoxGroup("基础设置")]
+        [TabGroup("Pages", "快速构建")]
+        [BoxGroup("Pages/快速构建/基础设置")]
         [LabelText("目标平台")]
         [ValueDropdown(nameof(BuildTargetOptions))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private BuildTarget _buildTarget;
 
-        [BoxGroup("基础设置")]
+        [TabGroup("Pages", "快速构建")]
+        [BoxGroup("Pages/快速构建/基础设置")]
         [LabelText("默认构建管线")]
         [ValueDropdown(nameof(BuildPipelineOptions))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private EBuildPipeline _buildPipeline = EBuildPipeline.ScriptableBuildPipeline;
 
-        [BoxGroup("基础设置")]
+        [TabGroup("Pages", "快速构建")]
+        [BoxGroup("Pages/快速构建/基础设置")]
         [LabelText("压缩方式")]
         [ValueDropdown(nameof(CompressOptions))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private ECompressOption _compressOption = ECompressOption.LZ4;
 
-        [BoxGroup("基础设置")]
-        [HorizontalGroup("基础设置/Version")]
+        [TabGroup("Pages", "快速构建")]
+        [BoxGroup("Pages/快速构建/基础设置")]
+        [HorizontalGroup("Pages/快速构建/基础设置/Version")]
         [LabelText("资源版本号")]
         [DelayedProperty]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private string _packageVersion = string.Empty;
 
-        [HorizontalGroup("基础设置/Version", Width = 70)]
+        [TabGroup("Pages", "快速构建")]
+        [HorizontalGroup("Pages/快速构建/基础设置/Version", Width = 70)]
         [Button("自动", ButtonSizes.Small)]
         private void GeneratePackageVersion()
         {
@@ -73,7 +79,8 @@ namespace TEngine
             OnSettingsChanged();
         }
 
-        [BoxGroup("基础设置")]
+        [TabGroup("Pages", "快速构建")]
+        [BoxGroup("Pages/快速构建/基础设置")]
         [LabelText("AB输出目录")]
         [InlineButton(nameof(ChooseOutputRoot), "浏览")]
         [InlineButton(nameof(OpenOutputRoot), "打开")]
@@ -82,7 +89,8 @@ namespace TEngine
         [SerializeField]
         private string _outputRoot = "./Builds/";
 
-        [BoxGroup("资源包列表")]
+        [TabGroup("Pages", "资源包")]
+        [BoxGroup("Pages/资源包/资源包列表")]
         [ShowInInspector]
         [ReadOnly]
         [HideLabel]
@@ -90,7 +98,8 @@ namespace TEngine
         [ShowIf(nameof(IsUpdateSettingMissing))]
         private string UpdateSettingMissingMessage => "未找到 UpdateSetting 资源。窗口仍可按默认包构建，但不能在这里编辑运行时资源包列表。";
 
-        [BoxGroup("资源包列表")]
+        [TabGroup("Pages", "资源包")]
+        [BoxGroup("Pages/资源包/资源包列表")]
         [TableList(ShowIndexLabels = true, AlwaysExpanded = true, IsReadOnly = false)]
         [ListDrawerSettings(Expanded = true, DraggableItems = true, HideAddButton = true)]
         [OnValueChanged(nameof(MarkRuntimePackagesDirty), true)]
@@ -98,8 +107,9 @@ namespace TEngine
         [SerializeField]
         private List<RuntimePackageView> _runtimePackages = new List<RuntimePackageView>();
 
-        [BoxGroup("资源包列表")]
-        [HorizontalGroup("资源包列表/Actions")]
+        [TabGroup("Pages", "资源包")]
+        [BoxGroup("Pages/资源包/资源包列表")]
+        [HorizontalGroup("Pages/资源包/资源包列表/Actions")]
         [Button("添加资源包", ButtonSizes.Medium)]
         [EnableIf(nameof(HasUpdateSetting))]
         private void AddRuntimePackage()
@@ -115,7 +125,8 @@ namespace TEngine
             MarkRuntimePackagesDirty();
         }
 
-        [HorizontalGroup("资源包列表/Actions")]
+        [TabGroup("Pages", "资源包")]
+        [HorizontalGroup("Pages/资源包/资源包列表/Actions")]
         [Button("重新读取", ButtonSizes.Medium)]
         [EnableIf(nameof(HasUpdateSetting))]
         private void ReloadRuntimePackageViewsButton()
@@ -123,7 +134,8 @@ namespace TEngine
             ReloadRuntimePackageViews();
         }
 
-        [HorizontalGroup("资源包列表/Actions")]
+        [TabGroup("Pages", "资源包")]
+        [HorizontalGroup("Pages/资源包/资源包列表/Actions")]
         [Button("定位 UpdateSetting", ButtonSizes.Medium)]
         [EnableIf(nameof(HasUpdateSetting))]
         private void PingUpdateSetting()
@@ -132,14 +144,16 @@ namespace TEngine
             EditorGUIUtility.PingObject(Settings.UpdateSetting);
         }
 
-        [BoxGroup("发布整理")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/发布整理")]
         [LabelText("启用发布整理")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _enablePublishCopy;
 
-        [BoxGroup("发布整理")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/发布整理")]
         [LabelText("发布根目录")]
         [InlineButton(nameof(ChoosePublishRoot), "浏览")]
         [InlineButton(nameof(OpenPublishRoot), "打开")]
@@ -149,7 +163,8 @@ namespace TEngine
         [SerializeField]
         private string _publishRoot = "./Publish/";
 
-        [BoxGroup("发布整理")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/发布整理")]
         [LabelText("清空目标包目录后再拷贝")]
         [ToggleLeft]
         [ShowIf(nameof(IsPublishCopyEnabled))]
@@ -157,21 +172,24 @@ namespace TEngine
         [SerializeField]
         private bool _cleanPublishPackageDirectory = true;
 
-        [BoxGroup("发布整理")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/发布整理")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("平台目录名")]
         [ShowIf(nameof(IsPublishCopyEnabled))]
         private string PublishPlatformName => ReleaseTools.GetRemotePlatformName(_buildTarget);
 
-        [BoxGroup("发布整理")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/发布整理")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("输出规则")]
         [ShowIf(nameof(IsPublishCopyEnabled))]
         private string PublishRuleText => $"{_publishRoot}/{GetPreviewProjectName()}/{PublishPlatformName}/{{资源包名}}";
 
-        [BoxGroup("发布整理")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/发布整理")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("当前包示例")]
@@ -179,14 +197,16 @@ namespace TEngine
         [ShowIf(nameof(IsPublishCopyEnabled))]
         private string PublishPackagePreviewText => _cachedPublishPackagePreviewText;
 
-        [BoxGroup("最小包设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/最小包设置")]
         [LabelText("启用最小包模式")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _minimalPackage;
 
-        [BoxGroup("最小包设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/最小包设置")]
         [LabelText("保留Tag(逗号分隔)")]
         [ShowIf(nameof(_minimalPackage))]
         [DelayedProperty]
@@ -194,7 +214,8 @@ namespace TEngine
         [SerializeField]
         private string _retainTags = string.Empty;
 
-        [BoxGroup("最小包设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/最小包设置")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("处理说明")]
@@ -204,78 +225,89 @@ namespace TEngine
             ? "构建后删除 StreamingAssets 中所有 .bundle 文件，仅保留清单文件，适合 HostPlayMode 在线下载资源。"
             : $"构建后仅保留带 [{_retainTags}] Tag 的 bundle，其余 .bundle 文件会从 StreamingAssets 删除。";
 
-        [BoxGroup("高级设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("启用共享资源打包")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _enableSharePackRule = true;
 
-        [BoxGroup("高级设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("使用资源依赖数据库")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _useAssetDependencyDB = true;
 
-        [BoxGroup("高级设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("清理构建缓存")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _clearBuildCache;
 
-        [BoxGroup("高级设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("验证构建结果")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _verifyBuildingResult = true;
 
-        [BoxGroup("高级设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("内置文件拷贝")]
         [ValueDropdown(nameof(BuildinFileCopyOptions))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private EBuildinFileCopyOption _buildinFileCopyOption = EBuildinFileCopyOption.ClearAndCopyAll;
 
-        [BoxGroup("高级设置")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("文件名风格")]
         [ValueDropdown(nameof(FileNameStyleOptions))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private EFileNameStyle _fileNameStyle = EFileNameStyle.BundleName_HashName;
 
-        [BoxGroup("热更 DLL")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/热更 DLL")]
         [LabelText("构建前编译热更DLL")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _buildHotFixDll = true;
 
-        [BoxGroup("热更 DLL")]
-        [HorizontalGroup("热更 DLL/Actions")]
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/热更 DLL")]
+        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
         [Button("编译并拷贝热更DLL", ButtonSizes.Medium)]
         private void BuildHotFixDllNow()
         {
             BuildDLLCommand.BuildAndCopyDlls();
         }
 
-        [HorizontalGroup("热更 DLL/Actions")]
+        [TabGroup("Pages", "高级")]
+        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
         [Button("同步 AOT 元数据清单", ButtonSizes.Medium)]
         private void SyncAOTMetadataManifestNow()
         {
             BuildDLLCommand.SyncAOTMetadataManifest();
         }
 
-        [BoxGroup("Player 设置")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("构建 Player")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _buildPlayer;
 
-        [BoxGroup("Player 设置")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("Player平台")]
         [ValueDropdown(nameof(BuildTargetOptions))]
         [ShowIf(nameof(_buildPlayer))]
@@ -283,7 +315,8 @@ namespace TEngine
         [SerializeField]
         private BuildTarget _playerPlatform;
 
-        [BoxGroup("Player 设置")]
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("输出路径")]
         [InlineButton(nameof(ChoosePlayerOutputPath), "浏览")]
         [ShowIf(nameof(_buildPlayer))]
@@ -292,12 +325,20 @@ namespace TEngine
         [SerializeField]
         private string _playerOutputPath = string.Empty;
 
-        [BoxGroup("构建流程预览")]
+        [TabGroup("Pages", "快速构建")]
+        [BoxGroup("Pages/快速构建/构建流程预览")]
         [TableList(ShowIndexLabels = false, AlwaysExpanded = true, IsReadOnly = true)]
         [ListDrawerSettings(Expanded = true, DraggableItems = false, HideAddButton = true, HideRemoveButton = true)]
         [ReadOnly]
         [SerializeField]
         private List<FlowStepView> _flowSteps = new List<FlowStepView>();
+
+        [TitleGroup("操作")]
+        [LabelText("构建资源包")]
+        [ValueDropdown(nameof(GetBuildPackageSelectionOptions))]
+        [OnValueChanged(nameof(OnBuildPackageSelectionChanged))]
+        [SerializeField]
+        private string _selectedBuildPackageName = AllBuildPackagesDisplayName;
 
         [TitleGroup("操作")]
         [ButtonGroup("操作/Settings")]
@@ -317,6 +358,20 @@ namespace TEngine
             AddLog("已重置打包工具默认配置");
         }
 
+        [ButtonGroup("操作/HotFix")]
+        [Button("编译并拷贝热更DLL", ButtonSizes.Large)]
+        private void BuildHotFixDllFromOperations()
+        {
+            BuildHotFixDllNow();
+        }
+
+        [ButtonGroup("操作/HotFix")]
+        [Button("同步 AOT 元数据清单", ButtonSizes.Large)]
+        private void SyncAOTMetadataManifestFromOperations()
+        {
+            SyncAOTMetadataManifestNow();
+        }
+
         [TitleGroup("操作")]
         [ButtonGroup("操作/Build")]
         [Button("构建 AssetBundle", ButtonSizes.Large)]
@@ -324,7 +379,7 @@ namespace TEngine
         private void BuildAssetBundleButton()
         {
             SaveSettings();
-            ExecuteBuild(buildPlayer: false);
+            ExecuteBuild(false, GetSelectedBuildPackageName());
         }
 
         [ButtonGroup("操作/Build")]
@@ -350,7 +405,7 @@ namespace TEngine
         {
             _buildPlayer = true;
             SaveSettings();
-            ExecuteBuild(buildPlayer: true);
+            ExecuteBuild(true, GetSelectedBuildPackageName());
         }
 
         [ButtonGroup("操作/FullBuild")]
@@ -362,8 +417,9 @@ namespace TEngine
             ExecutePublishOnly();
         }
 
-        [BoxGroup("构建日志")]
-        [HorizontalGroup("构建日志/Actions")]
+        [TitleGroup("操作")]
+        [BoxGroup("操作/构建日志")]
+        [HorizontalGroup("操作/构建日志/Actions")]
         [Button("清空日志", ButtonSizes.Small)]
         [EnableIf(nameof(HasBuildLogs))]
         private void ClearBuildLogs()
@@ -371,7 +427,8 @@ namespace TEngine
             _buildLogs.Clear();
         }
 
-        [BoxGroup("构建日志")]
+        [TitleGroup("操作")]
+        [BoxGroup("操作/构建日志")]
         [ShowInInspector]
         [ReadOnly]
         [HideLabel]
@@ -383,7 +440,7 @@ namespace TEngine
         {
             var window = GetWindow<BuildPipelineWindow>();
             window.titleContent = new GUIContent("TEngine 打包工具", EditorGUIUtility.IconContent("BuildSettings.Editor.Small").image);
-            window.minSize = new Vector2(620, 760);
+            window.minSize = new Vector2(760, 680);
             window.Show();
         }
 
@@ -395,9 +452,6 @@ namespace TEngine
 
         protected override void OnImGUI()
         {
-            base.OnImGUI();
-
-            SirenixEditorGUI.DrawThickHorizontalSeparator();
             GUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 GUILayout.Label(_cachedToolbarStatus, EditorStyles.miniLabel);
@@ -410,6 +464,9 @@ namespace TEngine
                 }
             }
             GUILayout.EndHorizontal();
+
+            SirenixEditorGUI.DrawThickHorizontalSeparator();
+            base.OnImGUI();
         }
 
         protected override void OnDestroy()
@@ -424,13 +481,15 @@ namespace TEngine
 
         #region 构建执行
 
-        private void ExecuteBuild(bool buildPlayer)
+        private void ExecuteBuild(bool buildPlayer, string packageName = null)
         {
             var config = CreateConfig();
             _buildLogs.Clear();
             AddLog("========== 开始构建 ==========");
             AddLog($"平台: {config.BuildTarget} | 默认管线: {config.BuildPipeline} | 最小包: {config.MinimalPackage}");
-            AddLog($"资源包: {_cachedPackageSummary}");
+            AddLog(string.IsNullOrWhiteSpace(packageName)
+                ? $"资源包: {_cachedPackageSummary}"
+                : $"资源包: {packageName}");
 
             if (string.IsNullOrWhiteSpace(config.PackageVersion))
             {
@@ -453,12 +512,12 @@ namespace TEngine
                 if (buildPlayer)
                 {
                     config.BuildPlayer = true;
-                    ReleaseTools.BuildWithConfig(config, buildPlayer: true);
+                    ReleaseTools.BuildWithConfig(config, true, packageName);
                 }
                 else
                 {
                     config.BuildPlayer = false;
-                    ReleaseTools.BuildWithConfig(config, buildPlayer: false);
+                    ReleaseTools.BuildWithConfig(config, false, packageName);
                 }
 
                 AddLog("========== 构建完成 ==========");
@@ -923,15 +982,19 @@ namespace TEngine
         private void RebuildFlowSteps(BuildConfig config)
         {
             _flowSteps.Clear();
+            var assemblyPackageName = GetAssemblyPackageName();
+            var buildIncludesAssemblyPackage = SelectedBuildIncludesAssemblyPackage();
 
-            AddFlowStep(config.BuildHotFixDll,
-                "编译热更DLL",
-                "执行 BuildDLLCommand.BuildAndCopyDlls",
-                "热更DLL未启用，跳过");
+            AddFlowStep(config.BuildHotFixDll && buildIncludesAssemblyPackage,
+                "同步AOT并编译热更DLL",
+                $"构建 {assemblyPackageName} 前执行 SyncAOTMetadataManifest -> BuildAndCopyDlls",
+                config.BuildHotFixDll
+                    ? $"当前构建不包含 {assemblyPackageName}，跳过"
+                    : "热更DLL未启用，跳过");
 
             AddFlowStep(true,
                 "构建 AssetBundle",
-                $"平台 {config.BuildTarget} | 版本 {GetPreviewVersionText()} | {_cachedPackageSummary}",
+                $"平台 {config.BuildTarget} | 版本 {GetPreviewVersionText()} | {GetPreviewBuildPackageText()}",
                 string.Empty);
 
             AddFlowStep(config.EnablePublishCopy,
@@ -977,6 +1040,14 @@ namespace TEngine
         private static string GetPreviewProjectName()
         {
             return Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
+        }
+
+        private string GetPreviewBuildPackageText()
+        {
+            var packageName = GetSelectedBuildPackageName();
+            return string.IsNullOrWhiteSpace(packageName)
+                ? _cachedPackageSummary
+                : packageName;
         }
 
         #endregion
@@ -1087,6 +1158,63 @@ namespace TEngine
                 .Select(x => x.PackageName.Trim())
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
+        }
+
+        private bool SelectedBuildIncludesAssemblyPackage()
+        {
+            var selectedPackageName = GetSelectedBuildPackageName();
+            if (!string.IsNullOrWhiteSpace(selectedPackageName))
+            {
+                return IsAssemblyPackage(selectedPackageName);
+            }
+
+            return GetCurrentPackageNames().Any(IsAssemblyPackage);
+        }
+
+        private static bool IsAssemblyPackage(string packageName)
+        {
+            return string.Equals(packageName, GetAssemblyPackageName(), StringComparison.Ordinal);
+        }
+
+        private static string GetAssemblyPackageName()
+        {
+            return Settings.UpdateSetting != null
+                ? Settings.UpdateSetting.GetAssemblyPackageName()
+                : "CodePackage";
+        }
+
+        private string GetSelectedBuildPackageName()
+        {
+            if (string.Equals(_selectedBuildPackageName, AllBuildPackagesDisplayName, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            if (GetCurrentPackageNames().Contains(_selectedBuildPackageName, StringComparer.Ordinal))
+            {
+                return _selectedBuildPackageName;
+            }
+
+            _selectedBuildPackageName = AllBuildPackagesDisplayName;
+            return null;
+        }
+
+        private string[] GetBuildPackageSelectionOptions()
+        {
+            var options = new List<string> { AllBuildPackagesDisplayName };
+            options.AddRange(GetCurrentPackageNames());
+            return options.ToArray();
+        }
+
+        private void OnBuildPackageSelectionChanged()
+        {
+            if (!GetBuildPackageSelectionOptions().Contains(_selectedBuildPackageName))
+            {
+                _selectedBuildPackageName = AllBuildPackagesDisplayName;
+            }
+
+            RefreshCachedTexts();
+            Repaint();
         }
 
         #endregion
