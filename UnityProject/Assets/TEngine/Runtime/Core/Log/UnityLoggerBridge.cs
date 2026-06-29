@@ -177,13 +177,15 @@ namespace TEngine
 
         private static void OnTaskSchedulerUnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
         {
-            WriteLog(LogLevel.Error, sender, "TaskScheduler.UnobservedTaskException", e.Exception);
+            // 经 Unity Debug 输出：既显示到 Console，也会被 logMessageReceivedThreaded 捕获写入文件。
+            Debug.LogError(string.Concat("TaskScheduler.UnobservedTaskException", Environment.NewLine, e.Exception));
             e.SetObserved();
         }
 
         private static void OnUniTaskSchedulerUnobservedTaskException(Exception exception)
         {
-            WriteLog(LogLevel.Error, "UniTaskScheduler", "UniTaskScheduler.UnobservedTaskException", exception);
+            // 经 Unity Debug 输出：既显示到 Console，也会被 logMessageReceivedThreaded 捕获写入文件。
+            Debug.LogError(string.Concat("UniTaskScheduler.UnobservedTaskException", Environment.NewLine, exception));
         }
 
         private static LogLevel ConvertLogLevel(LogType type)
