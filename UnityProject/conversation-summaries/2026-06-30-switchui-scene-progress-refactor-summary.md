@@ -79,10 +79,9 @@ ModuleSystem.Update 每帧 → GameSceneModule.Update(elapse, realElapse)
 
 - 未在 Unity 编辑器中编译/运行验证（环境限制）。
 - 已静态核对：`ShowUI<T>(params object[])` / `CloseUI<T>()` 重载存在；`IUpdateModule.Update` 签名匹配；`SwitchUI` prefab 位于 `Assets/AssetRaw/UI/SwitchUI.prefab`；全仓无残留 `LoadingUI` / `LoadSceneDataBody` / 旧全局事件 `Event_LoadOver`/`Event_SceneLoadStart` 的代码引用（仅出现在已注释的 LoadingUI 内）。
-- 用户确认“初步看来没问题”。
+- **用户已在 Unity 编辑器实测通过**（`JumpToMainScene` / `LoadScene` 流程正常）。
 
-## 待办
+## 后续收尾（验证通过后执行）
 
-1. 在 Unity 编辑器 Play 一次 `JumpToMainScene` / `LoadScene`，确认进度条平滑、激活无突兀、`DynamicSceneSpawner` 正常生成。
-2. 验证通过后删除整个 `LoadingUI/` 目录（含 `_Gen.g.cs` 与 `.meta`）。
-3. 是否追加到根目录 README「本 Fork 的定制改动」待用户确认（CLAUDE.md 要求经同意）。
+- 删除整个 `LoadingUI/` 目录（含 `LoadingUI.cs` / `LoadingUI_Gen.g.cs` 与对应 `.meta`）——**已执行**。
+- 改动与流程分析追加到根目录 `README.md`「🛠️ 本 Fork 的定制改动」场景系统章节，并同步更新 `Books/Fork-定制改动说明.md` 场景系统小节——**已执行**。

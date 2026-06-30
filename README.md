@@ -56,6 +56,7 @@
 ### 🎬 场景系统
 
 - **DynamicSpawn 通用化与示例脚本** — 将仅调用 `CollectFromSpawnPoints()` 的机库专属 `HangarSceneSpawner` 收敛为通用 `SpawnPointSceneSpawner`，大多数场景可直接挂载；同时把 `HangarManager` 改为 `ExampleSceneGameManager` 示例，演示动态加载完成后如何按 `registerKey` 获取对象并执行场景初始化。详见 [DynamicSpawn 动态场景加载实践](Books/DynamicSpawn-动态场景加载实践.md)。
+- **场景加载进度拆分到 `GameSceneModule`** — 将原“胖 UI” `LoadingUI` 的三段式进度状态机、场景资源加载（suspendLoad）、激活（UnSuspend）、完成回调与关闭时机全部下沉到 `GameSceneModule`（实现 `IUpdateModule`，由 `ModuleSystem` 每帧驱动），`SwitchUI` 降为纯展示（每帧读 `GameModule.GameScene.DisplayProgress` 渲染进度条与百分比）。激活改为模块直连 `UnSuspend`（不再 UI 自发事件→模块自收），终结顺序 `回调→关加载页→OnSceneReady` 以对齐 `DynamicSceneSpawner` 的“加载页关闭后才收 OnSceneReady”契约；删除 `LoadSceneDataBody` 数据载体。
 
 ### 🖥️ 窗口管理
 

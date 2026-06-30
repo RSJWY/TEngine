@@ -23,6 +23,7 @@
   - [打包工具 Odin 化与卡顿优化](#3-打包工具-odin-化与卡顿优化)
 - [场景系统](#-场景系统)
   - [DynamicSpawn 通用 Spawner 与场景 Manager 示例](#dynamicspawn)
+  - [场景加载进度拆分到 GameSceneModule](#sceneprogress)
 - [窗口管理](#-窗口管理)
   - [窗口布局控制模块 ScreenModule](#screenmodule)
 
@@ -427,6 +428,82 @@ dotnet build GameLogic.csproj --no-restore
 结果：0 错误，0 警告。
 
 > 详见 `UnityProject/conversation-summaries/2026-06-27-dynamic-spawn-generalization-summary.md`
+
+---
+
+<a id="sceneprogress"></a>
+
+### 场景加载进度拆分到 GameSceneModule
+
+把场景切换加载页从“胖 UI”重构为“模块独占控制 + UI 纯展示”，进度状态机、资源加载、激活、回调与关闭全部归 `GameSceneModule`，`SwitchUI` 只负责渲染。
+
+#### 背景
+
+原 `LoadingUI` 是个“胖窗口”：三段式进度状态机（预热 0→10% / 加载 10→90% / 收尾 90→100%+停留）、`LoadSceneAsync(suspendLoad=true)` 资源加载、`UnSuspend` 激活、完成回调、Tips 文案、关闭时机全部塞在 `UIWindow` 内。问题：
+
+- 进度与加载控制等基础设施逻辑混入表现层，UI 既掌数据又掌流程，职责越界。
+- 该文件还引用了仓库中不存在的 `GameTipsData` 类型与已迁移的旧全局事件（`Event_LoadOver` / `Event_SceneLoadStart`），实际已无法编译。
+- 激活采用“UI 发 `Event_LoadOver` → 模块自收再 `UnSuspend`”的自发自收事件回路，绕了一圈。
+
+#### 改动
+
+- **`GameSceneModule` 实现 `IUpdateModule`**：借 `ModuleSystem.Update`（`RootModule` 每帧调 `ModuleSystem.Update(GameTime.deltaTime, GameTime.unscaledDeltaTime)`）驱动状态机，无需 `Timer` 或 UI 内 `OnUpdate`。空闲期 `_isActive=false` 早退，避免每帧空转。
+- **三段式进度原样迁入 `Update(elapse, realElapse)`**：用 `realElapseSeconds`（unscaled）驱动，暂停时加载页动画不冻结；phase 2 钳制 `delta ≤ 0.05` 防激活帧跳过 100%。
+- **新增 `float DisplayProgress`**：暴露平滑后的展示进度（只读），供 UI 每帧读取渲染。
+- **激活改直连**：`EnterFinishPhase` 在 90% 直接 `GameModule.Scene.UnSuspend(_sceneName)` 激活场景，并派发 `IGameSceneEvent.OnSceneLoadOver` 作对外通知（不再 UI 自发事件→模块自收）。
+- **`SwitchUI` 降为纯展示**：仅 `OnUpdate` 读 `GameModule.GameScene.DisplayProgress` 写 `m_img_progress.fillAmount` 与百分比文本；不持任何加载状态、不主动关闭自身（由模块 `CloseUI<SwitchUI>` 关闭）；层级 `UILayer.UI → Top`（全屏遮罩）。
+- **删除 `LoadSceneDataBody`**：模块自持 `_sceneName` / `_finishCallBack`，不再需要数据载体透传给 UI。
+- **移除 `_eventMgr` 与 `OnSceneLoadOver` 自监听**：激活权归属模块，不再需要局部事件管理器。
+- **去除 `GameTipsData`**：该类型仓库中不存在，且 `SwitchUI` prefab 无 tips 节点，未迁移。
+
+#### 执行流程（运行时）
+
+整体是“模块驱动 + UI 展示”的单向数据流，进度从模块单向流向 UI：
+
+```
+GameSceneModule.LoadScene(sceneType, finishCallBack)  /  JumpToMainScene()
+  └─ StartSceneLoad:
+       RecordScene()                   记录上一关/当前关 + 同步 GameValueStatic
+       GameEvent.OnSceneLoadStart()    通知观察方
+       重置状态机: _isActive=true, phase=0, display=0, target=0.10
+                   （SkipLoadingAnimation=true 时: phase=1, display=0.10, 立即 StartRealLoading）
+       GameModule.UI.ShowUI<SwitchUI>()  打开加载页（纯展示，不传 UserData）
+
+ModuleSystem.Update 每帧 → GameSceneModule.Update(elapse, realElapse)
+  ├─ phase 0 预热 (0→10%): MoveTowards 0.10；到位 → phase=1, StartRealLoading()
+  │     └─ LoadSceneAsync(suspendLoad=true, cb=OnLoadProgress)  fire-and-forget
+  │           OnLoadProgress(value): 0~0.9 → target 0.10~0.90；到 0.9 → _sceneLoadComplete=true
+  ├─ phase 1 加载 (10%→90%): MoveTowards target；超时 5s 兜底进收尾
+  │     到 _sceneLoadComplete && display≥0.89 → EnterFinishPhase（skip 模式直接 FinishAndClose）
+  └─ phase 2 收尾 (90%→100%+停留0.5s): delta 钳制≤0.05
+        EnterFinishPhase: target=1.0; UnSuspend(sceneName) 激活; 派发 OnSceneLoadOver
+        到 100% 停留满 → FinishAndClose:
+          finishCallBack() → CloseUI<SwitchUI> → OnSceneReady(sceneType) → _isActive=false
+                                                              │
+                                                              ▼ DynamicSceneSpawner 收到后开始生成
+
+SwitchUI.OnUpdate（每帧，仅渲染）:
+  progress = GameModule.GameScene.DisplayProgress
+  m_img_progress.fillAmount = progress
+  m_tmp_progressText.text = "{Round(progress*100)}%"
+```
+
+**终结顺序刻意 `回调 → 关加载页 → OnSceneReady`**，对齐 `DynamicSceneSpawner`「SwitchUI 关闭后才收 OnSceneReady」的契约。
+
+#### 沿用的关键陷阱（代码注释保留）
+
+- **陷阱 1**：`suspendLoad=true` + `progressCallBack` 时，`LoadSceneAsync` 内部 `while(!IsDone)` 一直 yield，`await` 会死循环 → 只 fire-and-forget，进度全由 `progressCallBack` 驱动。
+- **陷阱 2**：suspendLoad 时 `IsDone` 永远 false，`progressCallBack` 每帧回调 `value=0.9` 会反复覆盖 target → `OnLoadProgress` 在 `phase≥2` 直接 return，保护收尾 `target=1.0` 不被打回 0.90（否则永远卡 90%）。
+- **90% 激活而非 100%**：激活有一帧卡顿，留最后 10% 动画 + 100% 停留遮盖；100% 才激活会暴露突兀弹出。
+
+#### 关键文件
+
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/Module/GameScene/GameSceneModule.cs`
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/Module/GameScene/IGameSceneModule.cs`
+- `UnityProject/Assets/GameScripts/HotFix/GameLogic/UI/SwitchUI/SwitchUI.cs`
+- `UnityProject/Assets/AssetRaw/UI/SwitchUI.prefab`
+
+> 详见 `UnityProject/conversation-summaries/2026-06-30-switchui-scene-progress-refactor-summary.md`
 
 ---
 
