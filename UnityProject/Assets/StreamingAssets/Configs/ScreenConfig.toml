@@ -1,3 +1,7 @@
+# Windows Standalone 多显示器窗口布局配置。
+# 坐标使用桌面像素坐标系。DisplayIndex 0 表示 Unity 主显示器。
+
+# 主显示器窗口。
 [[Screens]]
 DisplayIndex = 0
 Activate = true
@@ -8,6 +12,7 @@ Height = 1080
 Topmost = false
 Borderless = false
 
+# 副显示器窗口。
 [[Screens]]
 DisplayIndex = 1
 Activate = true

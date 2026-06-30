@@ -1,3 +1,5 @@
+# RuntimeConfigModule 会从 StreamingAssets/Configs 加载这里声明的配置文件。
+# 简单、人工维护的配置优先使用 TOML；复杂或工具生成的配置可以继续使用 JSON。
 files = [
   "DeployConfig.toml",
   "ScreenConfig.toml",

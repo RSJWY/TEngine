@@ -1,3 +1,11 @@
+# 运行时部署覆盖配置。字段为空或解析失败时，会回退到 UpdateSetting 的默认值。
+
+# 主资源服务器根地址。运行时会继续拼接项目名和平台名。
 ResDownloadPath = "http://127.0.0.1:80/ProjectHotupdate"
+
+# 备用资源服务器根地址。主地址不可用时使用。
 FallbackResDownloadPath = "http://127.0.0.1:80/ProjectHotupdate"
+
+# 调试器激活策略：
+# AlwaysOpen / OnlyOpenWhenDevelopment / OnlyOpenInEditor / AlwaysClose
 DebuggerActiveWindow = "OnlyOpenWhenDevelopment"
