@@ -13,7 +13,7 @@ namespace TEngine
         bool IsSupported { get; }
 
         /// <summary>
-        /// 设置配置（热更层从 JsonConfigModule 读出后注入）。传 null 时使用主显示器默认配置。
+        /// 设置配置（热更层从 RuntimeConfigModule 读出后注入）。传 null 时使用主显示器默认配置。
         /// </summary>
         /// <param name="config">窗口布局配置。</param>
         void SetConfig(ScreenConfig config);

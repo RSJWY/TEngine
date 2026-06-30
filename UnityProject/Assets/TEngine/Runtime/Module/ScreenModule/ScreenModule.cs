@@ -14,7 +14,7 @@ namespace TEngine
     public sealed class ScreenModule : Module, IScreenModule
     {
         /// <summary>
-        /// 配置文件名（不含扩展名），对应 StreamingAssets/Configs/ScreenConfig.json。
+        /// 配置文件名（不含扩展名），对应 StreamingAssets/Configs/ScreenConfig.toml 或 .json。
         /// </summary>
         private const string CONFIG_NAME = "ScreenConfig";
 
@@ -154,15 +154,15 @@ namespace TEngine
         /// </summary>
         private void LoadConfig()
         {
-            IJsonConfigModule jsonConfig = ModuleSystem.GetModule<IJsonConfigModule>();
-            if (jsonConfig != null
-                && jsonConfig.TryGet(out ScreenConfig config, CONFIG_NAME)
+            IRuntimeConfigModule runtimeConfig = ModuleSystem.GetModule<IRuntimeConfigModule>();
+            if (runtimeConfig != null
+                && runtimeConfig.TryGet(out ScreenConfig config, CONFIG_NAME)
                 && config != null
                 && config.Screens != null
                 && config.Screens.Count > 0)
             {
                 _config = config;
-                Log.Info($"[ScreenModule] 已从 ScreenConfig.json 读取配置，屏幕数={_config.Screens.Count}。");
+                Log.Info($"[ScreenModule] 已从 ScreenConfig 读取配置，屏幕数={_config.Screens.Count}。");
                 for (int i = 0; i < _config.Screens.Count; i++)
                 {
                     Log.Info($"[ScreenModule]   配置[{i}] {_config.Screens[i]}");
@@ -170,7 +170,7 @@ namespace TEngine
                 return;
             }
 
-            Log.Warning("[ScreenModule] 未找到有效的 ScreenConfig.json 配置，使用主显示器默认分辨率（铺满主屏、保留边框、不置顶）。");
+            Log.Warning("[ScreenModule] 未找到有效的 ScreenConfig 配置，使用主显示器默认分辨率（铺满主屏、保留边框、不置顶）。");
             _config = BuildDefaultConfig();
         }
 

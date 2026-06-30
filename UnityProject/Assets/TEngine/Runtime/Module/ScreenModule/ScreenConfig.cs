@@ -5,7 +5,7 @@ namespace TEngine
 {
     /// <summary>
     /// 窗口布局配置模型（多屏支持）。
-    /// 对应 StreamingAssets/Configs/ScreenConfig.json。
+    /// 对应 StreamingAssets/Configs/ScreenConfig.toml 或 .json。
     /// </summary>
     [Serializable]
     public sealed class ScreenConfig

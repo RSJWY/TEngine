@@ -494,14 +494,14 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 读取外部部署配置（StreamingAssets/Configs/DeployConfig.json），用于现场覆盖资源服务器地址。
+        /// 读取外部部署配置（StreamingAssets/Configs/DeployConfig.toml 或 .json），用于现场覆盖资源服务器地址。
         /// 读取不到时返回 null，调用方回退 Inspector 默认值。
         /// </summary>
         private static DeployConfig GetDeployOverride()
         {
             try
             {
-                var configModule = ModuleSystem.GetModule<IJsonConfigModule>();
+                var configModule = ModuleSystem.GetModule<IRuntimeConfigModule>();
                 if (configModule == null || !configModule.IsLoaded)
                 {
                     return null;

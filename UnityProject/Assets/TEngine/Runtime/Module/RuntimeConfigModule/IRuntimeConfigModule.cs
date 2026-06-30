@@ -4,9 +4,9 @@ using System.Threading;
 namespace TEngine
 {
     /// <summary>
-    /// 轻量 JSON 配置模块接口。从 StreamingAssets/Configs 读取 manifest 声明的 JSON 文件并缓存，供任意位置便捷访问。
+    /// 轻量运行时配置模块接口。从 StreamingAssets/Configs 读取清单声明的文本配置并缓存，供任意位置便捷访问。
     /// </summary>
-    public interface IJsonConfigModule
+    public interface IRuntimeConfigModule
     {
         /// <summary>
         /// 是否已完成加载。
@@ -14,7 +14,7 @@ namespace TEngine
         bool IsLoaded { get; }
 
         /// <summary>
-        /// 读取 manifest 并加载其中声明的全部 JSON 配置。
+        /// 读取清单并加载其中声明的全部配置。
         /// </summary>
         UniTask LoadAllAsync(CancellationToken cancellationToken = default);
 
@@ -34,14 +34,14 @@ namespace TEngine
         bool TryGet<T>(out T config, string configName = null) where T : class;
 
         /// <summary>
-        /// 获取原始 JSON 文本；未找到抛异常。
+        /// 获取原始配置文本；未找到抛异常。
         /// </summary>
-        string GetJson(string configName);
+        string GetText(string configName);
 
         /// <summary>
-        /// 尝试获取原始 JSON 文本；未找到返回 false。
+        /// 尝试获取原始配置文本；未找到返回 false。
         /// </summary>
-        bool TryGetJson(string configName, out string json);
+        bool TryGetText(string configName, out string text);
 
         /// <summary>
         /// 是否包含指定配置。

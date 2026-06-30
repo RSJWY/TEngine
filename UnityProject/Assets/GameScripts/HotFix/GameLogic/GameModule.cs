@@ -86,11 +86,11 @@ public class GameModule
     private static ILocalizationModule _localization;
 
     /// <summary>
-    /// 获取轻量 JSON 配置模块。
+    /// 获取轻量运行时配置模块。
     /// </summary>
-    public static IJsonConfigModule JsonConfig => _jsonConfig ??= Get<IJsonConfigModule>();
+    public static IRuntimeConfigModule Config => _config ??= Get<IRuntimeConfigModule>();
 
-    private static IJsonConfigModule _jsonConfig;
+    private static IRuntimeConfigModule _config;
 
     /// <summary>
     /// 获取窗口布局控制模块（多屏，仅 Windows Standalone 生效）。
@@ -144,7 +144,7 @@ public class GameModule
         _scene = null;
         _timer = null;
         _localization = null;
-        _jsonConfig = null;
+        _config = null;
         _screen = null;
         _uiJumpControl = null;
         _gameScene = null;

@@ -37,7 +37,7 @@ namespace Procedure
             // 声音配置：根据用户配置数据，设置即将使用的声音选项
             InitSoundSettings();
 
-            // 资源初始化前加载部署配置（现场可覆盖热更地址），主包侧通过 ModuleSystem 访问
+            // 资源初始化前加载运行时配置（现场可覆盖热更地址），主包侧通过 ModuleSystem 访问
             LoadDeployConfigAsync().Forget();
         }
 
@@ -58,7 +58,7 @@ namespace Procedure
         {
             try
             {
-                await ModuleSystem.GetModule<IJsonConfigModule>().LoadAllAsync();
+                await ModuleSystem.GetModule<IRuntimeConfigModule>().LoadAllAsync();
                 ApplyDebuggerConfig();
             }
             catch (Exception exception)
@@ -80,7 +80,7 @@ namespace Procedure
                 return;
             }
 
-            IJsonConfigModule configModule = ModuleSystem.GetModule<IJsonConfigModule>();
+            IRuntimeConfigModule configModule = ModuleSystem.GetModule<IRuntimeConfigModule>();
             if (configModule == null
                 || !configModule.TryGet<DeployConfig>(out DeployConfig deployConfig, "DeployConfig")
                 || deployConfig == null
