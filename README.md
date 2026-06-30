@@ -19,51 +19,19 @@
 
 ## 🛠️ 本 Fork 的定制改动
 
-> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上做了一系列围绕**热更新、资源打包、运行时配置、场景加载**的定制改造。以下为相对上游新增/修改的能力清单（按主题归类，最新在前）。
+> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、日志工具、窗口控制**做了定制改造。
 
-### 🧾 日志系统
+| 主题 | 主要改动 |
+| --- | --- |
+| 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、LogViewer 工具 |
+| 事件系统 | `GameEvent.RemoveAllListeners` 按事件 ID 批量移除监听 |
+| 运行时配置 | `JsonConfigModule`、`DeployConfig`、`Utility.Toml` |
+| 热更新 | 独立 `CodePackage`、XXTEA、AOT 元数据清单、版本确认流程 |
+| 资源打包 | 按包构建管线、发布整理、Odin 化打包窗口 |
+| 场景系统 | DynamicSpawn 通用化、加载进度下沉到 `GameSceneModule` |
+| 窗口管理 | Windows Standalone 多显示器窗口布局控制 `ScreenModule` |
 
-- **TouchSocket 日志桥接** — 新增 `TouchSocketContainerUnityDebugLogger`、`UnityLoggerBridge` 与 `AddUnityDebugLogger` 扩展：TouchSocket.Core 日志可进入 Unity Console，Unity/Task/UniTask 日志与未观察异常通过 TouchSocket `FileLogger` 落盘，并带重入保护、过期日志清理与 Editor Console 跳转过滤。
-- **Editor 打开日志目录菜单** — `OpenFolderHelper` 新增 `TEngine/Open Folder/Log Files Path`，一键打开 `persistentDataPath/Logs` 落盘目录（目录未生成时回退到 Persistent Data Path）。
-- **日志查看工具 LogViewer** — 仓库根 `Tools/LogViewer/` 下新增 Go + Wails 桌面工具，编译为单体 exe：打开/拖入 `.log` 即可查看，支持级别筛选、关键词检索高亮、自动剥离富文本标签、堆栈折叠，兼容编辑器与打包后两种堆栈格式。
-
-### 📡 事件系统
-
-- **按事件类型批量取消监听（`GameEvent.RemoveAllListeners`）** — 在 `GameEvent`/`EventDispatcher`/`EventDelegateData` 三层新增，无需持有注册时的委托，凭事件 ID（手写 `const` 或接口事件生成的 `IXxx_Event.OnXxx`）即可清空该事件下的全部监听，且不影响其他事件；支持 int / string 两种事件 ID。复用底层既有的延迟增删机制，回调过程中调用也安全。补足原框架"取消必须传回注册委托、无法从别处取消"的短板。
-
-### 🔧 运行时配置
-
-- **TOML 序列化扩展（`Utility.Toml`）** — 集成 `Tomlyn.2.9.0` 并在 `TEngine.Runtime` 增加 TOML 门面与默认 `TomlynTomlHelper`，支持对象与 TOML 文本互转（`ToToml` / `ToObject<T>` / `ToObject(Type, ...)`），可通过 `ITomlHelper` 替换实现；适合轻量配置、工具配置或更注重可读性的结构化文本。
-- **轻量 JSON 配置模块（`JsonConfigModule`）** — 在 `TEngine.Runtime` 内新增，从 `StreamingAssets/Configs` 按 `config_manifest.json` 清单加载并缓存 JSON 配置，支持强类型 `Get/TryGet`、原始文本读取与对象缓存；通过 `GameModule.JsonConfig` 访问。保留原 Luban `ConfigSystem` 不动。JSON 序列化默认切换为 Newtonsoft。
-- **部署配置覆盖热更地址（`DeployConfig`）** — 打包后可通过明文 `StreamingAssets/Configs/DeployConfig.json` 现场覆盖 `UpdateSetting` 的资源服务器地址；`ProcedureLaunch` 在资源初始化前加载，读不到时回退 Inspector 默认值。
-- **部署配置控制调试器开关（`DeployConfig.DebuggerActiveWindow`）** — `DeployConfig` 新增 `DebuggerActiveWindow` 字段，打包后可经明文 JSON 现场覆盖 `Debugger` 组件的激活策略（`AlwaysOpen` / `OnlyOpenWhenDevelopment` / `OnlyOpenInEditor` / `AlwaysClose`）。`Debugger` 抽出 `ApplyActiveWindowType`，`ProcedureLaunch` 在配置加载完成后解析并应用；字段留空、解析失败或场景无 Debugger 时回退 Inspector 默认行为。
-
-### 🔄 热更新
-
-- **多包架构** — 将热更 DLL 从默认资源包中拆出为独立 `CodePackage`，编辑器打包工具与运行时配置共用同一份资源包数据源。
-- **代码包 XXTEA 加密** — 仅对代码包加密，不全局加密所有资源包。
-- **版本确认与下载流程** — 恢复“有本地版本可取消、无本地版本强制更新”的可选更新提示流程。
-- **AOT 元数据热更清单** — 将 AOT 元数据列表从基础包序列化引用中解耦，支持后续热更补充。
-- **AOT 元数据打包期校验** — 打 AB 包时单向校验 `AOTMetadataManifest.asset` 必须包含 `AOTGenericReferences.PatchedAOTAssemblyList` 的全部程序集，缺失即中断构建（避免运行时 `ExecutionEngineException`）；允许 manifest 含手动补充的额外项（仅告警）。拷贝 AOT DLL 时源文件不存在改为报错中断而非静默跳过。新增 `HybridCLR/Build/Sync AOT Metadata Manifest` 菜单与打包工具窗口「同步 AOT 元数据清单」「编译并拷贝热更DLL」按钮，同步时保留手动添加项。
-- **PlayerPrefs 版本记录清理工具** — 项目内菜单/窗口，快速清理“上次成功更新版本号”，方便反复测试热更。
-
-### 📦 资源打包
-
-- **按包构建管线** — 资源包不再统一单一管线，支持按包指定 YooAsset 构建管线（保留 SBP / RawFile，移除 BBP）。
-- **发布整理流程** — 构建后自动整理产物到发布目录，统一运行时平台目录名与 YooAsset 构建目录名，避免 404。
-- **打包工具构建流程预览** — 打包工具窗口新增「构建流程预览」面板，按实际执行顺序（编译热更DLL → 构建AB → 发布整理 → 最小包处理 → 构建Player）动态展示步骤，启用步骤递增编号、未启用步骤灰显跳过，并随配置实时刷新，解决 UI 折叠区域顺序与执行顺序错位导致的困惑。
-- **打包工具 Odin 化与卡顿优化** — `BuildPipelineWindow` 迁移为 `OdinEditorWindow`，用 `BoxGroup` / `TableList` / `ValueDropdown` 等 Odin 特性声明式组织资源包、发布整理、热更 DLL、Player 与构建日志；资源包编辑改为延迟落盘，状态栏/发布预览走缓存，日志刷新节流，避免编辑时频繁 `AssetDatabase.SaveAssets()` 与 `Repaint()`。
-
-### 🎬 场景系统
-
-- **DynamicSpawn 通用化与示例脚本** — 将仅调用 `CollectFromSpawnPoints()` 的机库专属 `HangarSceneSpawner` 收敛为通用 `SpawnPointSceneSpawner`，大多数场景可直接挂载；同时把 `HangarManager` 改为 `ExampleSceneGameManager` 示例，演示动态加载完成后如何按 `registerKey` 获取对象并执行场景初始化。详见 [DynamicSpawn 动态场景加载实践](Books/DynamicSpawn-动态场景加载实践.md)。
-- **场景加载进度拆分到 `GameSceneModule`** — 将原“胖 UI” `LoadingUI` 的三段式进度状态机、场景资源加载（suspendLoad）、激活（UnSuspend）、完成回调与关闭时机全部下沉到 `GameSceneModule`（实现 `IUpdateModule`，由 `ModuleSystem` 每帧驱动），`SwitchUI` 降为纯展示（每帧读 `GameModule.GameScene.DisplayProgress` 渲染进度条与百分比）。激活改为模块直连 `UnSuspend`（不再 UI 自发事件→模块自收），终结顺序 `回调→关加载页→OnSceneReady` 以对齐 `DynamicSceneSpawner` 的“加载页关闭后才收 OnSceneReady”契约；删除 `LoadSceneDataBody` 数据载体。
-
-### 🖥️ 窗口管理
-
-- **窗口布局控制模块（`ScreenModule`）** — 在 `TEngine.Runtime`（AOT 层）新增，Windows Standalone 下控制 Unity 多屏窗口的位置/大小/强制置顶/无边框；原生 P/Invoke 在 IL2CPP 下编译、不进 HybridCLR 解释域。配置可选（缺失时回退主显示器分辨率并告警），应用前自动切窗口化避免全屏覆盖，非 Windows 平台调用仅告警不执行。通过 `GameModule.Screen` 访问。
-
-> 📄 各项改动的详细设计、使用方式与排查过程见 [Fork 定制改动说明](Books/Fork-定制改动说明.md)，更细的过程记录见 `UnityProject/conversation-summaries/` 下对应日期的会话总结。
+详细设计、使用方式和关键文件见 [Fork 定制改动总览](Books/Fork/README.md)。按时间查看改动见 [Fork 改动时间线](Books/Fork/CHANGELOG.md)。
 
 ---
 

@@ -8,8 +8,9 @@ TEngine 基于 HybridCLR + YooAsset + UniTask + Luban 构建。
 
 conversation-summaries这是之前会话的总结，以后所有会话总结也存到这里。（会话总结跟随项目，便于你不懂的时候回来看当时怎么写的），并做好索引记录，索引记录要简洁，并且以关键词为主！
 上级目录是整个我fork的项目的根目录，readme也在这里；当前目录为unity项目目录。
-如果添加了新功能，经用户同意后，在上级目录（git仓库根目录），更新Readme.md里的"🛠️ 本 Fork 的定制改动"（简短说明），然后同步更新"Books/Fork-定制改动说明.md"（详细说明）
 一般情况下，新功能不需要开分支，除非特大变动，也必须经过用户同意才行！
+
+如果添加了新的 fork 定制功能，经用户同意后，在上级目录（git 仓库根目录）按分层文档规则更新说明：README.md 的「🛠️ 本 Fork 的定制改动」只维护简短概览；Books/Fork-定制改动说明.md 只作为兼容索引入口；详细说明写入Books/Fork/ 下对应专题文档，并同步更新 Books/Fork/CHANGELOG.md；具体写法遵循 .claude/skills/fork-docs/SKILL.md 和 .codex/skills/fork-docs/SKILL.md。
 
 commit提交时，以中文为主，英文为辅。如果用户让你写总结，则记得同时推送到远端。
 用户让你存储记忆时，是存储在项目级的记忆里，跟随仓库走。
