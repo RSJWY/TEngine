@@ -42,11 +42,11 @@ public partial class GameApp
     {
         GameModule.Screen.ApplyAll();
         GameModule.GameScene.LoadScene(SceneType.MainScene);
-        UniTask.Create(async () =>
+        /*UniTask.Create(async () =>
         {
             var assetHandle = YooAssets.LoadAssetAsync<GameObject>("UIHome");
             await assetHandle.ToUniTask();
-        });
+        });*/
     }
     
     private static void Release()
