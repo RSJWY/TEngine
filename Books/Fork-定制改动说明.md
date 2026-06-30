@@ -11,6 +11,8 @@
 - [运行时配置](#-运行时配置)
   - [轻量 JSON 配置模块](#1-轻量-json-配置模块-jsonconfigmodule)
   - [部署配置覆盖热更地址](#2-部署配置覆盖热更地址-deployconfig)
+  - [部署配置控制调试器开关](#3-部署配置控制调试器开关-deployconfigdebuggeractivewindow)
+  - [TOML 序列化扩展](#4-toml-序列化扩展-tomlyntomlhelper)
 - [热更新](#-热更新)
   - [多包架构](#1-多包架构-codepackage)
   - [代码包 XXTEA 加密](#2-代码包-xxtea-加密)
@@ -225,6 +227,77 @@ Assets/StreamingAssets/Configs/
 - `Assets/GameScripts/Procedure/ProcedureLaunch.cs`
 
 > 详见 `conversation-summaries/2026-06-04-deployconfig-debugger-toggle-summary.md`
+
+---
+
+### 4. TOML 序列化扩展 (TomlynTomlHelper)
+
+在 `TEngine.Runtime` 内新增 TOML 序列化门面，基于仓库内置的 `Tomlyn.2.9.0` 提供对象与 TOML 文本互转能力。它不替换 Luban `ConfigSystem`，也不接管 `JsonConfigModule` 的文件加载和缓存职责；定位是给轻量配置、工具配置、人工维护配置文件提供一种比 JSON 更易读的文本格式。
+
+**特性**
+
+- `Utility.Toml` 作为统一入口，默认 helper 为 `TomlynTomlHelper`。
+- 支持 `ToToml(object)`、`ToObject<T>(string)`、`ToObject(Type, string)` 三种常用调用。
+- `TomlynTomlHelper` 内部使用 `TomlSerializer.Serialize` / `TomlSerializer.Deserialize`，异常统一包装为 `GameFrameworkException`，便于框架层排查。
+- `Utility.Toml.ITomlHelper` 保留可替换接口，后续如需换 TOML 实现或加项目级默认选项，不需要改业务调用点。
+- 支持透传 `TomlSerializerOptions` 作为 `settings` 参数；传入非 Tomlyn 选项类型会明确报错。
+- `RootModule` 默认 `tomlHelperTypeName` 为 `TEngine.TomlynTomlHelper`，初始化时可按类型名注入 helper。
+
+**使用方式**
+
+TOML 文本转对象：
+
+```csharp
+using TEngine;
+
+public sealed class AppConfig
+{
+    public string Title { get; set; }
+    public int Version { get; set; }
+    public bool Enabled { get; set; }
+}
+
+string toml = @"
+Title = ""Demo""
+Version = 1
+Enabled = true
+";
+
+AppConfig config = Utility.Toml.ToObject<AppConfig>(toml);
+```
+
+对象转 TOML：
+
+```csharp
+var config = new AppConfig
+{
+    Title = "Demo",
+    Version = 1,
+    Enabled = true
+};
+
+string toml = Utility.Toml.ToToml(config);
+```
+
+从文件读取时，由调用方先拿到文本，再交给 `Utility.Toml`：
+
+```csharp
+using System.IO;
+using TEngine;
+
+string toml = File.ReadAllText("config.toml");
+AppConfig config = Utility.Toml.ToObject<AppConfig>(toml);
+```
+
+> Tomlyn 默认按 C# 属性名匹配 TOML key；例如 `Title` 对应 `Title = "Demo"`。如果项目希望使用 camelCase 或其他命名策略，可通过 `TomlSerializerOptions` 传入。
+
+**关键文件**
+
+- `Assets/TEngine/Runtime/Extension/Toml/Utility.Toml.cs`
+- `Assets/TEngine/Runtime/Extension/Toml/Utility.Toml.ITomlHelper.cs`
+- `Assets/TEngine/Runtime/Extension/Toml/TomlynTomlHelper.cs`
+- `Assets/TEngine/Runtime/Module/RootModule.cs`
+- `Assets/Packages/Tomlyn.2.9.0/`
 
 ---
 

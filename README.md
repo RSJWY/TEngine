@@ -33,6 +33,7 @@
 
 ### 🔧 运行时配置
 
+- **TOML 序列化扩展（`Utility.Toml`）** — 集成 `Tomlyn.2.9.0` 并在 `TEngine.Runtime` 增加 TOML 门面与默认 `TomlynTomlHelper`，支持对象与 TOML 文本互转（`ToToml` / `ToObject<T>` / `ToObject(Type, ...)`），可通过 `ITomlHelper` 替换实现；适合轻量配置、工具配置或更注重可读性的结构化文本。
 - **轻量 JSON 配置模块（`JsonConfigModule`）** — 在 `TEngine.Runtime` 内新增，从 `StreamingAssets/Configs` 按 `config_manifest.json` 清单加载并缓存 JSON 配置，支持强类型 `Get/TryGet`、原始文本读取与对象缓存；通过 `GameModule.JsonConfig` 访问。保留原 Luban `ConfigSystem` 不动。JSON 序列化默认切换为 Newtonsoft。
 - **部署配置覆盖热更地址（`DeployConfig`）** — 打包后可通过明文 `StreamingAssets/Configs/DeployConfig.json` 现场覆盖 `UpdateSetting` 的资源服务器地址；`ProcedureLaunch` 在资源初始化前加载，读不到时回退 Inspector 默认值。
 - **部署配置控制调试器开关（`DeployConfig.DebuggerActiveWindow`）** — `DeployConfig` 新增 `DebuggerActiveWindow` 字段，打包后可经明文 JSON 现场覆盖 `Debugger` 组件的激活策略（`AlwaysOpen` / `OnlyOpenWhenDevelopment` / `OnlyOpenInEditor` / `AlwaysClose`）。`Debugger` 抽出 `ApplyActiveWindowType`，`ProcedureLaunch` 在配置加载完成后解析并应用；字段留空、解析失败或场景无 Debugger 时回退 Inspector 默认行为。
