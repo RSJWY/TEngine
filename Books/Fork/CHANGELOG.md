@@ -4,6 +4,7 @@
 
 ## 2026-06-30
 
+- 热更清单加载按 PlayMode 分流：Editor/Offline 只读本地包，Host/Web 保留远端失败回退。
 - `JsonConfigModule` 通用化为 `RuntimeConfigModule`，默认清单和轻量配置切换为 TOML。
 - 场景加载进度从 `SwitchUI` / `LoadingUI` 下沉到 `GameSceneModule`，UI 降为纯展示。
 - 新增 `DisplayProgress`，由 `SwitchUI` 每帧读取并渲染进度条和百分比。

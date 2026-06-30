@@ -41,6 +41,11 @@ namespace Procedure
             ChangeState<ProcedureCreateDownloader>(procedureOwner);
         }
 
+        private bool IsUpdatablePlayMode()
+        {
+            return _resourceModule.PlayMode == EPlayMode.HostPlayMode || _resourceModule.PlayMode == EPlayMode.WebPlayMode;
+        }
+
         protected override void OnUpdate(ProcedureOwner procedureOwner, float elapseSeconds, float realElapseSeconds)
         {
             base.OnUpdate(procedureOwner, elapseSeconds, realElapseSeconds);
@@ -81,6 +86,7 @@ namespace Procedure
         private IEnumerator InitResources(ProcedureOwner procedureOwner)
         {
             var runtimePackages = GetRuntimePackages();
+            var updatablePlayMode = IsUpdatablePlayMode();
             Log.Info($"开始更新资源清单，共 {runtimePackages.Count} 个包：{GetPackageNamesLogText(runtimePackages)}");
 
             foreach (var runtimePackage in runtimePackages)
@@ -94,15 +100,15 @@ namespace Procedure
                 LauncherMgr.ShowUI<LoadUpdateUI>($"更新清单文件...({runtimePackage.PackageName})");
                 Log.Info($"请求资源包版本：{runtimePackage.PackageName}");
 
-                var localVersion = GetLocalPackageVersion(runtimePackage);
+                var savedVersion = updatablePlayMode ? GetLocalPackageVersion(runtimePackage) : string.Empty;
                 var versionOperation = _resourceModule.RequestPackageVersionAsync(customPackageName: runtimePackage.PackageName);
                 yield return versionOperation;
                 if (versionOperation.Status != EOperationStatus.Succeed)
                 {
-                    if (!string.IsNullOrEmpty(localVersion))
+                    if (updatablePlayMode && !string.IsNullOrEmpty(savedVersion))
                     {
-                        Log.Warning($"请求资源包版本失败，回退使用本地版本记录：{runtimePackage.PackageName}，本地版本：{localVersion}，错误：{versionOperation.Error}");
-                        var localManifestOperation = _resourceModule.UpdatePackageManifestAsync(localVersion,
+                        Log.Warning($"请求资源包版本失败，回退使用本地版本记录：{runtimePackage.PackageName}，本地版本：{savedVersion}，错误：{versionOperation.Error}");
+                        var localManifestOperation = _resourceModule.UpdatePackageManifestAsync(savedVersion,
                             customPackageName: runtimePackage.PackageName);
                         yield return localManifestOperation;
                         if (localManifestOperation.Status != EOperationStatus.Succeed)
@@ -112,10 +118,10 @@ namespace Procedure
                             yield break;
                         }
 
-                        SavePackageVersionData(procedureOwner, runtimePackage, localVersion);
+                        SavePackageVersionData(procedureOwner, runtimePackage, savedVersion);
                         _usedLocalPackageVersion = true;
                         _needDownloadCheck = true;
-                        Log.Warning($"资源包已回退到本地版本：{runtimePackage.PackageName} => {localVersion}");
+                        Log.Warning($"资源包已回退到本地版本：{runtimePackage.PackageName} => {savedVersion}");
                         continue;
                     }
 
@@ -123,16 +129,39 @@ namespace Procedure
                     yield break;
                 }
 
-                var remoteVersion = versionOperation.PackageVersion;
-                Log.Info($"资源包版本比对：{runtimePackage.PackageName}，上次版本：{GetVersionLogText(localVersion)}，本次版本：{GetVersionLogText(remoteVersion)}");
+                var packageVersion = versionOperation.PackageVersion;
+                if (!updatablePlayMode)
+                {
+                    if (string.IsNullOrEmpty(packageVersion))
+                    {
+                        OnInitResourcesError(procedureOwner, runtimePackage.PackageName, "资源包版本为空，无法更新资源清单。");
+                        yield break;
+                    }
 
-                var selectedVersion = remoteVersion;
-                var versionChanged = !string.Equals(localVersion, remoteVersion, StringComparison.Ordinal);
+                    Log.Info($"资源包本地版本：{runtimePackage.PackageName} => {packageVersion}");
+                    var localManifestOperation = _resourceModule.UpdatePackageManifestAsync(packageVersion,
+                        customPackageName: runtimePackage.PackageName);
+                    yield return localManifestOperation;
+                    if (localManifestOperation.Status != EOperationStatus.Succeed)
+                    {
+                        OnInitResourcesError(procedureOwner, runtimePackage.PackageName, localManifestOperation.Error);
+                        yield break;
+                    }
+
+                    SavePackageVersionData(procedureOwner, runtimePackage, packageVersion);
+                    Log.Info($"资源包本地清单加载完成：{runtimePackage.PackageName} => {packageVersion}");
+                    continue;
+                }
+
+                Log.Info($"资源包版本比对：{runtimePackage.PackageName}，上次版本：{GetVersionLogText(savedVersion)}，本次版本：{GetVersionLogText(packageVersion)}");
+
+                var selectedVersion = packageVersion;
+                var versionChanged = !string.Equals(savedVersion, packageVersion, StringComparison.Ordinal);
                 if (versionChanged)
                 {
                     bool useRemoteVersion = true;
-                    yield return ConfirmPackageVersion(runtimePackage, localVersion, remoteVersion, value => { useRemoteVersion = value; });
-                    selectedVersion = useRemoteVersion ? remoteVersion : localVersion;
+                    yield return ConfirmPackageVersion(runtimePackage, savedVersion, packageVersion, value => { useRemoteVersion = value; });
+                    selectedVersion = useRemoteVersion ? packageVersion : savedVersion;
                     _needDownloadCheck = true;
 
                     if (useRemoteVersion)

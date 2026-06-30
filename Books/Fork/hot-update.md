@@ -21,7 +21,8 @@
   - 是否保存版本记录
   - `VersionKey`
 - 运行时初始化、清单更新、下载器创建流程均改为按包执行。
-- 远端不可用时支持回退到本地已缓存版本。
+- `HostPlayMode` / `WebPlayMode` 远端版本不可用时支持回退到本地已缓存版本。
+- `EditorSimulateMode` / `OfflinePlayMode` 只读取本地包版本并加载本地清单，不使用 PlayerPrefs 旧版本回退。
 - 远端目录由统一平台目录改为每包独立子目录：`{host}/{project}/{platform}/{packageName}/...`。
 - 程序集包判定收敛为依赖 `AssemblyPackageName` 与包名推断，移除 `IsAssemblyPackage` 字段。
 
@@ -67,24 +68,27 @@ XXTEA 解密为整包读入内存后 `AssetBundle.LoadFromMemory`，适合代码
 
 - `UnityProject/conversation-summaries/2026-05-30-xxtea-hotfix-update-summary.md`
 
-## 版本确认与下载流程
+## 版本确认、清单加载与下载流程
 
 ### 背景
 
-热更新时需要区分“首次无本地版本，必须下载”和“本地已有版本，可让用户取消更新”的两种情况。
+热更新时需要区分“远端可更新包”和“本地包”。`EditorSimulateMode` 与 `OfflinePlayMode` 的版本文件来自本地模拟构建目录或 `StreamingAssets`，读取失败通常表示本地包产物或路径错误，继续使用 PlayerPrefs 里的旧版本不能修复问题。`HostPlayMode` 和 `WebPlayMode` 才需要远端版本确认、失败回退和下载检查。
 
 ### 改动摘要
 
-- `ProcedureCreateDownloader` 检测到待下载内容后，根据 `UpdateStyle` 和本地版本记录决定提示方式。
-- `UpdateStyle.Optional` 且所有待下载包都有本地版本记录，并且本地与远端版本不同时，弹出确认/取消提示。
-- 用户不操作时，按 `AutoStartDownloadDelaySeconds` 倒计时自动确认。
-- 无本地版本记录时只显示确认按钮，强制更新。
-- `UpdateNotice.NoNotice` 时跳过更新，直接进入本地资源流程。
-- 用户取消更新时回退待下载包到本地版本清单，并设置跳过标记。
-- `ProcedureDownloadOver` 根据跳过标记不写入远端版本记录，避免误把远端版本记成已更新。
+- `ProcedureInitResources` 按 PlayMode 分流清单加载逻辑。
+- `EditorSimulateMode` / `OfflinePlayMode`：读取本地包版本，加载同版本本地 manifest，成功后直接进入预加载。
+- 本地包版本读取或 manifest 加载失败时直接报初始化错误并允许重试，不读取 `VersionKey`，不弹版本确认，不执行旧版本回退。
+- `HostPlayMode` / `WebPlayMode`：读取 `VersionKey` 保存的上次成功版本，请求当前包版本并执行版本比对。
+- 远端版本请求失败且存在保存版本时，回退加载保存版本 manifest，并提示用户可重试远端版本或继续本地完整性检查。
+- 检测到版本变化时，`UpdateStyle.Force` 只允许确认更新，`UpdateStyle.Optional` 且已有本地版本时允许取消并继续使用本地版本。
+- 用户不操作时，版本确认按 `VersionConfirmAutoDelaySeconds` 倒计时自动确认。
+- `ProcedureCreateDownloader` 只负责按包检查缺失文件和执行下载；已确认版本更新时直接开始下载，否则显示资源完整性下载确认。
+- `ProcedureDownloadOver` 只在下载/检查结束后写入本次选择的包版本记录。
 
 ### 关键文件
 
+- `Assets/GameScripts/Procedure/ProcedureInitResources.cs`
 - `Assets/GameScripts/Procedure/ProcedureCreateDownloader.cs`
 - `Assets/GameScripts/Procedure/ProcedureDownloadOver.cs`
 - `Assets/GameScripts/Procedure/ProcedureBase.cs`
