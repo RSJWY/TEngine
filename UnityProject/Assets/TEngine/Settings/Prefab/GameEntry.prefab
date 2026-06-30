@@ -298,6 +298,7 @@ MonoBehaviour:
   textHelperTypeName: TEngine.DefaultTextHelper
   logHelperTypeName: TEngine.DefaultLogHelper
   jsonHelperTypeName: TEngine.NewtonsoftJsonHelper
+  tomlHelperTypeName: TEngine.TomlynTomlHelper
   frameRate: 120
   gameSpeed: 1
   runInBackground: 1

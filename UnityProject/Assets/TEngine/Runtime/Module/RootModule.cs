@@ -40,6 +40,9 @@ namespace TEngine
         private string jsonHelperTypeName = "TEngine.NewtonsoftJsonHelper";
 
         [SerializeField]
+        private string tomlHelperTypeName = "TEngine.TomlynTomlHelper";
+
+        [SerializeField]
         private int frameRate = 120;
 
         [SerializeField]
@@ -121,6 +124,7 @@ namespace TEngine
             Log.Info("Unity Version: {0}", Application.unityVersion);
 
             InitJsonHelper();
+            InitTomlHelper();
 
             Utility.Converter.ScreenDpi = Screen.dpi;
             if (Utility.Converter.ScreenDpi <= 0)
@@ -282,6 +286,30 @@ namespace TEngine
             }
 
             Utility.Json.SetJsonHelper(jsonHelper);
+        }
+
+        private void InitTomlHelper()
+        {
+            if (string.IsNullOrEmpty(tomlHelperTypeName))
+            {
+                return;
+            }
+
+            Type tomlHelperType = Utility.Assembly.GetType(tomlHelperTypeName);
+            if (tomlHelperType == null)
+            {
+                Log.Error("Can not find TOML helper type '{0}'.", tomlHelperTypeName);
+                return;
+            }
+
+            Utility.Toml.ITomlHelper tomlHelper = (Utility.Toml.ITomlHelper)Activator.CreateInstance(tomlHelperType);
+            if (tomlHelper == null)
+            {
+                Log.Error("Can not create TOML helper instance '{0}'.", tomlHelperTypeName);
+                return;
+            }
+
+            Utility.Toml.SetTomlHelper(tomlHelper);
         }
 
         private void OnLowMemory()

@@ -18,6 +18,7 @@ namespace TEngine.Editor
         private SerializedProperty _textHelperTypeName = null;
         private SerializedProperty _logHelperTypeName = null;
         private SerializedProperty _jsonHelperTypeName = null;
+        private SerializedProperty _tomlHelperTypeName = null;
         private SerializedProperty _frameRate = null;
         private SerializedProperty _gameSpeed = null;
         private SerializedProperty _runInBackground = null;
@@ -29,6 +30,8 @@ namespace TEngine.Editor
         private int _logHelperTypeNameIndex = 0;
         private string[] _jsonHelperTypeNames = null;
         private int _jsonHelperTypeNameIndex = 0;
+        private string[] _tomlHelperTypeNames = null;
+        private int _tomlHelperTypeNameIndex = 0;
 
         public override void OnInspectorGUI()
         {
@@ -65,6 +68,13 @@ namespace TEngine.Editor
                     {
                         _jsonHelperTypeNameIndex = jsonHelperSelectedIndex;
                         _jsonHelperTypeName.stringValue = jsonHelperSelectedIndex <= 0 ? null : _jsonHelperTypeNames[jsonHelperSelectedIndex];
+                    }
+
+                    int tomlHelperSelectedIndex = EditorGUILayout.Popup("TOML Helper", _tomlHelperTypeNameIndex, _tomlHelperTypeNames);
+                    if (tomlHelperSelectedIndex != _tomlHelperTypeNameIndex)
+                    {
+                        _tomlHelperTypeNameIndex = tomlHelperSelectedIndex;
+                        _tomlHelperTypeName.stringValue = tomlHelperSelectedIndex <= 0 ? null : _tomlHelperTypeNames[tomlHelperSelectedIndex];
                     }
                 }
                 EditorGUILayout.EndVertical();
@@ -149,6 +159,7 @@ namespace TEngine.Editor
             _textHelperTypeName = serializedObject.FindProperty("textHelperTypeName");
             _logHelperTypeName = serializedObject.FindProperty("logHelperTypeName"); 
             _jsonHelperTypeName = serializedObject.FindProperty("jsonHelperTypeName");
+            _tomlHelperTypeName = serializedObject.FindProperty("tomlHelperTypeName");
             _frameRate = serializedObject.FindProperty("frameRate");
             _gameSpeed = serializedObject.FindProperty("gameSpeed");
             _runInBackground = serializedObject.FindProperty("runInBackground");
@@ -210,6 +221,24 @@ namespace TEngine.Editor
                 {
                     _jsonHelperTypeNameIndex = 0;
                     _jsonHelperTypeName.stringValue = null;
+                }
+            }
+
+            List<string> tomlHelperTypeNames = new List<string>
+            {
+                NONE_OPTION_NAME
+            };
+
+            tomlHelperTypeNames.AddRange(Type.GetRuntimeTypeNames(typeof(Utility.Toml.ITomlHelper)));
+            _tomlHelperTypeNames = tomlHelperTypeNames.ToArray();
+            _tomlHelperTypeNameIndex = 0;
+            if (!string.IsNullOrEmpty(_tomlHelperTypeName.stringValue))
+            {
+                _tomlHelperTypeNameIndex = tomlHelperTypeNames.IndexOf(_tomlHelperTypeName.stringValue);
+                if (_tomlHelperTypeNameIndex <= 0)
+                {
+                    _tomlHelperTypeNameIndex = 0;
+                    _tomlHelperTypeName.stringValue = null;
                 }
             }
 
