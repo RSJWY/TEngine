@@ -27,8 +27,8 @@ namespace GameLogic
         /// UI 导航历史栈。
         /// </summary>
         /// <remarks>
-        /// 栈顶表示当前业务窗口；JumpBack 时先弹出当前窗口，再显示新的栈顶窗口。
-        /// 这里仅记录业务跳转历史，不参与 TEngine UIModule 的窗口层级排序。
+        /// 栈顶表示当前业务窗口；JumpBack 时关闭当前窗口，再显示新的栈顶窗口。
+        /// 这里仅记录业务跳转历史，真实窗口显隐、层级排序和全屏遮挡由 TEngine UIModule 负责。
         /// </remarks>
         private readonly Stack<Type> _navigationHistory = new Stack<Type>();
 
@@ -89,16 +89,18 @@ namespace GameLogic
                 return false;
             }
 
-            _navigationHistory.Pop(); // 弹出当前窗口
-
-            if (_navigationHistory.Count == 0)
+            if (_navigationHistory.Count <= 1)
             {
                 Log.Warning("[UIJump] 已到栈底，无上一级界面。");
                 return false;
             }
 
-            Type ui = _navigationHistory.Peek();
-            GameModule.UI.ShowUI(ui);
+            Type current = _navigationHistory.Pop();
+            Type previous = _navigationHistory.Peek();
+
+            // 关闭当前业务页后，UIModule 会基于 FullScreen/层级规则恢复下面的窗口。
+            GameModule.UI.CloseUI(current);
+            GameModule.UI.ShowUI(previous);
             return true;
         }
 
@@ -122,6 +124,9 @@ namespace GameLogic
                 Log.Warning($"[UIJump] {windowType} 已在栈顶，跳过重复跳转。");
                 return false;
             }
+
+            // 如果目标窗口曾经在历史中出现，先移除旧记录，再作为新的栈顶进入，避免 A -> B -> A -> B 这类重复历史。
+            RemoveFromHistory(uiType);
 
             // 使用 UIModule 的非泛型 ShowUI(Type) 重载，避免 JumpTo 内部继续维护 if-else 泛型分支。
             GameModule.UI.ShowUI(uiType, userDatas);
@@ -156,6 +161,31 @@ namespace GameLogic
         public void ClearHistory()
         {
             _navigationHistory.Clear();
+        }
+
+        /// <summary>
+        /// 从导航历史中移除指定窗口类型的旧记录，保持其余记录顺序不变。
+        /// </summary>
+        /// <param name="uiType">需要移除的窗口类型。</param>
+        private void RemoveFromHistory(Type uiType)
+        {
+            if (_navigationHistory.Count == 0)
+            {
+                return;
+            }
+
+            Type[] snapshot = _navigationHistory.ToArray();
+            _navigationHistory.Clear();
+
+            for (int i = snapshot.Length - 1; i >= 0; i--)
+            {
+                if (snapshot[i] == uiType)
+                {
+                    continue;
+                }
+
+                _navigationHistory.Push(snapshot[i]);
+            }
         }
 
         /// <summary>
