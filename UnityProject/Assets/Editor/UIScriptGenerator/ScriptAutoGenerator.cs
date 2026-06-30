@@ -696,6 +696,7 @@ namespace TEngine.Editor.UI
                 UIComponentName.TMP_Dropdown => typeof(TMP_Dropdown),
                 UIComponentName.TextMeshProUGUI => typeof(TextMeshProUGUI),
 #endif
+                UIComponentName.UIPointerBridge=> typeof(UIPointerBridge),
                 _ => null,
             };
         }
