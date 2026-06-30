@@ -11,11 +11,6 @@ namespace TEngine
     public sealed class ScreenConfig
     {
         /// <summary>
-        /// 模块初始化时是否自动应用配置。
-        /// </summary>
-        public bool ApplyOnInit = true;
-
-        /// <summary>
         /// 多屏窗口配置列表。
         /// </summary>
         public List<ScreenSetting> Screens = new List<ScreenSetting>();

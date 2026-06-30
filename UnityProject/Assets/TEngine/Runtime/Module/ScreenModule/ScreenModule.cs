@@ -39,26 +39,10 @@ namespace TEngine
         public bool IsSupported => WindowsScreenNative.IsSupported;
 
         /// <summary>
-        /// 模块初始化：读取配置，按需自动应用布局。
+        /// 模块初始化：保持空实现，窗口布局仅由显式 API 调用触发。
         /// </summary>
         public override void OnInit()
         {
-            if (!IsSupported)
-            {
-                Log.Warning("[ScreenModule] 当前平台不支持窗口布局控制，模块初始化跳过（仅 Windows Standalone 生效）。");
-                return;
-            }
-
-            Log.Info("[ScreenModule] OnInit：开始初始化窗口布局模块。");
-            LoadConfig();
-
-            if (_config != null && !_config.ApplyOnInit)
-            {
-                Log.Info("[ScreenModule] 配置 ApplyOnInit=false，跳过自动应用。可手动调用 GameModule.Screen.ApplyAll()。");
-                return;
-            }
-
-            ApplyAllAsync().Forget();
         }
 
         /// <summary>
@@ -144,6 +128,11 @@ namespace TEngine
                 return;
             }
 
+            if (_config == null)
+            {
+                LoadConfig();
+            }
+
             if (!TryGetHandle(displayIndex, out IntPtr hWnd))
             {
                 RefreshHandles();
@@ -173,7 +162,7 @@ namespace TEngine
                 && config.Screens.Count > 0)
             {
                 _config = config;
-                Log.Info($"[ScreenModule] 已从 ScreenConfig.json 读取配置，屏幕数={_config.Screens.Count}，ApplyOnInit={_config.ApplyOnInit}。");
+                Log.Info($"[ScreenModule] 已从 ScreenConfig.json 读取配置，屏幕数={_config.Screens.Count}。");
                 for (int i = 0; i < _config.Screens.Count; i++)
                 {
                     Log.Info($"[ScreenModule]   配置[{i}] {_config.Screens[i]}");
@@ -194,7 +183,6 @@ namespace TEngine
             Log.Info($"[ScreenModule] 主显示器默认分辨率 {res.width}x{res.height}。");
             return new ScreenConfig
             {
-                ApplyOnInit = true,
                 Screens = new List<ScreenSetting>
                 {
                     new ScreenSetting
