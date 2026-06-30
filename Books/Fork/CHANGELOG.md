@@ -4,6 +4,7 @@
 
 ## 2026-06-30
 
+- `JsonConfigModule` 通用化为 `RuntimeConfigModule`，默认清单和轻量配置切换为 TOML。
 - 场景加载进度从 `SwitchUI` / `LoadingUI` 下沉到 `GameSceneModule`，UI 降为纯展示。
 - 新增 `DisplayProgress`，由 `SwitchUI` 每帧读取并渲染进度条和百分比。
 - 场景加载终结顺序调整为 `回调 -> 关加载页 -> OnSceneReady`，对齐 `DynamicSceneSpawner` 契约。
