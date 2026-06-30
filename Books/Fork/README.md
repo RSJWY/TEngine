@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、日志查看工具 | [logging.md](logging.md) |
 | 事件系统 | 按事件 ID 批量移除监听 | [event-system.md](event-system.md) |
-| 运行时配置 | JsonConfig、DeployConfig、TOML 序列化 | [runtime-config.md](runtime-config.md) |
+| 运行时配置 | RuntimeConfig、DeployConfig、TOML/JSON 轻量配置 | [runtime-config.md](runtime-config.md) |
 | 热更新 | CodePackage、XXTEA、版本确认、AOT 元数据 | [hot-update.md](hot-update.md) |
 | 资源打包 | 按包构建、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
 | 场景系统 | DynamicSpawn 通用化、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
@@ -23,7 +23,7 @@
 ## 最近重点
 
 - 日志系统新增 Unity/Task/UniTask 到 TouchSocket `FileLogger` 的统一落盘链路，并补充独立 LogViewer 工具。
-- 运行时配置新增 `JsonConfigModule`、`DeployConfig` 和 `Utility.Toml`，用于处理轻量部署配置和可读配置文本。
+- 运行时配置已通用化为 `RuntimeConfigModule`，默认使用 TOML 清单和轻量 TOML 配置，同时保留 JSON 混用能力。
 - 热更新和资源打包侧补强 CodePackage、AOT 元数据清单校验、按包构建管线和打包工具体验。
 - 场景系统将加载进度状态机从 UI 下沉到 `GameSceneModule`，并将 DynamicSpawn 示例脚本通用化。
 - Windows Standalone 新增 `ScreenModule`，用于控制窗口位置、尺寸、置顶和无边框。
