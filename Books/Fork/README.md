@@ -14,6 +14,7 @@
 | --- | --- | --- |
 | 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、日志查看工具 | [logging.md](logging.md) |
 | 事件系统 | 按事件 ID 批量移除监听 | [event-system.md](event-system.md) |
+| 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 | [data-binding.md](data-binding.md) |
 | 运行时配置 | RuntimeConfig、DeployConfig、TOML/JSON 轻量配置 | [runtime-config.md](runtime-config.md) |
 | 热更新 | CodePackage、XXTEA、版本确认、AOT 元数据 | [hot-update.md](hot-update.md) |
 | 资源打包 | 按包构建、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
@@ -22,6 +23,7 @@
 
 ## 最近重点
 
+- 新增纯数据 DataBinding 运行时与 Editor 生成器，菜单和 Odin 面板已中文化。
 - 日志系统新增 Unity/Task/UniTask 到 TouchSocket `FileLogger` 的统一落盘链路，并补充独立 LogViewer 工具。
 - 运行时配置已通用化为 `RuntimeConfigModule`，默认使用 TOML 清单和轻量 TOML 配置，同时保留 JSON 混用能力。
 - 热更新和资源打包侧补强 CodePackage、AOT 元数据清单校验、按包构建管线和打包工具体验。

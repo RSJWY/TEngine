@@ -13,6 +13,7 @@
 | --- | --- | --- |
 | 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、LogViewer | [logging.md](Fork/logging.md) |
 | 事件系统 | 按事件 ID 批量移除监听 | [event-system.md](Fork/event-system.md) |
+| 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 | [data-binding.md](Fork/data-binding.md) |
 | 运行时配置 | `JsonConfigModule`、`DeployConfig`、`Utility.Toml` | [runtime-config.md](Fork/runtime-config.md) |
 | 热更新 | `CodePackage`、XXTEA、AOT 元数据、版本确认流程 | [hot-update.md](Fork/hot-update.md) |
 | 资源打包 | 按包构建、发布整理、打包工具 Odin 化 | [resource-build.md](Fork/resource-build.md) |
