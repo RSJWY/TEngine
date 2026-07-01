@@ -66,6 +66,68 @@ public void Dispose()
 
 如果只想重新生成某一个模型，打开 `Tools/数据绑定/生成器面板`，在模型列表中点击该行的“重新生成”按钮即可。
 
+#### 批量更新示例
+
+适合初始化或低频全量刷新：
+
+```csharp
+public void Init(DroneNormalData data)
+{
+    // 一次性同步所有字段并通知
+    _binder.SyncAndFlush(data);
+}
+
+public void OnDataChanged(DroneNormalData data)
+{
+    // 先同步，再统一通知
+    _binder.SyncFrom(data);
+    _binder.Flush();
+}
+```
+
+#### 单字段更新示例
+
+适合高频场景，只更新变化的字段：
+
+```csharp
+public void UpdateSpeed(float newSpeed)
+{
+    // 单独更新速度字段（格式化）
+    string formatted = string.Format(CultureInfo.InvariantCulture, "{0:F0} km/h", newSpeed);
+    _binder.speed.SetDirty(formatted);
+    _binder.Flush();
+}
+
+public void UpdatePower(float newPower)
+{
+    // 单独更新功率字段（容差比较）
+    _binder.power.SetDirty(newPower, (oldValue, newValue) =>
+        DataBindingComparison.AreEqual(oldValue, newValue, 0.01f));
+    _binder.Flush();
+}
+
+public void Update()
+{
+    // 每帧只更新变化的字段
+    if (_drone.speedChanged)
+    {
+        string formatted = string.Format(CultureInfo.InvariantCulture, "{0:F0} km/h", _drone.speed);
+        _binder.speed.SetDirty(formatted);
+    }
+
+    if (_drone.powerChanged)
+    {
+        _binder.power.SetDirty(_drone.power, (oldValue, newValue) =>
+            DataBindingComparison.AreEqual(oldValue, newValue, 0.01f));
+    }
+
+    // 统一通知一次
+    _binder.Flush();
+}
+```
+
+单字段更新可以避免遍历所有成员。生成的所有绑定属性都是 `public`，可以直接访问 `_binder.xxx.SetDirty(...)`。
+
 ### 特性说明
 
 这些标记都定义在 `UnityProject/Assets/GameScripts/HotFix/GameLogic/DataBinding/DataBindingAttributes.cs`，命名空间是 `GameLogic`。C# 使用 Attribute 时可以省略类名末尾的 `Attribute`，所以 `[DataBindingModel]` 实际对应 `DataBindingModelAttribute`。
