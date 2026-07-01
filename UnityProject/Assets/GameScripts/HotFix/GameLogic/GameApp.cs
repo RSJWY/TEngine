@@ -40,13 +40,10 @@ public partial class GameApp
     
     private static void StartGameLogic()
     {
+        //多屏显示配置，内部异步执行
         GameModule.Screen.ApplyAll();
+
         GameModule.GameScene.LoadScene(SceneType.MainScene);
-        /*UniTask.Create(async () =>
-        {
-            var assetHandle = YooAssets.LoadAssetAsync<GameObject>("UIHome");
-            await assetHandle.ToUniTask();
-        });*/
     }
     
     private static void Release()
