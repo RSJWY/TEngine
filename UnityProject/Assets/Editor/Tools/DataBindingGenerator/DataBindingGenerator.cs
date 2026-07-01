@@ -90,6 +90,43 @@ namespace GameLogic.Editor.Tools.DataBinding
         }
 
         /// <summary>
+        /// 生成指定数据类型的 Binder。
+        /// </summary>
+        public static GenerateModelResult GenerateOne(string modelTypeFullName, string outputDirectory = DefaultOutputDirectory, bool refreshAssetDatabase = true)
+        {
+            outputDirectory = NormalizeAssetPath(outputDirectory);
+            Directory.CreateDirectory(outputDirectory);
+
+            Type modelType = TypeCache.GetTypesWithAttribute<DataBindingModelAttribute>()
+                .Where(type => !type.IsAbstract && !type.ContainsGenericParameters)
+                .FirstOrDefault(type => string.Equals(type.FullName, modelTypeFullName, StringComparison.Ordinal));
+
+            if (modelType == null)
+            {
+                string message = $"DataBinding model not found: {modelTypeFullName}";
+                Debug.LogWarning(message);
+                return GenerateModelResult.Skipped(modelTypeFullName, message);
+            }
+
+            GenerateModelResult result = GenerateModel(modelType, outputDirectory);
+            if (refreshAssetDatabase)
+            {
+                AssetDatabase.Refresh();
+            }
+
+            if (result.IsSkipped)
+            {
+                Debug.LogWarning(result.Message);
+            }
+            else
+            {
+                Debug.Log($"DataBinding binder generated: {result.ModelType}, changed: {result.Changed}");
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// 收集当前工程中可生成 Binder 的数据类型信息。
         /// </summary>
         public static List<ModelInfo> CollectModelInfos(string outputDirectory = DefaultOutputDirectory)
@@ -285,6 +322,10 @@ namespace GameLogic.Editor.Tools.DataBinding
             }
 
             builder.AppendLine();
+            builder.AppendLine($"{indent}    /// <summary>");
+            builder.AppendLine($"{indent}    /// 将源数据同步到绑定属性。普通属性只标记为脏，需要调用 <see cref=\"Flush\"/> 后才通知订阅者；信号会在边沿变化时立即触发。");
+            builder.AppendLine($"{indent}    /// </summary>");
+            builder.AppendLine($"{indent}    /// <param name=\"data\">源数据实例。</param>");
             builder.AppendLine($"{indent}    public void SyncFrom({modelTypeName} data)");
             builder.AppendLine($"{indent}    {{");
             if (!modelType.IsValueType)
@@ -304,6 +345,10 @@ namespace GameLogic.Editor.Tools.DataBinding
             builder.AppendLine($"{indent}    }}");
 
             builder.AppendLine();
+            builder.AppendLine($"{indent}    /// <summary>");
+            builder.AppendLine($"{indent}    /// 同步源数据并立即通知所有发生变化的普通绑定属性。");
+            builder.AppendLine($"{indent}    /// </summary>");
+            builder.AppendLine($"{indent}    /// <param name=\"data\">源数据实例。</param>");
             builder.AppendLine($"{indent}    public void SyncAndFlush({modelTypeName} data)");
             builder.AppendLine($"{indent}    {{");
             builder.AppendLine($"{indent}        SyncFrom(data);");
@@ -311,6 +356,9 @@ namespace GameLogic.Editor.Tools.DataBinding
             builder.AppendLine($"{indent}    }}");
 
             builder.AppendLine();
+            builder.AppendLine($"{indent}    /// <summary>");
+            builder.AppendLine($"{indent}    /// 通知所有已标记为脏的普通绑定属性；信号不参与 Flush。");
+            builder.AppendLine($"{indent}    /// </summary>");
             builder.AppendLine($"{indent}    public void Flush()");
             builder.AppendLine($"{indent}    {{");
             foreach (BindMember member in members.Where(member => !member.IsSignal))

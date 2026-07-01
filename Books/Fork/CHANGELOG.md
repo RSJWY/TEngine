@@ -5,6 +5,8 @@
 ## 2026-07-01
 
 - 新增纯数据 DataBinding 运行时与 Editor 生成器，菜单和 Odin 面板统一中文化。
+- DataBinding 生成代码补充公开同步函数注释，生成器面板支持单模型重新生成。
+- 补充 DataBinding Attribute 用途、生成行为和限制说明。
 
 ## 2026-06-30
 

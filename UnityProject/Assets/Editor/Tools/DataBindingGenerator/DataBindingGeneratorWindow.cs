@@ -81,7 +81,7 @@ namespace GameLogic.Editor.Tools.DataBinding
             try
             {
                 _models = DataBindingGenerator.CollectModelInfos(_outputDirectory)
-                    .Select(ModelEntry.From)
+                    .Select(info => ModelEntry.From(info, _outputDirectory, this))
                     .ToList();
             }
             catch (Exception exception)
@@ -183,6 +183,31 @@ namespace GameLogic.Editor.Tools.DataBinding
             [LabelText("状态")]
             public string Status;
 
+            [TableColumnWidth(80)]
+            [Button("重新生成", ButtonSizes.Small)]
+            private void Regenerate()
+            {
+                DataBindingGenerator.GenerateModelResult result = DataBindingGenerator.GenerateOne(ModelType, OutputDirectory);
+                if (result.IsSkipped)
+                {
+                    Status = "跳过";
+                    if (_owner != null)
+                    {
+                        _owner._lastResult = $"跳过 {ModelType}：{result.Message}";
+                    }
+
+                    return;
+                }
+
+                Status = "已生成";
+                if (_owner != null)
+                {
+                    string state = result.Changed ? "已更新" : "无变化";
+                    _owner._lastResult = $"已重新生成 {ModelType}。{state}。";
+                    _owner.RefreshModels();
+                }
+            }
+
             [TableColumnWidth(55)]
             [Button("定位", ButtonSizes.Small)]
             private void Ping()
@@ -210,7 +235,13 @@ namespace GameLogic.Editor.Tools.DataBinding
             [HideInInspector]
             public string OutputPath;
 
-            public static ModelEntry From(DataBindingGenerator.ModelInfo info)
+            [HideInInspector]
+            public string OutputDirectory;
+
+            [NonSerialized]
+            private DataBindingGeneratorWindow _owner;
+
+            public static ModelEntry From(DataBindingGenerator.ModelInfo info, string outputDirectory, DataBindingGeneratorWindow owner)
             {
                 return new ModelEntry
                 {
@@ -221,7 +252,9 @@ namespace GameLogic.Editor.Tools.DataBinding
                     FormattedCount = info.FormattedCount,
                     ToleranceCount = info.ToleranceCount,
                     Status = info.GeneratedFileExists ? "已生成" : "缺失",
-                    OutputPath = info.OutputPath
+                    OutputPath = info.OutputPath,
+                    OutputDirectory = outputDirectory,
+                    _owner = owner
                 };
             }
         }
