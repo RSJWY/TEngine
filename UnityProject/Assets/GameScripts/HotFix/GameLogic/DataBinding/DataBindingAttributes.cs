@@ -20,26 +20,6 @@ namespace GameLogic
     }
 
     /// <summary>
-    /// 将字段或属性按指定格式转成字符串绑定值。
-    /// </summary>
-    /// <remarks>
-    /// 格式使用 <see cref="string.Format(string, object)"/> 风格，例如 <c>{0:F0} km/h</c>。
-    /// </remarks>
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
-    public sealed class DataBindFormatAttribute : Attribute
-    {
-        public DataBindFormatAttribute(string format)
-        {
-            Format = format;
-        }
-
-        /// <summary>
-        /// 字符串格式模板。
-        /// </summary>
-        public string Format { get; }
-    }
-
-    /// <summary>
     /// 为高频数值字段设置容差，避免微小抖动反复触发刷新。
     /// </summary>
     /// <remarks>

@@ -13,9 +13,9 @@
 - Odin 面板：`Tools/数据绑定/生成器面板`
 - 数据类标记：`[DataBindingModel]`
 - 忽略字段：`[DataBindIgnore]`
-- 格式化字段：`[DataBindFormat]`
 - 容差字段：`[DataBindTolerance]`
 - 信号字段：`[DataBindSignal]`
+- 格式化策略：绑定层不提供格式化特性，订阅方/UI 层自行处理展示文本。
 - 值类型：`DataBindingProperty<T>`
 - 信号类型：`DataBindingSignal`
 - 订阅作用域：`DataBindingScope`
@@ -23,7 +23,7 @@
 - 生成类：`XxxBinder`
 - 生成文件：`XxxBinder.g.cs`
 
-下方早期记录里若出现 `Bindable*`、`Tools/Binding`、`Tools/Data Binding`、`Generated/Binding`、`XxxBinding` 等旧名，应按本节为准。
+下方早期记录里若出现 `Bindable*`、`Tools/Binding`、`Tools/Data Binding`、`Generated/Binding`、`XxxBinding` 或旧格式化 Attribute 设想，应按本节为准。
 
 时间：2026-06-30
 项目路径：`E:\WorkSpace\TEngine\UnityProject`
@@ -77,7 +77,6 @@
 ```csharp
 [BindableModel]
 [BindIgnore]
-[BindFormat("...")]
 [BindTolerance(float)]
 [BindSignal]
 ```
@@ -86,7 +85,6 @@
 
 - `[BindableModel]`：标记一个普通 class/struct，需要生成对应 `XxxBinding`。
 - `[BindIgnore]`：跳过某个 public field/property。
-- `[BindFormat("{0:F0} km/h")]`：把源字段格式化成字符串，生成 `BindableProperty<string>`。
 - `[BindTolerance(0.01f)]`：给 float、double、Vector2、Vector3、Vector4、Quaternion 等高频数值加容差比较。
 - `[BindSignal]`：把 bool 字段/属性生成为 `BindableSignal`。
 
@@ -235,7 +233,6 @@ _scope.Dispose();
 - public field 默认生成 `BindableProperty<T>`。
 - public property 默认生成 `BindableProperty<T>`，要求有 public getter，忽略 indexer。
 - `[BindIgnore]` 跳过。
-- `[BindFormat]` 生成 `BindableProperty<string>`。
 - `[BindTolerance]` 生成 `SetDirty(value, comparer)`。
 - `[BindSignal]` 只支持 bool，生成 `BindableSignal`。
 
@@ -267,10 +264,8 @@ namespace GameLogic
     [BindableModel]
     public class DroneNormalData
     {
-        [BindFormat("{0:F0} km/h")]
         public float speed;
 
-        [BindFormat("{0:F1} m")]
         public float distance;
 
         [BindTolerance(0.01f)]
@@ -297,8 +292,8 @@ namespace GameLogic
 ```csharp
 public sealed class DroneNormalDataBinding
 {
-    public BindableProperty<string> speed { get; } = new BindableProperty<string>();
-    public BindableProperty<string> distance { get; } = new BindableProperty<string>();
+    public BindableProperty<float> speed { get; } = new BindableProperty<float>();
+    public BindableProperty<float> distance { get; } = new BindableProperty<float>();
     public BindableProperty<float> power { get; } = new BindableProperty<float>();
     public BindableProperty<Vector3> position { get; } = new BindableProperty<Vector3>();
     public BindableSignal resetButtonDown { get; } = new BindableSignal();
@@ -312,8 +307,8 @@ public sealed class DroneNormalDataBinding
             return;
         }
 
-        speed.SetDirty(string.Format(CultureInfo.InvariantCulture, "{0:F0} km/h", data.speed));
-        distance.SetDirty(string.Format(CultureInfo.InvariantCulture, "{0:F1} m", data.distance));
+        speed.SetDirty(data.speed);
+        distance.SetDirty(data.distance);
         power.SetDirty(data.power, (oldValue, newValue) => BindableComparison.AreEqual(oldValue, newValue, 0.01f));
         position.SetDirty(data.position, (oldValue, newValue) => BindableComparison.AreEqual(oldValue, newValue, 0.01f));
 
@@ -489,7 +484,6 @@ git -c safe.directory=E:/WorkSpace/TEngine -C E:\WorkSpace\TEngine diff --check 
 再按字段加：
 
 ```csharp
-[BindFormat]
 [BindTolerance]
 [BindSignal]
 [BindIgnore]
@@ -501,32 +495,17 @@ git -c safe.directory=E:/WorkSpace/TEngine -C E:\WorkSpace\TEngine diff --check 
 
 检查生成文件是否符合预期。
 
-### 第二优先级：确认格式化字段策略
+### 第二优先级：确认展示格式策略
 
 用户贴过的 `DroneDataBinding` 里有这些字段：
 
-- `speed` 原始是 float，但绑定成 string：`"{speed:F0} km/h"`
-- `distance` 原始是 float，但绑定成 string：`"{distance:F1} m"`
-- `horizontalSpeed` 原始是 float，但绑定成 string：`"{horizontalSpeed:F1} km/h"`
-- `verticalSpeed` 原始是 float，但绑定成 string：`"{verticalSpeed:F1} km/h"`
-- `coordinate` 原始是 Vector2，但绑定成 string：`"{x:F5} N ，{y:F5} E"`
+- `speed` 原始是 float，UI 可展示为 `"{speed:F0} km/h"`。
+- `distance` 原始是 float，UI 可展示为 `"{distance:F1} m"`。
+- `horizontalSpeed` 原始是 float，UI 可展示为 `"{horizontalSpeed:F1} km/h"`。
+- `verticalSpeed` 原始是 float，UI 可展示为 `"{verticalSpeed:F1} km/h"`。
+- `coordinate` 原始是 Vector2，UI 可展示为 `"{x:F5} N ，{y:F5} E"`。
 
-当前 `[BindFormat]` 只支持单字段格式，即：
-
-```csharp
-[BindFormat("{0:F0} km/h")]
-public float speed;
-```
-
-对 `coordinate` 这种一个字段拆两个分量的格式，当前还不够优雅。
-
-后续可能需要新增：
-
-```csharp
-[BindExpression("...")]
-```
-
-或更保守地允许手写 partial 扩展。
+当前结论：生成器不处理展示格式，普通字段保留源类型；单位、精度和跨字段组合显示放到订阅方、UI 适配层或手写 partial 中处理。
 
 ### 第三优先级：生成器是否支持私有字段
 

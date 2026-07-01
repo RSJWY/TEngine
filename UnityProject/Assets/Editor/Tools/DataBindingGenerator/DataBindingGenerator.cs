@@ -5,8 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using GameLogic;
 using UnityEditor;
+using UnityEditor.Compilation;
 using UnityEngine;
 
 namespace GameLogic.Editor.Tools.DataBinding
@@ -149,10 +151,10 @@ namespace GameLogic.Editor.Tools.DataBinding
                     $"{modelType.Name}Binder",
                     members.Count,
                     members.Count(member => member.IsSignal),
-                    members.Count(member => member.Format != null),
                     members.Count(member => member.Tolerance.HasValue),
                     outputPath,
-                    File.Exists(outputPath)));
+                    File.Exists(outputPath),
+                    ResolveSourceFile(modelType)));
             }
 
             return infos;
@@ -172,21 +174,10 @@ namespace GameLogic.Editor.Tools.DataBinding
             int deletedCount = 0;
             foreach (string filePath in Directory.GetFiles(outputDirectory, "*Binder.g.cs", SearchOption.TopDirectoryOnly))
             {
-                string content = File.ReadAllText(filePath, Encoding.UTF8);
-                if (!content.Contains(GeneratedHeader))
+                if (TryDeleteGeneratedFile(filePath))
                 {
-                    continue;
+                    deletedCount++;
                 }
-
-                File.Delete(filePath);
-
-                string metaPath = $"{filePath}.meta";
-                if (File.Exists(metaPath))
-                {
-                    File.Delete(metaPath);
-                }
-
-                deletedCount++;
             }
 
             if (deletedCount > 0 && refreshAssetDatabase)
@@ -195,6 +186,45 @@ namespace GameLogic.Editor.Tools.DataBinding
             }
 
             return deletedCount;
+        }
+
+        /// <summary>
+        /// 清理指定 Binder 生成文件。只有包含本生成器头标记的文件才会被删除。
+        /// </summary>
+        public static bool CleanGeneratedFile(string outputPath, bool refreshAssetDatabase = true)
+        {
+            outputPath = NormalizeAssetPath(outputPath);
+            bool deleted = TryDeleteGeneratedFile(outputPath);
+            if (deleted && refreshAssetDatabase)
+            {
+                AssetDatabase.Refresh();
+            }
+
+            return deleted;
+        }
+
+        private static bool TryDeleteGeneratedFile(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            {
+                return false;
+            }
+
+            string content = File.ReadAllText(filePath, Encoding.UTF8);
+            if (!content.Contains(GeneratedHeader))
+            {
+                return false;
+            }
+
+            File.Delete(filePath);
+
+            string metaPath = $"{filePath}.meta";
+            if (File.Exists(metaPath))
+            {
+                File.Delete(metaPath);
+            }
+
+            return true;
         }
 
         private static GenerateModelResult GenerateModel(Type modelType, string outputDirectory)
@@ -258,7 +288,6 @@ namespace GameLogic.Editor.Tools.DataBinding
             MemberInfo memberInfo)
         {
             DataBindSignalAttribute signalAttribute = memberInfo.GetCustomAttribute<DataBindSignalAttribute>();
-            DataBindFormatAttribute formatAttribute = memberInfo.GetCustomAttribute<DataBindFormatAttribute>();
             DataBindToleranceAttribute toleranceAttribute = memberInfo.GetCustomAttribute<DataBindToleranceAttribute>();
 
             if (signalAttribute != null)
@@ -273,8 +302,7 @@ namespace GameLogic.Editor.Tools.DataBinding
                 return;
             }
 
-            Type bindingType = formatAttribute != null ? typeof(string) : sourceType;
-            members.Add(new BindMember(name, sourceType, bindingType, accessExpression, formatAttribute?.Format, toleranceAttribute?.Tolerance));
+            members.Add(new BindMember(name, sourceType, sourceType, accessExpression, toleranceAttribute?.Tolerance));
         }
 
         private static string BuildCode(Type modelType, IReadOnlyList<BindMember> members)
@@ -399,9 +427,7 @@ namespace GameLogic.Editor.Tools.DataBinding
                 return;
             }
 
-            string valueExpression = member.Format == null
-                ? member.AccessExpression
-                : $"string.Format(global::System.Globalization.CultureInfo.InvariantCulture, {ToLiteral(member.Format)}, {member.AccessExpression})";
+            string valueExpression = member.AccessExpression;
 
             if (member.Tolerance.HasValue)
             {
@@ -513,24 +539,112 @@ namespace GameLogic.Editor.Tools.DataBinding
                 : path.Replace('\\', '/').TrimEnd('/');
         }
 
-        private static string ToLiteral(string value)
+        /// <summary>
+        /// 通过 MonoScript 反查数据模型类型的定义源文件路径（仅编辑器用于导航）。
+        /// </summary>
+        private static string ResolveSourceFile(Type modelType)
         {
-            return "\"" + value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n") + "\"";
+            string monoScriptPath = ResolveSourceFileByMonoScript(modelType);
+            if (!string.IsNullOrEmpty(monoScriptPath))
+            {
+                return monoScriptPath;
+            }
+
+            string sourceFilePath = ResolveSourceFileByCompilation(modelType);
+            return sourceFilePath ?? string.Empty;
+        }
+
+        private static string ResolveSourceFileByMonoScript(Type modelType)
+        {
+            foreach (string guid in AssetDatabase.FindAssets($"{modelType.Name} t:MonoScript"))
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                MonoScript script = AssetDatabase.LoadAssetAtPath<MonoScript>(assetPath);
+                if (script != null && script.GetClass() == modelType)
+                {
+                    return assetPath;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string ResolveSourceFileByCompilation(Type modelType)
+        {
+            string assemblyName = modelType.Assembly.GetName().Name;
+            string typeName = GetSourceTypeName(modelType);
+            string namespaceName = modelType.Namespace;
+
+            foreach (UnityEditor.Compilation.Assembly assembly in CompilationPipeline.GetAssemblies())
+            {
+                if (!string.Equals(Path.GetFileNameWithoutExtension(assembly.outputPath), assemblyName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                foreach (string sourceFile in assembly.sourceFiles)
+                {
+                    if (!File.Exists(sourceFile))
+                    {
+                        continue;
+                    }
+
+                    string content = File.ReadAllText(sourceFile, Encoding.UTF8);
+                    if (!ContainsTypeDeclaration(content, typeName))
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(namespaceName) && !ContainsNamespaceDeclaration(content, namespaceName))
+                    {
+                        continue;
+                    }
+
+                    return ToAssetPath(sourceFile);
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string GetSourceTypeName(Type type)
+        {
+            return type.Name.Split('`')[0];
+        }
+
+        private static bool ContainsTypeDeclaration(string content, string typeName)
+        {
+            string escapedTypeName = Regex.Escape(typeName);
+            return Regex.IsMatch(content, $@"\b(class|struct|record)\s+{escapedTypeName}\b");
+        }
+
+        private static bool ContainsNamespaceDeclaration(string content, string namespaceName)
+        {
+            string escapedNamespace = Regex.Escape(namespaceName);
+            return Regex.IsMatch(content, $@"\bnamespace\s+{escapedNamespace}\b");
+        }
+
+        private static string ToAssetPath(string filePath)
+        {
+            string normalizedPath = Path.GetFullPath(filePath).Replace('\\', '/');
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..")).Replace('\\', '/').TrimEnd('/');
+
+            if (normalizedPath.StartsWith(projectRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                return normalizedPath.Substring(projectRoot.Length).TrimStart('/');
+            }
+
+            return normalizedPath;
         }
 
         private sealed class BindMember
         {
-            public BindMember(string name, Type sourceType, Type bindingType, string accessExpression, string format, float? tolerance)
+            public BindMember(string name, Type sourceType, Type bindingType, string accessExpression, float? tolerance)
             {
                 Name = name;
                 SourceType = sourceType;
                 BindingType = bindingType;
                 AccessExpression = accessExpression;
-                Format = format;
                 Tolerance = tolerance;
             }
 
@@ -542,15 +656,13 @@ namespace GameLogic.Editor.Tools.DataBinding
 
             public string AccessExpression { get; }
 
-            public string Format { get; }
-
             public float? Tolerance { get; }
 
             public bool IsSignal { get; private set; }
 
             public static BindMember Signal(string name, string accessExpression)
             {
-                return new BindMember(name, typeof(bool), typeof(void), accessExpression, null, null)
+                return new BindMember(name, typeof(bool), typeof(void), accessExpression, null)
                 {
                     IsSignal = true
                 };
@@ -564,19 +676,19 @@ namespace GameLogic.Editor.Tools.DataBinding
                 string binderType,
                 int memberCount,
                 int signalCount,
-                int formattedCount,
                 int toleranceCount,
                 string outputPath,
-                bool generatedFileExists)
+                bool generatedFileExists,
+                string sourceFile)
             {
                 ModelType = modelType;
                 BinderType = binderType;
                 MemberCount = memberCount;
                 SignalCount = signalCount;
-                FormattedCount = formattedCount;
                 ToleranceCount = toleranceCount;
                 OutputPath = outputPath;
                 GeneratedFileExists = generatedFileExists;
+                SourceFile = sourceFile;
             }
 
             public string ModelType { get; }
@@ -587,13 +699,13 @@ namespace GameLogic.Editor.Tools.DataBinding
 
             public int SignalCount { get; }
 
-            public int FormattedCount { get; }
-
             public int ToleranceCount { get; }
 
             public string OutputPath { get; }
 
             public bool GeneratedFileExists { get; }
+
+            public string SourceFile { get; }
         }
 
         public sealed class GenerateResult

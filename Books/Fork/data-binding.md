@@ -9,10 +9,11 @@
 ### 改动摘要
 
 - 新增 `DataBindingProperty<T>`、`DataBindingSignal`、`DataBindingScope` 和 `DataBindingComparison`，提供值订阅、一次性信号、订阅生命周期管理和容差比较。
-- 新增 `[DataBindingModel]`、`[DataBindIgnore]`、`[DataBindFormat]`、`[DataBindTolerance]`、`[DataBindSignal]`，用普通数据类型声明生成规则。
+- 新增 `[DataBindingModel]`、`[DataBindIgnore]`、`[DataBindTolerance]`、`[DataBindSignal]`，用普通数据类型声明生成规则。
 - 新增 Editor 生成器，扫描带 `[DataBindingModel]` 的类型并生成 `XxxBinder.g.cs` 到 `Assets/GameScripts/HotFix/GameLogic/Generated/DataBinding/`。
 - 新增 Unity 菜单 `Tools/数据绑定/生成` 和 Odin 面板 `Tools/数据绑定/生成器面板`。
 - 生成类提供 `SyncFrom(data)`、`SyncAndFlush(data)` 和 `Flush()`；高频字段可先 `SetDirty()` 再统一 `Flush()`。
+- 绑定层只同步源字段原值，普通成员按源类型生成 `DataBindingProperty<T>`；展示格式由订阅方或 UI 层自行处理。
 - 生成类的公开同步函数会带 XML 注释，便于 IDE 中查看行为说明。
 - Odin 面板的模型列表支持对单个模型执行“重新生成”，不必每次全量生成。
 - 明确保持独立：不接管任何 UI 生命周期，不依赖 `UIWindow`、`UIWidget` 或 `GameEvent`。
@@ -27,7 +28,6 @@ namespace GameLogic
     [DataBindingModel]
     public class DroneNormalData
     {
-        [DataBindFormat("{0:F0} km/h")]
         public float speed;
 
         [DataBindTolerance(0.01f)]
@@ -92,9 +92,8 @@ public void OnDataChanged(DroneNormalData data)
 ```csharp
 public void UpdateSpeed(float newSpeed)
 {
-    // 单独更新速度字段（格式化）
-    string formatted = string.Format(CultureInfo.InvariantCulture, "{0:F0} km/h", newSpeed);
-    _binder.speed.SetDirty(formatted);
+    // 单独更新速度字段
+    _binder.speed.SetDirty(newSpeed);
     _binder.Flush();
 }
 
@@ -111,8 +110,7 @@ public void Update()
     // 每帧只更新变化的字段
     if (_drone.speedChanged)
     {
-        string formatted = string.Format(CultureInfo.InvariantCulture, "{0:F0} km/h", _drone.speed);
-        _binder.speed.SetDirty(formatted);
+        _binder.speed.SetDirty(_drone.speed);
     }
 
     if (_drone.powerChanged)
@@ -126,7 +124,7 @@ public void Update()
 }
 ```
 
-单字段更新可以避免遍历所有成员。生成的所有绑定属性都是 `public`，可以直接访问 `_binder.xxx.SetDirty(...)`。
+单字段更新可以避免遍历所有成员。生成的所有绑定属性都是 `public`，可以直接访问 `_binder.xxx.SetDirty(...)`。如果 UI 需要 `"{0:F0} km/h"` 这类展示文本，在订阅回调或具体 UI 适配层里格式化，不写回 binder。
 
 ### 特性说明
 
@@ -136,7 +134,6 @@ public void Update()
 | --- | --- | --- | --- |
 | `[DataBindingModel]` | class、struct | 声明这个普通数据类型需要生成 Binder。没有这个标记的类型不会被生成器扫描。 | 生成 `XxxBinder` 类，并为可绑定成员生成属性、`SyncFrom(data)`、`SyncAndFlush(data)` 和 `Flush()`。 |
 | `[DataBindIgnore]` | field、property | 排除不应该参与数据同步的成员，例如运行时缓存、临时对象、不可展示的内部状态。 | 生成器跳过该成员，不生成对应的 `DataBindingProperty<T>` 或 `DataBindingSignal`。 |
-| `[DataBindFormat("...")]` | field、property | 把原始字段按 `string.Format` 风格格式化成字符串，适合速度、距离、百分比等展示值。 | 生成 `DataBindingProperty<string>`，同步时写入 `string.Format(CultureInfo.InvariantCulture, format, value)` 的结果。 |
 | `[DataBindTolerance(value)]` | field、property | 给高频数值设置容差，避免 float、Vector、Quaternion 等微小抖动反复触发刷新。 | 生成的同步代码调用 `SetDirty(value, comparer)`，通过 `DataBindingComparison.AreEqual(oldValue, newValue, tolerance)` 判断是否真的变化。 |
 | `[DataBindSignal]` | bool field、bool property | 把 bool 边沿变化表达成一次性信号，适合按钮 down、重置、确认、触发类事件。 | 生成 `DataBindingSignal`。当数据从 `false` 变成 `true` 时 `Emit()` 一次，持续 `true` 不重复触发，回到 `false` 后允许下次再次触发。 |
 
@@ -146,7 +143,6 @@ public void Update()
 [DataBindingModel]
 public class DroneNormalData
 {
-    [DataBindFormat("{0:F0} km/h")]
     public float speed;
 
     [DataBindTolerance(0.01f)]
@@ -164,7 +160,7 @@ public class DroneNormalData
 
 - 当前生成器只扫描 public instance fields/properties，跳过 indexer 和 `[DataBindIgnore]` 成员。
 - `[DataBindSignal]` 只支持 bool，行为是 `false -> true` 时触发一次，持续 true 不重复触发，回到 false 后可再次触发。
-- `[DataBindFormat]` 目前是单字段格式化；跨字段组合显示建议先手写 partial/适配层，后续再评估表达式特性。
+- 生成器不提供格式化 Attribute，也不会把数值自动转成字符串；跨字段组合显示或单位文本应放在订阅方、UI 适配层或手写 partial 中。
 - 生成器不自动清理已不存在模型对应的旧文件；清理动作只删除带本生成器固定 header 的 `*Binder.g.cs`。
 - 这套机制是数据层工具，不应该反向知道具体 UI，也不应该替代已有 UI 生成器。
 
