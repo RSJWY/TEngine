@@ -213,6 +213,14 @@ namespace GameLogic
         /// <summary>阶段 1 加载追赶速度：平滑跟随 YooAsset 进度，避免跳变。值 1.0 表示 10%→90% 约需 0.8s。</summary>
         private const float LoadingSpeed = 1.0f;
 
+        /// <summary>阶段 1 停滞超时：真实进度已 >0 且连续无提升才判定异常，秒。
+        /// 取 60s 给大 bundle 串行解压留足时间（5s 固定超时会误杀大场景冷启动慢加载）。
+        /// 仅当 <c>_lastLoadProgress > 0</c> 才累计，冷启动解压期 progress 长期为 0 不计入停滞。</summary>
+        private const float Phase1StallTimeout = 60f;
+
+        /// <summary>阶段 1 绝对超时：总时长上限，防彻底卡死，秒。无论进度是否在爬升都兜底。</summary>
+        private const float Phase1AbsoluteTimeout = 180f;
+
         /// <summary>阶段 2 收尾动画时长（90%→100%），秒。</summary>
         private const float FinishDuration = 2f;
 
@@ -224,7 +232,9 @@ namespace GameLogic
 
         private float _holdAt100Time = 0f;           // 已在 100% 停留的累计时间
         private bool _sceneLoadComplete = false;     // 真实加载已完成（YooAsset 进度到 0.9）
-        private float _phase1ElapsedTime = 0f;       // 阶段 1 已持续时间（用于超时兜底）
+        private float _phase1ElapsedTime = 0f;       // 阶段 1 已持续时间（用于绝对超时兜底）
+        private float _lastLoadProgress = 0f;        // 最近一次 YooAsset 原始进度（用于停滞判定）
+        private float _phase1StallElapsed = 0f;      // 阶段 1 进度无提升累计时间（仅当真实进度已 >0 才累计）
 
         // ===== 防重标志 =====
         private bool _isSendLoadOver = false;        // 防重复激活场景 + 派发 OnSceneLoadOver（收尾阶段一次）
@@ -259,6 +269,11 @@ namespace GameLogic
 
                 case 1: // 阶段 1 加载（10%→90%）
                     _phase1ElapsedTime += dt;
+                    // 仅当真实进度已 >0 后才累计停滞时间（冷启动解压时 progress 可能长期停在 0，不能按停滞误杀）
+                    if (_lastLoadProgress > 0f && !_sceneLoadComplete)
+                    {
+                        _phase1StallElapsed += dt;
+                    }
                     _displayProgress = Mathf.MoveTowards(_displayProgress, _targetProgress, LoadingSpeed * dt);
 
                     if (_sceneLoadComplete && _displayProgress >= 0.89f)
@@ -275,9 +290,10 @@ namespace GameLogic
                             EnterFinishPhase();
                         }
                     }
-                    else if (_phase1ElapsedTime >= 5.0f) // 兜底：超时强制进入收尾
+                    else if ((_lastLoadProgress > 0f && _phase1StallElapsed >= Phase1StallTimeout)
+                             || _phase1ElapsedTime >= Phase1AbsoluteTimeout) // 兜底：停滞或绝对超时强制进入收尾
                     {
-                        Log.Warning($"[GameScene] 阶段 1→2（超时兜底）：已等待 {_phase1ElapsedTime:F1}s，强制进入收尾");
+                        Log.Warning($"[GameScene] 阶段 1→2（超时兜底）：scene={_sceneName}, elapsed={_phase1ElapsedTime:F1}s, stall={_phase1StallElapsed:F1}s, rawProgress={_lastLoadProgress:F3}, display={_displayProgress:F3}, complete={_sceneLoadComplete}，强制进入收尾");
                         EnterFinishPhase();
                     }
                     break;
@@ -363,6 +379,8 @@ namespace GameLogic
             _isFinished = false;
             _sceneLoadComplete = false;
             _phase1ElapsedTime = 0f;
+            _lastLoadProgress = 0f;
+            _phase1StallElapsed = 0f;
             _holdAt100Time = 0f;
             _isActive = true;
 
@@ -404,6 +422,13 @@ namespace GameLogic
             {
                 return;
             }
+
+            // 进度有实质提升（严格大于，YooAsset progress 基于字节数单调递增）时重置停滞计时
+            if (value > _lastLoadProgress)
+            {
+                _phase1StallElapsed = 0f;
+            }
+            _lastLoadProgress = value;
 
             _targetProgress = 0.10f + Mathf.Clamp01(value / 0.9f) * 0.80f;
 
