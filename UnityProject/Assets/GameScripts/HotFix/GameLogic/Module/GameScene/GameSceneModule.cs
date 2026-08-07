@@ -5,33 +5,10 @@ using UnityEngine.SceneManagement;
 
 namespace GameLogic
 {
-    /// <summary>
-    /// 场景类型枚举：与具体场景资源地址（YooAsset location）一一对应。
-    /// </summary>
-    /// <remarks>
-    /// Tips，往后追加，不要插入，以免顺序错误
-    /// 更新后前往<see cref="GameSceneModule.RecordScene"/>和<see cref="GameSceneModule.GetSceneName"/>做正反向查询更新
-    /// </remarks>
-    public enum SceneType
-    {
-        /// <summary>
-        /// 主场景（空，保留，未启用，仅仅做纯UI）
-        /// </summary>
-        MainScene
-    }
-
-    /// <summary>
-    /// 场景名
-    /// </summary>
-    /// <remarks>
-    /// 场景资源地址常量：与 SceneType 枚举一一对应，修改需同步。
-    /// 更新后前往<see cref="GameSceneModule.RecordScene"/>和<see cref="GameSceneModule.GetSceneName"/>做正反向查询更新
-    /// </remarks>
-    public static class SceneConstName
-    {
-        public const string MainSceneName = "MainScene";
-
-    }
+    // SceneType 枚举、SceneConstName 常量、SceneTypeMapping 双向映射已移至自动生成文件：
+    // SceneType.g.cs / SceneConstName.g.cs / SceneTypeMapping.g.cs
+    // 由 Assets/Editor/SceneTools/SceneEnumGenerator/SceneEnumConfig.asset 生成，勿手改。
+    // 新增/删除/改名场景请通过该配置工具同步，无需手动维护本文件。
 
     /// <summary>
     /// 场景数据与跳转模块。
@@ -142,14 +119,12 @@ namespace GameLogic
         /// <returns>场景资源地址；未匹配返回空串。</returns>
         public string GetSceneName(SceneType sceneType)
         {
-            switch (sceneType)
+            string name = SceneTypeMapping.GetSceneName(sceneType);
+            if (string.IsNullOrEmpty(name))
             {
-                case SceneType.MainScene:
-                    return SceneConstName.MainSceneName;
-                default:
-                    Log.Error($"SceneType:[{sceneType}]未匹配资源地址");
-                    return string.Empty;
+                Log.Error($"SceneType:[{sceneType}]未匹配资源地址");
             }
+            return name;
         }
 
         /// <summary>
@@ -170,16 +145,13 @@ namespace GameLogic
                 return null;
             }
 
-            // 优先匹配实际资源名
-            if (sceneName == SceneConstName.MainSceneName)
-                return SceneType.MainScene;
-
-            // 尝试解析枚举名（用于回放文件名格式：Replay_FlyTest_20260622.replay）
-            if (System.Enum.TryParse<SceneType>(sceneName, true, out SceneType sceneType))
-                return sceneType;
-
-            Log.Error($"场景名:[{sceneName}]未匹配任何 SceneType");
-            return null;
+            // 由 SceneTypeMapping 统一查询：同时匹配资源地址与枚举名（枚举名用于回放文件名格式 Replay_FlyTest_20260622.replay）
+            SceneType? result = SceneTypeMapping.GetSceneTypeFromName(sceneName);
+            if (result == null)
+            {
+                Log.Error($"场景名:[{sceneName}]未匹配任何 SceneType");
+            }
+            return result;
         }
 
         #region 场景加载进度控制（三段式状态机）
