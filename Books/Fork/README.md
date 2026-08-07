@@ -28,6 +28,7 @@
 - 运行时配置已通用化为 `RuntimeConfigModule`，默认使用 TOML 清单和轻量 TOML 配置，同时保留 JSON 混用能力。
 - 热更新和资源打包侧补强 CodePackage、AOT 元数据清单校验、按包构建管线和打包工具体验。
 - 场景系统将加载进度状态机从 UI 下沉到 `GameSceneModule`，DynamicSpawn 示例脚本通用化，阶段 1 超时改为双门槛（停滞 60s + 绝对 180s）修复大场景冷启动误杀。
+- 场景系统新增 `SceneEnumConfig` 自动生成工具，扫描场景资源生成 `SceneType`/`SceneConstName`/`SceneTypeMapping`，免去手工同步枚举/常量/映射。
 - Windows Standalone 新增 `ScreenModule`，用于控制窗口位置、尺寸、置顶和无边框。
 
 ## 维护规则
