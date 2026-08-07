@@ -25,8 +25,22 @@ namespace TEngine.SceneTools
                 return;
             }
 
-            string folder = string.IsNullOrEmpty(config.SceneFolder) ? SceneEnumConfig.DefaultSceneFolder : config.SceneFolder;
-            List<SceneInfo> dirScenes = ScanScenes(folder);
+            // 优先从 YooAsset 配置读 Scenes Group 收集目录（联动资源打包配置，避免脱节）
+            List<string> scanFolders = YooAssetCollectorReader.GetCollectPaths();
+            if (scanFolders.Count == 0)
+            {
+                string fallback = string.IsNullOrEmpty(config.SceneFolder) ? SceneEnumConfig.DefaultSceneFolder : config.SceneFolder;
+                scanFolders.Add(fallback);
+                Debug.LogWarning($"[场景枚举] 未找到 YooAsset Scenes Group 收集配置，回退使用：{fallback}");
+            }
+
+            List<SceneInfo> dirScenes = new List<SceneInfo>();
+            foreach (string f in scanFolders)
+            {
+                dirScenes.AddRange(ScanScenes(f));
+            }
+            Debug.Log($"[场景枚举] 扫描目录：{string.Join(", ", scanFolders)}，发现 {dirScenes.Count} 个场景");
+
             List<SceneEnumConfig.SceneEntry> entries = config.Scenes;
             HashSet<string> matchedGuids = new HashSet<string>();
 

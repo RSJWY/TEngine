@@ -60,6 +60,22 @@ namespace TEngine.SceneTools
                 return;
             }
 
+            // 规则3：校验场景在 YooAsset Scenes Group 收集范围内（打包后可加载）
+            List<string> collectPaths = YooAssetCollectorReader.GetCollectPaths();
+            if (collectPaths.Count > 0)
+            {
+                var notCollected = activeEntries
+                    .Where(e => !YooAssetCollectorReader.IsSceneCollected(AssetDatabase.GetAssetPath(e.SceneAsset)))
+                    .ToList();
+                if (notCollected.Count > 0)
+                {
+                    EditorUtility.DisplayDialog("生成失败",
+                        $"以下场景不在 YooAsset Scenes Group 收集范围内（打包后无法加载）：\n{string.Join("\n", notCollected.Select(e => $"{e.EnumName}（{AssetDatabase.GetAssetPath(e.SceneAsset)}）"))}",
+                        "确定");
+                    return;
+                }
+            }
+
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
             WriteFile(Path.Combine(outputFolder, "SceneType.g.cs"), BuildEnumSource(activeEntries, timestamp));

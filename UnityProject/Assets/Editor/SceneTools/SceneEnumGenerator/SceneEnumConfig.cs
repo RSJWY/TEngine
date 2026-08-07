@@ -22,6 +22,7 @@ namespace TEngine.SceneTools
         [FolderPath(RequireExistingPath = true)]
         [LabelText("场景资源目录")]
         [OnValueChanged(nameof(OnFolderChanged))]
+        [InfoBox("同步时优先从 YooAsset Scenes Group 读取收集目录；读不到才回退到此目录。", InfoMessageType.Info)]
         public string SceneFolder = DefaultSceneFolder;
 
         [FolderPath(RequireExistingPath = true)]
