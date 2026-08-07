@@ -213,6 +213,9 @@ else if (_phase1ElapsedTime >= 5.0f) EnterFinishPhase();
   - `SceneTypeMapping.g.cs`：双向 `Dictionary` 映射（替代手写 `switch`/`if`）。
 - `GameSceneModule.cs` 删除内嵌的 `SceneType`/`SceneConstName`，`GetSceneName`/`GetSceneTypeFromName` 转发到 `SceneTypeMapping`；三段式进度等业务逻辑零改动。
 - 菜单 `TEngine > 场景枚举配置` 自动创建/打开配置资产（存于 `Assets/Resources/SceneEnumConfig.asset`）。
+- 同步时优先从 YooAsset `AssetBundleCollectorSetting` 的 Scenes Group 读取收集目录（联动资源打包配置，避免脱节），读不到回退到配置目录；支持多收集目录。
+- `AssetPostprocessor` 监听业务场景 `.unity` 增删改，Console 提示打开配置同步（不自动生成，避免偷偷改代码）。
+- 生成前校验每个场景在 YooAsset Scenes Group 收集范围内，不在则弹窗拦截（防止生成枚举但打包后加载找不到资源）。
 
 保持不变：
 
@@ -241,12 +244,15 @@ else if (_phase1ElapsedTime >= 5.0f) EnterFinishPhase();
 - **重复 key 防护**：`_fromName` 字典可能因"资源地址 == 枚举名"产生重复 key，生成器有三层防护--生成前校验 `EnumValue` 唯一、生成时资源地址等于枚举名则跳过 `nameof` 条目、`_fromName` 用静态构造函数 + 索引器赋值（覆盖不报错）。
 - 配置资产放 `Assets/Resources/`：该 ScriptableObject 引用 `SceneAsset`（Editor-only 类型），Player 构建时会入包但运行时类型不可用（产生 Missing Script 警告），仅 Editor 使用的配置不影响功能。如需规避可改放 `Assets/Editor/` 下。
 - 枚举名清洗规则：非法字符转 `_`，数字开头加 `_`，重名加 `_2` 后缀。建议场景文件名用英文合法标识符。
+- YooAsset 联动按 Group 名 `Scenes` 匹配（`YooAssetCollectorReader.DefaultScenesGroupName`）。若 YooAsset 场景分组改名，需同步修改该常量。
 
 ### 关键文件
 
 - `Assets/Editor/SceneTools/SceneEnumGenerator/SceneEnumConfig.cs`
 - `Assets/Editor/SceneTools/SceneEnumGenerator/SceneEnumSyncUtil.cs`
 - `Assets/Editor/SceneTools/SceneEnumGenerator/SceneEnumCodeGenerator.cs`
+- `Assets/Editor/SceneTools/SceneEnumGenerator/YooAssetCollectorReader.cs`
+- `Assets/Editor/SceneTools/SceneEnumGenerator/SceneEnumAssetPostprocessor.cs`
 - `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/SceneType.g.cs`（自动生成）
 - `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/SceneConstName.g.cs`（自动生成）
 - `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/SceneTypeMapping.g.cs`（自动生成）

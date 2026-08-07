@@ -6,6 +6,7 @@
 
 - 修复 `GameSceneModule` 阶段 1 固定 5s 超时误杀大场景冷启动慢加载：改为停滞超时 60s + 绝对超时 180s 双门槛，冷启动 progress=0 期间不累计停滞，超时日志补全排查字段。
 - 新增场景枚举自动生成工具 `SceneEnumConfig`：扫描场景资源自动生成 `SceneType`/`SceneConstName`/`SceneTypeMapping`，替代手工同步 4 处；GUID 追踪改名、枚举值顺序稳定、Odin 表格编辑，含重复 key 三层防护。
+- `SceneEnumConfig` 增强：同步目录联动 YooAsset Scenes Group（避免配置脱节）、场景增删改自动提示同步、生成前校验场景在收集范围内。
 
 ## 2026-07-01
 
