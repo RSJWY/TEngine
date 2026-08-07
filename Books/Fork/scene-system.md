@@ -143,3 +143,48 @@ SwitchUI.OnUpdate
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-06-30-switchui-scene-progress-refactor-summary.md`
+
+## 阶段 1 超时双门槛化（修复固定 5s 误杀大场景冷启动）
+
+### 背景
+
+`GameSceneModule` 阶段 1（真实加载 10%->90%）原用固定 5s 绝对超时兜底：
+
+```csharp
+else if (_phase1ElapsedTime >= 5.0f) EnterFinishPhase();
+```
+
+`suspendLoad=true` 时 YooAsset `progress` 正常最高到 0.9，大场景（约 90MB+）打包后首次冷启动（StreamingAssets 读盘/解压/依赖加载）经常超过 5s。5s 到期时 `_sceneLoadComplete` 仍为 false，超时兜底把"慢加载"误判成"卡死"，强制 `EnterFinishPhase` -> `UnSuspend`，可能在场景资源未加载到 0.9 时就激活场景。Editor 与二次进入（热缓存）往往正常，问题集中在打包后冷启动第一次。
+
+### 改动摘要
+
+- 删除固定 `5.0f` 绝对超时。
+- 新增停滞超时 `Phase1StallTimeout = 60f`：仅当 YooAsset 真实进度已 >0 且连续无提升才判定异常。
+- 新增绝对超时 `Phase1AbsoluteTimeout = 180f`：总时长兜底防彻底卡死。
+- 新增 `_lastLoadProgress` / `_phase1StallElapsed` 字段，`StartSceneLoad` 重置块一并置 0。
+- `OnLoadProgress` 记录原始进度，进度严格大于上次值时重置停滞计时（progress 基于字节数单调递增，慢速爬升算健康）。
+- 冷启动解压期 `progress` 长期为 0 时不累计停滞（`_lastLoadProgress > 0f` 守卫），避免误杀。
+- 超时日志补充 `scene/elapsed/stall/rawProgress/display/complete` 便于排查。
+- 修正 issue 方案伪代码 `if` 累加 / `else if` 判断互斥导致停滞超时永不触发的逻辑 bug：实际实现将停滞累计改为独立 `if`，超时判断放在 `if/else if` 链尾。
+
+保持不变：
+
+- `suspendLoad=true`、0.9 激活、阶段 2 收尾动画与 100% 停留。
+- 陷阱 2 规避：`OnLoadProgress` 在 `phase >= 2` 直接 return，保护收尾 `target=1.0` 不被打回 0.90。
+- 阶段 1 正常收尾条件 `_sceneLoadComplete && _displayProgress >= 0.89f`（显示进度平滑追赶等待）。
+- `_skipMode` 快速跳过分支。
+
+### 注意事项
+
+- `Phase1StallTimeout` / `Phase1AbsoluteTimeout` 为 `const`，如需按场景体积调参可改为可配置属性（参考 `SkipLoadingAnimation` 先例）。
+- "进度提升"判定用严格大于 `value > _lastLoadProgress`，不要用 `+0.001` 阈值，否则会漏掉合法小幅推进、加剧误杀。
+- 停滞累计是独立 `if`，必须在 `if/else if` 链之前，不能与超时判断放成 `if/else if` 互斥，否则停滞超时永不触发。
+
+### 关键文件
+
+- `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/GameSceneModule.cs`
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-07-scene-phase1-timeout-fix-summary.md`
+- GitHub Issue #1
