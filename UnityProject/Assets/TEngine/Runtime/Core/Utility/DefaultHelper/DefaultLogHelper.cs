@@ -88,16 +88,16 @@ namespace TEngine
                     _stringBuilder.AppendFormat("<color=#CFCFCF><b>[INFO] ► </b></color> - {0}", body);
                     break;
                 case ELogLevel.Assert:
-                    _stringBuilder.AppendFormat("<color=#FF00BD><b>[ASSERT] ► </b></color> - {0}", logString);
+                    _stringBuilder.AppendFormat("<color=#FF00BD><b>[ASSERT] ► </b></color> - {0}", body);
                     break;
                 case ELogLevel.Warning:
-                    _stringBuilder.AppendFormat("<color=#FF9400><b>[WARNING] ► </b></color> - {0}", logString);
+                    _stringBuilder.AppendFormat("<color=#FF9400><b>[WARNING] ► </b></color> - {0}", body);
                     break;
                 case ELogLevel.Error:
-                    _stringBuilder.AppendFormat("<color=red><b>[ERROR] ► </b></color>- {0}", logString);
+                    _stringBuilder.AppendFormat("<color=red><b>[ERROR] ► </b></color>- {0}", body);
                     break;
                 case ELogLevel.Exception:
-                    _stringBuilder.AppendFormat("<color=red><b>[EXCEPTION] ► </b></color> - {0}", logString);
+                    _stringBuilder.AppendFormat("<color=red><b>[EXCEPTION] ► </b></color> - {0}", body);
                     break;
             }
 
@@ -177,6 +177,7 @@ namespace TEngine
             }
 
             StringBuilder infoBuilder = GetFormatString(type, logString, true);
+            string logStr = infoBuilder.ToString();
             
             //获取C#堆栈,Warning以上级别日志才获取堆栈
             if (type == ELogLevel.Error || type == ELogLevel.Warning || type == ELogLevel.Exception)
@@ -193,7 +194,7 @@ namespace TEngine
                     infoBuilder.AppendFormat("[{0}::{1}\n", declaringTypeName, methodName);
                 }
             }
-            string logStr = infoBuilder.ToString();
+            
             switch (type)
             {
                 case ELogLevel.Info:
