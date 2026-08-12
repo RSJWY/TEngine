@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c170a1c2853de9c4ba9a86b7cb17752e, type: 3}
+  m_Name: SceneEnumConfig
+  m_EditorClassIdentifier: 
+  SceneFolder: Assets/AssetRaw/Scenes
+  OutputFolder: Assets/GameScripts/HotFix/GameLogic/Module/GameScene
+  Scenes:
+  - SceneAsset: {fileID: 102900000, guid: c48868a3ea4925547a6a5627f0693d1f, type: 3}
+    EnumValue: 0
+    SceneGuid: c48868a3ea4925547a6a5627f0693d1f
+    EnumName: MainScene
+    DisplayName: "\u4E3BUI\u5E38\u9A7B\u7A7A\u573A\u666F"
+    Active: 1
