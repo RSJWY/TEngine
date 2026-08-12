@@ -150,6 +150,27 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
+    - GroupName: Reference
+      GroupDesc: 
+      AssetTags: 
+      ActiveRuleName: EnableGroup
+      Collectors:
+      - CollectPath: Assets/AssetRaw/Reference/ReferenceActor
+        CollectorGUID: 760f3ac60d126ae4c8c0a1b237b8988d
+        CollectorType: 1
+        AddressRuleName: AddressDisable
+        PackRuleName: PackTopDirectory
+        FilterRuleName: CollectAll
+        AssetTags: 
+        UserData: 
+      - CollectPath: Assets/AssetRaw/Reference/ReferenceMaterials
+        CollectorGUID: df2c3211b1b157047bbf3bf75acfb336
+        CollectorType: 1
+        AddressRuleName: AddressDisable
+        PackRuleName: PackTopDirectory
+        FilterRuleName: CollectAll
+        AssetTags: 
+        UserData: 
   - PackageName: CodePackage
     PackageDesc: 
     EnableAddressable: 1
