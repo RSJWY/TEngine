@@ -146,7 +146,8 @@ public static class BuildDLLCommand
 #if ENABLE_HYBRIDCLR
         SyncAOTMetadataManifest();
         BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-        CompileDllCommand.CompileDll(target);
+        bool developmentBuild = Settings.UpdateSetting.IsDevelopmentBuild;
+        CompileDllCommand.CompileDll(target, developmentBuild);
         CopyAOTHotUpdateDlls(target);
 #endif
     }
@@ -155,7 +156,8 @@ public static class BuildDLLCommand
     {
 #if ENABLE_HYBRIDCLR
         SyncAOTMetadataManifest();
-        CompileDllCommand.CompileDll(target);
+        bool developmentBuild = Settings.UpdateSetting.IsDevelopmentBuild;
+        CompileDllCommand.CompileDll(target, developmentBuild);
         CopyAOTHotUpdateDlls(target);
 #endif
     }

@@ -188,6 +188,31 @@ namespace Procedure
 
                 SavePackageVersionData(procedureOwner, runtimePackage, selectedVersion);
                 Log.Info($"资源包清单更新完成：{runtimePackage.PackageName} => {selectedVersion}");
+
+                // 校验资源包模式与 exe 模式是否匹配
+                var package = YooAssets.GetPackage(runtimePackage.PackageName);
+                var packageNote = package.GetPackageNote();
+                if (!string.IsNullOrEmpty(packageNote))
+                {
+                    try
+                    {
+                        var metadata = JsonUtility.FromJson<TEngine.PackageMetadata>(packageNote);
+                        var exeBuildMode = Settings.UpdateSetting.BuildMode;
+                        if (metadata != null && !string.IsNullOrEmpty(metadata.mode) &&
+                            !string.Equals(metadata.mode, exeBuildMode, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string errorMessage = $"资源模式不匹配！\n\n包名：{runtimePackage.PackageName}\nExe 模式：{exeBuildMode}\n资源包模式：{metadata.mode}\n\n请使用匹配的资源包，或重新构建 Exe。";
+                            Log.Error(errorMessage);
+                            LauncherMgr.ShowMessageBox(errorMessage, Application.Quit);
+                            yield break;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        // PackageNote 格式错误或为旧版本（非 JSON），跳过校验
+                        Log.Warning($"PackageNote 解析失败，跳过模式校验：{e.Message}");
+                    }
+                }
             }
 
             _initResourcesComplete = true;

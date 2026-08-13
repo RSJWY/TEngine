@@ -180,6 +180,46 @@ namespace TEngine
 
         private static YooAsset.Editor.BuildResult BuildInternalWithConfig(BuildConfig config, RuntimePackageEntry runtimePackage, bool appendBuildinFiles)
         {
+            // pdb 残留检测（仅 release 模式且构建 CodePackage 时检查）
+            bool isReleaseMode = !Settings.UpdateSetting.IsDevelopmentBuild;
+            bool isCodePackage = IsAssemblyPackage(runtimePackage.PackageName);
+            if (isReleaseMode && isCodePackage)
+            {
+                string pdbDir = Settings.UpdateSetting.GetPdbAssemblyAssetPath();
+                if (Directory.Exists(pdbDir))
+                {
+                    var pdbFiles = Directory.GetFiles(pdbDir, "*.pdb.bytes", SearchOption.TopDirectoryOnly);
+                    if (pdbFiles.Length > 0)
+                    {
+                        string pdbList = string.Join("\n", pdbFiles.Select(Path.GetFileName));
+                        bool shouldContinue = EditorUtility.DisplayDialog(
+                            "检测到 pdb 调试符号文件",
+                            $"当前为 Release 模式，但在 PDB 目录检测到以下 pdb 文件：\n\n{pdbList}\n\npdb 文件会增大包体并泄露符号信息，不应打入正式包。\n\n是否清理这些文件并继续打包？",
+                            "清理并继续",
+                            "取消打包");
+
+                        if (!shouldContinue)
+                        {
+                            Debug.LogWarning("[打包中止] 用户取消打包以手动处理 pdb 文件。");
+                            return new YooAsset.Editor.BuildResult { Success = false };
+                        }
+
+                        // 清理 pdb
+                        foreach (var pdbFile in pdbFiles)
+                        {
+                            File.Delete(pdbFile);
+                            string metaFile = pdbFile + ".meta";
+                            if (File.Exists(metaFile))
+                            {
+                                File.Delete(metaFile);
+                            }
+                            Debug.Log($"[pdb清理] 已删除：{pdbFile}");
+                        }
+                        AssetDatabase.Refresh();
+                    }
+                }
+            }
+
             var buildPipeline = ResolveBuildPipeline(config, runtimePackage);
             Debug.Log($"开始构建 : {config.BuildTarget} - {runtimePackage.PackageName} - {buildPipeline}");
 
@@ -220,6 +260,7 @@ namespace TEngine
             buildParameters.BuildBundleType = GetBuildBundleType(buildPipeline);
             buildParameters.PackageName = runtimePackage.PackageName;
             buildParameters.PackageVersion = config.PackageVersion;
+            buildParameters.PackageNote = JsonUtility.ToJson(new PackageMetadata { mode = Settings.UpdateSetting.BuildMode });
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
             buildParameters.EnableSharePackRule = config.EnableSharePackRule;
             buildParameters.FileNameStyle = config.FileNameStyle;

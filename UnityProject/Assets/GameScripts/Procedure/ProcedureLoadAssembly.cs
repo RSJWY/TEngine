@@ -33,6 +33,7 @@ namespace Procedure
         private List<Assembly> _hotfixAssemblyList;
         private IFsm<IProcedureModule> _procedureOwner;
         private UpdateSetting _setting;
+        private readonly Dictionary<string, byte[]> _pdbBytesCache = new Dictionary<string, byte[]>();
 
         protected override void OnInit(IFsm<IProcedureModule> procedureOwner)
         {
@@ -76,6 +77,7 @@ namespace Procedure
             {
                 if (_setting.Enable)
                 {
+                    // 加载热更 dll
                     foreach (string hotUpdateDllName in _setting.HotUpdateAssemblies)
                     {
                         var assetLocation = hotUpdateDllName;
@@ -92,6 +94,19 @@ namespace Procedure
                         _loadAssetCount++;
                         var result = await _resourceModule.LoadAssetAsync<TextAsset>(assetLocation, default, _assemblyPackageName);
                         LoadAssetSuccess(result);
+                    }
+
+                    // 尝试加载 pdb（仅 dev 模式）
+                    if (_setting.IsDevelopmentBuild)
+                    {
+                        foreach (string hotUpdateDllName in _setting.HotUpdateAssemblies)
+                        {
+                            string pdbAssetName = Path.GetFileNameWithoutExtension(hotUpdateDllName) + ".pdb";
+                            Log.Debug($"LoadAsset (pdb): [ {pdbAssetName} ] from package [ {_assemblyPackageName} ]");
+                            _loadAssetCount++;
+                            var result = await _resourceModule.LoadAssetAsync<TextAsset>(pdbAssetName, default, _assemblyPackageName);
+                            LoadAssetSuccess(result);
+                        }
                     }
 
                     _loadAssemblyWait = true;
@@ -193,13 +208,35 @@ namespace Procedure
 
             try
             {
-                var assembly = Assembly.Load(textAsset.bytes);
+                // 判断是 pdb 还是 dll
+                if (assetName.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
+                {
+                    // 缓存 pdb 字节流（key = assembly 名，如 "GameLogic"）
+                    string assemblyName = Path.GetFileNameWithoutExtension(assetName);
+                    if (!_pdbBytesCache.ContainsKey(assemblyName))
+                    {
+                        _pdbBytesCache[assemblyName] = textAsset.bytes;
+                        Log.Debug($"PDB cached: [ {assemblyName} ]");
+                    }
+                    _resourceModule.UnloadAsset(textAsset);
+                    return;
+                }
+
+                // 加载 dll（尝试带 pdb）
+                string dllName = Path.GetFileNameWithoutExtension(assetName);
+                byte[] dllBytes = textAsset.bytes;
+                byte[] pdbBytes = _pdbBytesCache.ContainsKey(dllName) ? _pdbBytesCache[dllName] : null;
+
+                Assembly assembly = pdbBytes != null
+                    ? Assembly.Load(dllBytes, pdbBytes)  // 带 pdb 加载
+                    : Assembly.Load(dllBytes);           // 无 pdb 时回退单参数
+
                 if (string.Compare(_setting.LogicMainDllName, assetName, StringComparison.Ordinal) == 0)
                 {
                     _mainLogicAssembly = assembly;
                 }
                 _hotfixAssemblyList.Add(assembly);
-                Log.Debug($"Assembly [ {assembly.GetName().Name} ] loaded");
+                Log.Debug($"Assembly [ {assembly.GetName().Name} ] loaded{(pdbBytes != null ? " with PDB" : "")}");
             }
             catch (Exception e)
             {

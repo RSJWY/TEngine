@@ -6,6 +6,15 @@ using UnityEngine;
 namespace TEngine
 {
     /// <summary>
+    /// 资源包元数据（存储在 YooAsset PackageNote 中）
+    /// </summary>
+    [Serializable]
+    public class PackageMetadata
+    {
+        public string mode; // "dev" / "release"
+    }
+
+    /// <summary>
     /// 强制更新类型。
     /// </summary>
     public enum UpdateStyle
@@ -132,6 +141,26 @@ namespace TEngine
 #endif
             }
         }
+
+        /// <summary>
+        /// 当前构建是否为开发模式（由编译期宏 ENABLE_OBFUZ 决定：未开启混淆 = dev，开启 = release）
+        /// </summary>
+        public bool IsDevelopmentBuild
+        {
+            get
+            {
+#if !ENABLE_OBFUZ
+                return true;  // 未开混淆 = dev
+#else
+                return false; // 开了混淆 = release
+#endif
+            }
+        }
+
+        /// <summary>
+        /// 获取当前构建模式字符串（"dev" / "release"）
+        /// </summary>
+        public string BuildMode => IsDevelopmentBuild ? "dev" : "release";
 
         [Header("Auto sync with [HybridCLRGlobalSettings]")]
         public List<string> HotUpdateAssemblies = new List<string>() {"GameProto.dll", "GameLogic.dll" };
