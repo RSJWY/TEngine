@@ -107,7 +107,7 @@ XXTEA 解密为整包读入内存后 `AssetBundle.LoadFromMemory`，适合代码
 ### 改动摘要
 
 - 新增 `AOTMetadataManifest` ScriptableObject。
-- 新增 `Assets/AssetRaw/DLL/AOTMetadataManifest.asset`。
+- 新增 `Assets/AssetRaw/DLL/AOT/AOTMetadataManifest.asset`。
 - manifest 随 `CodePackage` 被 YooAsset 收集并热更。
 - 构建期 `BuildDLLCommand` 优先读取 manifest。
 - manifest 为空时回退 `UpdateSetting.AOTMetaAssemblies`。
@@ -118,10 +118,52 @@ XXTEA 解密为整包读入内存后 `AssetBundle.LoadFromMemory`，适合代码
 
 旧基础包无法直接享受该机制。需要先发一次包含新逻辑的基础包，后续才能通过 `CodePackage` 热更 manifest 与新增 AOT DLL。
 
+### 注意事项
+
+manifest 资产已从 `AssetRaw/DLL/` 根目录移至 `AssetRaw/DLL/AOT/` 子目录。编辑器构建期与运行时加载期均通过 `UpdateSetting.GetAOTMetadataManifestAssetPath()` 统一解析路径。
+
 ### 相关记录
 
 - `UnityProject/conversation-summaries/aot-metadata-manifest-hotfix-summary.md`
 - `UnityProject/conversation-summaries/AOTMetaAssemblies-summary.md`
+
+## CodePackage 三子目录拆分
+
+### 背景
+
+原 `CodePackage` 的 AOT dll、热更 dll、manifest 全部平铺在 `AssetRaw/DLL` 根目录，不便区分管理和后续 pdb 符号支持。将其拆分为 `AOT/`、`HotDll/`、`PDB/` 三个子目录。
+
+### 改动摘要
+
+- `UpdateSetting` 新增 `AOTAssemblySubPath`/`HotUpdateAssemblySubPath`/`PdbAssemblySubPath` 三个可配置子目录字段（默认 `AOT`/`HotDll`/`PDB`）。
+- 新增 `GetAOTAssemblyAssetPath()`/`GetHotUpdateAssemblyAssetPath()`/`GetPdbAssemblyAssetPath()`/`GetAOTMetadataManifestAssetPath()` 辅助方法，统一返回 `Assets/...` 资产路径。
+- `BuildDLLCommand` 拷贝目标改为对应子目录：AOT dll → `AOT/`，热更 dll → `HotDll/`。
+- manifest 路径改用 `UpdateSetting.GetAOTMetadataManifestAssetPath()`，指向 `AOT/` 子目录。
+- 新增 `CopyPdbToAssetPath()`：development 构建有 `.pdb` 时拷贝到 `PDB/*.pdb.bytes`，不存在则静默跳过。
+- Obfuz 分支拷贝目标同步改为 `HotDll/` 子目录。
+- YooAsset 收集器 `CodePackage` 拆为三分组（AOT/HotDll/PDB），各自收集对应子目录，`PackRule=PackGroup`。
+- `.gitignore` 扩展 `**/*.dll.bytes`、`**/*.pdb.bytes` 规则覆盖子目录。
+
+### 使用方式
+
+子目录名通过 `UpdateSetting.asset` 的 `AOTAssemblySubPath`/`HotUpdateAssemblySubPath`/`PdbAssemblySubPath` 字段配置，改字段值即可调整目录名，构建脚本和运行时路径自动适配。
+
+### 注意事项
+
+- 运行时 addressable 模式按文件名寻址，dll 移到子目录后无需改动运行时加载逻辑。
+- pdb 拷贝依赖 development 构建产物，非 development 构建时 PDB 目录为空。
+- `AOTMetadataManifest.asset` 必须位于 `AOT/` 子目录下，否则构建期找不到 manifest 会回退 `UpdateSetting.AOTMetaAssemblies`。
+
+### 关键文件
+
+- `Assets/TEngine/Runtime/Core/UpdateSetting.cs`
+- `Assets/TEngine/Editor/HybridCLR/BuildDLLCommand.cs`
+- `Assets/TEngine/Settings/UpdateSetting.asset`
+- `Assets/Editor/AssetBundleCollector/AssetBundleCollectorSetting.asset`
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-13-codepackage-three-subdir-dll-summary.md`
 
 ## AOT 元数据打包期校验
 
@@ -142,9 +184,9 @@ XXTEA 解密为整包读入内存后 `AssetBundle.LoadFromMemory`，适合代码
 
 ### 关键文件
 
-- `Assets/TEngine/Editor/ReleaseTools/BuildDLLCommand.cs`
+- `Assets/TEngine/Editor/HybridCLR/BuildDLLCommand.cs`
 - `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
-- `Assets/AssetRaw/DLL/AOTMetadataManifest.asset`
+- `Assets/AssetRaw/DLL/AOT/AOTMetadataManifest.asset`
 
 ## PlayerPrefs 版本记录清理工具
 

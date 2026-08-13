@@ -36,8 +36,14 @@
     </Group>
   </Package>
   <Package PackageName="CodePackage" PackageDesc="" AutoAddressable="True" SupportExtensionless="True" LocationToLower="False" IncludeAssetGUID="False" IgnoreRuleName="NormalIgnoreRule">
-    <Group GroupActiveRule="EnableGroup" GroupName="DLL" GroupDesc="" AssetTags="">
-      <Collector CollectPath="Assets/AssetRaw/DLL" CollectGUID="3aad79ec1ea08c24c891bd3c669d4125" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
+    <Group GroupActiveRule="EnableGroup" GroupName="AOT" GroupDesc="aotdll" AssetTags="">
+      <Collector CollectPath="Assets/AssetRaw/DLL/AOT" CollectGUID="daad56d8c5d0f2f4680a7320e3203182" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectAll" UserData="" AssetTags="" />
+    </Group>
+    <Group GroupActiveRule="EnableGroup" GroupName="HotDll" GroupDesc="" AssetTags="">
+      <Collector CollectPath="Assets/AssetRaw/DLL/HotDll" CollectGUID="7ced23d46eb69044bb8c10765c763d4d" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectAll" UserData="" AssetTags="" />
+    </Group>
+    <Group GroupActiveRule="EnableGroup" GroupName="PDB" GroupDesc="" AssetTags="">
+      <Collector CollectPath="Assets/AssetRaw/DLL/PDB" CollectGUID="129fef731ed71b942bd87c51f17c560e" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>
   </Package>
 </root>

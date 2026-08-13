@@ -154,6 +154,11 @@ namespace TEngine
         /// </summary>
         public string AssemblyTextAssetPath = "AssetRaw/DLL";
 
+        [Header("程序集子目录（相对 AssemblyTextAssetPath）")]
+        public string AOTAssemblySubPath = "AOT";
+        public string HotUpdateAssemblySubPath = "HotDll";
+        public string PdbAssemblySubPath = "PDB";
+
         /// <summary>
         /// 程序集文本资产资源包名
         /// </summary>
@@ -392,6 +397,30 @@ namespace TEngine
 
         private string GetConfiguredAssemblyPackageName()
             => string.IsNullOrWhiteSpace(AssemblyPackageName) ? "CodePackage" : AssemblyPackageName.Trim();
+
+        /// <summary>
+        /// 获取 AOT 程序集资产目录（Assets/ 开头的 Unity 资产路径）。
+        /// </summary>
+        public string GetAOTAssemblyAssetPath()
+            => Utility.Path.GetRegularPath(Path.Combine("Assets", AssemblyTextAssetPath, AOTAssemblySubPath));
+
+        /// <summary>
+        /// 获取热更程序集资产目录（Assets/ 开头的 Unity 资产路径）。
+        /// </summary>
+        public string GetHotUpdateAssemblyAssetPath()
+            => Utility.Path.GetRegularPath(Path.Combine("Assets", AssemblyTextAssetPath, HotUpdateAssemblySubPath));
+
+        /// <summary>
+        /// 获取 PDB 符号资产目录（Assets/ 开头的 Unity 资产路径）。
+        /// </summary>
+        public string GetPdbAssemblyAssetPath()
+            => Utility.Path.GetRegularPath(Path.Combine("Assets", AssemblyTextAssetPath, PdbAssemblySubPath));
+
+        /// <summary>
+        /// 获取 AOT 元数据清单资产路径（Assets/ 开头的 Unity 资产路径）。
+        /// </summary>
+        public string GetAOTMetadataManifestAssetPath()
+            => Utility.Path.GetRegularPath(Path.Combine(GetAOTAssemblyAssetPath(), $"{AOTMetadataManifest.ManifestAssetName}.asset"));
 
         private string GetDefaultVersionKey(string packageName, bool isAssemblyPackage)
         {

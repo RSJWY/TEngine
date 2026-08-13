@@ -180,7 +180,7 @@ public static class BuildDLLCommand
         {
             string srcDir = obfuscationRelativeAssemblyNames.Contains(assName) ? obfuscatedHotUpdateDllPath : hotUpdateDllPath;
             string srcFile = $"{srcDir}/{assName}.dll";
-            string dstFile = Application.dataPath +"/"+ TEngine.Settings.UpdateSetting.AssemblyTextAssetPath  + $"/{assName}.dll.bytes";
+            string dstFile = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.HotUpdateAssemblySubPath + $"/{assName}.dll.bytes";
             if (File.Exists(srcFile))
             {
                 File.Copy(srcFile, dstFile, true);
@@ -201,7 +201,7 @@ public static class BuildDLLCommand
     {
 #if ENABLE_HYBRIDCLR
         string aotAssembliesSrcDir = SettingsUtil.GetAssembliesPostIl2CppStripDir(target);
-        string aotAssembliesDstDir = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath;
+        string aotAssembliesDstDir = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.AOTAssemblySubPath;
         var resolvedAssemblies = GetResolvedAOTMetaAssemblies();
 
         Debug.Log($"[AOTMetadata] 开始拷贝AOT补充元数据DLL。Target:{target}, SrcDir:{aotAssembliesSrcDir}, DstDir:{aotAssembliesDstDir}, Count:{resolvedAssemblies.Count}");
@@ -295,7 +295,7 @@ public static class BuildDLLCommand
 
     private static string GetAOTMetadataManifestAssetPath()
     {
-        return $"Assets/{TEngine.Settings.UpdateSetting.AssemblyTextAssetPath}/{AOTMetadataManifest.ManifestAssetName}.asset";
+        return TEngine.Settings.UpdateSetting.GetAOTMetadataManifestAssetPath();
     }
 
     private static List<string> GetGeneratedPatchedAOTAssemblies()
@@ -360,7 +360,7 @@ public static class BuildDLLCommand
     {
 #if ENABLE_HYBRIDCLR
         string hotfixDllSrcDir = SettingsUtil.GetHotUpdateDllsOutputDirByTarget(target);
-        string hotfixAssembliesDstDir = Application.dataPath +"/"+ TEngine.Settings.UpdateSetting.AssemblyTextAssetPath;
+        string hotfixAssembliesDstDir = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.HotUpdateAssemblySubPath;
         foreach (var dll in SettingsUtil.HotUpdateAssemblyFilesExcludePreserved)
         {
             string dllPath = $"{hotfixDllSrcDir}/{dll}";
@@ -368,7 +368,30 @@ public static class BuildDLLCommand
             System.IO.File.Copy(dllPath, dllBytesPath, true);
             Debug.Log($"[拷贝热更新dll代码] copy hotfix dll {dllPath} -> {dllBytesPath}");
         }
+
+        CopyPdbToAssetPath(hotfixDllSrcDir, target);
 #endif
+    }
+
+    /// <summary>
+    /// 拷贝热更程序集的 pdb 符号文件到 PDB 子目录（仅 development 构建产物存在时）。
+    /// </summary>
+    private static void CopyPdbToAssetPath(string hotfixDllSrcDir, BuildTarget target)
+    {
+        string pdbDstDir = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.PdbAssemblySubPath;
+        foreach (var dll in SettingsUtil.HotUpdateAssemblyFilesExcludePreserved)
+        {
+            string assemblyName = Path.GetFileNameWithoutExtension(dll);
+            string pdbPath = $"{hotfixDllSrcDir}/{assemblyName}.pdb";
+            if (!File.Exists(pdbPath))
+            {
+                continue;
+            }
+
+            string pdbBytesPath = $"{pdbDstDir}/{assemblyName}.pdb.bytes";
+            File.Copy(pdbPath, pdbBytesPath, true);
+            Debug.Log($"[拷贝热更新pdb符号] copy pdb {pdbPath} -> {pdbBytesPath}");
+        }
     }
 }
 

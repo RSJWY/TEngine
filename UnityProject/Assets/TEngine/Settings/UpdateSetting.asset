@@ -27,6 +27,9 @@ MonoBehaviour:
   LogicMainDllName: GameLogic.dll
   AssemblyTextAssetExtension: .bytes
   AssemblyTextAssetPath: AssetRaw/DLL
+  AOTAssemblySubPath: AOT
+  HotUpdateAssemblySubPath: HotDll
+  PdbAssemblySubPath: PDB
   AssemblyPackageName: CodePackage
   RuntimePackages:
   - PackageName: DefaultPackage

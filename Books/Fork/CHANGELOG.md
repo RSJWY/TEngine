@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-13
+
+- `CodePackage` 资源目录拆分为 `AOT/`、`HotDll/`、`PDB/` 三子目录：`UpdateSetting` 新增可配置子路径字段，`BuildDLLCommand` 拷贝目标与 manifest 路径同步适配，新增 pdb 符号拷贝逻辑，YooAsset 收集器三分组各收集对应子目录，`.gitignore` 扩展忽略规则。
+
 ## 2026-08-07
 
 - 修复 `GameSceneModule` 阶段 1 固定 5s 超时误杀大场景冷启动慢加载：改为停滞超时 60s + 绝对超时 180s 双门槛，冷启动 progress=0 期间不累计停滞，超时日志补全排查字段。
