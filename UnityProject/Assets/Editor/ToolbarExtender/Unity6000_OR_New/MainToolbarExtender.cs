@@ -140,6 +140,7 @@ public class MainToolbarDropdownSceneSelector
 
     private static List<(string sceneName, string scenePath)> m_initScenes;
     private static List<(string sceneName, string scenePath)> m_defaultScenes;
+    private static List<(string sceneName, string scenePath)> m_configScenes;
     private static List<(string sceneName, string scenePath)> m_otherScenes;
 
     private static string initScenePath = "Assets/Scenes";
@@ -175,6 +176,7 @@ public class MainToolbarDropdownSceneSelector
     {
         var menu = new GenericMenu();
         AddScenesToMenu(m_initScenes, "初始化场景", menu);
+        AddScenesToMenu(m_configScenes, "注册场景", menu);
         AddScenesToMenu(m_defaultScenes, "默认场景", menu);
         AddScenesToMenu(m_otherScenes, "其他场景", menu);
         menu.DropDown(dropDownRect);
@@ -235,6 +237,7 @@ public class MainToolbarDropdownSceneSelector
     {
         m_initScenes = SceneSwitcher.GetScenesInPath(initScenePath);
         m_defaultScenes = SceneSwitcher.GetScenesInPath(defaultScenePath);
+        m_configScenes = SceneEnumConfigSceneSource.GetConfiguredScenes();
 
         List<(string sceneName, string scenePath)> allScenes = GetScenesInPath();
         m_otherScenes = new List<(string sceneName, string scenePath)>(allScenes);

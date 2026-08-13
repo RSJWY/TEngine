@@ -17,6 +17,7 @@ namespace TEngine
     {
         private static List<(string sceneName, string scenePath)> m_InitScenes;
         private static List<(string sceneName, string scenePath)> m_DefaultScenes;
+        private static List<(string sceneName, string scenePath)> m_ConfigScenes;
         private static List<(string sceneName, string scenePath)> m_OtherScenes;
 
         private static string initScenePath = "Assets/Scenes";
@@ -27,6 +28,7 @@ namespace TEngine
             // 获取初始化场景和默认场景
             m_InitScenes = SceneSwitcher.GetScenesInPath(initScenePath);
             m_DefaultScenes = SceneSwitcher.GetScenesInPath(defaultScenePath);
+            m_ConfigScenes = SceneEnumConfigSceneSource.GetConfiguredScenes();
 
             // 获取所有场景路径
             List<(string sceneName, string scenePath)> allScenes = SceneSwitcher.GetAllScenes();
@@ -42,7 +44,7 @@ namespace TEngine
         static void OnToolbarGUI_SceneSwitch()
         {
             // 如果没有场景，直接返回
-            if (m_InitScenes.Count == 0 && m_DefaultScenes.Count == 0 && m_OtherScenes.Count == 0)
+            if (m_InitScenes.Count == 0 && m_DefaultScenes.Count == 0 && m_ConfigScenes.Count == 0 && m_OtherScenes.Count == 0)
                 return;
 
             // 获取当前场景名称
@@ -61,6 +63,9 @@ namespace TEngine
 
             // 添加 "初始化路径" 下的场景按钮
             AddScenesToMenu(m_InitScenes, "初始化场景", menu);
+
+            // 添加 "注册场景"（来自 SceneEnumConfig 配置）
+            AddScenesToMenu(m_ConfigScenes, "注册场景", menu);
 
             // 添加 "默认路径" 下的场景按钮
             AddScenesToMenu(m_DefaultScenes, "默认场景", menu);
