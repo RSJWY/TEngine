@@ -19,7 +19,14 @@ commit提交时，以中文为主，英文为辅。如果用户让你写总结�
 
 本项目有时会在svn下使用，此时就不要死磕git相关功能。
 
-如果用户让你研究了某一项内容，一定要详细研究相关代码，必要时可使用联网搜索，并请及时记录你的研究结果落盘到"conversation-summaries/code-researc"目录下，并做好索引记录(足够简洁，仅仅记录关键词)
+如果用户让你研究了某一项内容，一定要详细研究相关代码，必要时可使用联网搜索，并请及时记录研究结果到 `conversation-summaries/code-research/` 目录下，并做好简洁的关键词索引记录。
+
+### 会话研究索引规则
+
+1. `conversation-summaries/code-research/` 是代码研究文档的唯一目录，不得创建 `code-researc` 等近似或拼写错误的并行目录。
+2. `conversation-summaries/code-research/INDEX.md` 是代码研究的唯一索引文件。禁止创建 `INDEX-YYYY-MM-DD.md`、`YYYY-MM-DD-INDEX.md` 或其他按日期拆分的索引文件。
+3. 新增研究文档时，必须先检查并更新现有 `INDEX.md`，按日期倒序追加条目；不得因当天新增研究而创建新的索引文件。
+4. 索引只记录文档链接、关键词和一句话结论，详细内容保留在对应研究文档中。
 
 ---
 
