@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-15
+
+- 接入 Obfuz 代码混淆（含 `obfuz4hybridclr` 扩展）：HybridCLR 与 Obfuz 转为 `Packages/` 本地包以解决双 dnlib 冲突（移除 HybridCLR 的 dnlib，全项目共用 Obfuz 定制 dnlib），新增 `Packages/sync-*-local` 一键同步脚本，支持指定版本、自动解析最新稳定 tag 和 gitee 镜像切换。
+
 ## 2026-08-13
 
 - `CodePackage` 资源目录拆分为 `AOT/`、`HotDll/`、`PDB/` 三子目录：`UpdateSetting` 新增可配置子路径字段，`BuildDLLCommand` 拷贝目标与 manifest 路径同步适配，新增 pdb 符号拷贝逻辑，YooAsset 收集器三分组各收集对应子目录，`.gitignore` 扩展忽略规则。

@@ -1,6 +1,8 @@
 {
   "dependencies": {
-    "com.code-philosophy.hybridclr": "https://gitee.com/focus-creative-games/hybridclr_unity.git",
+    "com.code-philosophy.hybridclr": "file:com.code-philosophy.hybridclr",
+    "com.code-philosophy.obfuz": "file:com.code-philosophy.obfuz",
+    "com.code-philosophy.obfuz4hybridclr": "https://github.com/focus-creative-games/obfuz4hybridclr.git",
     "com.cysharp.unitask.compatible": "2.3.1",
     "com.github-glitchenzo.nugetforunity": "4.5.0",
     "com.tuyoogame.yooasset": "2.3.19",

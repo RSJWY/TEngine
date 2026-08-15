@@ -20,6 +20,7 @@
 | 资源打包 | 按包构建、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
 | 场景系统 | DynamicSpawn 通用化、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
+| 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 | [obfuscation.md](obfuscation.md) |
 
 ## 最近重点
 
@@ -30,6 +31,7 @@
 - 场景系统将加载进度状态机从 UI 下沉到 `GameSceneModule`，DynamicSpawn 示例脚本通用化，阶段 1 超时改为双门槛（停滞 60s + 绝对 180s）修复大场景冷启动误杀。
 - 场景系统新增 `SceneEnumConfig` 自动生成工具，扫描场景资源生成 `SceneType`/`SceneConstName`/`SceneTypeMapping`，免去手工同步枚举/常量/映射。
 - Windows Standalone 新增 `ScreenModule`，用于控制窗口位置、尺寸、置顶和无边框。
+- 接入 Obfuz 代码混淆与 `obfuz4hybridclr`，HybridCLR/Obfuz 本地化解决 dnlib 冲突，配套一键同步脚本支持版本升级。
 
 ## 维护规则
 

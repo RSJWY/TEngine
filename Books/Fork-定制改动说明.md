@@ -19,6 +19,7 @@
 | 资源打包 | 按包构建、发布整理、打包工具 Odin 化 | [resource-build.md](Fork/resource-build.md) |
 | 场景系统 | DynamicSpawn 通用化、加载进度下沉到 `GameSceneModule` | [scene-system.md](Fork/scene-system.md) |
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 | [window-management.md](Fork/window-management.md) |
+| 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 | [obfuscation.md](Fork/obfuscation.md) |
 
 ## 维护规则
 
