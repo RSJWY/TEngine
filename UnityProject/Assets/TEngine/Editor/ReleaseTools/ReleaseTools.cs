@@ -180,10 +180,10 @@ namespace TEngine
 
         private static YooAsset.Editor.BuildResult BuildInternalWithConfig(BuildConfig config, RuntimePackageEntry runtimePackage, bool appendBuildinFiles)
         {
-            // pdb 残留检测（仅 release 模式且构建 CodePackage 时检查）
-            bool isReleaseMode = !Settings.UpdateSetting.IsDevelopmentBuild;
+            // pdb 残留检测（当前配置不生成 pdb 且构建 CodePackage 时检查：release 模式，或 dev 但 pdb 开关关闭）
+            bool pdbDisabled = !Settings.UpdateSetting.WillGeneratePdb;
             bool isCodePackage = IsAssemblyPackage(runtimePackage.PackageName);
-            if (isReleaseMode && isCodePackage)
+            if (pdbDisabled && isCodePackage)
             {
                 string pdbDir = Settings.UpdateSetting.GetPdbAssemblyAssetPath();
                 if (Directory.Exists(pdbDir))
@@ -194,7 +194,7 @@ namespace TEngine
                         string pdbList = string.Join("\n", pdbFiles.Select(Path.GetFileName));
                         bool shouldContinue = EditorUtility.DisplayDialog(
                             "检测到 pdb 调试符号文件",
-                            $"当前为 Release 模式，但在 PDB 目录检测到以下 pdb 文件：\n\n{pdbList}\n\npdb 文件会增大包体并泄露符号信息，不应打入正式包。\n\n是否清理这些文件并继续打包？",
+                            $"当前构建配置不会生成 pdb（release 模式或 pdb 开关已关闭），但在 PDB 目录检测到以下 pdb 残留文件：\n\n{pdbList}\n\npdb 文件会增大包体并泄露符号信息，不应打入此包。\n\n是否清理这些文件并继续打包？",
                             "清理并继续",
                             "取消打包");
 

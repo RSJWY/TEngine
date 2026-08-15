@@ -96,8 +96,8 @@ namespace Procedure
                         LoadAssetSuccess(result);
                     }
 
-                    // 尝试加载 pdb（仅 dev 模式）
-                    if (_setting.IsDevelopmentBuild)
+                    // 尝试加载 pdb（仅 dev 模式且 pdb 开关开启时；pdb 缺失时静默回退）
+                    if (_setting.WillGeneratePdb)
                     {
                         foreach (string hotUpdateDllName in _setting.HotUpdateAssemblies)
                         {

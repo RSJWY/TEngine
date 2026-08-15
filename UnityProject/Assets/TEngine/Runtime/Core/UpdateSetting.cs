@@ -143,16 +143,17 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 当前构建是否为开发模式（由编译期宏 ENABLE_OBFUZ 决定：未开启混淆 = dev，开启 = release）
+        /// 当前构建是否为开发模式（由编译期宏 ENABLE_RELEASE 决定：未定义 = dev，已定义 = release）。
+        /// 与 ENABLE_OBFUZ（混淆开关）完全解耦，两者可独立组合。
         /// </summary>
         public bool IsDevelopmentBuild
         {
             get
             {
-#if !ENABLE_OBFUZ
-                return true;  // 未开混淆 = dev
+#if ENABLE_RELEASE
+                return false; // release 模式：不生成/不加载 pdb
 #else
-                return false; // 开了混淆 = release
+                return true;  // dev 模式：pdb 有则加载
 #endif
             }
         }
@@ -161,6 +162,18 @@ namespace TEngine
         /// 获取当前构建模式字符串（"dev" / "release"）
         /// </summary>
         public string BuildMode => IsDevelopmentBuild ? "dev" : "release";
+
+        /// <summary>
+        /// dev 模式下是否生成/加载 pdb 调试符号（真机调试堆栈行号）。
+        /// 仅 dev 模式生效；release 模式强制不生成。Editor 序列化配置，切换不触发重编译。
+        /// </summary>
+        [Header("dev 模式生成 pdb 调试符号")]
+        public bool GeneratePdb = true;
+
+        /// <summary>
+        /// 当前配置实际是否会产出 pdb（dev 且 GeneratePdb 开启）。
+        /// </summary>
+        public bool WillGeneratePdb => IsDevelopmentBuild && GeneratePdb;
 
         [Header("Auto sync with [HybridCLRGlobalSettings]")]
         public List<string> HotUpdateAssemblies = new List<string>() {"GameProto.dll", "GameLogic.dll" };

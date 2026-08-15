@@ -20,6 +20,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.code-philosophy.obfuz",
+            "expression": "0.0.1",
+            "define": "OBFUZ_INSTALLED"
+        }
+    ],
     "noEngineReferences": false
 }

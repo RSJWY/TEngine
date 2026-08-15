@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-#if ENABLE_OBFUZ
+#if OBFUZ_INSTALLED
 using Obfuz.Settings;
 using Obfuz4HybridCLR;
 #endif
@@ -22,6 +22,7 @@ public static class BuildDLLCommand
 {
     private const string EnableHybridClrScriptingDefineSymbol = "ENABLE_HYBRIDCLR";
     private const string EnableObfuzScriptingDefineSymbol = "ENABLE_OBFUZ";
+    private const string EnableReleaseScriptingDefineSymbol = "ENABLE_RELEASE";
 
     #region HybridCLR/Define Symbols
     /// <summary>
@@ -63,30 +64,100 @@ public static class BuildDLLCommand
     }
     #endregion
     
-#if ENABLE_OBFUZ
+    #region 构建模式切换（菜单与 BuildModeWindow 共用）
+
+    /// <summary>当前是否为 release 模式（按当前编译平台 define 判定）。</summary>
+    public static bool IsReleaseModeActive =>
+        ScriptingDefineSymbols.HasScriptingDefineSymbol(EditorUserBuildSettings.selectedBuildTargetGroup, EnableReleaseScriptingDefineSymbol);
+
+    /// <summary>切换 dev/release 模式（全平台 define 同步）。</summary>
+    public static void SetReleaseMode(bool release)
+    {
+        if (release)
+        {
+            ScriptingDefineSymbols.AddScriptingDefineSymbol(EnableReleaseScriptingDefineSymbol);
+            Debug.Log("[BuildMode] 已切换到 release 模式（不生成/不加载 pdb，PackageNote=release）");
+        }
+        else
+        {
+            ScriptingDefineSymbols.RemoveScriptingDefineSymbol(EnableReleaseScriptingDefineSymbol);
+            Debug.Log("[BuildMode] 已切换到 dev 模式（pdb 有则加载，PackageNote=dev）");
+        }
+    }
+
+    /// <summary>dev 模式 pdb 开关的当前配置值（仅配置项；实际生效还需 dev 模式，见 UpdateSetting.WillGeneratePdb）。</summary>
+    public static bool IsPdbEnabled => Settings.UpdateSetting.GeneratePdb;
+
+    /// <summary>切换 dev 模式 pdb 生成开关（UpdateSetting 序列化配置，不触发重编译）。</summary>
+    public static void SetPdbEnabled(bool enable)
+    {
+        if (Settings.UpdateSetting.GeneratePdb == enable)
+        {
+            return;
+        }
+        Settings.UpdateSetting.GeneratePdb = enable;
+        EditorUtility.SetDirty(Settings.UpdateSetting);
+        AssetDatabase.SaveAssets();
+        Debug.Log(enable
+            ? "[BuildMode] 已开启 pdb 生成（dev 模式编译热更 dll 时产出 pdb）"
+            : "[BuildMode] 已关闭 pdb 生成");
+    }
+
+#if OBFUZ_INSTALLED
+    /// <summary>当前混淆开关状态（按当前编译平台 define 判定）。</summary>
+    public static bool IsObfuzActive =>
+        ScriptingDefineSymbols.HasScriptingDefineSymbol(EditorUserBuildSettings.selectedBuildTargetGroup, EnableObfuzScriptingDefineSymbol);
+
+    /// <summary>切换 Obfuz 混淆（全平台 define + ObfuzSettings.enable 同步）。</summary>
+    public static void SetObfuz(bool enable)
+    {
+        if (enable)
+        {
+            ScriptingDefineSymbols.RemoveScriptingDefineSymbol(EnableObfuzScriptingDefineSymbol);
+            ScriptingDefineSymbols.AddScriptingDefineSymbol(EnableObfuzScriptingDefineSymbol);
+            ObfuzSettings.Instance.buildPipelineSettings.enable = true;
+            Debug.Log("[BuildMode] 已开启 Obfuz 混淆");
+        }
+        else
+        {
+            ScriptingDefineSymbols.RemoveScriptingDefineSymbol(EnableObfuzScriptingDefineSymbol);
+            ObfuzSettings.Instance.buildPipelineSettings.enable = false;
+            Debug.Log("[BuildMode] 已关闭 Obfuz 混淆");
+        }
+    }
+#endif
+
+    #endregion
+
+#if OBFUZ_INSTALLED
     #region Obfuz/Define Symbols
     /// <summary>
     /// 禁用Obfuz宏定义。
     /// </summary>
     [MenuItem("Obfuz/Define Symbols/Disable Obfuz", false, 30)]
-    public static void DisableObfuz()
-    {
-        ScriptingDefineSymbols.RemoveScriptingDefineSymbol(EnableObfuzScriptingDefineSymbol);
-        ObfuzSettings.Instance.buildPipelineSettings.enable = false;
-    }
+    public static void DisableObfuz() => SetObfuz(false);
 
     /// <summary>
     /// 开启Obfuz宏定义。
     /// </summary>
     [MenuItem("Obfuz/Define Symbols/Enable Obfuz", false, 31)]
-    public static void EnableObfuz()
-    {
-        ScriptingDefineSymbols.RemoveScriptingDefineSymbol(EnableObfuzScriptingDefineSymbol);
-        ScriptingDefineSymbols.AddScriptingDefineSymbol(EnableObfuzScriptingDefineSymbol);
-        ObfuzSettings.Instance.buildPipelineSettings.enable = true;
-    }
+    public static void EnableObfuz() => SetObfuz(true);
     #endregion
 #endif
+
+    #region TEngine/Define Symbols
+    /// <summary>
+    /// 切换到 release 发布模式（不生成/不加载 pdb）。
+    /// </summary>
+    [MenuItem("TEngine/Define Symbols/Enable Release Mode", false, 40)]
+    public static void EnableReleaseMode() => SetReleaseMode(true);
+
+    /// <summary>
+    /// 切换到 dev 开发模式（pdb 有则加载）。
+    /// </summary>
+    [MenuItem("TEngine/Define Symbols/Disable Release Mode (dev)", false, 41)]
+    public static void DisableReleaseMode() => SetReleaseMode(false);
+    #endregion
 
     /// <summary>
     /// 同步 AOT 元数据清单：从 HybridCLR 生成的 AOTGenericReferences.PatchedAOTAssemblyList 更新 AOTMetadataManifest.asset。
@@ -146,7 +217,7 @@ public static class BuildDLLCommand
 #if ENABLE_HYBRIDCLR
         SyncAOTMetadataManifest();
         BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-        bool developmentBuild = Settings.UpdateSetting.IsDevelopmentBuild;
+        bool developmentBuild = Settings.UpdateSetting.WillGeneratePdb;
         CompileDllCommand.CompileDll(target, developmentBuild);
         CopyAOTHotUpdateDlls(target);
 #endif
@@ -156,7 +227,7 @@ public static class BuildDLLCommand
     {
 #if ENABLE_HYBRIDCLR
         SyncAOTMetadataManifest();
-        bool developmentBuild = Settings.UpdateSetting.IsDevelopmentBuild;
+        bool developmentBuild = Settings.UpdateSetting.WillGeneratePdb;
         CompileDllCommand.CompileDll(target, developmentBuild);
         CopyAOTHotUpdateDlls(target);
 #endif
@@ -168,7 +239,7 @@ public static class BuildDLLCommand
         CopyHotUpdateAssembliesToAssetPath(target);
 
 #if ENABLE_HYBRIDCLR && ENABLE_OBFUZ
-        CompileDllCommand.CompileDll(target);
+        CompileDllCommand.CompileDll(target, Settings.UpdateSetting.WillGeneratePdb);
 
         string obfuscatedHotUpdateDllPath = PrebuildCommandExt.GetObfuscatedHotUpdateAssemblyOutputPath(target);
         ObfuscateUtil.ObfuscateHotUpdateAssemblies(target, obfuscatedHotUpdateDllPath);

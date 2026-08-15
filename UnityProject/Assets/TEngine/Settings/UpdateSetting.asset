@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: UpdateSetting
   m_EditorClassIdentifier: 
   projectName: HotUpdateDemo
+  GeneratePdb: 0
   HotUpdateAssemblies:
   - GameProto.dll
   - GameLogic.dll
