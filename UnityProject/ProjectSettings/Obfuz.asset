@@ -16,18 +16,17 @@ MonoBehaviour:
     enable: 0
     linkXmlProcessCallbackOrder: 10000
     obfuscationProcessCallbackOrder: 10000
+  compatibilitySettings:
+    targetRuntime: 0
   assemblySettings:
     assembliesToObfuscate:
     - GameLogic
     - GameProto
-    nonObfuscatedButReferencingObfuscatedAssemblies:
-    - TEngine.Runtime
-    - Launcher
-    - Assembly-CSharp
+    nonObfuscatedButReferencingObfuscatedAssemblies: []
     additionalAssemblySearchPaths: []
     obfuscateObfuzRuntime: 1
   obfuscationPassSettings:
-    enabledPasses: -1
+    enabledPasses: -3
     ruleFiles: []
   secretSettings:
     defaultStaticSecretKey: Code Philosophy-Static

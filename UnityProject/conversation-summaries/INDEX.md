@@ -5,6 +5,9 @@
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
 ## 2026-08-16
+- [Obfuz 混淆配置窗口 ObfuzConfigWindow](./2026-08-16-obfuz-config-window-summary.md)
+  - 关键词：ObfuzConfigWindow、OdinEditorWindow、ObfuzSettings、健康检查、混淆通道预设、密钥/VM生成、OBFUZ_INSTALLED、TEngine/Build/混淆配置窗口
+  - 结论：新增 Odin 中文混淆配置窗口，直编 ProjectSettings/Obfuz.asset，含健康检查与预设。
 - [RuntimeConfigModule 加载容错与子目录配置名](./2026-08-16-runtime-config-fault-tolerance-summary.md)
   - 关键词：RuntimeConfigModule、LoadAllAsync、IsLoaded、单文件容错、跳过策略、NormalizeConfigName、子目录配置名、格式校验前置、Obfuz DTO 安全性
   - 结论：单文件失败不再中断整体加载，IsLoaded 改为流程完成语义；配置名保留子目录路径消除同名冲突。
