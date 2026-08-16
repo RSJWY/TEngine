@@ -306,6 +306,44 @@
         "\"_Color\"",
         "Standard"
       ]
+    },
+    {
+      "id": 19,
+      "name": "fsm-monster-ai",
+      "description": "验证 AI 能正确用 FsmModule 自建怪物 AI 状态机：GameModule.Fsm.CreateFsm 创建、状态继承 FsmState<T>、OnEnter 重置单实例字段、DestroyFsm 成对销毁，不直接 new Fsm 或在热更侧用 ModuleSystem.GetModule。",
+      "prompt": "我需要给怪物做一个 AI 状态机：待机 3 秒后巡逻，发现玩家进入追击，丢失目标回到待机。怪物类是 Monster。请用 TEngine 的状态机给出完整代码，包括创建和销毁。",
+      "expected_patterns": [
+        "GameModule.Fsm",
+        "CreateFsm",
+        "FsmState<Monster>",
+        "OnEnter",
+        "ChangeState<",
+        "DestroyFsm"
+      ],
+      "forbidden_patterns": [
+        "new Fsm<",
+        "ModuleSystem.GetModule<IFsmModule>",
+        "StartCoroutine",
+        "enum MonsterState"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "procedure-new-flow",
+      "description": "验证 AI 能正确新增启动流程：继承游戏侧 ProcedureBase、OnEnter 发起 UniTask 异步、异步回调里 ChangeState、提醒注册 ProcedureSetting.asset，不用 MonoBehaviour/Coroutine。",
+      "prompt": "我想在资源下载完成后加一个登录流程 ProcedureLogin，等账号服务返回结果，成功进入 Preload，失败弹窗重试。请按项目现有的 Procedure 写法给出完整代码。",
+      "expected_patterns": [
+        "ProcedureBase",
+        "OnEnter",
+        ".Forget()",
+        "ChangeState<",
+        "ProcedureSetting"
+      ],
+      "forbidden_patterns": [
+        "MonoBehaviour",
+        "StartCoroutine",
+        "TEngine.ProcedureBase"
+      ]
     }
   ]
 }

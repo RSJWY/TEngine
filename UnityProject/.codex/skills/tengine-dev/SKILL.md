@@ -1,6 +1,6 @@
 ---
 name: tengine-dev
-description: TEngine Unity 游戏框架开发指导。触发词：TEngine, UIWindow, UIWidget, GameEvent, AddUIEvent, LoadAssetAsync, SetSprite, HybridCLR, YooAsset, Luban, GameModule, 热更, 资源加载, UI开发, 事件系统, 配置表
+description: TEngine Unity 游戏框架开发指导。触发词：TEngine, UIWindow, UIWidget, GameEvent, AddUIEvent, LoadAssetAsync, SetSprite, HybridCLR, YooAsset, Luban, GameModule, 热更, 资源加载, UI开发, 事件系统, 配置表, 状态机, FSM, FsmModule, CreateFsm, Procedure, 启动流程
 ---
 
 # TEngine 开发指导
@@ -27,6 +27,7 @@ TEngine 是基于 HybridCLR + YooAsset + UniTask + Luban 的 Unity 游戏框架�
 | 资源加载 | [resource-api.md](references/resource-api.md) | [resource-patterns.md](references/resource-patterns.md) | P0 |
 | 模块使用 | [modules.md](references/modules.md) | — | P0 |
 | 热更代码 | [hotfix-workflow.md](references/hotfix-workflow.md) | — | P1 |
+| 状态机/流程 | [fsm-patterns.md](references/fsm-patterns.md) | — | P1 |
 | 代码规范 | [naming-rules.md](references/naming-rules.md) | — | P1 |
 | Luban 配置 | [luban-config.md](references/luban-config.md) | — | P1 |
 | 项目结构 | [architecture.md](references/architecture.md) | — | P2 |
