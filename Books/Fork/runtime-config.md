@@ -23,6 +23,10 @@ TOML 作为默认人工编辑格式，适合部署地址、调试开关、多屏
 - 支持强类型 `Get<T>` / `TryGet<T>`。
 - 支持原始文本 `GetText` / `TryGetText`。
 - 支持 `Contains`、`Clear`、`ReloadAsync`。
+- 单个配置条目失败（重名、扩展名不支持、文件读取失败）只记录错误并跳过，不中断其余配置加载；仅清单缺失或解析失败、取消令牌触发时抛异常。
+- 扩展名格式校验在读文件之前完成。
+- `IsLoaded` 语义为"一次加载流程完成"（含个别失败项），失败项通过 `TryGet` 返回 `false` 兜底。
+- 配置名支持相对 `Configs` 的子目录路径：缓存键统一 `/` 分隔、去扩展名（如 `sub/Foo`），不同子目录同名文件不冲突；大小写不敏感，`\` 与扩展名可省略。
 - 内置对象缓存，缓存键为 `"配置名:类型全名"`，同名配置可按不同类型分别缓存。
 - 远程或 Android 路径含 `://` 时走 `UnityWebRequest`。
 - 本地路径切线程池使用 `File` 同步读取，读完切回主线程。
@@ -63,7 +67,10 @@ DebuggerActiveWindow = "OnlyOpenWhenDevelopment"
 
 ### 注意事项
 
-- `config_manifest.toml` 写错或清单中配置文件缺失时，`LoadAllAsync()` 会抛异常。
+- 清单文件缺失或解析失败时 `LoadAllAsync()` 仍抛异常，由 `ProcedureLaunch` 捕获并回退默认值继续启动。
+- 清单声明的单个配置缺失、重名或扩展名不支持时，只记录错误并跳过该条，其余配置正常加载，`IsLoaded` 仍为 `true`。
+- 下游消费方统一通过 `TryGet` / `TryGetText` 返回 `false` 走各自默认值兜底，不要依赖 `IsLoaded` 区分"整体失败"与"单项失败"。
+- `Get<T>()` 默认配置名为 `typeof(T).Name`（不含目录），子目录配置需显式传名（如 `Get<T>("sub/Foo")`）。
 - `ProcedureLaunch` 会捕获运行时配置加载异常，并回退 `UpdateSetting` / Inspector 默认值继续启动。
 - 单个配置文件的 TOML/JSON 语法错误通常在 `TryGet<T>()` 解析时暴露；解析失败会记录 warning 并返回 `false`。
 - 少填字段通常使用 DTO 字段默认值或初始化值。
@@ -80,6 +87,7 @@ DebuggerActiveWindow = "OnlyOpenWhenDevelopment"
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-06-02-json-config-deploy-summary.md`
+- `UnityProject/conversation-summaries/2026-08-16-runtime-config-fault-tolerance-summary.md`
 
 ## 部署配置覆盖热更地址
 

@@ -4,6 +4,11 @@
 > 新增会话总结时，按日期倒序在本文件顶部追加条目；禁止另建按日期拆分的索引文件。
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
+## 2026-08-16
+- [RuntimeConfigModule 加载容错与子目录配置名](./2026-08-16-runtime-config-fault-tolerance-summary.md)
+  - 关键词：RuntimeConfigModule、LoadAllAsync、IsLoaded、单文件容错、跳过策略、NormalizeConfigName、子目录配置名、格式校验前置、Obfuz DTO 安全性
+  - 结论：单文件失败不再中断整体加载，IsLoaded 改为流程完成语义；配置名保留子目录路径消除同名冲突。
+
 ## 2026-08-15
 - [dev/release 与 Obfuz 解耦 + 构建模式面板 + pdb 可配置开关](./2026-08-15-obfuz-release-decouple-buildmode-window-summary.md)
   - 关键词：Obfuz、ENABLE_RELEASE、ENABLE_OBFUZ、OBFUZ_INSTALLED、BuildModeWindow、GeneratePdb、三宏解耦

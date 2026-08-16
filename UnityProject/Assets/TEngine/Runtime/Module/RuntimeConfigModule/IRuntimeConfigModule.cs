@@ -5,16 +5,18 @@ namespace TEngine
 {
     /// <summary>
     /// 轻量运行时配置模块接口。从 StreamingAssets/Configs 读取清单声明的文本配置并缓存，供任意位置便捷访问。
+    /// 配置名支持相对 Configs 的子目录路径（统一 / 分隔、去扩展名），如 "sub/Foo"。
     /// </summary>
     public interface IRuntimeConfigModule
     {
         /// <summary>
-        /// 是否已完成加载。
+        /// 是否已完成一次加载流程；个别配置加载失败被跳过时仍为 true。
         /// </summary>
         bool IsLoaded { get; }
 
         /// <summary>
         /// 读取清单并加载其中声明的全部配置。
+        /// 单个配置失败只记录错误并跳过，不中断整体流程；清单读取或解析失败时抛出异常。
         /// </summary>
         UniTask LoadAllAsync(CancellationToken cancellationToken = default);
 

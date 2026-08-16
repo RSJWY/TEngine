@@ -2,6 +2,12 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-16
+
+- `RuntimeConfigModule` 加载容错：单个配置失败（缺失、重名、格式不支持）只记录错误并跳过，不再中断整体加载；`IsLoaded` 改为"一次加载流程完成"语义，下游统一按 `TryGet` 兜底默认值。
+- 配置名支持 `Configs` 相对子目录路径：缓存键保留目录、只去扩展名（如 `sub/Foo`），不同子目录同名文件不再冲突。
+- 配置扩展名格式校验前置到读文件之前，避免读完内容才发现格式不支持。
+
 ## 2026-08-15
 
 - 接入 Obfuz 代码混淆（含 `obfuz4hybridclr` 扩展）：HybridCLR 与 Obfuz 转为 `Packages/` 本地包以解决双 dnlib 冲突（移除 HybridCLR 的 dnlib，全项目共用 Obfuz 定制 dnlib），新增 `Packages/sync-*-local` 一键同步脚本，支持指定版本、自动解析最新稳定 tag 和 gitee 镜像切换。

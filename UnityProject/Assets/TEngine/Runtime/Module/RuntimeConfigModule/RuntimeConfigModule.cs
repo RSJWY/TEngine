@@ -30,7 +30,7 @@ namespace TEngine
         private const string JSON_MANIFEST_FILE = "config_manifest.json";
 
         /// <summary>
-        /// 配置名 -> 原始配置文本缓存。键忽略大小写。
+        /// 配置名 -> 原始配置文本缓存。键忽略大小写，保留相对子目录（如 sub/Foo）。
         /// </summary>
         private readonly Dictionary<string, string> _textByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -50,7 +50,7 @@ namespace TEngine
         private readonly Dictionary<string, object> _objectByKey = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// 是否已完成加载。
+        /// 是否已完成一次加载流程；个别配置加载失败被跳过时仍为 true，失败项通过 TryGet 返回 false 兜底。
         /// </summary>
         public bool IsLoaded { get; private set; }
 
@@ -72,6 +72,8 @@ namespace TEngine
         /// <summary>
         /// 读取清单并加载其中声明的全部配置到文本缓存。
         /// 每次调用前先清空旧缓存；清单为空时仅记录警告并标记加载完成。
+        /// 单个配置条目失败（重名、格式不支持、读取失败）只记录错误并跳过，不中断其余配置；
+        /// 仅清单读取或解析失败、以及取消令牌触发时抛出异常。
         /// </summary>
         public async UniTask LoadAllAsync(CancellationToken cancellationToken = default)
         {
@@ -92,19 +94,33 @@ namespace TEngine
 
                 if (string.IsNullOrWhiteSpace(file))
                 {
+                    Log.Warning("Runtime config manifest contains a blank entry, skipped.");
                     continue;
                 }
 
-                string normalizedName = NormalizeConfigName(file);
-                if (_textByName.ContainsKey(normalizedName))
+                try
                 {
-                    throw new GameFrameworkException($"Runtime config name is duplicated: {normalizedName}");
-                }
+                    string normalizedName = NormalizeConfigName(file);
+                    if (_textByName.ContainsKey(normalizedName))
+                    {
+                        Log.Error("Runtime config name is duplicated, skipped: {0} ({1})", normalizedName, file);
+                        continue;
+                    }
 
-                string text = await ReadStreamingAssetsTextAsync(GetRelativePath(file), cancellationToken);
-                _textByName[normalizedName] = text;
-                _fileByName[normalizedName] = file;
-                _formatByName[normalizedName] = GetConfigFormat(file);
+                    RuntimeConfigFormat format = GetConfigFormat(file);
+                    string text = await ReadStreamingAssetsTextAsync(GetRelativePath(file), cancellationToken);
+                    _textByName[normalizedName] = text;
+                    _fileByName[normalizedName] = file;
+                    _formatByName[normalizedName] = format;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    Log.Error("Runtime config load failed, skipped: {0}, reason: {1}", file, exception.Message);
+                }
             }
 
             IsLoaded = true;
@@ -269,7 +285,8 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 将配置名规范为缓存键：去扩展名并去空白。空白名抛 GameFrameworkException。
+        /// 将配置名规范为缓存键：统一分隔符、去扩展名并去空白，保留目录部分（如 sub/Foo.toml -> sub/Foo）。
+        /// 空白名抛 GameFrameworkException。
         /// </summary>
         private static string NormalizeConfigName(string configName)
         {
@@ -278,7 +295,13 @@ namespace TEngine
                 throw new GameFrameworkException("Runtime config name is invalid.");
             }
 
-            string normalizedName = Path.GetFileNameWithoutExtension(configName).Trim();
+            string normalizedName = configName.Trim().Replace("\\", "/");
+            string extension = Path.GetExtension(normalizedName);
+            if (!string.IsNullOrEmpty(extension))
+            {
+                normalizedName = normalizedName.Substring(0, normalizedName.Length - extension.Length);
+            }
+
             if (string.IsNullOrEmpty(normalizedName))
             {
                 throw new GameFrameworkException($"Runtime config name is invalid: {configName}");

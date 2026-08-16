@@ -26,7 +26,7 @@
 
 - 新增纯数据 DataBinding 运行时与 Editor 生成器，菜单和 Odin 面板已中文化。
 - 日志系统新增 Unity/Task/UniTask 到 TouchSocket `FileLogger` 的统一落盘链路，并补充独立 LogViewer 工具。
-- 运行时配置已通用化为 `RuntimeConfigModule`，默认使用 TOML 清单和轻量 TOML 配置，同时保留 JSON 混用能力。
+- 运行时配置已通用化为 `RuntimeConfigModule`，默认使用 TOML 清单和轻量 TOML 配置，同时保留 JSON 混用能力；单文件加载失败不再中断整体，配置名支持子目录路径。
 - 热更新和资源打包侧补强 CodePackage、AOT 元数据清单校验、按包构建管线和打包工具体验。
 - 场景系统将加载进度状态机从 UI 下沉到 `GameSceneModule`，DynamicSpawn 示例脚本通用化，阶段 1 超时改为双门槛（停滞 60s + 绝对 180s）修复大场景冷启动误杀。
 - 场景系统新增 `SceneEnumConfig` 自动生成工具，扫描场景资源生成 `SceneType`/`SceneConstName`/`SceneTypeMapping`，免去手工同步枚举/常量/映射。
