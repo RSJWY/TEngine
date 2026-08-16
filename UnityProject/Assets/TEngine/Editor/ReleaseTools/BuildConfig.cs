@@ -13,11 +13,11 @@ namespace TEngine
         public EBuildPipeline BuildPipeline = EBuildPipeline.ScriptableBuildPipeline;
         public ECompressOption CompressOption = ECompressOption.LZ4;
         public string PackageVersion = "";
-        public string OutputRoot = "./Builds/";
+        public string OutputRoot = "./Output/Bundles/";
 
         // 发布整理设置
         public bool EnablePublishCopy;
-        public string PublishRoot = "./Publish/";
+        public string PublishRoot = "./Output/Publish/";
         public bool CleanPublishPackageDirectory = true;
 
         // 最小包设置
@@ -47,8 +47,8 @@ namespace TEngine
                 BuildTarget = EditorUserBuildSettings.activeBuildTarget,
                 PlayerPlatform = EditorUserBuildSettings.activeBuildTarget,
                 PackageVersion = GetDefaultPackageVersion(),
-                OutputRoot = "./Builds/",
-                PublishRoot = "./Publish/",
+                OutputRoot = "./Output/Bundles/",
+                PublishRoot = "./Output/Publish/",
                 CleanPublishPackageDirectory = true,
                 PlayerOutputPath = GetDefaultPlayerOutputPath(EditorUserBuildSettings.activeBuildTarget),
             };
@@ -91,7 +91,7 @@ namespace TEngine
 
         public static string GetDefaultPlayerOutputPath(BuildTarget target)
         {
-            string basePath = Application.dataPath + "/../Build/";
+            string basePath = Application.dataPath + "/../Output/Player/";
             return target switch
             {
                 BuildTarget.StandaloneWindows64 => basePath + "Windows/Release_Windows.exe",

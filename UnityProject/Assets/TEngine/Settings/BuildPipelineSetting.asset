@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 935430a5e9afc3c4388d9f35faa76868, type: 3}
+  m_Name: BuildPipelineSetting
+  m_EditorClassIdentifier: 
+  EditorPrefsImported: 1
+  BuildTarget: 19
+  BuildPipeline: 2
+  CompressOption: 2
+  PackageVersion: 2026-08-16-714
+  OutputRoot: ./Output/Bundles/
+  EnablePublishCopy: 1
+  PublishRoot: ./Output/Publish/
+  CleanPublishPackageDirectory: 1
+  MinimalPackage: 0
+  RetainTags: 
+  EnableSharePackRule: 1
+  UseAssetDependencyDB: 1
+  ClearBuildCache: 1
+  VerifyBuildingResult: 1
+  BuildinFileCopyOption: 1
+  FileNameStyle: 2
+  BuildHotFixDll: 1
+  BuildPlayer: 1
+  PlayerPlatform: 19
+  PlayerOutputPath: E:/Unity/TEngine/UnityProject/Assets/../Output/Player/Windows/Release_Windows.exe

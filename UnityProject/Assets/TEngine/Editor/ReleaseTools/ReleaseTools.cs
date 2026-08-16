@@ -79,10 +79,10 @@ namespace TEngine
         {
             var config = BuildConfig.CreateDefault();
             config.BuildTarget = BuildTarget.StandaloneWindows64;
-            config.OutputRoot = Application.dataPath + "/../Builds/Windows";
+            config.OutputRoot = Application.dataPath + "/../Output/Bundles";
             config.BuildPlayer = true;
             config.PlayerPlatform = BuildTarget.StandaloneWindows64;
-            config.PlayerOutputPath = $"{Application.dataPath}/../Build/Windows/Release_Windows.exe";
+            config.PlayerOutputPath = $"{Application.dataPath}/../Output/Player/Windows/Release_Windows.exe";
             BuildWithConfig(config, buildPlayer: true);
         }
 
@@ -91,10 +91,10 @@ namespace TEngine
         {
             var config = BuildConfig.CreateDefault();
             config.BuildTarget = BuildTarget.Android;
-            config.OutputRoot = Application.dataPath + "/../Bundles";
+            config.OutputRoot = Application.dataPath + "/../Output/Bundles";
             config.BuildPlayer = true;
             config.PlayerPlatform = BuildTarget.Android;
-            config.PlayerOutputPath = $"{Application.dataPath}/../Build/Android/{BuildConfig.GetDefaultPackageVersion()}Android.apk";
+            config.PlayerOutputPath = $"{Application.dataPath}/../Output/Player/Android/{BuildConfig.GetDefaultPackageVersion()}Android.apk";
             BuildWithConfig(config, buildPlayer: true);
         }
 
@@ -103,10 +103,10 @@ namespace TEngine
         {
             var config = BuildConfig.CreateDefault();
             config.BuildTarget = BuildTarget.iOS;
-            config.OutputRoot = Application.dataPath + "/../Bundles";
+            config.OutputRoot = Application.dataPath + "/../Output/Bundles";
             config.BuildPlayer = true;
             config.PlayerPlatform = BuildTarget.iOS;
-            config.PlayerOutputPath = $"{Application.dataPath}/../Build/IOS/XCode_Project";
+            config.PlayerOutputPath = $"{Application.dataPath}/../Output/Player/IOS/XCode_Project";
             BuildWithConfig(config, buildPlayer: true);
         }
 
@@ -310,7 +310,7 @@ namespace TEngine
 
         public static string GetResolvedOutputRoot(BuildConfig config)
         {
-            var outputRoot = string.IsNullOrWhiteSpace(config.OutputRoot) ? "./Builds/" : config.OutputRoot;
+            var outputRoot = string.IsNullOrWhiteSpace(config.OutputRoot) ? "./Output/Bundles/" : config.OutputRoot;
             if (!Path.IsPathRooted(outputRoot))
             {
                 outputRoot = Path.Combine(Application.dataPath + "/../", outputRoot);
@@ -322,12 +322,12 @@ namespace TEngine
         public static string GetBuildPlatformOutputRoot(BuildConfig config)
         {
             var outputRoot = GetResolvedOutputRoot(config);
-            return Path.Combine(outputRoot, config.BuildTarget.ToString()).Replace('\\', '/');
+            return Path.Combine(outputRoot, GetRemotePlatformName(config.BuildTarget)).Replace('\\', '/');
         }
 
         public static string GetPublishOutputRoot(BuildConfig config)
         {
-            var publishRoot = string.IsNullOrWhiteSpace(config.PublishRoot) ? "./Publish/" : config.PublishRoot;
+            var publishRoot = string.IsNullOrWhiteSpace(config.PublishRoot) ? "./Output/Publish/" : config.PublishRoot;
             if (!Path.IsPathRooted(publishRoot))
             {
                 publishRoot = Path.Combine(Application.dataPath + "/../", publishRoot);

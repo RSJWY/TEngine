@@ -16,6 +16,10 @@ namespace TEngine
     {
         private const string MenuPath = "TEngine/Build/打包工具窗口";
         private const string AllBuildPackagesDisplayName = "全部资源包";
+        private const string DefaultOutputRoot = "./Output/Bundles/";
+        private const string DefaultPublishRoot = "./Output/Publish/";
+        private const string LegacyOutputRoot = "./Builds/";
+        private const string LegacyPublishRoot = "./Publish/";
 
         private static readonly BuildTarget[] PlatformTargets =
         {
@@ -32,6 +36,10 @@ namespace TEngine
         private bool _runtimePackagesDirty;
         private bool _runtimePackageSaveQueued;
         private double _nextRuntimePackageSaveTime;
+        private BuildPipelineSetting _setting;
+        private bool _settingDirty;
+        private bool _settingSaveQueued;
+        private double _nextSettingSaveTime;
         private double _nextLogRepaintTime;
         private string _cachedPackageSummary = "DefaultPackage(ScriptableBuildPipeline)";
         private string _cachedToolbarStatus = string.Empty;
@@ -87,7 +95,7 @@ namespace TEngine
         [DelayedProperty]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
-        private string _outputRoot = "./Builds/";
+        private string _outputRoot = DefaultOutputRoot;
 
         [TabGroup("Pages", "资源包")]
         [BoxGroup("Pages/资源包/资源包列表")]
@@ -161,7 +169,7 @@ namespace TEngine
         [DelayedProperty]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
-        private string _publishRoot = "./Publish/";
+        private string _publishRoot = DefaultPublishRoot;
 
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/发布整理")]
@@ -476,10 +484,16 @@ namespace TEngine
         protected override void OnDestroy()
         {
             base.OnDestroy();
-            EditorApplication.update -= FlushRuntimePackagesWhenReady;
+            EditorApplication.update -= FlushPendingSavesWhenReady;
             if (_runtimePackagesDirty)
             {
                 SaveRuntimePackageViews(flushToDisk: true);
+            }
+
+            if (_settingDirty)
+            {
+                AssetDatabase.SaveAssets();
+                _settingDirty = false;
             }
         }
 
@@ -692,74 +706,200 @@ namespace TEngine
         {
             _isLoadingSettings = true;
 
-            var defaultConfig = BuildConfig.CreateDefault();
-            var buildTargetIndex = EditorPrefs.GetInt("TEngine_BP_BuildTarget", -1);
-            _buildTarget = IsValidPlatformIndex(buildTargetIndex)
-                ? PlatformTargets[buildTargetIndex]
-                : GetActiveSupportedBuildTarget();
-
-            const string buildPipelineKey = "TEngine_BP_BuildPipeline";
-            var savedBuildPipeline = EditorPrefs.GetString(buildPipelineKey, EBuildPipeline.ScriptableBuildPipeline.ToString());
-            if (!Enum.TryParse(savedBuildPipeline, out EBuildPipeline buildPipeline) ||
-                buildPipeline == EBuildPipeline.BuiltinBuildPipeline)
+            _setting = BuildPipelineSetting.LoadOrCreate();
+            if (!_setting.EditorPrefsImported)
             {
-                buildPipeline = EBuildPipeline.ScriptableBuildPipeline;
+                ImportEditorPrefsIntoSetting(_setting);
+                _setting.EditorPrefsImported = true;
+                EditorUtility.SetDirty(_setting);
+                AssetDatabase.SaveAssets();
+                DeleteLegacyEditorPrefs();
             }
 
-            _buildPipeline = buildPipeline;
-            _compressOption = (ECompressOption)EditorPrefs.GetInt("TEngine_BP_CompressOption", (int)defaultConfig.CompressOption);
-            _packageVersion = EditorPrefs.GetString("TEngine_BP_PackageVersion", string.Empty);
-            _outputRoot = EditorPrefs.GetString("TEngine_BP_OutputRoot", "./Builds/");
-            _enablePublishCopy = EditorPrefs.GetBool("TEngine_BP_EnablePublishCopy", false);
-            _publishRoot = EditorPrefs.GetString("TEngine_BP_PublishRoot", "./Publish/");
-            _cleanPublishPackageDirectory = EditorPrefs.GetBool("TEngine_BP_CleanPublishPackageDirectory", true);
-            _minimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
-            _retainTags = EditorPrefs.GetString("TEngine_BP_RetainTags", string.Empty);
-            _enableSharePackRule = EditorPrefs.GetBool("TEngine_BP_EnableSharePack", true);
-            _useAssetDependencyDB = EditorPrefs.GetBool("TEngine_BP_UseDepDB", true);
-            _clearBuildCache = EditorPrefs.GetBool("TEngine_BP_ClearCache", false);
-            _verifyBuildingResult = EditorPrefs.GetBool("TEngine_BP_VerifyResult", true);
-            _buildinFileCopyOption = (EBuildinFileCopyOption)EditorPrefs.GetInt(
-                "TEngine_BP_CopyOption", (int)defaultConfig.BuildinFileCopyOption);
-            _fileNameStyle = (EFileNameStyle)EditorPrefs.GetInt("TEngine_BP_FileNameStyle", (int)defaultConfig.FileNameStyle);
-            _buildHotFixDll = EditorPrefs.GetBool("TEngine_BP_BuildDll", true);
-            _buildPlayer = EditorPrefs.GetBool("TEngine_BP_BuildPlayer", false);
-
-            var playerPlatformIndex = EditorPrefs.GetInt("TEngine_BP_PlayerPlatform", -1);
-            _playerPlatform = IsValidPlatformIndex(playerPlatformIndex)
-                ? PlatformTargets[playerPlatformIndex]
-                : GetActiveSupportedBuildTarget();
-
-            _playerOutputPath = EditorPrefs.GetString("TEngine_BP_PlayerOutput",
-                BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform));
+            LoadFromSetting(_setting);
 
             ReloadRuntimePackageViews();
             RefreshCachedTexts();
             _isLoadingSettings = false;
         }
 
+        private void LoadFromSetting(BuildPipelineSetting setting)
+        {
+            _buildTarget = Array.IndexOf(PlatformTargets, setting.BuildTarget) >= 0
+                ? setting.BuildTarget
+                : GetActiveSupportedBuildTarget();
+
+            _buildPipeline = setting.BuildPipeline == EBuildPipeline.BuiltinBuildPipeline
+                ? EBuildPipeline.ScriptableBuildPipeline
+                : setting.BuildPipeline;
+            _compressOption = setting.CompressOption;
+            _packageVersion = setting.PackageVersion;
+            _outputRoot = string.IsNullOrWhiteSpace(setting.OutputRoot) ? DefaultOutputRoot : setting.OutputRoot;
+            _enablePublishCopy = setting.EnablePublishCopy;
+            _publishRoot = string.IsNullOrWhiteSpace(setting.PublishRoot) ? DefaultPublishRoot : setting.PublishRoot;
+            _cleanPublishPackageDirectory = setting.CleanPublishPackageDirectory;
+            _minimalPackage = setting.MinimalPackage;
+            _retainTags = setting.RetainTags;
+            _enableSharePackRule = setting.EnableSharePackRule;
+            _useAssetDependencyDB = setting.UseAssetDependencyDB;
+            _clearBuildCache = setting.ClearBuildCache;
+            _verifyBuildingResult = setting.VerifyBuildingResult;
+            _buildinFileCopyOption = setting.BuildinFileCopyOption;
+            _fileNameStyle = setting.FileNameStyle;
+            _buildHotFixDll = setting.BuildHotFixDll;
+            _buildPlayer = setting.BuildPlayer;
+
+            _playerPlatform = Array.IndexOf(PlatformTargets, setting.PlayerPlatform) >= 0
+                ? setting.PlayerPlatform
+                : GetActiveSupportedBuildTarget();
+            _playerOutputPath = string.IsNullOrWhiteSpace(setting.PlayerOutputPath)
+                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform)
+                : setting.PlayerOutputPath;
+
+            // 旧默认输出路径迁移(兼容 EditorPrefs 导入的历史数据)
+            var migratedLegacyPaths = false;
+            if (IsLegacyDefaultPath(_outputRoot, LegacyOutputRoot))
+            {
+                _outputRoot = DefaultOutputRoot;
+                migratedLegacyPaths = true;
+            }
+
+            if (IsLegacyDefaultPath(_publishRoot, LegacyPublishRoot))
+            {
+                _publishRoot = DefaultPublishRoot;
+                migratedLegacyPaths = true;
+            }
+
+            var legacyPlayerBase = NormalizePath(Application.dataPath + "/../Build/");
+            if (!string.IsNullOrEmpty(_playerOutputPath) &&
+                NormalizePath(_playerOutputPath).StartsWith(legacyPlayerBase, StringComparison.OrdinalIgnoreCase))
+            {
+                _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+                migratedLegacyPaths = true;
+            }
+
+            if (migratedLegacyPaths)
+            {
+                SaveSettings();
+            }
+        }
+
+        private static void ImportEditorPrefsIntoSetting(BuildPipelineSetting setting)
+        {
+            var defaultConfig = BuildConfig.CreateDefault();
+
+            var buildTargetIndex = EditorPrefs.GetInt("TEngine_BP_BuildTarget", -1);
+            setting.BuildTarget = IsValidPlatformIndex(buildTargetIndex)
+                ? PlatformTargets[buildTargetIndex]
+                : defaultConfig.BuildTarget;
+
+            var savedBuildPipeline = EditorPrefs.GetString("TEngine_BP_BuildPipeline", EBuildPipeline.ScriptableBuildPipeline.ToString());
+            setting.BuildPipeline = Enum.TryParse(savedBuildPipeline, out EBuildPipeline buildPipeline)
+                ? buildPipeline
+                : EBuildPipeline.ScriptableBuildPipeline;
+
+            setting.CompressOption = (ECompressOption)EditorPrefs.GetInt("TEngine_BP_CompressOption", (int)defaultConfig.CompressOption);
+            setting.PackageVersion = EditorPrefs.GetString("TEngine_BP_PackageVersion", string.Empty);
+            setting.OutputRoot = EditorPrefs.GetString("TEngine_BP_OutputRoot", DefaultOutputRoot);
+            setting.EnablePublishCopy = EditorPrefs.GetBool("TEngine_BP_EnablePublishCopy", false);
+            setting.PublishRoot = EditorPrefs.GetString("TEngine_BP_PublishRoot", DefaultPublishRoot);
+            setting.CleanPublishPackageDirectory = EditorPrefs.GetBool("TEngine_BP_CleanPublishPackageDirectory", true);
+            setting.MinimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
+            setting.RetainTags = EditorPrefs.GetString("TEngine_BP_RetainTags", string.Empty);
+            setting.EnableSharePackRule = EditorPrefs.GetBool("TEngine_BP_EnableSharePack", true);
+            setting.UseAssetDependencyDB = EditorPrefs.GetBool("TEngine_BP_UseDepDB", true);
+            setting.ClearBuildCache = EditorPrefs.GetBool("TEngine_BP_ClearCache", false);
+            setting.VerifyBuildingResult = EditorPrefs.GetBool("TEngine_BP_VerifyResult", true);
+            setting.BuildinFileCopyOption = (EBuildinFileCopyOption)EditorPrefs.GetInt(
+                "TEngine_BP_CopyOption", (int)defaultConfig.BuildinFileCopyOption);
+            setting.FileNameStyle = (EFileNameStyle)EditorPrefs.GetInt("TEngine_BP_FileNameStyle", (int)defaultConfig.FileNameStyle);
+            setting.BuildHotFixDll = EditorPrefs.GetBool("TEngine_BP_BuildDll", true);
+            setting.BuildPlayer = EditorPrefs.GetBool("TEngine_BP_BuildPlayer", false);
+
+            var playerPlatformIndex = EditorPrefs.GetInt("TEngine_BP_PlayerPlatform", -1);
+            setting.PlayerPlatform = IsValidPlatformIndex(playerPlatformIndex)
+                ? PlatformTargets[playerPlatformIndex]
+                : defaultConfig.PlayerPlatform;
+            setting.PlayerOutputPath = EditorPrefs.GetString("TEngine_BP_PlayerOutput", string.Empty);
+        }
+
+        private static void DeleteLegacyEditorPrefs()
+        {
+            EditorPrefs.DeleteKey("TEngine_BP_BuildTarget");
+            EditorPrefs.DeleteKey("TEngine_BP_BuildPipeline");
+            EditorPrefs.DeleteKey("TEngine_BP_CompressOption");
+            EditorPrefs.DeleteKey("TEngine_BP_PackageVersion");
+            EditorPrefs.DeleteKey("TEngine_BP_OutputRoot");
+            EditorPrefs.DeleteKey("TEngine_BP_EnablePublishCopy");
+            EditorPrefs.DeleteKey("TEngine_BP_PublishRoot");
+            EditorPrefs.DeleteKey("TEngine_BP_CleanPublishPackageDirectory");
+            EditorPrefs.DeleteKey("TEngine_BP_MinimalPackage");
+            EditorPrefs.DeleteKey("TEngine_BP_RetainTags");
+            EditorPrefs.DeleteKey("TEngine_BP_EnableSharePack");
+            EditorPrefs.DeleteKey("TEngine_BP_UseDepDB");
+            EditorPrefs.DeleteKey("TEngine_BP_ClearCache");
+            EditorPrefs.DeleteKey("TEngine_BP_VerifyResult");
+            EditorPrefs.DeleteKey("TEngine_BP_CopyOption");
+            EditorPrefs.DeleteKey("TEngine_BP_FileNameStyle");
+            EditorPrefs.DeleteKey("TEngine_BP_BuildDll");
+            EditorPrefs.DeleteKey("TEngine_BP_BuildPlayer");
+            EditorPrefs.DeleteKey("TEngine_BP_PlayerPlatform");
+            EditorPrefs.DeleteKey("TEngine_BP_PlayerOutput");
+        }
+
+        private static string NormalizePath(string path)
+        {
+            return string.IsNullOrEmpty(path) ? string.Empty : path.Replace('\\', '/').TrimEnd('/');
+        }
+
+        private static bool IsLegacyDefaultPath(string path, string legacyDefault)
+        {
+            return string.Equals(NormalizePath(path), NormalizePath(legacyDefault), StringComparison.OrdinalIgnoreCase);
+        }
+
         private void SaveSettings()
         {
-            EditorPrefs.SetInt("TEngine_BP_BuildTarget", GetPlatformIndex(_buildTarget));
-            EditorPrefs.SetString("TEngine_BP_BuildPipeline", _buildPipeline.ToString());
-            EditorPrefs.SetInt("TEngine_BP_CompressOption", (int)_compressOption);
-            EditorPrefs.SetString("TEngine_BP_PackageVersion", _packageVersion);
-            EditorPrefs.SetString("TEngine_BP_OutputRoot", _outputRoot);
-            EditorPrefs.SetBool("TEngine_BP_EnablePublishCopy", _enablePublishCopy);
-            EditorPrefs.SetString("TEngine_BP_PublishRoot", _publishRoot);
-            EditorPrefs.SetBool("TEngine_BP_CleanPublishPackageDirectory", _cleanPublishPackageDirectory);
-            EditorPrefs.SetBool("TEngine_BP_MinimalPackage", _minimalPackage);
-            EditorPrefs.SetString("TEngine_BP_RetainTags", _retainTags);
-            EditorPrefs.SetBool("TEngine_BP_EnableSharePack", _enableSharePackRule);
-            EditorPrefs.SetBool("TEngine_BP_UseDepDB", _useAssetDependencyDB);
-            EditorPrefs.SetBool("TEngine_BP_ClearCache", _clearBuildCache);
-            EditorPrefs.SetBool("TEngine_BP_VerifyResult", _verifyBuildingResult);
-            EditorPrefs.SetInt("TEngine_BP_CopyOption", (int)_buildinFileCopyOption);
-            EditorPrefs.SetInt("TEngine_BP_FileNameStyle", (int)_fileNameStyle);
-            EditorPrefs.SetBool("TEngine_BP_BuildDll", _buildHotFixDll);
-            EditorPrefs.SetBool("TEngine_BP_BuildPlayer", _buildPlayer);
-            EditorPrefs.SetInt("TEngine_BP_PlayerPlatform", GetPlatformIndex(_playerPlatform));
-            EditorPrefs.SetString("TEngine_BP_PlayerOutput", _playerOutputPath);
+            if (_setting == null)
+            {
+                return;
+            }
+
+            _setting.BuildTarget = _buildTarget;
+            _setting.BuildPipeline = _buildPipeline;
+            _setting.CompressOption = _compressOption;
+            _setting.PackageVersion = _packageVersion;
+            _setting.OutputRoot = _outputRoot;
+            _setting.EnablePublishCopy = _enablePublishCopy;
+            _setting.PublishRoot = _publishRoot;
+            _setting.CleanPublishPackageDirectory = _cleanPublishPackageDirectory;
+            _setting.MinimalPackage = _minimalPackage;
+            _setting.RetainTags = _retainTags;
+            _setting.EnableSharePackRule = _enableSharePackRule;
+            _setting.UseAssetDependencyDB = _useAssetDependencyDB;
+            _setting.ClearBuildCache = _clearBuildCache;
+            _setting.VerifyBuildingResult = _verifyBuildingResult;
+            _setting.BuildinFileCopyOption = _buildinFileCopyOption;
+            _setting.FileNameStyle = _fileNameStyle;
+            _setting.BuildHotFixDll = _buildHotFixDll;
+            _setting.BuildPlayer = _buildPlayer;
+            _setting.PlayerPlatform = _playerPlatform;
+            _setting.PlayerOutputPath = _playerOutputPath;
+
+            EditorUtility.SetDirty(_setting);
+            _settingDirty = true;
+            QueueSettingSave();
+        }
+
+        private void QueueSettingSave()
+        {
+            _nextSettingSaveTime = EditorApplication.timeSinceStartup + 0.75d;
+            if (_settingSaveQueued)
+            {
+                return;
+            }
+
+            _settingSaveQueued = true;
+            EditorApplication.update += FlushPendingSavesWhenReady;
         }
 
         private void OnSettingsChanged()
@@ -848,26 +988,38 @@ namespace TEngine
             }
 
             _runtimePackageSaveQueued = true;
-            EditorApplication.update += FlushRuntimePackagesWhenReady;
+            EditorApplication.update += FlushPendingSavesWhenReady;
         }
 
-        private void FlushRuntimePackagesWhenReady()
+        private void FlushPendingSavesWhenReady()
         {
-            if (!_runtimePackagesDirty)
+            var now = EditorApplication.timeSinceStartup;
+
+            if (_runtimePackageSaveQueued && now >= _nextRuntimePackageSaveTime)
             {
+                if (_runtimePackagesDirty)
+                {
+                    SaveRuntimePackageViews(flushToDisk: true);
+                }
+
                 _runtimePackageSaveQueued = false;
-                EditorApplication.update -= FlushRuntimePackagesWhenReady;
-                return;
             }
 
-            if (EditorApplication.timeSinceStartup < _nextRuntimePackageSaveTime)
+            if (_settingSaveQueued && now >= _nextSettingSaveTime)
             {
-                return;
+                if (_settingDirty)
+                {
+                    AssetDatabase.SaveAssets();
+                    _settingDirty = false;
+                }
+
+                _settingSaveQueued = false;
             }
 
-            SaveRuntimePackageViews(flushToDisk: true);
-            _runtimePackageSaveQueued = false;
-            EditorApplication.update -= FlushRuntimePackagesWhenReady;
+            if (!_runtimePackageSaveQueued && !_settingSaveQueued)
+            {
+                EditorApplication.update -= FlushPendingSavesWhenReady;
+            }
         }
 
         private void SaveRuntimePackageViews(bool flushToDisk)
@@ -1320,12 +1472,6 @@ namespace TEngine
         {
             var active = EditorUserBuildSettings.activeBuildTarget;
             return Array.IndexOf(PlatformTargets, active) >= 0 ? active : PlatformTargets[0];
-        }
-
-        private static int GetPlatformIndex(BuildTarget target)
-        {
-            var index = Array.IndexOf(PlatformTargets, target);
-            return index >= 0 ? index : 0;
         }
 
         private static bool IsValidPlatformIndex(int index)
