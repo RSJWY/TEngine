@@ -77,6 +77,20 @@ namespace Procedure
             {
                 if (_setting.Enable)
                 {
+                    // 先加载 pdb 并缓存（仅 dev 模式且 pdb 开关开启时；pdb 缺失时静默回退）。
+                    // 必须先于 dll 循环：dll 在 LoadAssetSuccess 中立即 Assembly.Load，需要 pdb 字节已就位。
+                    if (_setting.WillGeneratePdb)
+                    {
+                        foreach (string hotUpdateDllName in _setting.HotUpdateAssemblies)
+                        {
+                            string pdbAssetName = Path.GetFileNameWithoutExtension(hotUpdateDllName) + ".pdb";
+                            Log.Debug($"LoadAsset (pdb): [ {pdbAssetName} ] from package [ {_assemblyPackageName} ]");
+                            _loadAssetCount++;
+                            var result = await _resourceModule.LoadAssetAsync<TextAsset>(pdbAssetName, default, _assemblyPackageName);
+                            LoadAssetSuccess(result);
+                        }
+                    }
+
                     // 加载热更 dll
                     foreach (string hotUpdateDllName in _setting.HotUpdateAssemblies)
                     {
@@ -94,19 +108,6 @@ namespace Procedure
                         _loadAssetCount++;
                         var result = await _resourceModule.LoadAssetAsync<TextAsset>(assetLocation, default, _assemblyPackageName);
                         LoadAssetSuccess(result);
-                    }
-
-                    // 尝试加载 pdb（仅 dev 模式且 pdb 开关开启时；pdb 缺失时静默回退）
-                    if (_setting.WillGeneratePdb)
-                    {
-                        foreach (string hotUpdateDllName in _setting.HotUpdateAssemblies)
-                        {
-                            string pdbAssetName = Path.GetFileNameWithoutExtension(hotUpdateDllName) + ".pdb";
-                            Log.Debug($"LoadAsset (pdb): [ {pdbAssetName} ] from package [ {_assemblyPackageName} ]");
-                            _loadAssetCount++;
-                            var result = await _resourceModule.LoadAssetAsync<TextAsset>(pdbAssetName, default, _assemblyPackageName);
-                            LoadAssetSuccess(result);
-                        }
                     }
 
                     _loadAssemblyWait = true;

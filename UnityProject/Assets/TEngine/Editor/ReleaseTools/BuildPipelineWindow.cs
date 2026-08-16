@@ -341,6 +341,67 @@ namespace TEngine
         private string _selectedBuildPackageName = AllBuildPackagesDisplayName;
 
         [TitleGroup("操作")]
+        [ButtonGroup("操作/MainBuild")]
+        [Button("构建 AssetBundle", ButtonSizes.Large)]
+        [GUIColor(0.45f, 0.75f, 1f)]
+        private void BuildAssetBundleButton()
+        {
+            SaveSettings();
+            ExecuteBuild(false, GetSelectedBuildPackageName());
+        }
+
+        [ButtonGroup("操作/MainBuild")]
+        [Button("一键构建 (AB + Player)", ButtonSizes.Large)]
+        [GUIColor(0.35f, 0.95f, 0.55f)]
+        private void FullBuildButton()
+        {
+            _buildPlayer = true;
+            SaveSettings();
+            ExecuteBuild(true, GetSelectedBuildPackageName());
+        }
+
+        [TitleGroup("操作")]
+        [ButtonGroup("操作/MoreActions")]
+        [Button("构建 Player", ButtonSizes.Medium)]
+        private void BuildPlayerButton()
+        {
+            SaveSettings();
+            ExecuteBuildPlayerOnly();
+        }
+
+        [ButtonGroup("操作/MoreActions")]
+        [Button("仅执行发布整理", ButtonSizes.Medium)]
+        [EnableIf(nameof(IsPublishCopyEnabled))]
+        private void PublishOnlyButton()
+        {
+            SaveSettings();
+            ExecutePublishOnly();
+        }
+
+        [ButtonGroup("操作/MoreActions")]
+        [Button("打开发布目录", ButtonSizes.Medium)]
+        [EnableIf(nameof(IsPublishCopyEnabled))]
+        private void OpenPublishRootButton()
+        {
+            OpenPublishRoot();
+        }
+
+        [TitleGroup("操作")]
+        [ButtonGroup("操作/HotFix")]
+        [Button("编译并拷贝热更DLL", ButtonSizes.Medium)]
+        private void BuildHotFixDllFromOperations()
+        {
+            BuildHotFixDllNow();
+        }
+
+        [ButtonGroup("操作/HotFix")]
+        [Button("同步 AOT 元数据清单", ButtonSizes.Medium)]
+        private void SyncAOTMetadataManifestFromOperations()
+        {
+            SyncAOTMetadataManifestNow();
+        }
+
+        [TitleGroup("操作")]
         [ButtonGroup("操作/Settings")]
         [Button("刷新设置", ButtonSizes.Medium)]
         private void RefreshSettingsButton()
@@ -358,69 +419,11 @@ namespace TEngine
             AddLog("已重置打包工具默认配置");
         }
 
-        [ButtonGroup("操作/HotFix")]
-        [Button("编译并拷贝热更DLL", ButtonSizes.Large)]
-        private void BuildHotFixDllFromOperations()
-        {
-            BuildHotFixDllNow();
-        }
-
-        [ButtonGroup("操作/HotFix")]
-        [Button("同步 AOT 元数据清单", ButtonSizes.Large)]
-        private void SyncAOTMetadataManifestFromOperations()
-        {
-            SyncAOTMetadataManifestNow();
-        }
-
         [TitleGroup("操作")]
-        [ButtonGroup("操作/Build")]
-        [Button("构建 AssetBundle", ButtonSizes.Large)]
-        [GUIColor(0.45f, 0.75f, 1f)]
-        private void BuildAssetBundleButton()
-        {
-            SaveSettings();
-            ExecuteBuild(false, GetSelectedBuildPackageName());
-        }
-
-        [ButtonGroup("操作/Build")]
-        [Button("构建 Player", ButtonSizes.Large)]
-        private void BuildPlayerButton()
-        {
-            SaveSettings();
-            ExecuteBuildPlayerOnly();
-        }
-
-        [ButtonGroup("操作/Build")]
-        [Button("打开发布目录", ButtonSizes.Large)]
-        [EnableIf(nameof(IsPublishCopyEnabled))]
-        private void OpenPublishRootButton()
-        {
-            OpenPublishRoot();
-        }
-
-        [ButtonGroup("操作/FullBuild")]
-        [Button("一键构建 (AB + Player)", ButtonSizes.Large)]
-        [GUIColor(0.35f, 0.95f, 0.55f)]
-        private void FullBuildButton()
-        {
-            _buildPlayer = true;
-            SaveSettings();
-            ExecuteBuild(true, GetSelectedBuildPackageName());
-        }
-
-        [ButtonGroup("操作/FullBuild")]
-        [Button("仅执行发布整理", ButtonSizes.Large)]
-        [EnableIf(nameof(IsPublishCopyEnabled))]
-        private void PublishOnlyButton()
-        {
-            SaveSettings();
-            ExecutePublishOnly();
-        }
-
-        [TitleGroup("操作")]
-        [BoxGroup("操作/构建日志")]
+        [FoldoutGroup("操作/构建日志", Expanded = false)]
         [HorizontalGroup("操作/构建日志/Actions")]
         [Button("清空日志", ButtonSizes.Small)]
+        [PropertyOrder(100)]
         [EnableIf(nameof(HasBuildLogs))]
         private void ClearBuildLogs()
         {
@@ -428,10 +431,11 @@ namespace TEngine
         }
 
         [TitleGroup("操作")]
-        [BoxGroup("操作/构建日志")]
+        [FoldoutGroup("操作/构建日志", Expanded = false)]
         [ShowInInspector]
         [ReadOnly]
         [HideLabel]
+        [PropertyOrder(100)]
         [ListDrawerSettings(Expanded = true, DraggableItems = false, HideAddButton = true, HideRemoveButton = true)]
         private readonly List<string> _buildLogs = new List<string>();
 

@@ -99,7 +99,7 @@ namespace TEngine
 
         private Color ComboColor => IsRelease ? WarnColor : ActiveColor;
 
-        [Title("开关")]
+        [TitleGroup("开关")]
         [HorizontalGroup("开关/行")]
         [Button("$ReleaseToggleLabel", ButtonSizes.Large), GUIColor(nameof(ModeStatusColor))]
         [PropertyOrder(10)]
@@ -135,8 +135,12 @@ namespace TEngine
 
         private bool EnablePdbToggle => !IsRelease;
 
-        [Title("一键预设")]
+        [TitleGroup("一键预设")]
         [InfoBox("预设只切换发布模式与混淆；pdb 开关由上方独立控制。\n打包 exe 与热更资源包时请保持宏状态一致，否则启动校验会拦截。", InfoMessageType.None)]
+        [ShowInInspector, DisplayAsString, HideLabel, PropertyOrder(19)]
+        private string PresetTip => string.Empty;
+
+        [TitleGroup("一键预设")]
         [HorizontalGroup("一键预设/行")]
         [Button("真机调试", ButtonSizes.Large), GUIColor(nameof(ActiveColor))]
         [PropertyOrder(20)]

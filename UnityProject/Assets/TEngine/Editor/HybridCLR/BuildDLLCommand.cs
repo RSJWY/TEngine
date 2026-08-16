@@ -448,10 +448,18 @@ public static class BuildDLLCommand
 
     /// <summary>
     /// 拷贝热更程序集的 pdb 符号文件到 PDB 子目录（仅 development 构建产物存在时）。
+    /// 当前配置不生成 pdb（release 模式或 pdb 开关关闭）时改为清理两处残留：
+    /// HybridCLR 输出目录的旧 pdb 与 PDB 子目录的旧 pdb.bytes，防止过期符号被误拷贝/误打包。
     /// </summary>
     private static void CopyPdbToAssetPath(string hotfixDllSrcDir, BuildTarget target)
     {
         string pdbDstDir = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.PdbAssemblySubPath;
+        if (!TEngine.Settings.UpdateSetting.WillGeneratePdb)
+        {
+            CleanStalePdbFiles(hotfixDllSrcDir, pdbDstDir);
+            return;
+        }
+
         foreach (var dll in SettingsUtil.HotUpdateAssemblyFilesExcludePreserved)
         {
             string assemblyName = Path.GetFileNameWithoutExtension(dll);
@@ -464,6 +472,31 @@ public static class BuildDLLCommand
             string pdbBytesPath = $"{pdbDstDir}/{assemblyName}.pdb.bytes";
             File.Copy(pdbPath, pdbBytesPath, true);
             Debug.Log($"[拷贝热更新pdb符号] copy pdb {pdbPath} -> {pdbBytesPath}");
+        }
+    }
+
+    /// <summary>
+    /// 清理不产 pdb 配置下的残留符号文件（HybridCLR 输出目录的 .pdb 与资产目录的 .pdb.bytes）。
+    /// </summary>
+    private static void CleanStalePdbFiles(string hotfixDllSrcDir, string pdbDstDir)
+    {
+        foreach (var dll in SettingsUtil.HotUpdateAssemblyFilesExcludePreserved)
+        {
+            string assemblyName = Path.GetFileNameWithoutExtension(dll);
+
+            string pdbPath = $"{hotfixDllSrcDir}/{assemblyName}.pdb";
+            if (File.Exists(pdbPath))
+            {
+                File.Delete(pdbPath);
+                Debug.Log($"[拷贝热更新pdb符号] 当前配置不生成 pdb，清理残留：{pdbPath}");
+            }
+
+            string pdbBytesPath = $"{pdbDstDir}/{assemblyName}.pdb.bytes";
+            if (File.Exists(pdbBytesPath))
+            {
+                File.Delete(pdbBytesPath);
+                Debug.Log($"[拷贝热更新pdb符号] 当前配置不生成 pdb，清理残留：{pdbBytesPath}");
+            }
         }
     }
 }
