@@ -349,4 +349,38 @@ public class MainToolbarDropdownPlayMode
     }
 }
 
+public class MainToolbarBuildModeDropdown
+{
+    const string kElementPath = "TEngine/Build Mode";
+
+    // 模式状态由 ENABLE_RELEASE 宏表达，切换会触发重编译与域重载，工具栏随之重建，无需手动刷新
+    [MainToolbarElement(kElementPath, defaultDockPosition = MainToolbarDockPosition.Middle, defaultDockIndex = 52)]
+    public static MainToolbarElement CreateBuildModeDropdown()
+    {
+        bool isRelease = BuildDLLCommand.IsReleaseModeActive;
+        var content = new MainToolbarContent(isRelease ? "模式: release" : "模式: dev");
+        return new MainToolbarDropdown(content, ShowDropdownMenu);
+    }
+
+    static void ShowDropdownMenu(Rect dropDownRect)
+    {
+        bool isRelease = BuildDLLCommand.IsReleaseModeActive;
+        var menu = new GenericMenu();
+        menu.AddItem(new GUIContent("dev 模式（开发，pdb 可用）"), !isRelease, () => BuildDLLCommand.SetReleaseMode(false));
+        menu.AddItem(new GUIContent("release 模式（发布，不含 pdb）"), isRelease, () => BuildDLLCommand.SetReleaseMode(true));
+        if (BuildDLLCommand.IsObfuzInstalled)
+        {
+            menu.AddSeparator(string.Empty);
+            bool obfuzActive = BuildDLLCommand.IsObfuzActiveSafe;
+            menu.AddItem(new GUIContent("Obfuz 混淆/开启"), obfuzActive, () => BuildDLLCommand.SetObfuzSafe(true));
+            menu.AddItem(new GUIContent("Obfuz 混淆/关闭"), !obfuzActive, () => BuildDLLCommand.SetObfuzSafe(false));
+        }
+
+        menu.AddSeparator(string.Empty);
+        menu.AddItem(new GUIContent("打开构建模式窗口"), false,
+            () => EditorApplication.ExecuteMenuItem("TEngine/Build/构建模式窗口"));
+        menu.DropDown(dropDownRect);
+    }
+}
+
 #endif

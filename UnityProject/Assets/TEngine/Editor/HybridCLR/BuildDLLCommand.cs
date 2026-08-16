@@ -127,6 +127,33 @@ public static class BuildDLLCommand
     }
 #endif
 
+    /// <summary>
+    /// Obfuz 包是否已安装。OBFUZ_INSTALLED 宏仅在 TEngine.Editor 程序集内可见，
+    /// 其它程序集（如工具栏扩展所在的 Assembly-CSharp-Editor）请通过本属性安全判断。
+    /// </summary>
+    public static bool IsObfuzInstalled =>
+#if OBFUZ_INSTALLED
+        true;
+#else
+        false;
+#endif
+
+    /// <summary>混淆状态安全查询：包未安装时恒为 false。</summary>
+    public static bool IsObfuzActiveSafe =>
+#if OBFUZ_INSTALLED
+        IsObfuzInstalled && IsObfuzActive;
+#else
+        false;
+#endif
+
+    /// <summary>混淆开关安全切换：包未安装时不做任何事。</summary>
+    public static void SetObfuzSafe(bool enable)
+    {
+#if OBFUZ_INSTALLED
+        SetObfuz(enable);
+#endif
+    }
+
     #endregion
 
 #if OBFUZ_INSTALLED
