@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -29,18 +30,33 @@ namespace TEngine.Editor
             // 记录对象修改前的状态
             EditorGUI.BeginChangeCheck();
 
+            // 记录 projectName / companyName 修改前的值，用于检测是否被改动
+            UpdateSetting updateSetting = (UpdateSetting)target;
+            string projectNameBefore = updateSetting != null ? updateSetting.GetProjectName() : null;
+            string companyNameBefore = updateSetting != null ? updateSetting.GetCompanyName() : null;
+
             // 绘制默认的 Inspector 界面
             base.OnInspectorGUI();
 
             // 检测是否有字段被修改
             if (EditorGUI.EndChangeCheck())
             {
-                // 获取当前编辑的 ScriptableObject 实例
-                UpdateSetting updateSetting = (UpdateSetting)target;
+                if (updateSetting == null)
+                {
+                    return;
+                }
 
                 // 标记对象为“已修改”，确保修改能被保存
                 EditorUtility.SetDirty(updateSetting);
-                
+
+                // projectName / companyName 以 UpdateSetting 为数据源，改动时自动同步到 PlayerSettings
+                bool isProjectNameChanged = !string.Equals(projectNameBefore, updateSetting.GetProjectName(), StringComparison.Ordinal);
+                bool isCompanyNameChanged = !string.Equals(companyNameBefore, updateSetting.GetCompanyName(), StringComparison.Ordinal);
+                if (isProjectNameChanged || isCompanyNameChanged)
+                {
+                    SyncProjectAndCompanyNameToPlayerSettings(updateSetting);
+                }
+
                 bool isHotChanged = !HotUpdateAssemblies.SequenceEqual(updateSetting.HotUpdateAssemblies);
                 bool isAOTChanged = !AOTMetaAssemblies.SequenceEqual(updateSetting.AOTMetaAssemblies);
                 if (isHotChanged)
@@ -67,6 +83,33 @@ namespace TEngine.Editor
                     HybridCLRSettings.Save();
                     AssetDatabase.SaveAssets();
                 }
+            }
+        }
+
+        /// <summary>
+        /// 把 UpdateSetting 的 projectName / companyName 同步到 PlayerSettings（UpdateSetting 为数据源）。
+        /// </summary>
+        private static void SyncProjectAndCompanyNameToPlayerSettings(UpdateSetting updateSetting)
+        {
+            bool changed = false;
+
+            var projectName = updateSetting.GetProjectName();
+            if (!string.Equals(PlayerSettings.productName, projectName, StringComparison.Ordinal))
+            {
+                PlayerSettings.productName = projectName;
+                changed = true;
+            }
+
+            var companyName = updateSetting.GetCompanyName();
+            if (!string.Equals(PlayerSettings.companyName, companyName, StringComparison.Ordinal))
+            {
+                PlayerSettings.companyName = companyName;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                Debug.Log($"[UpdateSetting] 已同步到 PlayerSettings：productName={projectName}，companyName={companyName}");
             }
         }
 #endif

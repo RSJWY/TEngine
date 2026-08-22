@@ -92,16 +92,44 @@ namespace TEngine
         public static string GetDefaultPlayerOutputPath(BuildTarget target)
         {
             string basePath = Application.dataPath + "/../Output/Player/";
+            // 可执行文件名采用 PlayerSettings.productName，统一各平台输出名
+            string executableName = GetExecutableNameFromProductName();
             return target switch
             {
-                BuildTarget.StandaloneWindows64 => basePath + "Windows/Release_Windows.exe",
+                BuildTarget.StandaloneWindows64 => basePath + "Windows/" + executableName + ".exe",
                 BuildTarget.Android => basePath + $"Android/{GetDefaultPackageVersion()}Android.apk",
                 BuildTarget.iOS => basePath + "IOS/XCode_Project",
-                BuildTarget.StandaloneOSX => basePath + "MacOS/Release_MacOS.app",
-                BuildTarget.StandaloneLinux64 => basePath + "Linux/Release_Linux",
+                BuildTarget.StandaloneOSX => basePath + "MacOS/" + executableName + ".app",
+                BuildTarget.StandaloneLinux64 => basePath + "Linux/" + executableName,
                 BuildTarget.WebGL => basePath + "WebGL",
-                _ => basePath + target + "/Release"
+                _ => basePath + target + "/" + executableName
             };
+        }
+
+        /// <summary>
+        /// 以 PlayerSettings.productName 作为可执行文件名，过滤非法字符；为空时回退到 "Release"。
+        /// </summary>
+        private static string GetExecutableNameFromProductName()
+        {
+            const string fallback = "Release";
+            var rawName = PlayerSettings.productName;
+            if (string.IsNullOrWhiteSpace(rawName))
+            {
+                return fallback;
+            }
+
+            var invalid = System.IO.Path.GetInvalidFileNameChars();
+            var builder = new System.Text.StringBuilder(rawName.Length);
+            foreach (var c in rawName.Trim())
+            {
+                if (System.Array.IndexOf(invalid, c) < 0)
+                {
+                    builder.Append(c);
+                }
+            }
+
+            var name = builder.ToString().Trim();
+            return string.IsNullOrEmpty(name) ? fallback : name;
         }
 
         public static BuildTargetGroup GetBuildTargetGroup(BuildTarget target)

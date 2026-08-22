@@ -130,6 +130,12 @@ namespace TEngine
         [SerializeField]
         private string projectName = "Demo";
 
+        /// <summary>
+        /// 公司名称。
+        /// </summary>
+        [SerializeField]
+        private string companyName = "DefaultCompany";
+
         public bool Enable
         {
             get
@@ -537,6 +543,14 @@ namespace TEngine
         public string GetProjectName()
         {
             return string.IsNullOrWhiteSpace(projectName) ? "Demo" : projectName.Trim();
+        }
+
+        /// <summary>
+        /// 获取公司名称。
+        /// </summary>
+        public string GetCompanyName()
+        {
+            return string.IsNullOrWhiteSpace(companyName) ? "DefaultCompany" : companyName.Trim();
         }
 
         public string GetResDownLoadPath()

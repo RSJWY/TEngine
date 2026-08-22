@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: DefaultCompany
-  productName: hotUnity
+  productName: hotUnitydemo
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -793,7 +793,7 @@ PlayerSettings:
   webGLMemoryGeometricGrowthCap: 96
   webGLPowerPreference: 2
   scriptingDefineSymbols:
-    Android: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR
+    Android: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ENABLE_RELEASE
     EmbeddedLinux: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro
     GameCoreXboxOne: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro
     Lumin: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro
@@ -802,12 +802,12 @@ PlayerSettings:
     PS5: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro
     QNX: TextMeshPro
     Stadia: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro
-    Standalone: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3
+    Standalone: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3;ENABLE_RELEASE
     VisionOS: TextMeshPro
-    WebGL: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;ENABLE_LOG;ENABLE_HYBRIDCLR
-    Windows Store Apps: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;ENABLE_LOG;ENABLE_HYBRIDCLR
+    WebGL: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;ENABLE_LOG;ENABLE_HYBRIDCLR;ENABLE_RELEASE
+    Windows Store Apps: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;ENABLE_LOG;ENABLE_HYBRIDCLR;ENABLE_RELEASE
     XboxOne: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro
-    iPhone: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR
+    iPhone: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ENABLE_RELEASE
     tvOS: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro
   additionalCompilerArguments: {}
   platformArchitecture: {}

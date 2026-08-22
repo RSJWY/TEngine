@@ -32,4 +32,4 @@ MonoBehaviour:
   BuildHotFixDll: 1
   BuildPlayer: 1
   PlayerPlatform: 19
-  PlayerOutputPath: E:/Unity/TEngine/UnityProject/Assets/../Output/Player/Windows/Release_Windows.exe
+  PlayerOutputPath: E:\Unity\TEngine\UnityProject\Assets\..\Output\Player\Windows\hotUnitydemo.exe

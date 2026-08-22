@@ -14,7 +14,7 @@ namespace TEngine
 {
     public class BuildPipelineWindow : OdinEditorWindow
     {
-        private const string MenuPath = "TEngine/Build/打包工具窗口";
+        private const string MenuPath = "Build/打包工具窗口";
         private const string AllBuildPackagesDisplayName = "全部资源包";
         private const string DefaultOutputRoot = "./Output/Bundles/";
         private const string DefaultPublishRoot = "./Output/Publish/";
@@ -327,6 +327,7 @@ namespace TEngine
         [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("输出路径")]
         [InlineButton(nameof(ChoosePlayerOutputPath), "浏览")]
+        [InlineButton(nameof(SyncPlayerOutputName), "同步名字")]
         [ShowIf(nameof(_buildPlayer))]
         [DelayedProperty]
         [OnValueChanged(nameof(OnSettingsChanged))]
@@ -778,6 +779,12 @@ namespace TEngine
                 migratedLegacyPaths = true;
             }
 
+            // 迁移旧的硬编码可执行文件名到 PlayerSettings.productName，保留用户自定义的目录
+            if (MigrateLegacyExecutableName())
+            {
+                migratedLegacyPaths = true;
+            }
+
             if (migratedLegacyPaths)
             {
                 SaveSettings();
@@ -857,6 +864,39 @@ namespace TEngine
             return string.Equals(NormalizePath(path), NormalizePath(legacyDefault), StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// 检测并迁移旧的硬编码可执行文件名（Release_Windows.exe / Release_MacOS.app / Release_Linux）
+        /// 到 PlayerSettings.productName，保留用户自定义的目录。返回是否有迁移发生。
+        /// </summary>
+        private bool MigrateLegacyExecutableName()
+        {
+            if (string.IsNullOrWhiteSpace(_playerOutputPath))
+            {
+                return false;
+            }
+
+            var currentName = Path.GetFileName(_playerOutputPath);
+            var newName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform));
+            if (string.Equals(currentName, newName, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            // 仅迁移历史上硬编码的固定名，避免覆盖用户自定义名
+            if (!string.Equals(currentName, "Release_Windows.exe", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(currentName, "Release_MacOS.app", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(currentName, "Release_Linux", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var dir = Path.GetDirectoryName(_playerOutputPath);
+            _playerOutputPath = string.IsNullOrWhiteSpace(dir)
+                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform)
+                : Path.Combine(dir, newName);
+            return true;
+        }
+
         private void SaveSettings()
         {
             if (_setting == null)
@@ -917,9 +957,28 @@ namespace TEngine
 
         private void OnPlayerPlatformChanged()
         {
+            // 切平台时重新生成输出路径，确保可执行文件名跟随当前平台与 productName
+            _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+            OnSettingsChanged();
+        }
+
+        /// <summary>
+        /// 按 PlayerSettings.productName 重新生成可执行文件名，保留用户自定义的目录。
+        /// （PlayerSettings.productName 已由 UpdateSettingInspector 自动从 UpdateSetting.projectName 同步过来）
+        /// </summary>
+        private void SyncPlayerOutputName()
+        {
+            var defaultPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+            var newName = Path.GetFileName(defaultPath);
+
             if (string.IsNullOrWhiteSpace(_playerOutputPath))
             {
-                _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+                _playerOutputPath = defaultPath;
+            }
+            else
+            {
+                var dir = Path.GetDirectoryName(_playerOutputPath);
+                _playerOutputPath = string.IsNullOrWhiteSpace(dir) ? defaultPath : Path.Combine(dir, newName);
             }
 
             OnSettingsChanged();
