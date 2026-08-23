@@ -11,10 +11,10 @@
 #define MyAppName "我的软件"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "我的公司"
-#define MyAppExeName "Release.exe"
+#define MyAppExeName "hotUnitydemo.exe"
 #define MyAppId "MyAppId"
 ; 安装密码：留空字符串表示无密码(Encryption 仍保留，空密码等同于普通加密占位)
-#define MyAppPassword ""
+#define MyAppPassword "11"
 ; 安装向导左下角发布者水印文字
 #define BrandWatermark "我的公司"
 
@@ -27,7 +27,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={code:GetDefaultDir}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=no
-OutputDir=Output
+OutputDir=setup
 OutputBaseFilename=Setup_{#MyAppName}_{#MyAppVersion}
 Compression=lzma2/max
 SolidCompression=yes
@@ -51,7 +51,8 @@ Encryption=yes
 #endif
 
 [Languages]
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 使用与 setup.iss 同目录下的本地简体中文语言文件,避免依赖 ISCC 安装目录的 Languages
+Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -59,7 +60,7 @@ Name: "autostart"; Description: "开机自动启动本程序"; GroupDescription:
 
 [Files]
 Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"
