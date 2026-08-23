@@ -95,10 +95,11 @@ end;
 
 function GetDefaultDir(Param: string): string;
 begin
+  { 默认安装目录用软件名而非发布者名;发布者仅用于向导显示 }
   if DirExists('D:\') then
-    Result := 'D:\{#MyAppPublisher}'
+    Result := 'D:\{#MyAppName}'
   else
-    Result := ExpandConstant('{sd}\{#MyAppPublisher}');
+    Result := ExpandConstant('{sd}\{#MyAppName}');
 end;
 
 const
