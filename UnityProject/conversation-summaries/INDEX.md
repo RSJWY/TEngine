@@ -5,6 +5,9 @@
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
 ## 2026-08-23
+- [InnoSetup 安装包 iss 变量输入补全](./2026-08-23-innosetup-iss-define-input-fields-summary.md)
+  - 关键词：setup.iss、IssInstallerConfig、SyncIssDefines、MyAppName、MyAppPublisher、MyAppPassword、BrandWatermark、MyAppId不回写、BuildConfig、BuildPipelineSetting、BuildPipelineWindow、双Box分区、ISCC编译区
+  - 结论：iss 回写由 2 项扩到 6 项，AppId 以 iss 为准；窗口拆参数区/ISCC 区，补 4 字段输入。
 - [统一构建产物到 Releases/ + InnoSetup 集成进 BuildPipelineWindow](./2026-08-23-releases-unify-innosetup-integration-summary.md)
   - 关键词：Releases、Bundles、Windows/build、Windows/setup、Publish 扁平化、FullReleaseBuilder→InnoSetupBuilder、FindIscc、D盘扫描、IsccPath 兜底、BuildInstaller、BuildPipelineWindow、Output→Releases 迁移、setup.iss
   - 结论：两套并行打包体系合并到 Releases/ 平铺；InnoSetupBuilder 迁入 TEngine 并复用 ReleaseTools，消除重复实现。

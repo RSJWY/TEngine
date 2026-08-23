@@ -4,6 +4,7 @@
 
 ## 2026-08-23
 
+- 补全 InnoSetup 安装包变量输入：`InnoSetupBuilder` 新增 `IssInstallerConfig`，`SyncIssDefines` 回写范围由 `MyAppExeName`/`MyAppVersion` 扩展到 6 项（含 `MyAppName`/`MyAppPublisher`/`MyAppPassword`/`BrandWatermark`）；`MyAppId` 不回写、以 iss 手填值为准。窗口「安装包配置」拆为「InnoSetup 安装包」参数区与「ISCC 编译」工具区，新增应用名/发布者/安装密码/水印 4 个字段（默认取 `PlayerSettings`）。
 - 统一构建产物到 `UnityProject/Releases/` 平铺：`Bundles/`、`Windows/{setup.iss,build/,setup/}`、`Linux/build/`、`Publish/`；`BuildConfig`/`BuildPipelineSetting`/`BuildPipelineWindow`/`ReleaseTools` 默认路径由 `Output/` 改为 `Releases/`，Windows/Linux Player 归 `Releases/{平台}/build/`，其它平台 Player 仍走 `Output/Player/`。
 - 发布整理目录扁平化：去掉 `{项目名}` 一层，结构变为 `Releases/Publish/{平台}/{包名}/`。
 - 已入库 `BuildPipelineSetting.asset` 的旧 `Output/` 路径自动迁移到 `Releases/`。

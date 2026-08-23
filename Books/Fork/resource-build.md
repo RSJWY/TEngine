@@ -187,7 +187,7 @@ Releases/
 ### 注意事项
 
 - `setup.iss` 需用户自行放入 `Releases/Windows/setup.iss` 后 InnoSetup 流程才可用；缺失时 `InnoSetupBuilder.BuildInstaller` 抛 `FileNotFoundException` 并提示路径。
-- `setup.iss` 的 `OutputDir` 需指向 `Releases/Windows/setup`，`Source` 需指向 `Releases/Windows/build`（脚本内容由用户维护，本工具仅回写 `MyAppExeName`/`MyAppVersion`）。
+- `setup.iss` 的 `OutputDir` 需指向 `Releases/Windows/setup`，`Source` 需指向 `Releases/Windows/build`（脚本内容由用户维护，本工具回写 `MyAppName`/`MyAppVersion`/`MyAppPublisher`/`MyAppExeName`/`MyAppPassword`/`BrandWatermark` 六项，`MyAppId` 不回写，详见下文「iss 变量输入补全」）。
 - Linux 安装包方案待定，本次仅建好 `Releases/Linux/build/` 的 Player 输出。
 - YooAsset 内置资源复制链路（`BuildinFileRoot = GetStreamingAssetsRoot()` → `Assets/StreamingAssets/package/`）不受影响，与 `OutputRoot` 相互独立。
 
@@ -199,4 +199,46 @@ Releases/
 - `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
 - `Assets/TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`（新增，由 `Assets/Editor/Build/windows/FullReleaseBuilder.cs` 迁移重构）
 - `UnityProject/.gitignore`
+
+## iss 变量输入补全
+
+### 背景
+
+`setup.iss` 顶部用 `#define` 暴露了一组安装包元信息（应用名、版本、发布者、exe 名、AppId、安装密码、水印），并注释声明「打包工具构建时按窗口参数回写」。但 InnoSetup 集成初版只在窗口暴露了「安装包版本」「ISCC 路径」两项，`SyncIssDefines` 实际只回写 `MyAppExeName`/`MyAppVersion`；应用名、发布者、安装密码、水印等始终停留在 iss 模板写死的占位值（如「我的软件」「我的公司」），打出安装包后还得手动改 iss 再编译。本次把这部分变量补成窗口输入字段，让一键出包即出即用。
+
+### 改动摘要
+
+- `InnoSetupBuilder` 新增 `IssInstallerConfig` 结构承载窗口侧输入（`AppName`/`InstallerVersion`/`Publisher`/`ExeName`/`Password`/`Watermark`），`BuildInstaller` 改为接收该结构。
+- `SyncIssDefines` 回写范围由 2 项扩展到 6 项：`MyAppName`/`MyAppPublisher`/`MyAppPassword`/`BrandWatermark` 与既有的 `MyAppExeName`/`MyAppVersion`（版本为空时沿用 iss 现值不回写，避免清空版本号）。
+- **`MyAppId` 不回写**，始终以 `setup.iss` 文件内手填值为准——它决定升级覆盖 vs 并存的安装包身份，需稳定不随窗口参数漂移；iss 顶部注释同步标注此约束。
+- `BuildConfig`/`BuildPipelineSetting` 新增 4 个持久化字段 `InstallerAppName`/`InstallerPublisher`/`InstallerPassword`/`InstallerWatermark`；默认值：应用名取 `PlayerSettings.productName`、发布者取 `PlayerSettings.companyName`、密码默认空、水印默认随发布者（为空时运行时回退用发布者值）。
+- 打包窗口「安装包配置」tab 拆为两个 BoxGroup：**InnoSetup 安装包**（开关、版本、应用名、发布者、安装密码、发布者水印）与 **ISCC 编译**（ISCC 路径+浏览/打开、ISCC 状态、iss 脚本、安装包输出预览、构建按钮），参数与工具链分离；4 个新字段经 `LoadFromSetting`/`SaveSettings`/`ApplyConfigToFields`/`CreateConfig` 全链路同步，首次为空时从 `PlayerSettings` 补默认值并持久化。
+
+### 使用方式
+
+在「打包工具窗口 → 安装包配置」tab 勾选「构建安装包」后：
+
+- **应用名称**：填软件中文名（如「我的软件」），回写 `MyAppName`，影响安装目录、开始菜单组、桌面/启动项图标名、安装包文件名。
+- **发布者**：回写 `MyAppPublisher`，仅用于安装向导显示（最新版 iss 默认安装目录已改用 `MyAppName` 而非发布者，发布者不再影响路径）。
+- **安装密码**：留空表示不加密；填入后 iss 的 `#if MyAppPassword != ""` 自动启用 `Password`+`Encryption`。
+- **发布者水印**：安装向导左下角灰色文字，回写 `BrandWatermark`；留空时回退用「发布者」值。
+- **AppId**：直接改 `Releases/Windows/setup.iss` 的 `#define MyAppId`，窗口不提供入口。
+
+### 注意事项
+
+- `MyAppId` 改动会影响旧版升级覆盖（同 AppId 覆盖、不同 AppId 并存），首次部署需在 iss 里填稳定值，勿随手改。
+- 密码以明文写入 iss（Inno Setup 本身如此），iss 已入库则密码会随仓库泄露，敏感场景注意仓库可见范围。
+- 老工程升级到本版后，`BuildPipelineSetting.asset` 无新字段，首次打开窗口会自动从 `PlayerSettings` 补应用名/发布者并保存；密码、水印默认空，需按需填写。
+
+### 关键文件
+
+- `Assets/TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`（`IssInstallerConfig`、`BuildInstaller`、`SyncIssDefines`）
+- `Assets/TEngine/Editor/ReleaseTools/BuildConfig.cs`（4 字段 + `CreateDefault` 默认值）
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineSetting.cs`（4 字段 + `ApplyDefaults`）
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`（4 个 UI 字段 + 双 Box 分区 + 全链路同步 + `ExecuteInstallerBuild` 组装 `IssInstallerConfig`）
+- `Releases/Windows/setup.iss`（注释更新回写清单与 `MyAppId` 约束）
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-23-releases-unify-innosetup-integration-summary.md`
 
