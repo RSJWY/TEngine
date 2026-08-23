@@ -44,8 +44,11 @@ SetupIconFile=icon.ico
 WizardImageFile=wizard.bmp, wizard_2x.bmp
 PrivilegesRequired=lowest
 ShowLanguageDialog=no
+; 安装密码为空时不加密；窗口回写 MyAppPassword 为非空字符串后自动启用加密
+#if MyAppPassword != ""
 Password={#MyAppPassword}
 Encryption=yes
+#endif
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
