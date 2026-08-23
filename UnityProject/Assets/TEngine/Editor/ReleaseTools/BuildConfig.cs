@@ -45,6 +45,14 @@ namespace TEngine
         public BuildTarget InstallerPlatform = BuildTarget.StandaloneWindows64;
         public string InstallerVersion = "";
         public string IsccPath = "";
+        // 应用显示名(中文软件名),回写 setup.iss MyAppName;默认取 PlayerSettings.productName
+        public string InstallerAppName = "";
+        // 发布者,回写 MyAppPublisher;默认取 PlayerSettings.companyName
+        public string InstallerPublisher = "";
+        // 安装密码,空表示不加密,回写 MyAppPassword
+        public string InstallerPassword = "";
+        // 向导水印,回写 BrandWatermark;为空时回退用 Publisher
+        public string InstallerWatermark = "";
 
         public static BuildConfig CreateDefault()
         {
@@ -57,6 +65,8 @@ namespace TEngine
                 PublishRoot = "./Releases/Publish/",
                 CleanPublishPackageDirectory = true,
                 PlayerOutputPath = GetDefaultPlayerOutputPath(EditorUserBuildSettings.activeBuildTarget),
+                InstallerAppName = PlayerSettings.productName ?? string.Empty,
+                InstallerPublisher = PlayerSettings.companyName ?? string.Empty,
             };
         }
 

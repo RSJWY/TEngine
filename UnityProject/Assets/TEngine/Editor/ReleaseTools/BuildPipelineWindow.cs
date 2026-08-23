@@ -369,6 +369,46 @@ namespace TEngine
 
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [LabelText("应用名称")]
+        [Tooltip("中文软件名,回写 setup.iss 的 MyAppName;影响安装目录/开始菜单/桌面图标名/安装包文件名")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _installerAppName = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [LabelText("发布者")]
+        [Tooltip("回写 setup.iss 的 MyAppPublisher,仅用于安装向导显示")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _installerPublisher = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [LabelText("安装密码")]
+        [Tooltip("留空表示不加密;填入后自动启用 Password+Encryption")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _installerPassword = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [LabelText("发布者水印")]
+        [Tooltip("安装向导左下角灰色水印文字,回写 BrandWatermark;为空时回退用「发布者」值")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _installerWatermark = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
         [LabelText("ISCC 路径")]
         [Tooltip("手动指定 ISCC.exe 路径兜底；为空则自动按注册表/PATH/ProgramFiles 查找")]
         [InlineButton(nameof(ChooseIsccPath), "浏览")]
@@ -380,7 +420,7 @@ namespace TEngine
         private string _isccPath = string.Empty;
 
         [TabGroup("Pages", "安装包配置")]
-        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("ISCC 状态")]
@@ -398,7 +438,7 @@ namespace TEngine
         }
 
         [TabGroup("Pages", "安装包配置")]
-        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("iss 脚本")]
@@ -406,7 +446,7 @@ namespace TEngine
         private string IssScriptPath => InnoSetupBuilder.IssPath;
 
         [TabGroup("Pages", "安装包配置")]
-        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("安装包输出")]
@@ -416,8 +456,8 @@ namespace TEngine
             $"主程序产物：{InnoSetupBuilder.PlayerBuildDir}\n安装包输出：{InnoSetupBuilder.InstallerOutputDir}";
 
         [TabGroup("Pages", "安装包配置")]
-        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
-        [Button("一键构建安装包", ButtonSizes.Medium)]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
+        [Button("构建安装包", ButtonSizes.Medium)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         [ShowIf(nameof(IsInstallerEnabled))]
         [EnableIf(nameof(IsInstallerEnabled))]
@@ -833,8 +873,23 @@ namespace TEngine
                 var exeName = BuildConfig.GetDefaultPlayerOutputPath(config.InstallerPlatform);
                 exeName = Path.GetFileName(exeName);
 
+                // 水印为空时回退用发布者,保证向导左下角有文字
+                var watermark = string.IsNullOrWhiteSpace(config.InstallerWatermark)
+                    ? config.InstallerPublisher
+                    : config.InstallerWatermark;
+
+                var issConfig = new IssInstallerConfig
+                {
+                    AppName = config.InstallerAppName,
+                    InstallerVersion = config.InstallerVersion,
+                    Publisher = config.InstallerPublisher,
+                    ExeName = exeName,
+                    Password = config.InstallerPassword,
+                    Watermark = watermark,
+                };
+
                 AddLog("========== 编译 InnoSetup 安装包 ==========");
-                InnoSetupBuilder.BuildInstaller(config.InstallerVersion, exeName, config.IsccPath);
+                InnoSetupBuilder.BuildInstaller(issConfig, config.IsccPath);
                 AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
                 AddLog("========== 安装包构建完成 ==========");
             }
@@ -946,6 +1001,10 @@ namespace TEngine
                 : BuildTarget.StandaloneWindows64;
             _installerVersion = setting.InstallerVersion;
             _isccPath = setting.IsccPath;
+            _installerAppName = setting.InstallerAppName;
+            _installerPublisher = setting.InstallerPublisher;
+            _installerPassword = setting.InstallerPassword;
+            _installerWatermark = setting.InstallerWatermark;
 
             // 旧默认输出路径迁移(兼容 EditorPrefs 导入的历史数据)
             // 兼容三段历史默认值：更早的 ./Builds/、./Publish/；上一版 ./Output/Bundles/、./Output/Publish/。
@@ -978,6 +1037,19 @@ namespace TEngine
             // 迁移旧的硬编码可执行文件名到 PlayerSettings.productName，保留用户自定义的目录
             if (MigrateLegacyExecutableName())
             {
+                migratedLegacyPaths = true;
+            }
+
+            // InnoSetup 文本字段首次为空时补默认值:应用名←productName,发布者←companyName
+            // (老工程 asset 无这些字段;水印为空时不在此补,运行时回退用发布者)
+            if (string.IsNullOrEmpty(_installerAppName))
+            {
+                _installerAppName = PlayerSettings.productName ?? string.Empty;
+                migratedLegacyPaths = true;
+            }
+            if (string.IsNullOrEmpty(_installerPublisher))
+            {
+                _installerPublisher = PlayerSettings.companyName ?? string.Empty;
                 migratedLegacyPaths = true;
             }
 
@@ -1124,6 +1196,10 @@ namespace TEngine
             _setting.InstallerPlatform = _installerPlatform;
             _setting.InstallerVersion = _installerVersion;
             _setting.IsccPath = _isccPath;
+            _setting.InstallerAppName = _installerAppName;
+            _setting.InstallerPublisher = _installerPublisher;
+            _setting.InstallerPassword = _installerPassword;
+            _setting.InstallerWatermark = _installerWatermark;
 
             EditorUtility.SetDirty(_setting);
             _settingDirty = true;
@@ -1492,6 +1568,10 @@ namespace TEngine
             _installerPlatform = config.InstallerPlatform;
             _installerVersion = config.InstallerVersion;
             _isccPath = config.IsccPath;
+            _installerAppName = config.InstallerAppName;
+            _installerPublisher = config.InstallerPublisher;
+            _installerPassword = config.InstallerPassword;
+            _installerWatermark = config.InstallerWatermark;
             NormalizeSettings();
         }
 
@@ -1523,6 +1603,10 @@ namespace TEngine
                 InstallerPlatform = _installerPlatform,
                 InstallerVersion = _installerVersion,
                 IsccPath = _isccPath,
+                InstallerAppName = _installerAppName,
+                InstallerPublisher = _installerPublisher,
+                InstallerPassword = _installerPassword,
+                InstallerWatermark = _installerWatermark,
             };
         }
 

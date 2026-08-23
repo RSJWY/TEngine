@@ -33,12 +33,14 @@ namespace TEngine
         public static string InstallerOutputDir => Path.Combine(WindowsDir, "setup");
 
         /// <summary>
-        /// 编译 Windows 安装包：回写 setup.iss（MyAppExeName/MyAppVersion）后调用 ISCC 编译。
+        /// 编译 Windows 安装包：回写 setup.iss 的 #define 后调用 ISCC 编译。
+        /// 回写范围(均保持双引号格式,iss 随时可手动编译):
+        ///   MyAppName / MyAppVersion / MyAppPublisher / MyAppExeName / MyAppPassword / BrandWatermark
+        /// 注意 MyAppId 不参与回写,始终以 setup.iss 文件内手填值为准(决定升级覆盖/并存的安装包身份)。
         /// </summary>
-        /// <param name="installerVersion">安装包版本号；为空则沿用 setup.iss 现有 MyAppVersion。</param>
-        /// <param name="exeName">主程序 exe 文件名（如 Game.exe），回写到 setup.iss 的 MyAppExeName。</param>
+        /// <param name="config">安装包回写配置；各字段为空时写入空字符串,保持 iss 可直接编译。</param>
         /// <param name="isccPathOverride">用户手动指定的 ISCC.exe 路径；为空则自动查找。</param>
-        public static void BuildInstaller(string installerVersion, string exeName, string isccPathOverride = null)
+        public static void BuildInstaller(IssInstallerConfig config, string isccPathOverride = null)
         {
             if (!File.Exists(IssPath))
             {
@@ -52,7 +54,7 @@ namespace TEngine
             EditorUtility.DisplayProgressBar("一键出安装包", "Inno Setup 安装包编译中...", 0.9f);
 
             // 回写 setup.iss，保证手动编译 iss 也是最新配置
-            SyncIssDefines(installerVersion, exeName);
+            SyncIssDefines(config);
 
             // 确保安装包输出目录存在
             Directory.CreateDirectory(InstallerOutputDir);
@@ -98,15 +100,21 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 将 exe 名和安装包版本回写进 setup.iss 的 #define，保证 iss 随时可直接手动编译。
+        /// 将窗口配置回写进 setup.iss 的 #define，保证 iss 随时可直接手动编译。
+        /// MyAppVersion 为空时沿用 iss 现有值,不回写(避免清空版本号);
+        /// 其余字段即便为空也写入空字符串,触发加密开关与默认值正确。
         /// </summary>
-        private static void SyncIssDefines(string installerVersion, string exeName)
+        private static void SyncIssDefines(IssInstallerConfig config)
         {
-            WriteIssDefine("MyAppExeName", exeName);
-            if (!string.IsNullOrEmpty(installerVersion))
+            WriteIssDefine("MyAppName", config.AppName ?? string.Empty);
+            if (!string.IsNullOrEmpty(config.InstallerVersion))
             {
-                WriteIssDefine("MyAppVersion", installerVersion);
+                WriteIssDefine("MyAppVersion", config.InstallerVersion);
             }
+            WriteIssDefine("MyAppPublisher", config.Publisher ?? string.Empty);
+            WriteIssDefine("MyAppExeName", config.ExeName ?? string.Empty);
+            WriteIssDefine("MyAppPassword", config.Password ?? string.Empty);
+            WriteIssDefine("BrandWatermark", config.Watermark ?? string.Empty);
         }
 
         private static void WriteIssDefine(string key, string value)
@@ -214,5 +222,25 @@ namespace TEngine
             }
             return null;
         }
+    }
+
+    /// <summary>
+    /// setup.iss 回写配置:承载窗口侧输入的应用名/版本/发布者/exe名/密码/水印。
+    /// MyAppId 不在其中,始终以 iss 文件内手填值为准。
+    /// </summary>
+    public sealed class IssInstallerConfig
+    {
+        /// <summary>应用显示名(中文软件名),回写 MyAppName。</summary>
+        public string AppName;
+        /// <summary>安装包版本号;为空则沿用 iss 现有 MyAppVersion。</summary>
+        public string InstallerVersion;
+        /// <summary>发布者,回写 MyAppPublisher。</summary>
+        public string Publisher;
+        /// <summary>主程序 exe 文件名,回写 MyAppExeName。</summary>
+        public string ExeName;
+        /// <summary>安装密码;空字符串表示不加密,非空则启用 Password+Encryption。</summary>
+        public string Password;
+        /// <summary>向导左下角水印文字,回写 BrandWatermark。</summary>
+        public string Watermark;
     }
 }

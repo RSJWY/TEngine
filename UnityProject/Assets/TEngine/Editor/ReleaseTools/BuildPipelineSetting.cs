@@ -56,6 +56,14 @@ namespace TEngine
         public BuildTarget InstallerPlatform = BuildTarget.StandaloneWindows64;
         public string InstallerVersion = "";
         public string IsccPath = "";
+        // 应用显示名(中文软件名),回写 MyAppName
+        public string InstallerAppName = "";
+        // 发布者,回写 MyAppPublisher
+        public string InstallerPublisher = "";
+        // 安装密码,空表示不加密,回写 MyAppPassword
+        public string InstallerPassword = "";
+        // 向导水印,回写 BrandWatermark;为空时回退用 InstallerPublisher
+        public string InstallerWatermark = "";
 
         public void ApplyDefaults()
         {
@@ -84,6 +92,10 @@ namespace TEngine
             InstallerPlatform = config.InstallerPlatform;
             InstallerVersion = config.InstallerVersion;
             IsccPath = config.IsccPath;
+            InstallerAppName = config.InstallerAppName;
+            InstallerPublisher = config.InstallerPublisher;
+            InstallerPassword = config.InstallerPassword;
+            InstallerWatermark = config.InstallerWatermark;
         }
 
         /// <summary>
