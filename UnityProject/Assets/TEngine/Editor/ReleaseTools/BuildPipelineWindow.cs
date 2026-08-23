@@ -337,8 +337,19 @@ namespace TEngine
         [SerializeField]
         private string _playerOutputPath = string.Empty;
 
-        [TabGroup("Pages", "发布与Player")]
-        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        // ============ 安装包配置（独立 Tab，为后续 Linux 安装包留位） ============
+        // 平台选择：决定下方显示哪类安装包配置；与「发布与Player」的 Player 平台独立，
+        // 默认跟随当前 Player 平台，便于在 Windows 上独立配置 InnoSetup。
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/平台选择")]
+        [LabelText("安装包平台")]
+        [ValueDropdown(nameof(InstallerPlatformOptions))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private BuildTarget _installerPlatform = BuildTarget.StandaloneWindows64;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [LabelText("构建安装包")]
         [ToggleLeft]
         [ShowIf(nameof(IsWindowsPlayerPlatform))]
@@ -346,8 +357,8 @@ namespace TEngine
         [SerializeField]
         private bool _buildInstaller;
 
-        [TabGroup("Pages", "发布与Player")]
-        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [LabelText("安装包版本")]
         [Tooltip("对应 setup.iss 的 MyAppVersion，影响安装包文件名；为空则沿用 iss 现有值")]
         [ShowIf(nameof(IsInstallerEnabled))]
@@ -356,8 +367,8 @@ namespace TEngine
         [SerializeField]
         private string _installerVersion = string.Empty;
 
-        [TabGroup("Pages", "发布与Player")]
-        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [LabelText("ISCC 路径")]
         [Tooltip("手动指定 ISCC.exe 路径兜底；为空则自动按注册表/PATH/ProgramFiles 查找")]
         [InlineButton(nameof(ChooseIsccPath), "浏览")]
@@ -368,8 +379,8 @@ namespace TEngine
         [SerializeField]
         private string _isccPath = string.Empty;
 
-        [TabGroup("Pages", "发布与Player")]
-        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("ISCC 状态")]
@@ -386,17 +397,16 @@ namespace TEngine
             }
         }
 
-
-        [TabGroup("Pages", "发布与Player")]
-        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("iss 脚本")]
         [ShowIf(nameof(IsInstallerEnabled))]
         private string IssScriptPath => InnoSetupBuilder.IssPath;
 
-        [TabGroup("Pages", "发布与Player")]
-        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [ShowInInspector]
         [ReadOnly]
         [LabelText("安装包输出")]
@@ -404,6 +414,18 @@ namespace TEngine
         [ShowIf(nameof(IsInstallerEnabled))]
         private string InstallerOutputPreview =>
             $"主程序产物：{InnoSetupBuilder.PlayerBuildDir}\n安装包输出：{InnoSetupBuilder.InstallerOutputDir}";
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [Button("一键构建安装包", ButtonSizes.Medium)]
+        [GUIColor(0.35f, 0.95f, 0.55f)]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [EnableIf(nameof(IsInstallerEnabled))]
+        private void BuildInstallerButton()
+        {
+            SaveSettings();
+            ExecuteBuildInstallerOnly();
+        }
 
         [TabGroup("Pages", "快速构建")]
         [BoxGroup("Pages/快速构建/构建流程预览")]
@@ -438,6 +460,17 @@ namespace TEngine
             _buildPlayer = true;
             SaveSettings();
             ExecuteBuild(true, GetSelectedBuildPackageName());
+        }
+
+        // 安装包构建已与 Player 解耦,这里单独触发;仅 Windows 且勾选「构建安装包」时可用
+        [ButtonGroup("操作/MainBuild")]
+        [Button("一键构建安装包", ButtonSizes.Medium)]
+        [GUIColor(0.35f, 0.95f, 0.55f)]
+        [EnableIf(nameof(IsInstallerEnabled))]
+        private void MainBuildInstallerButton()
+        {
+            SaveSettings();
+            ExecuteBuildInstallerOnly();
         }
 
         [TitleGroup("操作")]
@@ -610,16 +643,6 @@ namespace TEngine
                     ReleaseTools.BuildWithConfig(config, false, packageName);
                 }
 
-                // Player 构建成功后，按需编译 InnoSetup 安装包（仅 Windows）
-                if (config.BuildInstaller && config.PlayerPlatform == BuildTarget.StandaloneWindows64
-                    && !string.IsNullOrWhiteSpace(config.PlayerOutputPath))
-                {
-                    AddLog("========== 编译 InnoSetup 安装包 ==========");
-                    var exeName = Path.GetFileName(config.PlayerOutputPath);
-                    InnoSetupBuilder.BuildInstaller(config.InstallerVersion, exeName, config.IsccPath);
-                    AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
-                }
-
                 AddLog("========== 构建完成 ==========");
             }
             catch (Exception e)
@@ -735,17 +758,59 @@ namespace TEngine
                     config.PlayerOutputPath
                 );
 
-                // Player 构建成功后，按需编译 InnoSetup 安装包（仅 Windows）
-                if (config.BuildInstaller && config.PlayerPlatform == BuildTarget.StandaloneWindows64
-                    && !string.IsNullOrWhiteSpace(config.PlayerOutputPath))
-                {
-                    AddLog("========== 编译 InnoSetup 安装包 ==========");
-                    var exeName = Path.GetFileName(config.PlayerOutputPath);
-                    InnoSetupBuilder.BuildInstaller(config.InstallerVersion, exeName, config.IsccPath);
-                    AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
-                }
-
                 AddLog("========== Player 构建完成 ==========");
+            }
+            catch (Exception e)
+            {
+                AddLog($"[错误] {e.Message}");
+                Debug.LogException(e);
+            }
+            finally
+            {
+                Application.logMessageReceived -= OnBuildLogReceived;
+            }
+
+            Repaint();
+        }
+
+        /// <summary>
+        /// 仅编译安装包：按「安装包配置」tab 的安装包平台分发到对应构建器。
+        /// 当前仅支持 Windows(InnoSetup)；后续 Linux 安装包实现后在此按平台自动分发。
+        /// </summary>
+        private void ExecuteBuildInstallerOnly()
+        {
+            var config = CreateConfig();
+            _buildLogs.Clear();
+            AddLog("========== 一键构建安装包 ==========");
+            AddLog($"安装包平台: {config.InstallerPlatform}");
+
+            if (config.InstallerPlatform != BuildTarget.StandaloneWindows64)
+            {
+                // 后续 Linux 安装包实现后,在此按平台分发到对应构建器
+                AddLog($"[跳过] 当前安装包平台 {config.InstallerPlatform} 暂未实现安装包构建。");
+                Repaint();
+                return;
+            }
+
+            if (!config.BuildInstaller)
+            {
+                AddLog("[跳过] 未勾选「构建安装包」,请在「安装包配置」tab 勾选后再试。");
+                Repaint();
+                return;
+            }
+
+            try
+            {
+                Application.logMessageReceived += OnBuildLogReceived;
+
+                // exe 名取自 PlayerSettings.productName,与 Player 产物命名一致
+                var exeName = BuildConfig.GetDefaultPlayerOutputPath(config.InstallerPlatform);
+                exeName = Path.GetFileName(exeName);
+
+                AddLog("========== 编译 InnoSetup 安装包 ==========");
+                InnoSetupBuilder.BuildInstaller(config.InstallerVersion, exeName, config.IsccPath);
+                AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
+                AddLog("========== 安装包构建完成 ==========");
             }
             catch (Exception e)
             {
@@ -850,6 +915,9 @@ namespace TEngine
                 : setting.PlayerOutputPath;
 
             _buildInstaller = setting.BuildInstaller;
+            _installerPlatform = Array.IndexOf(PlatformTargets, setting.InstallerPlatform) >= 0
+                ? setting.InstallerPlatform
+                : BuildTarget.StandaloneWindows64;
             _installerVersion = setting.InstallerVersion;
             _isccPath = setting.IsccPath;
 
@@ -1027,6 +1095,7 @@ namespace TEngine
             _setting.PlayerPlatform = _playerPlatform;
             _setting.PlayerOutputPath = _playerOutputPath;
             _setting.BuildInstaller = _buildInstaller;
+            _setting.InstallerPlatform = _installerPlatform;
             _setting.InstallerVersion = _installerVersion;
             _setting.IsccPath = _isccPath;
 
@@ -1334,10 +1403,7 @@ namespace TEngine
                 $"平台 {config.PlayerPlatform} | 输出 {config.PlayerOutputPath}",
                 "Player 构建未启用，跳过");
 
-            AddFlowStep(config.BuildInstaller,
-                "编译 InnoSetup 安装包",
-                $"回写 {InnoSetupBuilder.IssPath} 后调用 ISCC，输出 {InnoSetupBuilder.InstallerOutputDir}",
-                "安装包构建未启用或非 Windows 平台，跳过");
+            // 安装包构建已与 Player 解耦:改由「安装包配置」tab 的「一键构建安装包」按钮单独触发
         }
 
         private void AddFlowStep(bool enabled, string title, string enabledDetail, string skippedDetail)
@@ -1397,6 +1463,7 @@ namespace TEngine
             _playerPlatform = config.PlayerPlatform;
             _playerOutputPath = config.PlayerOutputPath;
             _buildInstaller = config.BuildInstaller;
+            _installerPlatform = config.InstallerPlatform;
             _installerVersion = config.InstallerVersion;
             _isccPath = config.IsccPath;
             NormalizeSettings();
@@ -1427,6 +1494,7 @@ namespace TEngine
                 PlayerPlatform = _playerPlatform,
                 PlayerOutputPath = _playerOutputPath,
                 BuildInstaller = _buildInstaller,
+                InstallerPlatform = _installerPlatform,
                 InstallerVersion = _installerVersion,
                 IsccPath = _isccPath,
             };
@@ -1685,9 +1753,16 @@ namespace TEngine
         private bool IsPublishCopyEnabled => _enablePublishCopy;
         private bool HasBuildLogs => _buildLogs.Count > 0;
 
-        // InnoSetup 安装包仅在 Windows Player 下可用
-        private bool IsWindowsPlayerPlatform => _buildPlayer && _playerPlatform == BuildTarget.StandaloneWindows64;
+        // 安装包配置独立 tab：Windows 平台下显示 InnoSetup 配置，后续可扩展 Linux 安装包
+        // 注意：仅控制 UI 显隐；实际编译仍由 ExecuteBuild 在 Player 构建成功后按 Windows 平台触发
+        private bool IsWindowsPlayerPlatform => _installerPlatform == BuildTarget.StandaloneWindows64;
         private bool IsInstallerEnabled => IsWindowsPlayerPlatform && _buildInstaller;
+
+        private static ValueDropdownList<BuildTarget> InstallerPlatformOptions => new ValueDropdownList<BuildTarget>
+        {
+            { "Windows 64-bit", BuildTarget.StandaloneWindows64 },
+            // 后续 Linux 安装包配置扩展位
+        };
 
         private static ValueDropdownList<BuildTarget> BuildTargetOptions => new ValueDropdownList<BuildTarget>
         {
