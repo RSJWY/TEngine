@@ -115,3 +115,31 @@
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-06-27-odin-build-pipeline-window-summary.md`
+
+## 清理 UpdateSetting 死配置字段
+
+### 背景
+
+`UpdateSetting` 原有 `BuildAddress` 与 `isAutoAssetCopeToBuildAddress` 两个字段，字面含义是「Player 打包后把内置资源复制到指定目录」。但经核对 YooAsset 2.3.19 源码，YooAsset 内置资源复制目标由 `BuildinFileRoot` 决定，而本 fork 将其设为 `AssetBundleBuilderHelper.GetStreamingAssetsRoot()` = `StreamingAssets + DefaultYooFolderName`（项目配置为 `package`），实际落地到 `Assets/StreamingAssets/package/{PackageName}/`。这两个字段从未被任何代码读取，属于误导性死配置：修改它们对打包行为无任何影响。
+
+### 改动摘要
+
+- 删除 `UpdateSetting.BuildAddress` 字段及 getter `GetBuildAddress()`。
+- 删除 `UpdateSetting.isAutoAssetCopeToBuildAddress` 字段及 getter `IsAutoAssetCopeToBuildAddress()`。
+- 原悬挂在它们上方的 `[Header("构建资源设置")]` 下移到保留字段 `ReplaceAssetPathWithAddress`，保持分组语义。
+- 同步清理 `UpdateSetting.asset` 中对应的序列化行。
+- YooAsset 内置资源复制机制（`DefaultYooFolderName=package` + `BuildinFileCopyOption`）保持不变，行为无任何回归。
+
+### 注意事项
+
+- YooAsset 内置资源复制目标仍由 `YooAssetSettings.asset` 的 `DefaultYooFolderName` 决定，与 `UpdateSetting` 无关。
+- 若未来需要「打出 Player 后把 StreamingAssets 再复制到 Player 目录」的能力，需另行实现并校正默认路径（现走 `Releases/app` + Inno Setup 路线，原默认值 `../../Builds/Unity_Data/StreamingAssets` 已不适用）。
+
+### 关键文件
+
+- `Assets/TEngine/Runtime/Core/UpdateSetting.cs`
+- `Assets/TEngine/Settings/UpdateSetting.asset`
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/code-research/2026-08-22-updatesetting-buildaddress-yooasset-research.md`

@@ -239,20 +239,10 @@ namespace TEngine
         [SerializeField]
         private LoadResWayWebGL LoadResWayWebGL = LoadResWayWebGL.Remote;
         /// <summary>
-        /// 是否自动你讲打包资源复制到打包后的StreamingAssets地址
-        /// </summary>
-        [Header("构建资源设置")]
-        [SerializeField]
-        private bool isAutoAssetCopeToBuildAddress = false;
-        /// <summary>
-        /// 打包程序资源地址
-        /// </summary>
-        [SerializeField]
-        private string BuildAddress = "../../Builds/Unity_Data/StreamingAssets";
-        /// <summary>
         /// 是否使用可寻址资源代替资源路径
         /// 说明：开启此项可以节省运行时清单占用的内存！
         /// </summary>
+        [Header("构建资源设置")]
         [SerializeField, Tooltip("是否使用可寻址资源代替资源路径 说明：开启此项可以节省运行时清单占用的内存！")]
         private bool ReplaceAssetPathWithAddress = false;
 
@@ -503,23 +493,6 @@ namespace TEngine
             }
 
             return $"{root.TrimEnd('/')}/{segment}";
-        }
-
-        /// <summary>
-        /// 是否自动你讲打包资源复制到打包后的StreamingAssets地址
-        /// </summary>
-        /// <returns></returns>
-        public bool IsAutoAssetCopeToBuildAddress()
-        {
-            return isAutoAssetCopeToBuildAddress;
-        }
-        /// <summary>
-        /// 获取打包程序资源地址
-        /// </summary>
-        /// <returns></returns>
-        public string GetBuildAddress()
-        {
-            return BuildAddress;
         }
 
         /// <summary>

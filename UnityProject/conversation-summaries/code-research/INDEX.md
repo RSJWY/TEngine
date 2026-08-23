@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-08-22
+- [UpdateSetting.BuildAddress 与 YooAsset 内置资源复制链路研究](./2026-08-22-updatesetting-buildaddress-yooasset-research.md)
+  - 关键词：UpdateSetting、BuildAddress、isAutoAssetCopeToBuildAddress、YooAsset、BuildinFileRoot、GetStreamingAssetsRoot、DefaultYooFolderName、TaskCopyBuildinFiles、StreamingAssets、ReleaseTools、FullReleaseBuilder、死代码
+  - 结论：BuildAddress 是死配置零调用；YooAsset 内置资源复制走 BuildinFileRoot=StreamingAssets/package（由 DefaultYooFolderName 决定），与 BuildAddress 无关。
+
 ## 2026-08-14
 - [Obfuz运行时初始化与混淆范围研究](./2026-08-14-obfuz-runtime-and-scope-research.md)
   - 关键词：Obfuz、HybridCLR、EncryptionService、静态密钥、动态密钥、ObfuscationInstincts、ObfuscationTypeMapper、RegisterReflectionType、GameApp、GameLogic、GameProto、字段加密、符号混淆

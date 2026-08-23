@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-22
+
+- 清理 `UpdateSetting` 死配置：删除 `BuildAddress`、`isAutoAssetCopeToBuildAddress` 字段及对应 getter，它们从未被代码读取；YooAsset 内置资源复制实际由 `BuildinFileRoot = StreamingAssets + DefaultYooFolderName(package)` 决定，与这两个字段无关。
+
 ## 2026-08-16
 
 - `RuntimeConfigModule` 加载容错：单个配置失败（缺失、重名、格式不支持）只记录错误并跳过，不再中断整体加载；`IsLoaded` 改为"一次加载流程完成"语义，下游统一按 `TryGet` 兜底默认值。

@@ -201,7 +201,7 @@ Refresh --> End(["结束"])
   - HotUpdateAssemblies：热更新DLL列表。
   - AOTMetaAssemblies：AOT补充元数据DLL列表。
   - AssemblyTextAssetPath/Extension：DLL打包到StreamingAssets的目录与扩展名。
-  - BuildAddress/IsAutoAssetCopeToBuildAddress：打包目录与自动复制策略。
+  - ReplaceAssetPathWithAddress：是否用可寻址地址替代资源路径（节省清单内存）。
   - ResDownLoadPath/FallbackResDownLoadPath：资源下载地址与备用地址。
   - GetResDownLoadPath/GetFallbackResDownLoadPath：按平台拼接最终下载地址。
 
@@ -318,9 +318,9 @@ RT --> FS
   - 参考：[UpdateSettingEditor.cs:74-104](file://Assets/TEngine/Editor/Utility/UpdateSettingEditor.cs#L74-L104)
 
 - 打包目录不存在
-  - 现象：复制StreamingAssets到打包目录时报错。
-  - 处理：检查UpdateSetting中的BuildAddress是否为有效路径。
-  - 参考：[ReleaseTools.cs:94-98](file://Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs#L94-L98)
+  - 现象：YooAsset 内置资源复制（TaskCopyBuildinFiles）时报错，StreamingAssets/package 目录不可写。
+  - 处理：检查 YooAssetSettings 的 DefaultYooFolderName 配置及 StreamingAssets 目录权限；内置资源复制目标由 BuildinFileRoot（= StreamingAssets + DefaultYooFolderName）决定。
+  - 参考：[ReleaseTools.cs:257](file://Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs#L257)
 
 - 混淆后DLL缺失
   - 现象：复制DLL时找不到混淆产物。

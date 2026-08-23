@@ -57,6 +57,4 @@ MonoBehaviour:
   ResDownLoadPath: http://127.0.0.1:80/ProjectHotupdate
   FallbackResDownLoadPath: http://127.0.0.1:80/ProjectHotupdate
   LoadResWayWebGL: 0
-  isAutoAssetCopeToBuildAddress: 0
-  BuildAddress: ../../Builds/Unity_Data/StreamingAssets
   ReplaceAssetPathWithAddress: 0
