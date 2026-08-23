@@ -470,12 +470,20 @@ namespace TEngine
         private void MainBuildInstallerButton()
         {
             SaveSettings();
-            ExecuteBuildInstallerOnly();
+            // MainBuild 区的一键构建安装包:AssetBundle + Player + InnoSetup 安装包 一条龙
+            ExecuteBuild(true, GetSelectedBuildPackageName());
+            if (_lastBuildFailed)
+            {
+                AddLog("[中断] 前置构建失败,已跳过安装包构建。请修复后重试。");
+                Repaint();
+                return;
+            }
+            ExecuteInstallerBuild(clearLogs: false);
         }
 
         [TitleGroup("操作")]
         [ButtonGroup("操作/MoreActions")]
-        [Button("构建 Player", ButtonSizes.Medium)]
+        [Button("构建 Player", ButtonSizes.Large)]
         private void BuildPlayerButton()
         {
             SaveSettings();
@@ -483,7 +491,7 @@ namespace TEngine
         }
 
         [ButtonGroup("操作/MoreActions")]
-        [Button("仅执行发布整理", ButtonSizes.Medium)]
+        [Button("仅执行发布整理", ButtonSizes.Large)]
         [EnableIf(nameof(IsPublishCopyEnabled))]
         private void PublishOnlyButton()
         {
@@ -492,7 +500,7 @@ namespace TEngine
         }
 
         [ButtonGroup("操作/MoreActions")]
-        [Button("打开发布目录", ButtonSizes.Medium)]
+        [Button("打开发布目录", ButtonSizes.Large)]
         [EnableIf(nameof(IsPublishCopyEnabled))]
         private void OpenPublishRootButton()
         {
@@ -501,14 +509,14 @@ namespace TEngine
 
         [TitleGroup("操作")]
         [ButtonGroup("操作/HotFix")]
-        [Button("编译并拷贝热更DLL", ButtonSizes.Medium)]
+        [Button("编译并拷贝热更DLL", ButtonSizes.Large)]
         private void BuildHotFixDllFromOperations()
         {
             BuildHotFixDllNow();
         }
 
         [ButtonGroup("操作/HotFix")]
-        [Button("同步 AOT 元数据清单", ButtonSizes.Medium)]
+        [Button("同步 AOT 元数据清单", ButtonSizes.Large)]
         private void SyncAOTMetadataManifestFromOperations()
         {
             SyncAOTMetadataManifestNow();
@@ -516,14 +524,14 @@ namespace TEngine
 
         [TitleGroup("操作")]
         [ButtonGroup("操作/Settings")]
-        [Button("刷新设置", ButtonSizes.Medium)]
+        [Button("刷新设置", ButtonSizes.Large)]
         private void RefreshSettingsButton()
         {
             LoadSettings();
         }
 
         [ButtonGroup("操作/Settings")]
-        [Button("重置默认", ButtonSizes.Medium)]
+        [Button("重置默认", ButtonSizes.Large)]
         private void ResetDefaultSettingsButton()
         {
             ApplyConfig(BuildConfig.CreateDefault());
@@ -551,6 +559,9 @@ namespace TEngine
         [PropertyOrder(100)]
         [ListDrawerSettings(Expanded = true, DraggableItems = false, HideAddButton = true, HideRemoveButton = true)]
         private readonly List<string> _buildLogs = new List<string>();
+
+        /// <summary>最近一次 ExecuteBuild 是否失败;用于 MainBuild 一键构建串联时判断是否跳过安装包阶段。</summary>
+        private bool _lastBuildFailed;
 
         [MenuItem(MenuPath, false, 0)]
         public static void ShowWindow()
@@ -643,10 +654,12 @@ namespace TEngine
                     ReleaseTools.BuildWithConfig(config, false, packageName);
                 }
 
+                _lastBuildFailed = false;
                 AddLog("========== 构建完成 ==========");
             }
             catch (Exception e)
             {
+                _lastBuildFailed = true;
                 AddLog($"[错误] {e.Message}");
                 Debug.LogException(e);
             }
@@ -779,8 +792,20 @@ namespace TEngine
         /// </summary>
         private void ExecuteBuildInstallerOnly()
         {
+            ExecuteInstallerBuild(clearLogs: true);
+        }
+
+        /// <summary>
+        /// 编译安装包核心逻辑。clearLogs=false 用于与前置构建串联(如 MainBuild 一键构建),
+        /// 保留前置 AB/Player 构建日志,接续输出安装包阶段日志。
+        /// </summary>
+        private void ExecuteInstallerBuild(bool clearLogs)
+        {
             var config = CreateConfig();
-            _buildLogs.Clear();
+            if (clearLogs)
+            {
+                _buildLogs.Clear();
+            }
             AddLog("========== 一键构建安装包 ==========");
             AddLog($"安装包平台: {config.InstallerPlatform}");
 
@@ -801,6 +826,7 @@ namespace TEngine
 
             try
             {
+                // 串联构建时,前置 ExecuteBuild 已移除日志监听,此处重新挂载以捕获 InnoSetup 阶段日志
                 Application.logMessageReceived += OnBuildLogReceived;
 
                 // exe 名取自 PlayerSettings.productName,与 Player 产物命名一致
