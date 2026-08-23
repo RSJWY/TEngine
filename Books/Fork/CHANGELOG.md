@@ -2,6 +2,14 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-23
+
+- 统一构建产物到 `UnityProject/Releases/` 平铺：`Bundles/`、`Windows/{setup.iss,build/,setup/}`、`Linux/build/`、`Publish/`；`BuildConfig`/`BuildPipelineSetting`/`BuildPipelineWindow`/`ReleaseTools` 默认路径由 `Output/` 改为 `Releases/`，Windows/Linux Player 归 `Releases/{平台}/build/`，其它平台 Player 仍走 `Output/Player/`。
+- 发布整理目录扁平化：去掉 `{项目名}` 一层，结构变为 `Releases/Publish/{平台}/{包名}/`。
+- 已入库 `BuildPipelineSetting.asset` 的旧 `Output/` 路径自动迁移到 `Releases/`。
+- InnoSetup 集成进 `BuildPipelineWindow`：`FullReleaseBuilder` 迁移为 `TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`（纳入 `TEngine` 命名空间），删除其重复的 YooAsset 构建实现、复用 `ReleaseTools.BuildWithConfig`；`FindIscc` 改注册表+PATH 查找；新增 `BuildInstaller`/`InstallerVersion` 字段与 UI，`ExecuteBuild` 在 Player 后按需编译安装包；删除独立窗口与 `Build/一键出安装包` 菜单。
+- `.gitignore` 补 `Releases/` 产物忽略（保留 `setup.iss`），删去废弃 `/Publish/`。
+
 ## 2026-08-22
 
 - 清理 `UpdateSetting` 死配置：删除 `BuildAddress`、`isAutoAssetCopeToBuildAddress` 字段及对应 getter，它们从未被代码读取；YooAsset 内置资源复制实际由 `BuildinFileRoot = StreamingAssets + DefaultYooFolderName(package)` 决定，与这两个字段无关。

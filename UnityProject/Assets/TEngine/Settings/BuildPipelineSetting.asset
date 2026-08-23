@@ -17,9 +17,9 @@ MonoBehaviour:
   BuildPipeline: 2
   CompressOption: 2
   PackageVersion: 2026-08-16-714
-  OutputRoot: ./Output/Bundles/
+  OutputRoot: ./Releases/Bundles/
   EnablePublishCopy: 1
-  PublishRoot: ./Output/Publish/
+  PublishRoot: ./Releases/Publish/
   CleanPublishPackageDirectory: 1
   MinimalPackage: 0
   RetainTags: 
@@ -32,4 +32,6 @@ MonoBehaviour:
   BuildHotFixDll: 1
   BuildPlayer: 1
   PlayerPlatform: 19
-  PlayerOutputPath: E:\Unity\TEngine\UnityProject\Assets\..\Output\Player\Windows\hotUnitydemo.exe
+  PlayerOutputPath: E:/Unity/TEngine/UnityProject/Assets/../Releases/Windows/build/hotUnitydemo.exe
+  BuildInstaller: 1
+  InstallerVersion: 

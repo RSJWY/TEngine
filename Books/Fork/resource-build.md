@@ -45,6 +45,8 @@
 - 补齐运行时 `Linux` 分支。
 - 支持“仅执行发布整理”，可对历史已构建版本重新整理上传。
 - 仅允许整理所有启用包都存在的“公共版本”。
+- `PublishRoot` 默认值改为 `./Releases/Publish/`，与 AB 输出、Player 输出统一平铺到 `Releases/` 下。
+- 发布目录扁平化：去掉原 `{项目名}` 一层，结构变为 `Releases/Publish/{平台}/{包名}/`。
 
 ### 关键文件
 
@@ -72,6 +74,7 @@
   3. 发布整理
   4. 最小包处理
   5. 构建 Player
+  6. 编译 InnoSetup 安装包（仅 Windows + 勾选时）
 - 启用步骤递增编号。
 - 未启用步骤灰显跳过。
 - 随配置实时刷新。
@@ -133,7 +136,7 @@
 ### 注意事项
 
 - YooAsset 内置资源复制目标仍由 `YooAssetSettings.asset` 的 `DefaultYooFolderName` 决定，与 `UpdateSetting` 无关。
-- 若未来需要「打出 Player 后把 StreamingAssets 再复制到 Player 目录」的能力，需另行实现并校正默认路径（现走 `Releases/app` + Inno Setup 路线，原默认值 `../../Builds/Unity_Data/StreamingAssets` 已不适用）。
+- 若未来需要「打出 Player 后把 StreamingAssets 再复制到 Player 目录」的能力，需另行实现并校正默认路径（现走 `Releases/Windows/build` + Inno Setup 路线，原默认值 `../../Builds/Unity_Data/StreamingAssets` 已不适用）。
 
 ### 关键文件
 
@@ -143,3 +146,57 @@
 ### 相关记录
 
 - `UnityProject/conversation-summaries/code-research/2026-08-22-updatesetting-buildaddress-yooasset-research.md`
+
+## 统一产物目录到 Releases/ 与 InnoSetup 集成
+
+### 背景
+
+原仓库存在两套并行、互不相交的打包产物目录约定：`ReleaseTools`/`BuildPipelineWindow` 体系默认输出到 `UnityProject/Output/`（AB→`Output/Bundles`、Player→`Output/Player/{平台}`、发布整理→`Output/Publish/{项目名}/{平台}/{包名}`）；而独立的 `FullReleaseBuilder` 脚本输出到 `UnityProject/Releases/`，且自行重复实现了一遍 YooAsset 构建（与 ReleaseTools 的 `BuildInternalWithConfig` 逻辑重复并不同步，连 AB 输出根都不同），还以全局命名空间落在 `Assets/Editor/Build/` 下，跨程序集引用不便。`setup.iss` 也从不入库，一键打包实际跑不起来。
+
+### 目录结构
+
+所有构建产物统一平铺到 `UnityProject/Releases/` 下：
+
+```
+Releases/
+├── Bundles/                       # yooasset 资源输出根（内部由 YooAsset 拼 {平台}/{包名}/{版本}/）
+├── Windows/
+│   ├── setup.iss                  # InnoSetup 脚本（用户自行放入）
+│   ├── build/                     # Unity Player 产物（<productName>.exe + _Data/）
+│   └── setup/                     # InnoSetup ISCC 编译输出的安装包
+├── Linux/
+│   └── build/                     # Unity Player 产物（安装包方式 TBD）
+└── Publish/                       # 发布整理产物（内部 {平台}/{包名}/）
+```
+
+仅 Windows/Linux 的 Player 归 `Releases/{平台}/build/`；Android/iOS/MacOS/WebGL 的 Player 输出仍走 `Output/Player/{平台}/`，本次不动。
+
+### 改动摘要
+
+- `BuildConfig` 的 `OutputRoot`/`PublishRoot` 默认值由 `./Output/Bundles/`、`./Output/Publish/` 改为 `./Releases/Bundles/`、`./Releases/Publish/`；`BuildPipelineSetting`、`BuildPipelineWindow` 常量与 `ReleaseTools` 回退默认值、`MenuItem` 预设路径同步。
+- `BuildConfig.GetDefaultPlayerOutputPath`：Windows→`Releases/Windows/build/<name>.exe`，Linux→`Releases/Linux/build/<name>`；其它平台分支保持 `Output/Player/{平台}/`。
+- `ReleaseTools.PublishBuiltPackage` 去掉 `{项目名}` 一层，发布目录扁平化为 `Releases/Publish/{平台}/{包名}/`；窗口发布预览文本同步去项目名。
+- 已入库 `BuildPipelineSetting.asset` 的旧 `Output/` 路径自动迁移到 `Releases/`：扩展 `LoadFromSetting` 的 legacy 判定，把 `./Output/Bundles/`、`./Output/Publish/`、`Output/Player/` 前缀也纳入迁移（保留更早的 `./Builds/`、`./Publish/` 历史兼容）。
+- `FullReleaseBuilder` 迁移到 `Assets/TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`，纳入 `TEngine` 命名空间；删除其重复的 YooAsset 构建实现，仅保留 InnoSetup 专属逻辑（`FindIscc`/`CompileSetup`/`GetIssDefine`/`SyncIssDefines`），AB 与 Player 构建复用 `ReleaseTools.BuildWithConfig`。
+- `FindIscc` 去除硬编码 `D:\Program Files\...`，改为注册表 `HKLM\SOFTWARE\...\Inno Setup <ver>` → PATH → ProgramFiles 三级查找。
+- 新增 `IsccPath` 字段与 UI「ISCC 路径」输入框（浏览/打开），作为自动查找失败的兜底；`InnoSetupBuilder.ResolveIscc` 优先用用户指定路径，其次自动查找，并在窗口显示「ISCC 状态」只读指示。
+- `BuildConfig`/`BuildPipelineSetting`/`BuildPipelineWindow` 新增 `BuildInstaller` + `InstallerVersion` 字段与 UI（「InnoSetup 安装包」分组，仅 Windows Player 下显示）；`ExecuteBuild` 在 Player 构建成功后按需调用 `InnoSetupBuilder.BuildInstaller` 回写 iss 并编译安装包。
+- 删除独立窗口 `FullReleaseBuilderWindow` 及菜单 `Build/一键出安装包`，InnoSetup 步骤并入 `Build/打包工具窗口` 的「一键构建 (AB + Player)」流程。
+- `.gitignore` 补 `Releases/` 产物忽略（`/Releases/Bundles/`、`/Releases/*/build/`、`/Releases/*/setup/`、`/Releases/Publish/`），保留 `setup.iss` 可跟踪；删去已废弃的 `/Publish/`，保留 `/Output/`（其它平台 Player 仍用）。
+
+### 注意事项
+
+- `setup.iss` 需用户自行放入 `Releases/Windows/setup.iss` 后 InnoSetup 流程才可用；缺失时 `InnoSetupBuilder.BuildInstaller` 抛 `FileNotFoundException` 并提示路径。
+- `setup.iss` 的 `OutputDir` 需指向 `Releases/Windows/setup`，`Source` 需指向 `Releases/Windows/build`（脚本内容由用户维护，本工具仅回写 `MyAppExeName`/`MyAppVersion`）。
+- Linux 安装包方案待定，本次仅建好 `Releases/Linux/build/` 的 Player 输出。
+- YooAsset 内置资源复制链路（`BuildinFileRoot = GetStreamingAssetsRoot()` → `Assets/StreamingAssets/package/`）不受影响，与 `OutputRoot` 相互独立。
+
+### 关键文件
+
+- `Assets/TEngine/Editor/ReleaseTools/BuildConfig.cs`
+- `Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs`
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineSetting.cs`
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
+- `Assets/TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`（新增，由 `Assets/Editor/Build/windows/FullReleaseBuilder.cs` 迁移重构）
+- `UnityProject/.gitignore`
+

@@ -13,11 +13,11 @@ namespace TEngine
         public EBuildPipeline BuildPipeline = EBuildPipeline.ScriptableBuildPipeline;
         public ECompressOption CompressOption = ECompressOption.LZ4;
         public string PackageVersion = "";
-        public string OutputRoot = "./Output/Bundles/";
+        public string OutputRoot = "./Releases/Bundles/";
 
         // 发布整理设置
         public bool EnablePublishCopy;
-        public string PublishRoot = "./Output/Publish/";
+        public string PublishRoot = "./Releases/Publish/";
         public bool CleanPublishPackageDirectory = true;
 
         // 最小包设置
@@ -40,6 +40,11 @@ namespace TEngine
         public BuildTarget PlayerPlatform;
         public string PlayerOutputPath = "";
 
+        // InnoSetup 安装包设置（仅 Windows）
+        public bool BuildInstaller;
+        public string InstallerVersion = "";
+        public string IsccPath = "";
+
         public static BuildConfig CreateDefault()
         {
             return new BuildConfig
@@ -47,8 +52,8 @@ namespace TEngine
                 BuildTarget = EditorUserBuildSettings.activeBuildTarget,
                 PlayerPlatform = EditorUserBuildSettings.activeBuildTarget,
                 PackageVersion = GetDefaultPackageVersion(),
-                OutputRoot = "./Output/Bundles/",
-                PublishRoot = "./Output/Publish/",
+                OutputRoot = "./Releases/Bundles/",
+                PublishRoot = "./Releases/Publish/",
                 CleanPublishPackageDirectory = true,
                 PlayerOutputPath = GetDefaultPlayerOutputPath(EditorUserBuildSettings.activeBuildTarget),
             };
@@ -91,18 +96,19 @@ namespace TEngine
 
         public static string GetDefaultPlayerOutputPath(BuildTarget target)
         {
-            string basePath = Application.dataPath + "/../Output/Player/";
+            // Windows/Linux 程序包统一归到 Releases/{平台}/build/，与 InnoSetup 安装包目录平级；
+            // 其它平台仍走 Output/Player/{平台}/。
             // 可执行文件名采用 PlayerSettings.productName，统一各平台输出名
             string executableName = GetExecutableNameFromProductName();
             return target switch
             {
-                BuildTarget.StandaloneWindows64 => basePath + "Windows/" + executableName + ".exe",
-                BuildTarget.Android => basePath + $"Android/{GetDefaultPackageVersion()}Android.apk",
-                BuildTarget.iOS => basePath + "IOS/XCode_Project",
-                BuildTarget.StandaloneOSX => basePath + "MacOS/" + executableName + ".app",
-                BuildTarget.StandaloneLinux64 => basePath + "Linux/" + executableName,
-                BuildTarget.WebGL => basePath + "WebGL",
-                _ => basePath + target + "/" + executableName
+                BuildTarget.StandaloneWindows64 => Application.dataPath + "/../Releases/Windows/build/" + executableName + ".exe",
+                BuildTarget.StandaloneLinux64 => Application.dataPath + "/../Releases/Linux/build/" + executableName,
+                BuildTarget.Android => Application.dataPath + "/../Output/Player/Android/" + GetDefaultPackageVersion() + "Android.apk",
+                BuildTarget.iOS => Application.dataPath + "/../Output/Player/IOS/XCode_Project",
+                BuildTarget.StandaloneOSX => Application.dataPath + "/../Output/Player/MacOS/" + executableName + ".app",
+                BuildTarget.WebGL => Application.dataPath + "/../Output/Player/WebGL",
+                _ => Application.dataPath + "/../Output/Player/" + target + "/" + executableName
             };
         }
 

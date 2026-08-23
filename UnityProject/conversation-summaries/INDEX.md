@@ -4,6 +4,11 @@
 > 新增会话总结时，按日期倒序在本文件顶部追加条目；禁止另建按日期拆分的索引文件。
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
+## 2026-08-23
+- [统一构建产物到 Releases/ + InnoSetup 集成进 BuildPipelineWindow](./2026-08-23-releases-unify-innosetup-integration-summary.md)
+  - 关键词：Releases、Bundles、Windows/build、Windows/setup、Publish 扁平化、FullReleaseBuilder→InnoSetupBuilder、FindIscc、D盘扫描、IsccPath 兜底、BuildInstaller、BuildPipelineWindow、Output→Releases 迁移、setup.iss
+  - 结论：两套并行打包体系合并到 Releases/ 平铺；InnoSetupBuilder 迁入 TEngine 并复用 ReleaseTools，消除重复实现。
+
 ## 2026-08-16
 - [Obfuz 混淆配置窗口 ObfuzConfigWindow](./2026-08-16-obfuz-config-window-summary.md)
   - 关键词：ObfuzConfigWindow、OdinEditorWindow、ObfuzSettings、健康检查、混淆通道预设、密钥/VM生成、OBFUZ_INSTALLED、TEngine/Build/混淆配置窗口

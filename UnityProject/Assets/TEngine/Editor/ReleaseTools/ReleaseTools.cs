@@ -79,7 +79,7 @@ namespace TEngine
         {
             var config = BuildConfig.CreateDefault();
             config.BuildTarget = BuildTarget.StandaloneWindows64;
-            config.OutputRoot = Application.dataPath + "/../Output/Bundles";
+            config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
             config.PlayerPlatform = BuildTarget.StandaloneWindows64;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.StandaloneWindows64);
@@ -91,7 +91,7 @@ namespace TEngine
         {
             var config = BuildConfig.CreateDefault();
             config.BuildTarget = BuildTarget.Android;
-            config.OutputRoot = Application.dataPath + "/../Output/Bundles";
+            config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
             config.PlayerPlatform = BuildTarget.Android;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.Android);
@@ -103,7 +103,7 @@ namespace TEngine
         {
             var config = BuildConfig.CreateDefault();
             config.BuildTarget = BuildTarget.iOS;
-            config.OutputRoot = Application.dataPath + "/../Output/Bundles";
+            config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
             config.PlayerPlatform = BuildTarget.iOS;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.iOS);
@@ -310,7 +310,7 @@ namespace TEngine
 
         public static string GetResolvedOutputRoot(BuildConfig config)
         {
-            var outputRoot = string.IsNullOrWhiteSpace(config.OutputRoot) ? "./Output/Bundles/" : config.OutputRoot;
+            var outputRoot = string.IsNullOrWhiteSpace(config.OutputRoot) ? "./Releases/Bundles/" : config.OutputRoot;
             if (!Path.IsPathRooted(outputRoot))
             {
                 outputRoot = Path.Combine(Application.dataPath + "/../", outputRoot);
@@ -327,7 +327,7 @@ namespace TEngine
 
         public static string GetPublishOutputRoot(BuildConfig config)
         {
-            var publishRoot = string.IsNullOrWhiteSpace(config.PublishRoot) ? "./Output/Publish/" : config.PublishRoot;
+            var publishRoot = string.IsNullOrWhiteSpace(config.PublishRoot) ? "./Releases/Publish/" : config.PublishRoot;
             if (!Path.IsPathRooted(publishRoot))
             {
                 publishRoot = Path.Combine(Application.dataPath + "/../", publishRoot);
@@ -440,10 +440,10 @@ namespace TEngine
                 return;
             }
 
-            var projectName = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
             var publishRoot = GetPublishOutputRoot(config);
             var remotePlatformName = GetRemotePlatformName(config.BuildTarget);
-            var targetDirectory = Path.Combine(publishRoot, projectName, remotePlatformName, packageName);
+            // 扁平化：Releases/Publish/{平台}/{包名}/，不再按项目名分子目录。
+            var targetDirectory = Path.Combine(publishRoot, remotePlatformName, packageName);
             targetDirectory = Path.GetFullPath(targetDirectory).Replace('\\', '/');
 
             if (config.CleanPublishPackageDirectory && Directory.Exists(targetDirectory))

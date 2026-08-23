@@ -110,11 +110,14 @@ yoo/
 [Aa]ssets/AssetRaw/DLL/**/*.pdb.bytes
 [Aa]ssets/AssetRaw/DLL/**/*.pdb.bytes.meta
 
-#发布整理产物
-/Publish/
-
-#打包统一输出目录(AB/Player/发布整理)
+#打包统一输出目录(其它平台 Player 仍用 Output/Player/)
 /Output/
+
+#Releases 构建产物（保留 setup.iss 等脚本，忽略产物）
+/Releases/Bundles/
+/Releases/*/build/
+/Releases/*/setup/
+/Releases/Publish/
 
 #本地 Claude 权限配置
 .claude/settings.local.json

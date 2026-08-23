@@ -16,10 +16,13 @@ namespace TEngine
     {
         private const string MenuPath = "Build/打包工具窗口";
         private const string AllBuildPackagesDisplayName = "全部资源包";
-        private const string DefaultOutputRoot = "./Output/Bundles/";
-        private const string DefaultPublishRoot = "./Output/Publish/";
+        private const string DefaultOutputRoot = "./Releases/Bundles/";
+        private const string DefaultPublishRoot = "./Releases/Publish/";
         private const string LegacyOutputRoot = "./Builds/";
         private const string LegacyPublishRoot = "./Publish/";
+        // 上一版默认值（Output/），统一迁移到 Releases/。
+        private const string LegacyOutputRootV2 = "./Output/Bundles/";
+        private const string LegacyPublishRootV2 = "./Output/Publish/";
 
         private static readonly BuildTarget[] PlatformTargets =
         {
@@ -194,7 +197,7 @@ namespace TEngine
         [ReadOnly]
         [LabelText("输出规则")]
         [ShowIf(nameof(IsPublishCopyEnabled))]
-        private string PublishRuleText => $"{_publishRoot}/{GetPreviewProjectName()}/{PublishPlatformName}/{{资源包名}}";
+        private string PublishRuleText => $"{_publishRoot}/{PublishPlatformName}/{{资源包名}}";
 
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/发布整理")]
@@ -333,6 +336,74 @@ namespace TEngine
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private string _playerOutputPath = string.Empty;
+
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [LabelText("构建安装包")]
+        [ToggleLeft]
+        [ShowIf(nameof(IsWindowsPlayerPlatform))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _buildInstaller;
+
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [LabelText("安装包版本")]
+        [Tooltip("对应 setup.iss 的 MyAppVersion，影响安装包文件名；为空则沿用 iss 现有值")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _installerVersion = string.Empty;
+
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [LabelText("ISCC 路径")]
+        [Tooltip("手动指定 ISCC.exe 路径兜底；为空则自动按注册表/PATH/ProgramFiles 查找")]
+        [InlineButton(nameof(ChooseIsccPath), "浏览")]
+        [InlineButton(nameof(OpenIsccPath), "打开")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _isccPath = string.Empty;
+
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("ISCC 状态")]
+        [MultiLineProperty(2)]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private string IsccStatusText
+        {
+            get
+            {
+                var resolved = InnoSetupBuilder.ResolveIscc(_isccPath);
+                return string.IsNullOrWhiteSpace(resolved)
+                    ? "未找到 ISCC.exe（请安装 Inno Setup 或在上方手动指定路径）"
+                    : $"已就绪：{resolved}";
+            }
+        }
+
+
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("iss 脚本")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private string IssScriptPath => InnoSetupBuilder.IssPath;
+
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/InnoSetup 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("安装包输出")]
+        [MultiLineProperty(2)]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private string InstallerOutputPreview =>
+            $"主程序产物：{InnoSetupBuilder.PlayerBuildDir}\n安装包输出：{InnoSetupBuilder.InstallerOutputDir}";
 
         [TabGroup("Pages", "快速构建")]
         [BoxGroup("Pages/快速构建/构建流程预览")]
@@ -539,6 +610,16 @@ namespace TEngine
                     ReleaseTools.BuildWithConfig(config, false, packageName);
                 }
 
+                // Player 构建成功后，按需编译 InnoSetup 安装包（仅 Windows）
+                if (config.BuildInstaller && config.PlayerPlatform == BuildTarget.StandaloneWindows64
+                    && !string.IsNullOrWhiteSpace(config.PlayerOutputPath))
+                {
+                    AddLog("========== 编译 InnoSetup 安装包 ==========");
+                    var exeName = Path.GetFileName(config.PlayerOutputPath);
+                    InnoSetupBuilder.BuildInstaller(config.InstallerVersion, exeName, config.IsccPath);
+                    AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
+                }
+
                 AddLog("========== 构建完成 ==========");
             }
             catch (Exception e)
@@ -653,6 +734,17 @@ namespace TEngine
                     config.PlayerPlatform,
                     config.PlayerOutputPath
                 );
+
+                // Player 构建成功后，按需编译 InnoSetup 安装包（仅 Windows）
+                if (config.BuildInstaller && config.PlayerPlatform == BuildTarget.StandaloneWindows64
+                    && !string.IsNullOrWhiteSpace(config.PlayerOutputPath))
+                {
+                    AddLog("========== 编译 InnoSetup 安装包 ==========");
+                    var exeName = Path.GetFileName(config.PlayerOutputPath);
+                    InnoSetupBuilder.BuildInstaller(config.InstallerVersion, exeName, config.IsccPath);
+                    AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
+                }
+
                 AddLog("========== Player 构建完成 ==========");
             }
             catch (Exception e)
@@ -757,23 +849,33 @@ namespace TEngine
                 ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform)
                 : setting.PlayerOutputPath;
 
+            _buildInstaller = setting.BuildInstaller;
+            _installerVersion = setting.InstallerVersion;
+            _isccPath = setting.IsccPath;
+
             // 旧默认输出路径迁移(兼容 EditorPrefs 导入的历史数据)
+            // 兼容三段历史默认值：更早的 ./Builds/、./Publish/；上一版 ./Output/Bundles/、./Output/Publish/。
             var migratedLegacyPaths = false;
-            if (IsLegacyDefaultPath(_outputRoot, LegacyOutputRoot))
+            if (IsLegacyDefaultPath(_outputRoot, LegacyOutputRoot) ||
+                IsLegacyDefaultPath(_outputRoot, LegacyOutputRootV2))
             {
                 _outputRoot = DefaultOutputRoot;
                 migratedLegacyPaths = true;
             }
 
-            if (IsLegacyDefaultPath(_publishRoot, LegacyPublishRoot))
+            if (IsLegacyDefaultPath(_publishRoot, LegacyPublishRoot) ||
+                IsLegacyDefaultPath(_publishRoot, LegacyPublishRootV2))
             {
                 _publishRoot = DefaultPublishRoot;
                 migratedLegacyPaths = true;
             }
 
+            // Player 旧目录前缀迁移：./Build/ 与 ./Output/Player/ 都视为旧默认，重置为当前默认路径
             var legacyPlayerBase = NormalizePath(Application.dataPath + "/../Build/");
+            var legacyPlayerBaseV2 = NormalizePath(Application.dataPath + "/../Output/Player/");
             if (!string.IsNullOrEmpty(_playerOutputPath) &&
-                NormalizePath(_playerOutputPath).StartsWith(legacyPlayerBase, StringComparison.OrdinalIgnoreCase))
+                (NormalizePath(_playerOutputPath).StartsWith(legacyPlayerBase, StringComparison.OrdinalIgnoreCase) ||
+                 NormalizePath(_playerOutputPath).StartsWith(legacyPlayerBaseV2, StringComparison.OrdinalIgnoreCase)))
             {
                 _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
                 migratedLegacyPaths = true;
@@ -924,6 +1026,9 @@ namespace TEngine
             _setting.BuildPlayer = _buildPlayer;
             _setting.PlayerPlatform = _playerPlatform;
             _setting.PlayerOutputPath = _playerOutputPath;
+            _setting.BuildInstaller = _buildInstaller;
+            _setting.InstallerVersion = _installerVersion;
+            _setting.IsccPath = _isccPath;
 
             EditorUtility.SetDirty(_setting);
             _settingDirty = true;
@@ -1189,7 +1294,7 @@ namespace TEngine
             _cachedToolbarStatus =
                 $"平台: {_buildTarget}  |  版本: {GetPreviewVersionText()}  |  资源包: {_cachedPackageSummary}";
             _cachedPublishPackagePreviewText = string.Join("\n", GetCurrentPackageNames().Select(packageName =>
-                $"{_publishRoot}/{GetPreviewProjectName()}/{PublishPlatformName}/{packageName}"));
+                $"{_publishRoot}/{PublishPlatformName}/{packageName}"));
 
             RebuildFlowSteps(config);
         }
@@ -1214,7 +1319,7 @@ namespace TEngine
 
             AddFlowStep(config.EnablePublishCopy,
                 "发布整理",
-                $"拷贝到 {config.PublishRoot}/{GetPreviewProjectName()}/{ReleaseTools.GetRemotePlatformName(config.BuildTarget)}/{{资源包名}}",
+                $"拷贝到 {config.PublishRoot}/{ReleaseTools.GetRemotePlatformName(config.BuildTarget)}/{{资源包名}}",
                 "发布整理未启用，跳过");
 
             AddFlowStep(config.MinimalPackage,
@@ -1228,6 +1333,11 @@ namespace TEngine
                 "构建 Player",
                 $"平台 {config.PlayerPlatform} | 输出 {config.PlayerOutputPath}",
                 "Player 构建未启用，跳过");
+
+            AddFlowStep(config.BuildInstaller,
+                "编译 InnoSetup 安装包",
+                $"回写 {InnoSetupBuilder.IssPath} 后调用 ISCC，输出 {InnoSetupBuilder.InstallerOutputDir}",
+                "安装包构建未启用或非 Windows 平台，跳过");
         }
 
         private void AddFlowStep(bool enabled, string title, string enabledDetail, string skippedDetail)
@@ -1250,11 +1360,6 @@ namespace TEngine
             return string.IsNullOrWhiteSpace(_packageVersion)
                 ? "(自动生成)"
                 : _packageVersion;
-        }
-
-        private static string GetPreviewProjectName()
-        {
-            return Settings.UpdateSetting != null ? Settings.UpdateSetting.GetProjectName() : "Demo";
         }
 
         private string GetPreviewBuildPackageText()
@@ -1291,6 +1396,9 @@ namespace TEngine
             _buildPlayer = config.BuildPlayer;
             _playerPlatform = config.PlayerPlatform;
             _playerOutputPath = config.PlayerOutputPath;
+            _buildInstaller = config.BuildInstaller;
+            _installerVersion = config.InstallerVersion;
+            _isccPath = config.IsccPath;
             NormalizeSettings();
         }
 
@@ -1318,6 +1426,9 @@ namespace TEngine
                 BuildPlayer = _buildPlayer,
                 PlayerPlatform = _playerPlatform,
                 PlayerOutputPath = _playerOutputPath,
+                BuildInstaller = _buildInstaller,
+                InstallerVersion = _installerVersion,
+                IsccPath = _isccPath,
             };
         }
 
@@ -1493,6 +1604,33 @@ namespace TEngine
             OnSettingsChanged();
         }
 
+        private void ChooseIsccPath()
+        {
+            var directory = !string.IsNullOrWhiteSpace(_isccPath) && File.Exists(_isccPath)
+                ? Path.GetDirectoryName(_isccPath)
+                : Application.dataPath;
+            var selected = EditorUtility.OpenFilePanel("选择 ISCC.exe", directory ?? string.Empty, "exe");
+            if (string.IsNullOrEmpty(selected))
+            {
+                return;
+            }
+
+            _isccPath = selected;
+            OnSettingsChanged();
+        }
+
+        private void OpenIsccPath()
+        {
+            var iscc = InnoSetupBuilder.ResolveIscc(_isccPath);
+            if (string.IsNullOrEmpty(iscc))
+            {
+                Debug.LogWarning("[InnoSetup] 未找到 ISCC.exe，无法打开。请先安装 Inno Setup 或在「ISCC 路径」手动指定。");
+                return;
+            }
+
+            EditorUtility.RevealInFinder(iscc);
+        }
+
         private static string ToAbsolutePath(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
@@ -1546,6 +1684,10 @@ namespace TEngine
         private bool IsUpdateSettingMissing => !HasUpdateSetting;
         private bool IsPublishCopyEnabled => _enablePublishCopy;
         private bool HasBuildLogs => _buildLogs.Count > 0;
+
+        // InnoSetup 安装包仅在 Windows Player 下可用
+        private bool IsWindowsPlayerPlatform => _buildPlayer && _playerPlatform == BuildTarget.StandaloneWindows64;
+        private bool IsInstallerEnabled => IsWindowsPlayerPlatform && _buildInstaller;
 
         private static ValueDropdownList<BuildTarget> BuildTargetOptions => new ValueDropdownList<BuildTarget>
         {

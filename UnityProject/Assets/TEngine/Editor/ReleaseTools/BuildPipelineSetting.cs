@@ -24,11 +24,11 @@ namespace TEngine
         public EBuildPipeline BuildPipeline = EBuildPipeline.ScriptableBuildPipeline;
         public ECompressOption CompressOption = ECompressOption.LZ4;
         public string PackageVersion = "";
-        public string OutputRoot = "./Output/Bundles/";
+        public string OutputRoot = "./Releases/Bundles/";
 
         // 发布整理设置
         public bool EnablePublishCopy;
-        public string PublishRoot = "./Output/Publish/";
+        public string PublishRoot = "./Releases/Publish/";
         public bool CleanPublishPackageDirectory = true;
 
         // 最小包设置
@@ -50,6 +50,11 @@ namespace TEngine
         public bool BuildPlayer;
         public BuildTarget PlayerPlatform;
         public string PlayerOutputPath = "";
+
+        // InnoSetup 安装包设置（仅 Windows）
+        public bool BuildInstaller;
+        public string InstallerVersion = "";
+        public string IsccPath = "";
 
         public void ApplyDefaults()
         {
@@ -74,6 +79,9 @@ namespace TEngine
             BuildPlayer = config.BuildPlayer;
             PlayerPlatform = config.PlayerPlatform;
             PlayerOutputPath = config.PlayerOutputPath;
+            BuildInstaller = config.BuildInstaller;
+            InstallerVersion = config.InstallerVersion;
+            IsccPath = config.IsccPath;
         }
 
         /// <summary>
