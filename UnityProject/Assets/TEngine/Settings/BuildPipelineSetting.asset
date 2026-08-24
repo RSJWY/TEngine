@@ -34,4 +34,11 @@ MonoBehaviour:
   PlayerPlatform: 19
   PlayerOutputPath: E:/Unity/TEngine/UnityProject/Assets/../Releases/Windows/build/hotUnitydemo.exe
   BuildInstaller: 1
+  InstallerPlatform: 19
   InstallerVersion: 
+  IsccPath: 
+  InstallerAppName: hotUnitydemo
+  InstallerAppEnglishName: hotUnitydemo
+  InstallerPublisher: DefaultCompany
+  InstallerPassword: 
+  InstallerWatermark: 

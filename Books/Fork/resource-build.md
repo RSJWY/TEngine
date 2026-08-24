@@ -213,13 +213,15 @@ Releases/
 - **`MyAppId` 不回写**，始终以 `setup.iss` 文件内手填值为准——它决定升级覆盖 vs 并存的安装包身份，需稳定不随窗口参数漂移；iss 顶部注释同步标注此约束。
 - `BuildConfig`/`BuildPipelineSetting` 新增 4 个持久化字段 `InstallerAppName`/`InstallerPublisher`/`InstallerPassword`/`InstallerWatermark`；默认值：应用名取 `PlayerSettings.productName`、发布者取 `PlayerSettings.companyName`、密码默认空、水印默认随发布者（为空时运行时回退用发布者值）。
 - 打包窗口「安装包配置」tab 拆为两个 BoxGroup：**InnoSetup 安装包**（开关、版本、应用名、发布者、安装密码、发布者水印）与 **ISCC 编译**（ISCC 路径+浏览/打开、ISCC 状态、iss 脚本、安装包输出预览、构建按钮），参数与工具链分离；4 个新字段经 `LoadFromSetting`/`SaveSettings`/`ApplyConfigToFields`/`CreateConfig` 全链路同步，首次为空时从 `PlayerSettings` 补默认值并持久化。
+- **新增软件英文名**（2026-08-24）：`setup.iss` 新增 `#define MyAppEnglishName`，`GetDefaultDir` 默认安装目录改用英文名而非中文 `MyAppName`（中文名仍用于显示/图标/安装包文件名）；`IssInstallerConfig` 增加 `AppEnglishName` 并回写，为空时回退用 `AppName`；`BuildConfig`/`BuildPipelineSetting`/`BuildPipelineWindow` 新增 `InstallerAppEnglishName` 字段与「软件英文名」UI（默认取 `PlayerSettings.productName`），全链路同步。
 
 ### 使用方式
 
 在「打包工具窗口 → 安装包配置」tab 勾选「构建安装包」后：
 
-- **应用名称**：填软件中文名（如「我的软件」），回写 `MyAppName`，影响安装目录、开始菜单组、桌面/启动项图标名、安装包文件名。
-- **发布者**：回写 `MyAppPublisher`，仅用于安装向导显示（最新版 iss 默认安装目录已改用 `MyAppName` 而非发布者，发布者不再影响路径）。
+- **应用名称**：填软件中文名（如「我的软件」），回写 `MyAppName`，影响开始菜单组、桌面/启动项图标名、安装包文件名（不再影响安装目录）。
+- **软件英文名**：回写 `MyAppEnglishName`，**仅用于默认安装目录**（`DefaultDirName`→`GetDefaultDir`），中文名含非 ASCII 字符会污染路径，故目录改用英文名；为空时回退用「应用名称」。默认取 `PlayerSettings.productName`。
+- **发布者**：回写 `MyAppPublisher`，仅用于安装向导显示（不影响路径）。
 - **安装密码**：留空表示不加密；填入后 iss 的 `#if MyAppPassword != ""` 自动启用 `Password`+`Encryption`。
 - **发布者水印**：安装向导左下角灰色文字，回写 `BrandWatermark`；留空时回退用「发布者」值。
 - **AppId**：直接改 `Releases/Windows/setup.iss` 的 `#define MyAppId`，窗口不提供入口。

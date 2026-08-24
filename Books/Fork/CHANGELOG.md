@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-24
+
+- InnoSetup 安装目录改用英文名：`setup.iss` 新增 `#define MyAppEnglishName`，`GetDefaultDir` 改用它作为默认安装目录（`MyAppName` 中文仅用于显示/图标/安装包文件名）；`InnoSetupBuilder`/`IssInstallerConfig` 增加 `AppEnglishName` 字段并回写，为空时回退用 `AppName`；`BuildConfig`/`BuildPipelineSetting`/`BuildPipelineWindow` 新增 `InstallerAppEnglishName` 持久化字段与「软件英文名」UI（默认取 `PlayerSettings.productName`），全链路同步。
+
 ## 2026-08-23
 
 - 补全 InnoSetup 安装包变量输入：`InnoSetupBuilder` 新增 `IssInstallerConfig`，`SyncIssDefines` 回写范围由 `MyAppExeName`/`MyAppVersion` 扩展到 6 项（含 `MyAppName`/`MyAppPublisher`/`MyAppPassword`/`BrandWatermark`）；`MyAppId` 不回写、以 iss 手填值为准。窗口「安装包配置」拆为「InnoSetup 安装包」参数区与「ISCC 编译」工具区，新增应用名/发布者/安装密码/水印 4 个字段（默认取 `PlayerSettings`）。

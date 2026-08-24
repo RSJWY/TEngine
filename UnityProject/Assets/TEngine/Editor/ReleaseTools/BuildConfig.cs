@@ -47,6 +47,8 @@ namespace TEngine
         public string IsccPath = "";
         // 应用显示名(中文软件名),回写 setup.iss MyAppName;默认取 PlayerSettings.productName
         public string InstallerAppName = "";
+        // 软件英文名,回写 setup.iss MyAppEnglishName;仅用于安装目录,为空时回退用 InstallerAppName
+        public string InstallerAppEnglishName = "";
         // 发布者,回写 MyAppPublisher;默认取 PlayerSettings.companyName
         public string InstallerPublisher = "";
         // 安装密码,空表示不加密,回写 MyAppPassword

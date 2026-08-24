@@ -379,6 +379,16 @@ namespace TEngine
 
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [LabelText("软件英文名")]
+        [Tooltip("仅用于安装目录,回写 setup.iss 的 MyAppEnglishName;为空时回退用「应用名称」")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _installerAppEnglishName = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [LabelText("发布者")]
         [Tooltip("回写 setup.iss 的 MyAppPublisher,仅用于安装向导显示")]
         [ShowIf(nameof(IsInstallerEnabled))]
@@ -881,6 +891,7 @@ namespace TEngine
                 var issConfig = new IssInstallerConfig
                 {
                     AppName = config.InstallerAppName,
+                    AppEnglishName = config.InstallerAppEnglishName,
                     InstallerVersion = config.InstallerVersion,
                     Publisher = config.InstallerPublisher,
                     ExeName = exeName,
@@ -1002,6 +1013,7 @@ namespace TEngine
             _installerVersion = setting.InstallerVersion;
             _isccPath = setting.IsccPath;
             _installerAppName = setting.InstallerAppName;
+            _installerAppEnglishName = setting.InstallerAppEnglishName;
             _installerPublisher = setting.InstallerPublisher;
             _installerPassword = setting.InstallerPassword;
             _installerWatermark = setting.InstallerWatermark;
@@ -1045,6 +1057,12 @@ namespace TEngine
             if (string.IsNullOrEmpty(_installerAppName))
             {
                 _installerAppName = PlayerSettings.productName ?? string.Empty;
+                migratedLegacyPaths = true;
+            }
+            // 英文名首次为空时补 productName 作为默认(与可执行文件命名一致,纯英文路径更友好)
+            if (string.IsNullOrEmpty(_installerAppEnglishName))
+            {
+                _installerAppEnglishName = PlayerSettings.productName ?? string.Empty;
                 migratedLegacyPaths = true;
             }
             if (string.IsNullOrEmpty(_installerPublisher))
@@ -1197,6 +1215,7 @@ namespace TEngine
             _setting.InstallerVersion = _installerVersion;
             _setting.IsccPath = _isccPath;
             _setting.InstallerAppName = _installerAppName;
+            _setting.InstallerAppEnglishName = _installerAppEnglishName;
             _setting.InstallerPublisher = _installerPublisher;
             _setting.InstallerPassword = _installerPassword;
             _setting.InstallerWatermark = _installerWatermark;
@@ -1569,6 +1588,7 @@ namespace TEngine
             _installerVersion = config.InstallerVersion;
             _isccPath = config.IsccPath;
             _installerAppName = config.InstallerAppName;
+            _installerAppEnglishName = config.InstallerAppEnglishName;
             _installerPublisher = config.InstallerPublisher;
             _installerPassword = config.InstallerPassword;
             _installerWatermark = config.InstallerWatermark;
@@ -1604,6 +1624,7 @@ namespace TEngine
                 InstallerVersion = _installerVersion,
                 IsccPath = _isccPath,
                 InstallerAppName = _installerAppName,
+                InstallerAppEnglishName = _installerAppEnglishName,
                 InstallerPublisher = _installerPublisher,
                 InstallerPassword = _installerPassword,
                 InstallerWatermark = _installerWatermark,

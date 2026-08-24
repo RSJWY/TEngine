@@ -3,12 +3,14 @@
 ; 模板说明：
 ;   1. 顶部 #define 均为可直接编译的合理默认值；填好即可用 ISCC.exe setup.iss 直接编译。
 ;   2. 打包工具(InnoSetupBuilder)在构建时会按窗口参数回写以下 #define 值（保持双引号格式）：
-;        MyAppName / MyAppVersion / MyAppPublisher / MyAppExeName / MyAppId / MyAppPassword / BrandWatermark
+;        MyAppName / MyAppEnglishName / MyAppVersion / MyAppPublisher / MyAppExeName / MyAppId / MyAppPassword / BrandWatermark
 ;      回写基于"键名+双引号值"的正则匹配，故这些 #define 的值必须始终用双引号包裹。
 ;   3. LicenseFile 为用户协议文件，固定为 License.lic，不参与传参。
 ; ------------------------------------------------------------
 ; 编译: ISCC.exe setup.iss 或用 Inno Setup Compiler GUI 打开编译
 #define MyAppName "我的软件"
+; 软件英文名:仅用于安装目录(DefaultDirName),MyAppName(中文)仍用于显示/图标/文件名
+#define MyAppEnglishName "MyApp"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "我的公司"
 #define MyAppExeName "hotUnitydemo.exe"
@@ -95,11 +97,11 @@ end;
 
 function GetDefaultDir(Param: string): string;
 begin
-  { 默认安装目录用软件名而非发布者名;发布者仅用于向导显示 }
+  { 默认安装目录用软件英文名(MyAppEnglishName)而非中文名/发布者名;中文 MyAppName 仅用于显示 }
   if DirExists('D:\') then
-    Result := 'D:\{#MyAppName}'
+    Result := 'D:\{#MyAppEnglishName}'
   else
-    Result := ExpandConstant('{sd}\{#MyAppName}');
+    Result := ExpandConstant('{sd}\{#MyAppEnglishName}');
 end;
 
 const

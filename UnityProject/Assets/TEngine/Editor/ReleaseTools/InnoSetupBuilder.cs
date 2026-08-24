@@ -35,7 +35,7 @@ namespace TEngine
         /// <summary>
         /// 编译 Windows 安装包：回写 setup.iss 的 #define 后调用 ISCC 编译。
         /// 回写范围(均保持双引号格式,iss 随时可手动编译):
-        ///   MyAppName / MyAppVersion / MyAppPublisher / MyAppExeName / MyAppPassword / BrandWatermark
+        ///   MyAppName / MyAppEnglishName / MyAppVersion / MyAppPublisher / MyAppExeName / MyAppPassword / BrandWatermark
         /// 注意 MyAppId 不参与回写,始终以 setup.iss 文件内手填值为准(决定升级覆盖/并存的安装包身份)。
         /// </summary>
         /// <param name="config">安装包回写配置；各字段为空时写入空字符串,保持 iss 可直接编译。</param>
@@ -107,6 +107,8 @@ namespace TEngine
         private static void SyncIssDefines(IssInstallerConfig config)
         {
             WriteIssDefine("MyAppName", config.AppName ?? string.Empty);
+            // 英文名为空时回退用中文名,保证安装目录始终有值
+            WriteIssDefine("MyAppEnglishName", !string.IsNullOrEmpty(config.AppEnglishName) ? config.AppEnglishName : (config.AppName ?? string.Empty));
             if (!string.IsNullOrEmpty(config.InstallerVersion))
             {
                 WriteIssDefine("MyAppVersion", config.InstallerVersion);
@@ -232,6 +234,8 @@ namespace TEngine
     {
         /// <summary>应用显示名(中文软件名),回写 MyAppName。</summary>
         public string AppName;
+        /// <summary>软件英文名,回写 MyAppEnglishName;仅用于安装目录,为空时回退用 AppName。</summary>
+        public string AppEnglishName;
         /// <summary>安装包版本号;为空则沿用 iss 现有 MyAppVersion。</summary>
         public string InstallerVersion;
         /// <summary>发布者,回写 MyAppPublisher。</summary>

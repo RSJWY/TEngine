@@ -58,6 +58,8 @@ namespace TEngine
         public string IsccPath = "";
         // 应用显示名(中文软件名),回写 MyAppName
         public string InstallerAppName = "";
+        // 软件英文名,回写 MyAppEnglishName;仅用于安装目录,为空时回退用 InstallerAppName
+        public string InstallerAppEnglishName = "";
         // 发布者,回写 MyAppPublisher
         public string InstallerPublisher = "";
         // 安装密码,空表示不加密,回写 MyAppPassword
@@ -93,6 +95,7 @@ namespace TEngine
             InstallerVersion = config.InstallerVersion;
             IsccPath = config.IsccPath;
             InstallerAppName = config.InstallerAppName;
+            InstallerAppEnglishName = config.InstallerAppEnglishName;
             InstallerPublisher = config.InstallerPublisher;
             InstallerPassword = config.InstallerPassword;
             InstallerWatermark = config.InstallerWatermark;
