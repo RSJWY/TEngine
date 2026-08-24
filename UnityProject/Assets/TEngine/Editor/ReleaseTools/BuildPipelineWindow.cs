@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Sirenix.OdinInspector;
 using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
@@ -331,6 +332,7 @@ namespace TEngine
         [LabelText("输出路径")]
         [InlineButton(nameof(ChoosePlayerOutputPath), "浏览")]
         [InlineButton(nameof(SyncPlayerOutputName), "同步名字")]
+        [InlineButton(nameof(NormalizePlayerOutputPath), "规范化路径")]
         [ShowIf(nameof(_buildPlayer))]
         [DelayedProperty]
         [OnValueChanged(nameof(OnSettingsChanged))]
@@ -451,9 +453,80 @@ namespace TEngine
         [BoxGroup("Pages/安装包配置/ISCC 编译")]
         [ShowInInspector]
         [ReadOnly]
-        [LabelText("iss 脚本")]
+        [LabelText("模板脚本")]
         [ShowIf(nameof(IsInstallerEnabled))]
-        private string IssScriptPath => InnoSetupBuilder.IssPath;
+        private string IssTemplatePath => InnoSetupBuilder.IssPath;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("实际编译脚本")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private string GeneratedIssScriptPath => InnoSetupBuilder.GeneratedIssPath;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("脚本状态")]
+        [MultiLineProperty(2)]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private string IssScriptStatusText
+        {
+            get
+            {
+                if (!File.Exists(InnoSetupBuilder.IssPath)) return "模板缺失：请放入 setup.iss";
+                if (!File.Exists(InnoSetupBuilder.GeneratedIssPath)) return "生成脚本不存在：打开面板时会自动创建";
+                var time = File.GetLastWriteTime(InnoSetupBuilder.GeneratedIssPath).ToString("yyyy-MM-dd HH:mm:ss");
+                return $"已生成\n最后修改：{time}";
+            }
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
+        [HorizontalGroup("Pages/安装包配置/ISCC 编译/ScriptActions")]
+        [Button("打开模板", ButtonSizes.Small)]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private void OpenIssTemplate()
+        {
+            OpenFileInEditor(InnoSetupBuilder.IssPath);
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
+        [HorizontalGroup("Pages/安装包配置/ISCC 编译/ScriptActions")]
+        [Button("打开生成脚本", ButtonSizes.Small)]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private void OpenGeneratedIss()
+        {
+            OpenFileInEditor(InnoSetupBuilder.GeneratedIssPath);
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/ISCC 编译")]
+        [HorizontalGroup("Pages/安装包配置/ISCC 编译/ScriptActions")]
+        [Button("从模板重新生成", ButtonSizes.Small)]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private void RegenerateGeneratedIss()
+        {
+            if (File.Exists(InnoSetupBuilder.GeneratedIssPath) &&
+                !EditorUtility.DisplayDialog("重新生成 setup.generated.iss", "这会覆盖生成脚本中的手工修改，是否继续？", "覆盖生成", "取消"))
+            {
+                return;
+            }
+
+            try
+            {
+                InnoSetupBuilder.RegenerateGeneratedIss(CreateInstallerIssConfig());
+                Debug.Log($"[InnoSetup] 已从模板重新生成：{InnoSetupBuilder.GeneratedIssPath}");
+                Repaint();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+        }
 
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/ISCC 编译")]
@@ -520,6 +593,16 @@ namespace TEngine
         private void MainBuildInstallerButton()
         {
             SaveSettings();
+            var config = CreateConfig();
+            var expectedPlayerPath = Path.GetFullPath(BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.StandaloneWindows64));
+            var actualPlayerPath = Path.GetFullPath(ToAbsolutePath(config.PlayerOutputPath));
+            if (config.PlayerPlatform != BuildTarget.StandaloneWindows64 ||
+                !actualPlayerPath.Equals(expectedPlayerPath, StringComparison.OrdinalIgnoreCase))
+            {
+                AddLog($"[中断] 一键构建安装包要求 Windows Player 输出到：{expectedPlayerPath}\n当前输出：{actualPlayerPath}\n可点击 Player 输出路径旁的“规范化路径”后再试。");
+                Repaint();
+                return;
+            }
             // MainBuild 区的一键构建安装包:AssetBundle + Player + InnoSetup 安装包 一条龙
             ExecuteBuild(true, GetSelectedBuildPackageName());
             if (_lastBuildFailed)
@@ -696,12 +779,14 @@ namespace TEngine
                 if (buildPlayer)
                 {
                     config.BuildPlayer = true;
-                    ReleaseTools.BuildWithConfig(config, true, packageName);
+                    if (!ReleaseTools.BuildWithConfig(config, true, packageName))
+                        throw new Exception("AssetBundle 或 Player 构建失败，已中止后续流程。");
                 }
                 else
                 {
                     config.BuildPlayer = false;
-                    ReleaseTools.BuildWithConfig(config, false, packageName);
+                    if (!ReleaseTools.BuildWithConfig(config, false, packageName))
+                        throw new Exception("AssetBundle 构建失败。");
                 }
 
                 _lastBuildFailed = false;
@@ -815,11 +900,12 @@ namespace TEngine
             try
             {
                 Application.logMessageReceived += OnBuildLogReceived;
-                ReleaseTools.BuildImp(
+                if (!ReleaseTools.BuildImp(
                     BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
                     config.PlayerPlatform,
                     config.PlayerOutputPath
-                );
+                ))
+                    throw new Exception("Player 构建失败。");
 
                 AddLog("========== Player 构建完成 ==========");
             }
@@ -967,6 +1053,15 @@ namespace TEngine
             }
 
             LoadFromSetting(_setting);
+
+            try
+            {
+                InnoSetupBuilder.EnsureGeneratedIss(CreateInstallerIssConfig());
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[InnoSetup] 生成脚本初始化失败：{e.Message}");
+            }
 
             ReloadRuntimePackageViews();
             RefreshCachedTexts();
@@ -1828,6 +1923,85 @@ namespace TEngine
             }
 
             EditorUtility.RevealInFinder(iscc);
+        }
+
+        private static void OpenFileInEditor(string path)
+        {
+            if (!File.Exists(path))
+            {
+                Debug.LogWarning($"[InnoSetup] 文件不存在：{path}");
+                return;
+            }
+
+            UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(path, 1);
+        }
+
+        private IssInstallerConfig CreateInstallerIssConfig()
+        {
+            var exeName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.StandaloneWindows64));
+            return new IssInstallerConfig
+            {
+                AppName = _installerAppName,
+                AppEnglishName = _installerAppEnglishName,
+                InstallerVersion = _installerVersion,
+                Publisher = _installerPublisher,
+                ExeName = exeName,
+                Password = _installerPassword,
+                Watermark = string.IsNullOrWhiteSpace(_installerWatermark) ? _installerPublisher : _installerWatermark,
+            };
+        }
+
+        private void NormalizePlayerOutputPath()
+        {
+            if (string.IsNullOrWhiteSpace(_playerOutputPath))
+            {
+                Debug.LogWarning("[BuildPipeline] Player 输出路径为空，无法规范化。");
+                return;
+            }
+
+            var platformName = GetPlayerPlatformDirectoryName(_playerPlatform);
+            var normalized = NormalizePlatformPath(_playerOutputPath, platformName);
+            if (normalized == null)
+            {
+                Debug.LogWarning($"[BuildPipeline] 无法识别输出路径中的平台目录：{_playerOutputPath}");
+                return;
+            }
+
+            _playerOutputPath = normalized;
+            OnSettingsChanged();
+        }
+
+        private static string NormalizePlatformPath(string path, string targetPlatform)
+        {
+            var normalized = path.Replace('\\', '/');
+            var platformPattern = @"(^|/)(Windows|Linux|Android|IOS|MacOS|WebGL)(?=/|$)";
+            if (Regex.IsMatch(normalized, platformPattern, RegexOptions.IgnoreCase))
+            {
+                var result = Regex.Replace(normalized, platformPattern, m => m.Groups[1].Value + targetPlatform, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+                return path.Contains("\\") ? result.Replace('/', '\\') : result;
+            }
+
+            var releasesPattern = @"(^|/)Releases(?=/|$)";
+            if (Regex.IsMatch(normalized, releasesPattern, RegexOptions.IgnoreCase))
+            {
+                var result = Regex.Replace(normalized, releasesPattern, m => m.Value + "/" + targetPlatform, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+                return path.Contains("\\") ? result.Replace('/', '\\') : result;
+            }
+            return null;
+        }
+
+        private static string GetPlayerPlatformDirectoryName(BuildTarget target)
+        {
+            switch (target)
+            {
+                case BuildTarget.StandaloneWindows64: return "Windows";
+                case BuildTarget.StandaloneLinux64: return "Linux";
+                case BuildTarget.Android: return "Android";
+                case BuildTarget.iOS: return "IOS";
+                case BuildTarget.StandaloneOSX: return "MacOS";
+                case BuildTarget.WebGL: return "WebGL";
+                default: return target.ToString();
+            }
         }
 
         private static string ToAbsolutePath(string path)

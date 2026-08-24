@@ -104,3 +104,6 @@
 - 新增 `Utility.Toml` 和默认 `TomlynTomlHelper`，提供 TOML 序列化门面。
 - 新增 `ScreenModule`，支持 Windows Standalone 下控制多显示器窗口位置、大小、置顶和无边框。
 - 新增 `GameEvent.RemoveAllListeners`，支持按事件 ID 批量移除监听。
+## 2026-08-24
+
+- Inno Setup 改为版本管理模板与本地生成脚本分离，构建面板补充脚本状态和打开/重新生成入口；构建失败可阻断旧产物打包，ISCC 异常与超时会完整输出日志并清理进度条。

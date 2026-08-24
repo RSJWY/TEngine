@@ -118,6 +118,7 @@ yoo/
 /Releases/*/build/
 /Releases/*/setup/
 /Releases/Publish/
+/Releases/Windows/setup.generated.iss
 
 #本地 Claude 权限配置
 .claude/settings.local.json

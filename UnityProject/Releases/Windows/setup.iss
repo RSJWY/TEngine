@@ -16,7 +16,7 @@
 #define MyAppExeName "hotUnitydemo.exe"
 #define MyAppId "MyAppId"
 ; 安装密码：留空字符串表示无密码(Encryption 仍保留，空密码等同于普通加密占位)
-#define MyAppPassword "11"
+#define MyAppPassword ""
 ; 安装向导左下角发布者水印文字
 #define BrandWatermark "我的公司"
 
@@ -40,6 +40,7 @@ LZMANumBlockThreads=4
 WizardStyle=modern
 DisableWelcomePage=no
 LicenseFile=License.lic
+ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=icon.ico
@@ -136,16 +137,22 @@ begin
         Result := '旧版本卸载程序启动失败，请手动卸载后重试。';
         exit;
       end;
+      if ExitCode <> 0 then begin
+        Result := Format('旧版本卸载失败，退出码：%d。请手动卸载后重试。', [ExitCode]);
+        exit;
+      end;
       { 卸载器会复制自身到临时目录再执行，原进程可能提前退出，需轮询确认卸载真正完成 }
       for I := 0 to 59 do begin
         if not RegKeyExists(HKCU, UninstallKey) and not RegKeyExists(HKLM64, UninstallKey) then
           break;
         Sleep(1000);
       end;
+      if RegKeyExists(HKCU, UninstallKey) or RegKeyExists(HKLM64, UninstallKey) then begin
+        Result := '旧版本卸载超时，请手动卸载后重试。';
+        exit;
+      end;
       { 旧版本(尤其更早的安装包)可能未配置完整清理,残留 app 下文件;}
        { 新版本安装前兜底删除整个安装目录,确保干净落地 }
-      if DirExists(ExpandConstant('{app}')) then
-        DelTree(ExpandConstant('{app}'), True, True, True);
     end else
       Result := '您取消了旧版本卸载，安装程序将退出。';
   end;

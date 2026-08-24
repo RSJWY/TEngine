@@ -244,3 +244,43 @@ Releases/
 
 - `UnityProject/conversation-summaries/2026-08-23-releases-unify-innosetup-integration-summary.md`
 
+## Inno Setup 模板分离与构建可靠性增强
+
+### 背景
+
+原流程会直接回写受版本控制的 `setup.iss`，项目参数和安装密码容易污染框架模板；同时 AssetBundle 或 Player 构建失败后，安装包阶段可能继续使用旧产物。ISCC 失败时 stderr 管道和进度条清理也不完整，存在编辑器长时间卡住的风险。
+
+### 改动摘要
+
+- `Releases/Windows/setup.iss` 固定作为版本管理模板，构建面板不再修改它。
+- 面板首次打开时自动从模板创建忽略版本管理的 `setup.generated.iss`；实际参数和密码只同步到生成脚本，ISCC 也只编译生成脚本。
+- Inno Setup 页显示模板路径、实际编译脚本、生成状态和最后修改时间，并提供“打开模板”“打开生成脚本”“从模板重新生成”操作。
+- `BuildWithConfig` 和 Player 构建返回明确成功状态；AssetBundle 或 Player 失败时立即阻断安装包阶段，避免打入旧产物。
+- 安装包编译前校验固定输入目录 `Releases/Windows/build`、目录内容和主 EXE。
+- Player 输出路径增加“规范化路径”，只替换平台目录段并保留后续子目录和文件名。
+- ISCC stdout/stderr 改为并行读取，增加十分钟超时，并在所有异常路径通过 `finally` 清理 Unity 进度条。
+- Windows64 模板增加 `ArchitecturesAllowed=x64compatible`；旧版本卸载器返回失败或等待超时时中止安装，不再兜底删除整个 `{app}`。
+- 保留 `BuildPipelineSetting.asset` 中的安装密码持久化，也保留模板里的分卷配置，由实际项目按需修改。
+
+### 使用方式
+
+打开构建面板后，`setup.generated.iss` 不存在时会自动生成。日常修改应用名、版本、发布者、密码和水印后直接构建即可；需要继承最新模板结构时，点击“从模板重新生成”，确认后覆盖生成脚本并重新应用面板参数。
+
+### 注意事项
+
+- `MyAppId` 仍直接维护在模板中，不由面板覆盖。
+- `setup.generated.iss` 可供实际项目手工定制；普通打开面板和普通构建不会用模板覆盖它。
+- Inno Setup 输入目录继续固定为 `Releases/Windows/build`，一键安装包要求 Windows Player 输出与该约定一致。
+- `DiskSpanning`、`DiskSliceSize` 和 `SlicesPerDisk` 等分卷设置继续由模板维护。
+
+### 关键文件
+
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs`
+- `UnityProject/Releases/Windows/setup.iss`
+- `UnityProject/.gitignore`
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-24-innosetup-build-hardening-plan.md`

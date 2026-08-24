@@ -117,13 +117,13 @@ namespace TEngine
         /// <summary>
         /// 通过 BuildConfig 执行完整构建流程
         /// </summary>
-        public static void BuildWithConfig(BuildConfig config, bool buildPlayer, string packageName = null)
+        public static bool BuildWithConfig(BuildConfig config, bool buildPlayer, string packageName = null)
         {
             var runtimePackages = GetBuildPackages(packageName);
             if (runtimePackages.Count <= 0)
             {
                 Debug.LogError($"[BuildWithConfig] 未找到可构建的资源包: {packageName}");
-                return;
+                return false;
             }
 
             AssetDatabase.Refresh();
@@ -144,7 +144,7 @@ namespace TEngine
                 if (!buildResult.Success)
                 {
                     Debug.LogError($"[BuildWithConfig] AssetBundle构建失败: {runtimePackage.PackageName} - {buildResult.ErrorInfo}");
-                    return;
+                    return false;
                 }
 
                 firstBuildResult ??= buildResult;
@@ -166,12 +166,14 @@ namespace TEngine
 
             if (buildPlayer || config.BuildPlayer)
             {
-                BuildImp(
+                return BuildImp(
                     BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
                     config.PlayerPlatform,
                     config.PlayerOutputPath
                 );
             }
+
+            return true;
         }
 
         #endregion
@@ -722,7 +724,7 @@ namespace TEngine
 
         #region Player 构建
 
-        public static void BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget buildTarget, string locationPathName)
+        public static bool BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget buildTarget, string locationPathName)
         {
             EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
             AssetDatabase.Refresh();
@@ -740,10 +742,12 @@ namespace TEngine
             if (summary.result == BuildResult.Succeeded)
             {
                 Debug.Log($"Build success: {summary.totalSize / 1024 / 1024} MB, {summary.outputPath}");
+                return true;
             }
             else
             {
-                Debug.Log($"Build Failed" + summary.result);
+                Debug.LogError($"Build Failed: {summary.result}");
+                return false;
             }
         }
 
