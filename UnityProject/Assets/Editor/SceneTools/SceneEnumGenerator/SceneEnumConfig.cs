@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Sirenix.OdinInspector;
 using UnityEditor;
 using UnityEngine;
@@ -32,6 +33,7 @@ namespace TEngine.SceneTools
         [ListDrawerSettings(ShowItemCount = true, ShowPaging = false, DraggableItems = true)]
         [LabelText("场景列表")]
         [PropertySpace(8)]
+        [ValidateInput(nameof(ValidateChineseNameUnique), "中文名重复，无法生成代码，请先修正后再生成。", InfoMessageType.Error)]
         public List<SceneEntry> Scenes = new List<SceneEntry>();
 
         [Button("同步场景资源", ButtonSizes.Large)]
@@ -45,6 +47,33 @@ namespace TEngine.SceneTools
         private void OnFolderChanged()
         {
             Debug.Log("[场景枚举] 场景资源目录已变更，请点击「同步场景资源」刷新列表");
+        }
+
+        /// <summary>
+        /// Odin 校验：启用的 <see cref="SceneEntry"/> 中 <see cref="SceneEntry.ChineseName"/> 必须唯一（空值不参与冲突检测）。
+        /// 重复时在 Inspector 直接警示并阻止 <see cref="GenerateCode"/> 推进（生成器内有同名兜底校验）。
+        /// </summary>
+        private bool ValidateChineseNameUnique(List<SceneEntry> scenes, ref string errorMessage)
+        {
+            if (scenes == null || scenes.Count == 0)
+            {
+                return true;
+            }
+
+            var duplicates = scenes
+                .Where(e => e.Active && !string.IsNullOrWhiteSpace(e.ChineseName))
+                .GroupBy(e => e.ChineseName)
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            if (duplicates.Count == 0)
+            {
+                return true;
+            }
+
+            errorMessage = "中文名重复，无法生成代码：\n" + string.Join("\n",
+                duplicates.Select(g => $"「{g.Key}」被 {g.Count()} 个场景占用：{string.Join("、", g.Select(e => string.IsNullOrEmpty(e.EnumName) ? "<未命名>" : e.EnumName))}"));
+            return false;
         }
 
         private const string ConfigAssetPath = "Assets/Resources/SceneEnumConfig.asset";
@@ -73,6 +102,7 @@ namespace TEngine.SceneTools
 
         /// <summary>
         /// 场景条目：一个场景对应一条记录（每个条目多行展开显示）。
+        /// <para>ChineseName：Editor 菜单显示用中文名（区别于 DisplayName 备注，后者写入枚举 XML 注释）。</para>
         /// </summary>
         [Serializable]
         [InlineProperty]
@@ -111,16 +141,22 @@ namespace TEngine.SceneTools
             public string EnumName;
 
             [HorizontalGroup("行2", 0.4f)]
-            [LabelText("中文备注")]
+            [LabelText("中文名")]
             [LabelWidth(60)]
-            [Tooltip("写入枚举的 XML 注释，便于查阅。可填中文场景名。")]
-            public string DisplayName;
+            [Tooltip("Editor 工具栏「注册场景」菜单显示用中文名（区别于下方中文备注）。可填中文场景名；为空则菜单回退显示枚举名。")]
+            public string ChineseName;
 
             [HorizontalGroup("行2", 0.2f)]
             [LabelText("启用")]
             [LabelWidth(40)]
             [Tooltip("关闭后该场景不生成枚举，但枚举值保留占位。")]
             public bool Active = true;
+
+            [HorizontalGroup("行3", 0.8f)]
+            [LabelText("中文备注")]
+            [LabelWidth(60)]
+            [Tooltip("写入枚举的 XML 注释，便于查阅。可填中文场景名。")]
+            public string DisplayName;
         }
     }
 }

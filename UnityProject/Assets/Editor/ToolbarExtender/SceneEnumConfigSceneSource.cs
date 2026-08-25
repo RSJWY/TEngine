@@ -16,7 +16,7 @@ namespace TEngine
         /// <summary>
         /// 读取配置中 Active==true 且 SceneAsset 非空的场景条目。
         /// </summary>
-        /// <returns>(sceneName, scenePath) 列表；sceneName 优先 EnumName，DisplayName 非空时显示 "EnumName (DisplayName)"。</returns>
+        /// <returns>(sceneName, scenePath) 列表；sceneName = EnumName，ChineseName 非空时显示 "EnumName（ChineseName）"。</returns>
         public static List<(string sceneName, string scenePath)> GetConfiguredScenes()
         {
             var result = new List<(string sceneName, string scenePath)>();
@@ -40,14 +40,13 @@ namespace TEngine
                     continue;
                 }
 
-                string sceneName = string.IsNullOrEmpty(entry.EnumName)
-                    ? Path.GetFileNameWithoutExtension(scenePath)
-                    : entry.EnumName;
+                string enumName = !string.IsNullOrEmpty(entry.EnumName)
+                    ? entry.EnumName
+                    : Path.GetFileNameWithoutExtension(scenePath);
 
-                if (!string.IsNullOrEmpty(entry.DisplayName))
-                {
-                    sceneName = $"{sceneName} ({entry.DisplayName})";
-                }
+                string sceneName = !string.IsNullOrEmpty(entry.ChineseName)
+                    ? $"{enumName}（{entry.ChineseName}）"
+                    : enumName;
 
                 result.Add((sceneName, scenePath));
             }
