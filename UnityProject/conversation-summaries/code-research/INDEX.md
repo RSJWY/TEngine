@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-08-26
+- [DGame 可迁移功能评估与逐模块迁移指南](./2026-08-26-dgame-migration-evaluation-research.md)
+  - 关键词：DGame迁移评估、UI组件扩展、UIButton、UIImage、UIText、RichTextItem、SuperScrollView、LoopListView2、RedDotModule、RedDotNode、FrameAnimModule、FrameSpriteMgr、InputModule、AnimModule、GameObjectPoolModule、TextModule、GMPanel、GuideModule、迁移优先级、Luban依赖、Singleton对齐
+  - 结论：盘点 DGame 全部新增模块对比 TEngine 现状，输出三梯队迁移清单；第一梯队 UI 扩展+红点+序列帧无障碍可搬，第二梯队需 API 对齐，依赖 Luban 的暂不迁移。
 - [DGame ClientSaveData 存档系统深度分析](./2026-08-26-dgame-clientsavedata-research.md)
   - 关键词：ClientSaveDataMgr、BaseClientSaveData、ClientSaveDataAttribute、ClientSaveDataHelper、SystemSaveData、PlayerPrefsUtil、JsonFile、PerRoleID、SaveDataVersion、OnUpgradeData、PopulateObject、懒迁移、坏档备份、corrupt、SaveAsync、SwitchToThreadPool、key冲突校验、单例缓存
   - 结论：特性驱动注册+双存储后端+版本升级+懒迁移+坏档保护+异步写入的成熟存档框架，TEngine 完全无对应物。
