@@ -508,6 +508,10 @@ git checkout demo
 
 [![Contributors](https://contrib.rocks/image?repo=Alex-Rachel/TEngine)](https://github.com/Alex-Rachel/TEngine/graphs/contributors)
 
+### 致谢
+
+本 Fork 部分功能参考并迁移自 [DGame](https://github.com/AmaniDawn/DGame) 项目，感谢 DGame 作者 [@AmaniDawn](https://github.com/AmaniDawn) 在 TEngine 基础上结合商业项目经验沉淀的实用模块与工具，为本仓库的定制改造提供了重要参考。
+
 ### 贡献
 
 欢迎提交 Issue 和 Pull Request！
