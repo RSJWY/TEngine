@@ -54,28 +54,11 @@
 
 ---
 
-## 📚 目录
-
-- [本 Fork 的定制改动](#️-本-fork-的定制改动)
-- [快速开始](#-快速开始)
-- [AI 开发工作流](#-ai-开发工作流)
-- [文档导航](#-文档导航)
-- [核心模块](#-核心模块)
-- [项目结构](#-项目结构)
-- [系统要求](#-系统要求)
-- [服务器支持](#-服务器支持)
-- [开源项目推荐](#-开源项目推荐)
-- [Demo 项目](#-demo-项目)
-- [贡献与支持](#-贡献与支持)
-
----
-
 ## 🚀 快速开始
 
 ### 环境要求
 
 - **Unity 版本**: 2021.3.20f1c1（推荐）或更高
-- **支持版本**: Unity 2019.4 / 2020.3 / 2021.3 / 2022.3
 - **Odin Inspector**: 仓库不内置该插件，请自行从 Odin 官方渠道下载并导入项目后再打开工程
 - **开发环境**: .NET 4.x
 - **支持平台**: Windows、OSX、Android、iOS、WebGL
@@ -87,22 +70,15 @@
    git clone https://github.com/ALEXTANGXIAO/TEngine.git
    ```
 
-2. **打开项目**
-   - 使用 Unity 2021.3.20f1c1 打开项目
+2. **打开项目** - 使用 Unity 2021.3.20f1c1 打开项目
 
 3. **编辑器模式运行**
    - 选择顶部栏目 `EditorMode` 编辑器下的模拟模式
    - 点击 `Launcher` 开始运行
 
-4. **打包运行**（热更新流程）
-   - 运行菜单 `HybridCLR/Install...` 安装 HybridCLR
-   - 运行菜单 `HybridCLR/Define Symbols/Enable HybridCLR` 开启热更新
-   - 运行菜单 `HybridCLR/Generate/All` 进行必要的生成操作
-   - 运行菜单 `HybridCLR/Build/BuildAssets And CopyTo AssemblyPath` 生成热更新 DLL
-   - 运行菜单 `YooAsset/AssetBundle Builder` 构建 AB
-   - 打开 Build Settings，点击 Build And Run
+4. **打包运行**（热更新流程） - 运行菜单 `HybridCLR/Install...` 安装 HybridCLR，随后 `HybridCLR/Generate/All` 生成代码、`YooAsset/AssetBundle Builder` 构建 AB，最后 Build And Run
 
-> 💡 **提示**: 遇到问题请查看 [HybridCLR 常见错误](https://hybridclr.doc.code-philosophy.com/docs/help/commonerrors)
+> 💡 遇到问题请查看 [HybridCLR 常见错误](https://hybridclr.doc.code-philosophy.com/docs/help/commonerrors)
 
 详细教程请参考：[快速开始指南](Books/1-快速开始.md)
 
@@ -110,187 +86,7 @@
 
 ## 🤖 AI 开发工作流
 
-TEngine 深度集成了一套面向 Claude Code 的 AI 辅助开发工作流。通过 **tengine-dev skill 按需查询架构**、**任务等级分级触发**和**会话内缓存机制**，实现了规范驱动、高效的 AI 开发体验。
-
----
-
-### 核心工具
-
-| 工具 | 用途 |
-|------|------|
-| **tengine-dev** | Claude Code 专用 TEngine 开发技能，从 `references/` 提供全模块规范 |
-| **Unity-MCP** | Unity Editor 自动化操作（场景、资源、脚本） |
-| **openspec** | 规范驱动的变更管理 |
-| **wiki-synchelper** | Wiki 文档同步助手（手动触发时使用） |
-
----
-
-### 整体工作流总览
-
-```mermaid
-flowchart TD
-    A([用户发起任务]) --> B{判断任务等级}
-
-    B -->|L1 简单\ntypo/注释/日志| C[直接编写代码]
-    B -->|L2 调用\n单一 API 修改| D[触发 tengine-dev skill\n只查该主题]
-    B -->|L3 功能\n新功能/跨文件| E[触发 tengine-dev skill\n全量相关主题]
-    B -->|L4 架构\n系统设计/重构| F[触发 tengine-dev skill\n并行多主题]
-
-    D --> G{会话缓存命中?}
-    E --> G
-    F --> G
-
-    G -->|命中| H[复用已有规范摘要]
-    G -->|未命中| I[skill 读取 references/\n提炼规范指引]
-
-    I --> L[输出代码/方案]
-    H --> L
-    C --> L
-
-    L --> M{规范与代码冲突?}
-    M -->|有冲突| N[标注冲突点\n记录到 .claude/memory/]
-    M -->|无冲突| O([任务完成])
-    N --> O
-```
-
----
-
-### 时序图一：规范获取流程
-
-> **核心优势**：tengine-dev skill 直接从精炼的 `references/` 文档提取规范，无多余上下文噪声。
-
-```mermaid
-sequenceDiagram
-    participant U as 用户
-    participant M as 主 Agent (Claude)
-    participant S as tengine-dev (skill)
-    participant R as references/
-
-    U->>M: 请实现背包 UI
-    Note over M: 判断等级: L3 功能
-    M->>S: 触发 skill<br/>查询: UIWindow规范 + 资源管理规范
-
-    activate S
-    S->>R: 读取 ui-development.md
-    S->>R: 读取 resource-management.md
-    S->>R: 读取 event-system.md
-    Note over S: 提炼关键规范指引
-    S-->>M: 返回规范摘要
-    deactivate S
-
-    M-->>U: 输出符合规范的代码
-```
-
----
-
-### 时序图二：会话内缓存机制
-
-> **核心优势**：同一会话中相同主题只查询一次，后续任务直接复用，避免重复消耗。
-
-```mermaid
-sequenceDiagram
-    participant U as 用户
-    participant M as 主 Agent
-    participant S as tengine-dev skill
-    participant C as 会话缓存
-
-    U->>M: 任务①: 实现登录界面 UI
-    M->>S: 查询 UIWindow 规范
-    S-->>M: 返回 UIWindow 规范摘要
-    M->>C: 缓存: UIWindow 规范 ✅
-    M-->>U: 输出登录界面代码
-
-    U->>M: 任务②: 实现设置界面 UI
-    M->>C: 检查缓存: UIWindow 规范
-    C-->>M: 命中缓存 ✅ 直接复用
-    Note over M: 无需重复触发 skill<br/>零等待，零额外消耗
-    M-->>U: 输出设置界面代码
-
-    U->>M: 任务③: 设置界面添加音效按钮
-    M->>C: 检查缓存: UIWindow ✅ / Audio ❌
-    C-->>M: UIWindow 命中，Audio 未命中
-    M->>S: 仅补充查询 AudioModule 规范
-    S-->>M: 返回 Audio 规范摘要
-    M->>C: 缓存: Audio 规范 ✅
-    M-->>U: 输出音效按钮代码
-```
-
----
-
-### 时序图三：并行多主题查询（L4 架构任务）
-
-> **核心优势**：架构级任务并行查询多个主题，汇总后统一决策，大幅减少串行等待。
-
-```mermaid
-sequenceDiagram
-    participant U as 用户
-    participant M as 主 Agent
-    participant S1 as tengine-dev #1
-    participant S2 as tengine-dev #2
-    participant S3 as tengine-dev #3
-
-    U->>M: 设计战斗系统架构<br/>涉及: UI + 事件 + FSM + 资源
-
-    Note over M: 判断等级: L4 架构<br/>并行触发多主题查询
-
-    par 并行查询
-        M->>S1: 查询 UIWindow + UIWidget 规范
-        M->>S2: 查询 GameEvent 事件系统规范
-        M->>S3: 查询 FSM 状态机 + 资源加载规范
-    end
-
-    S1-->>M: UI 规范摘要
-    S2-->>M: 事件系统摘要
-    S3-->>M: FSM + 资源摘要
-
-    Note over M: 汇总三份摘要<br/>统一架构决策
-    M-->>U: 输出完整战斗系统架构方案
-```
-
----
-
-### 时序图四：规范冲突处理
-
-> **核心优势**：AI 主动检测 references 与代码的不一致，标注冲突并记录，以代码实现为最终依据。
-
-```mermaid
-sequenceDiagram
-    participant M as 主 Agent
-    participant S as tengine-dev skill
-    participant Code as 项目代码
-    participant Mem as .claude/memory/
-
-    M->>S: 查询某 API 规范
-    S-->>M: references 描述: API_X(param1, param2)
-
-    M->>Code: 读取实际代码实现
-    Code-->>M: 实际签名: API_X(param1, param2, param3)
-
-    Note over M: 检测到冲突!<br/>references 描述与代码不符
-
-    M->>Mem: 记录 problem_YYYY-MM-DD.md<br/>冲突详情 + 分析
-
-    Note over M: 以代码实现为准<br/>在输出中标注差异
-
-    M-->>U: 输出代码，并标注冲突点
-```
-
----
-
-### 工作流快速参考
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   TEngine AI 工作流                      │
-├─────────────────────────────────────────────────────────┤
-│  Step 0  判断任务等级 L1/L2/L3/L4                        │
-│  Step 1  L1 直接编码                                     │
-│         L2-L4 触发 tengine-dev skill 获取规范            │
-│         （会话内缓存命中则直接复用，无需重复触发）        │
-│  Step 2  基于规范输出代码/方案                            │
-│  Step 3  若规范与代码冲突，标注冲突，记录到 .claude/memory/│
-└─────────────────────────────────────────────────────────┘
-```
+TEngine 深度集成了一套面向 Claude Code 的 AI 辅助开发工作流，通过 **tengine-dev skill 按需查询架构**、**任务等级分级触发**和**会话内缓存机制**，实现规范驱动、高效的 AI 开发体验。
 
 详细规范请参考：[CLAUDE.md](UnityProject/CLAUDE.md) | [AI 开发工作流指南](Books/AI-Development-Workflow.md)
 
@@ -312,59 +108,14 @@ sequenceDiagram
 
 | 模块 | 文档 | 描述 |
 |------|------|------|
-| 📦 **资源模块** | [3-1-资源模块](Books/3-1-资源模块.md) | YooAsset 资源管理，支持 LRU/ARC 缓存 |
-| 🎯 **事件模块** | [3-2-事件模块](Books/3-2-事件模块.md) | 零 GC 事件系统，支持 MVE 架构 |
-| 💾 **内存池模块** | [3-3-内存池模块](Books/3-3-内存池模块.md) | 轻量级内存池管理 |
-| 🎮 **对象池模块** | [3-4-对象池模块](Books/3-4-对象池模块.md) | 游戏对象池管理 |
-| 🎨 **UI 模块** | [3-5-UI模块](Books/3-5-UI模块.md) | 商业化 UI 框架，支持代码生成 |
-| 📊 **配置表模块** | [3-6-配置表模块](Books/3-6-配置表模块.md) | Luban 配置表系统 |
-| 🔄 **流程模块** | [3-7-流程模块](Books/3-7-流程模块.md) | 商业化启动流程 |
-| 🌐 **网络模块** | [3-8-网络模块](Books/3-8-网络模块.md) | 网络通信模块 |
-
----
-
-## 🧩 核心模块
-
-### 资源模块 (ResourceModule)
-
-- ✅ 基于 YooAsset 的资源管理系统
-- ✅ 支持 EditorSimulateMode、OfflinePlayMode、HostPlayMode
-- ✅ AssetReference 资源引用标识，自动管理资源生命周期
-- ✅ AssetGroup 资源组管理
-- ✅ LRU/ARC 缓存策略
-- ✅ 同步/异步加载支持
-
-### 事件模块 (GameEvent)
-
-- ✅ 零 GC 事件系统
-- ✅ 支持 string/int 事件 ID
-- ✅ 支持 MVE（Model-View-Event）架构
-- ✅ UI 生命周期自动绑定事件清理
-
-### UI 模块 (UIModule)
-
-- ✅ 纯 C# 实现，脱离 Mono 生命周期
-- ✅ 代码自动生成工具
-- ✅ UIWindow/UIWidget 分层设计
-- ✅ 支持全屏面板管理
-- ✅ 事件驱动架构
-
-### 配置表模块 (ConfigSystem)
-
-- ✅ 集成 Luban 配置表解决方案
-- ✅ 支持懒加载、异步加载、同步加载
-- ✅ 强大的数据校验能力
-- ✅ 完善的本地化支持
-
-### 流程模块 (ProcedureModule)
-
-完整的商业化启动流程：
-- ProcedureLaunch → ProcedureSplash → ProcedureInitPackage
-- ProcedurePreload → ProcedureInitResources
-- ProcedureUpdateVersion → ProcedureUpdateManifest
-- ProcedureCreateDownloader → ProcedureDownloadFile
-- ProcedureDownloadOver → ProcedureClearCache
-- ProcedureLoadAssembly → ProcedureStartGame
+| 📦 **资源模块** | [资源模块](Books/3-1-资源模块.md) | YooAsset 资源管理，支持 LRU/ARC 缓存 |
+| 🎯 **事件模块** | [事件模块](Books/3-2-事件模块.md) | 零 GC 事件系统，支持 MVE 架构 |
+| 💾 **内存池模块** | [内存池模块](Books/3-3-内存池模块.md) | 轻量级内存池管理 |
+| 🎮 **对象池模块** | [对象池模块](Books/3-4-对象池模块.md) | 游戏对象池管理 |
+| 🎨 **UI 模块** | [UI模块](Books/3-5-UI模块.md) | 商业化 UI 框架，支持代码生成 |
+| 📊 **配置表模块** | [配置表模块](Books/3-6-配置表模块.md) | Luban 配置表系统 |
+| 🔄 **流程模块** | [流程模块](Books/3-7-流程模块.md) | 商业化启动流程 |
+| 🌐 **网络模块** | [网络模块](Books/3-8-网络模块.md) | 网络通信模块 |
 
 ---
 
@@ -402,42 +153,18 @@ Assets/
 
 ## 💻 系统要求
 
-### Unity 版本
-
 - **推荐版本**: Unity 2021.3.20f1c1
 - **支持版本**: Unity 2019.4 / 2020.3 / 2021.3 / 2022.3
-
-### 平台支持
-
-- ✅ Windows (Standalone)
-- ✅ macOS (Standalone)
-- ✅ Android
-- ✅ iOS
-- ✅ WebGL
-- ✅ 微信小游戏
-
-### 开发环境
-
-- .NET 4.x
-- Visual Studio 2019+ 或 Rider
+- **平台支持**: Windows、macOS、Android、iOS、WebGL、微信小游戏
+- **开发环境**: .NET 4.x、Visual Studio 2019+ 或 Rider
 
 ---
 
 ## 🌐 服务器支持
 
-TEngine 本身为**纯净的客户端框架**，不强绑定任何服务器。但针对个人开发以及中小型公司开发双端，我们推荐使用 **C# 服务器**。
+TEngine 本身为**纯净的客户端框架**，不强绑定任何服务器。推荐使用 **C# 服务器**：
 
-### 为什么选择 .NET Core？
-
-.NET Core 8.0 在性能和设计上具有显著优势：
-- ⚡ **高性能** - AOT、JIT 混合编译
-- 🔧 **组件化结构** - 模块化设计
-- 🔥 **热重载** - 提升开发效率
-- 📈 **性能测试** - 除 C++ 外，性能表现优异
-
-### 服务器框架推荐
-
-- **[GameNetty](https://github.com/ALEXTANGXIAO/GameNetty)** - 源于 ETServer，首次拆分最新的 ET8.1 的前后端解决方案（包），客户端最精简约 750k，几乎零成本无侵入嵌入
+- **[GameNetty](https://github.com/ALEXTANGXIAO/GameNetty)** - 源于 ETServer，首次拆分最新的 ET8.1 的前后端解决方案
 - **[Fantasy](https://github.com/qq362946/Fantasy)** - 源于 ETServer 但极为简洁，更好上手的商业级服务器框架（Fantasy 分支已集成）
 
 ---
@@ -452,9 +179,8 @@ TEngine 本身为**纯净的客户端框架**，不强绑定任何服务器。�
 | **Fantasy** | 源于 ETServer 但极为简洁，更好上手的商业级服务器框架 | [GitHub](https://github.com/qq362946/Fantasy) |
 | **GameNetty** | 源于 ETServer，首次拆分最新的 ET8.1 的前后端解决方案 | [GitHub](https://github.com/ALEXTANGXIAO/GameNetty) |
 | **JEngine** | 使 Unity 开发的游戏支持热更新的解决方案 | [GitHub](https://github.com/JasonXuDeveloper/JEngine) |
-| **DGame** | 根据TEngine框架，结合工作经验，修改和增加一些实用性拓展修改的框架 | [GitHub](https://github.com/AmaniDawn/DGame) |
+| **DGame** | 根据 TEngine 框架，结合工作经验，修改和增加一些实用性拓展修改的框架 | [GitHub](https://github.com/AmaniDawn/DGame) |
 | **AlicizaXTemplate** | AlicizaX 是一套面向 Unity 项目的框架模板 | [GitHub](https://github.com/AlicizaX/AlicizaXTemplate) |
-
 
 ### 社区 Demo
 
@@ -472,57 +198,13 @@ git checkout demo
 
 ---
 
-## 💡 为什么要使用 TEngine？
-
-### 1. 开箱即用
-- ✅ 5 分钟即可上手整套开发流程
-- ✅ 代码整洁，思路清晰，功能强大
-- ✅ 高内聚低耦合，可轻松移除或替换不需要的模块
-
-### 2. 商业级解决方案
-- ✅ 严格按照商业要求使用次世代的 **HybridCLR** 进行热更新
-- ✅ 最佳的 **Luban** 配置表（支持懒加载、异步加载、同步加载）
-- ✅ 百万 DAU 游戏验证过的 **YooAsset** 资源框架
-- ✅ 全平台热更新流程已跑通
-
-### 3. 严格的内存管理
-- ✅ YooAsset 资源自动释放
-- ✅ 支持 LRU、ARC 严格管理资源内存
-- ✅ 防止内存泄漏
-
-### 4. 商业化流程
-- ✅ 商业化的热更新流程
-- ✅ 商业化的 UI 开发流程
-- ✅ 商业化的资源管理
-
-### 5. 全平台验证
-- ✅ 已有项目使用 TEngine 上架 **Steam**
-- ✅ 已有项目使用 TEngine 上架 **微信小游戏**
-- ✅ 已有项目使用 TEngine 上架 **App Store**
-
----
-
 ## 🤝 贡献与支持
 
-## 🙏 感谢所有为 TEngine 做出贡献的开发者
-
-[![Contributors](https://contrib.rocks/image?repo=Alex-Rachel/TEngine)](https://github.com/Alex-Rachel/TEngine/graphs/contributors)
+欢迎提交 Issue 和 Pull Request！如需支持上游 TEngine 项目，请参考 [上游赞助页](Books/Donate.md)。
 
 ### 致谢
 
 本 Fork 部分功能参考并迁移自 [DGame](https://github.com/AmaniDawn/DGame) 项目，感谢 DGame 作者 [@AmaniDawn](https://github.com/AmaniDawn) 在 TEngine 基础上结合商业项目经验沉淀的实用模块与工具，为本仓库的定制改造提供了重要参考。
-
-### 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-### 支持项目
-
-如果 TEngine 对您有帮助，欢迎支持项目发展：
-
-[☕ 请我喝杯奶茶](Books/Donate.md)
-
-您的赞助会让我们做得更快更好！如果觉得 TEngine 对您有帮助，不妨请我可爱的女儿买杯奶茶吧~ 🥤
 
 ---
 
