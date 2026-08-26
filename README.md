@@ -200,7 +200,7 @@ git checkout demo
 
 ## 🤝 贡献与支持
 
-欢迎提交 Issue 和 Pull Request！如需支持上游 TEngine 项目，请参考 [上游赞助页](Books/Donate.md)。
+欢迎提交 Issue 和 Pull Request！如需支持上游 TEngine 项目，请参考 [上游赞助页](https://github.com/Alex-Rachel/TEngine#-%E8%B4%A1%E7%8C%AE%E4%B8%8E%E6%94%AF%E6%8C%81)。
 
 ### 致谢
 
