@@ -21,9 +21,11 @@
 | 场景系统 | DynamicSpawn 通用化、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 | [obfuscation.md](obfuscation.md) |
+| 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](runtime-tools.md) |
 
 ## 最近重点
 
+- 迁移 DGame 的 `GameTickWatcher` 到独立 `RuntimeTools` 程序集，命名空间与日志 API 适配 TEngine，补全文档注释。
 - 新增纯数据 DataBinding 运行时与 Editor 生成器，菜单和 Odin 面板已中文化。
 - 日志系统新增 Unity/Task/UniTask 到 TouchSocket `FileLogger` 的统一落盘链路，并补充独立 LogViewer 工具。
 - 运行时配置已通用化为 `RuntimeConfigModule`，默认使用 TOML 清单和轻量 TOML 配置，同时保留 JSON 混用能力；单文件加载失败不再中断整体，配置名支持子目录路径。

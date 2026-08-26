@@ -2,8 +2,13 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-26
+
+- 迁移 DGame 的 `GameTickWatcher` 到独立 `RuntimeTools` 程序集（`Assets/GameScripts/RuntimeTools/`），命名空间改为 `RuntimeTools`，日志由 `DLogger.Info` 改为 `Log.Info`，补全 XML 文档注释；行为不变（构造即启动、`Restart` 清零、`ElapseTime` 返回秒）。
+
 ## 2026-08-24
 
+- Inno Setup 改为版本管理模板与本地生成脚本分离，构建面板补充脚本状态和打开/重新生成入口；构建失败可阻断旧产物打包，ISCC 异常与超时会完整输出日志并清理进度条。
 - InnoSetup 安装目录改用英文名：`setup.iss` 新增 `#define MyAppEnglishName`，`GetDefaultDir` 改用它作为默认安装目录（`MyAppName` 中文仅用于显示/图标/安装包文件名）；`InnoSetupBuilder`/`IssInstallerConfig` 增加 `AppEnglishName` 字段并回写，为空时回退用 `AppName`；`BuildConfig`/`BuildPipelineSetting`/`BuildPipelineWindow` 新增 `InstallerAppEnglishName` 持久化字段与「软件英文名」UI（默认取 `PlayerSettings.productName`），全链路同步。
 
 ## 2026-08-23
@@ -104,6 +109,3 @@
 - 新增 `Utility.Toml` 和默认 `TomlynTomlHelper`，提供 TOML 序列化门面。
 - 新增 `ScreenModule`，支持 Windows Standalone 下控制多显示器窗口位置、大小、置顶和无边框。
 - 新增 `GameEvent.RemoveAllListeners`，支持按事件 ID 批量移除监听。
-## 2026-08-24
-
-- Inno Setup 改为版本管理模板与本地生成脚本分离，构建面板补充脚本状态和打开/重新生成入口；构建失败可阻断旧产物打包，ISCC 异常与超时会完整输出日志并清理进度条。

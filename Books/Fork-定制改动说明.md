@@ -20,6 +20,7 @@
 | 场景系统 | DynamicSpawn 通用化、加载进度下沉到 `GameSceneModule` | [scene-system.md](Fork/scene-system.md) |
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 | [window-management.md](Fork/window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 | [obfuscation.md](Fork/obfuscation.md) |
+| 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](Fork/runtime-tools.md) |
 
 ## 维护规则
 
