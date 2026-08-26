@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using TEngine;
 
-namespace GameLogic
+namespace RuntimeTools
 {
     /// <summary>
     /// 游戏逻辑计时器工具类。
