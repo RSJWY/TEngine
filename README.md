@@ -19,7 +19,7 @@
 
 ## 🛠️ 本 Fork 的定制改动
 
-> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、数据绑定、日志工具、窗口控制、代码混淆、运行时工具**做了定制改造。
+> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、数据绑定、日志工具、窗口控制、代码混淆、运行时工具、计时器模块**做了定制改造。
 
 | 主题 | 主要改动 |
 | --- | --- |
@@ -33,6 +33,7 @@
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 `ScreenModule` |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） |
+| 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 |
 
 详细设计、使用方式和关键文件见 [Fork 定制改动总览](Books/Fork/README.md)。按时间查看改动见 [Fork 改动时间线](Books/Fork/CHANGELOG.md)。
 

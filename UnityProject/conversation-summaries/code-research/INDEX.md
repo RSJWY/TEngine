@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-08-26
+- [TEngine TimerModule vs DGame GameTimer 对比研究](./2026-08-26-tengine-timer-vs-dgame-gametimer-research.md)
+  - 关键词：TimerModule、GameTimer、GameTimerModule、ITimerModule、TimerHandler、DGameLinkedList、LoopCount、坏帧处理、isUnscaled、句柄、节点池、系统定时器
+  - 结论：DGame GameTimer 是 TEngine TimerModule 改良版——对象引用句柄、限定循环次数、坏帧 while+10 上限防栈溢出、双向链表+节点池 O(1) 删除。
+
 ## 2026-08-22
 - [UpdateSetting.BuildAddress 与 YooAsset 内置资源复制链路研究](./2026-08-22-updatesetting-buildaddress-yooasset-research.md)
   - 关键词：UpdateSetting、BuildAddress、isAutoAssetCopeToBuildAddress、YooAsset、BuildinFileRoot、GetStreamingAssetsRoot、DefaultYooFolderName、TaskCopyBuildinFiles、StreamingAssets、ReleaseTools、FullReleaseBuilder、死代码

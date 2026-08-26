@@ -18,15 +18,19 @@ namespace TEngine
             public bool isLoop = false;
             public bool isNeedRemove = false;
             public bool isRunning = false;
-            public bool isUnscaled = false; //是否使用非缩放的时间
-            [NonSerialized] public object[] Args = null; //回调参数
+            public bool isUnscaled = false;
+            public bool hasLoopCount = false;
+            public int loopCount = 0;
+            [NonSerialized] public object[] Args = null;
         }
 
         private int _curTimerId = 0;
-        private readonly List<Timer> _timerList = new List<Timer>();
-        private readonly List<Timer> _unscaledTimerList = new List<Timer>();
-        private readonly List<int> _cacheRemoveTimers = new List<int>();
-        private readonly List<int> _cacheRemoveUnscaledTimers = new List<int>();
+        private readonly GameFrameworkLinkedList<Timer> _timerList = new GameFrameworkLinkedList<Timer>();
+        private readonly GameFrameworkLinkedList<Timer> _unscaledTimerList = new GameFrameworkLinkedList<Timer>();
+
+        private bool _hasBadFrame = false;
+        private bool _hasUnscaledBadFrame = false;
+        private const int MaxBadFrameCheckCount = 10;
 
         /// <summary>
         /// 添加计时器。
@@ -49,7 +53,39 @@ namespace TEngine
                 isUnscaled = isUnscaled,
                 Args = args,
                 isNeedRemove = false,
-                isRunning = true
+                isRunning = true,
+                hasLoopCount = false,
+                loopCount = 0
+            };
+
+            InsertTimer(timer);
+            return timer.timerId;
+        }
+
+        /// <summary>
+        /// 添加指定循环次数的计时器。
+        /// </summary>
+        /// <param name="callback">计时器回调。</param>
+        /// <param name="time">计时器间隔。</param>
+        /// <param name="loopCount">循环次数。</param>
+        /// <param name="isUnscaled">是否不收时间缩放影响。</param>
+        /// <param name="args">传参。(避免闭包)</param>
+        /// <returns>计时器Id。</returns>
+        public int AddLoopCountTimer(TimerHandler callback, float time, int loopCount, bool isUnscaled = false, params object[] args)
+        {
+            Timer timer = new Timer
+            {
+                timerId = ++_curTimerId,
+                curTime = time,
+                time = time,
+                Handler = callback,
+                isLoop = true,
+                isUnscaled = isUnscaled,
+                Args = args,
+                isNeedRemove = false,
+                isRunning = true,
+                hasLoopCount = true,
+                loopCount = loopCount
             };
 
             InsertTimer(timer);
@@ -58,39 +94,50 @@ namespace TEngine
 
         private void InsertTimer(Timer timer)
         {
-            bool isInsert = false;
             if (timer.isUnscaled)
             {
-                for (int i = 0, len = _unscaledTimerList.Count; i < len; i++)
+                if (_unscaledTimerList.Count <= 0)
                 {
-                    if (_unscaledTimerList[i].curTime > timer.curTime)
-                    {
-                        _unscaledTimerList.Insert(i, timer);
-                        isInsert = true;
-                        break;
-                    }
+                    _unscaledTimerList.AddLast(timer);
+                    return;
                 }
 
-                if (!isInsert)
+                LinkedListNode<Timer> curNode = _unscaledTimerList.First;
+                while (curNode != null && curNode.Value.curTime <= timer.curTime)
                 {
-                    _unscaledTimerList.Add(timer);
+                    curNode = curNode.Next;
+                }
+
+                if (curNode == null)
+                {
+                    _unscaledTimerList.AddLast(timer);
+                }
+                else
+                {
+                    _unscaledTimerList.AddBefore(curNode, timer);
                 }
             }
             else
             {
-                for (int i = 0, len = _timerList.Count; i < len; i++)
+                if (_timerList.Count <= 0)
                 {
-                    if (_timerList[i].curTime > timer.curTime)
-                    {
-                        _timerList.Insert(i, timer);
-                        isInsert = true;
-                        break;
-                    }
+                    _timerList.AddLast(timer);
+                    return;
                 }
 
-                if (!isInsert)
+                LinkedListNode<Timer> curNode = _timerList.First;
+                while (curNode != null && curNode.Value.curTime <= timer.curTime)
                 {
-                    _timerList.Add(timer);
+                    curNode = curNode.Next;
+                }
+
+                if (curNode == null)
+                {
+                    _timerList.AddLast(timer);
+                }
+                else
+                {
+                    _timerList.AddBefore(curNode, timer);
                 }
             }
         }
@@ -172,6 +219,8 @@ namespace TEngine
                 timer.Handler = callback;
                 timer.isLoop = isLoop;
                 timer.isNeedRemove = false;
+                timer.hasLoopCount = false;
+                timer.loopCount = 0;
                 if (timer.isUnscaled != isUnscaled)
                 {
                     RemoveTimerImmediate(timerId);
@@ -194,6 +243,8 @@ namespace TEngine
                 timer.time = time;
                 timer.isLoop = isLoop;
                 timer.isNeedRemove = false;
+                timer.hasLoopCount = false;
+                timer.loopCount = 0;
                 if (timer.isUnscaled != isUnscaled)
                 {
                     RemoveTimerImmediate(timerId);
@@ -210,22 +261,26 @@ namespace TEngine
         /// <param name="timerId"></param>
         private void RemoveTimerImmediate(int timerId)
         {
-            for (int i = 0, len = _timerList.Count; i < len; i++)
+            LinkedListNode<Timer> curNode = _timerList.First;
+            while (curNode != null)
             {
-                if (_timerList[i].timerId == timerId)
+                if (curNode.Value.timerId == timerId)
                 {
-                    _timerList.RemoveAt(i);
+                    _timerList.Remove(curNode);
                     return;
                 }
+                curNode = curNode.Next;
             }
 
-            for (int i = 0, len = _unscaledTimerList.Count; i < len; i++)
+            curNode = _unscaledTimerList.First;
+            while (curNode != null)
             {
-                if (_unscaledTimerList[i].timerId == timerId)
+                if (curNode.Value.timerId == timerId)
                 {
-                    _unscaledTimerList.RemoveAt(i);
+                    _unscaledTimerList.Remove(curNode);
                     return;
                 }
+                curNode = curNode.Next;
             }
         }
 
@@ -235,22 +290,26 @@ namespace TEngine
         /// <param name="timerId">计时器Id。</param>
         public void RemoveTimer(int timerId)
         {
-            for (int i = 0, len = _timerList.Count; i < len; i++)
+            LinkedListNode<Timer> curNode = _timerList.First;
+            while (curNode != null)
             {
-                if (_timerList[i].timerId == timerId)
+                if (curNode.Value.timerId == timerId)
                 {
-                    _timerList[i].isNeedRemove = true;
+                    curNode.Value.isNeedRemove = true;
                     return;
                 }
+                curNode = curNode.Next;
             }
 
-            for (int i = 0, len = _unscaledTimerList.Count; i < len; i++)
+            curNode = _unscaledTimerList.First;
+            while (curNode != null)
             {
-                if (_unscaledTimerList[i].timerId == timerId)
+                if (curNode.Value.timerId == timerId)
                 {
-                    _unscaledTimerList[i].isNeedRemove = true;
+                    curNode.Value.isNeedRemove = true;
                     return;
                 }
+                curNode = curNode.Next;
             }
         }
 
@@ -265,173 +324,265 @@ namespace TEngine
 
         private Timer GetTimer(int timerId)
         {
-            for (int i = 0, len = _timerList.Count; i < len; i++)
+            LinkedListNode<Timer> curNode = _timerList.First;
+            while (curNode != null)
             {
-                if (_timerList[i].timerId == timerId)
+                if (curNode.Value.timerId == timerId)
                 {
-                    return _timerList[i];
+                    return curNode.Value;
                 }
+                curNode = curNode.Next;
             }
 
-            for (int i = 0, len = _unscaledTimerList.Count; i < len; i++)
+            curNode = _unscaledTimerList.First;
+            while (curNode != null)
             {
-                if (_unscaledTimerList[i].timerId == timerId)
+                if (curNode.Value.timerId == timerId)
                 {
-                    return _unscaledTimerList[i];
+                    return curNode.Value;
                 }
+                curNode = curNode.Next;
             }
 
             return null;
         }
 
-        private void LoopCallInBadFrame()
+        private void HandleLoopBadFrame()
         {
-            bool isLoopCall = false;
-            for (int i = 0, len = _timerList.Count; i < len; i++)
+            int checkCount = MaxBadFrameCheckCount;
+            while (_hasBadFrame && checkCount > 0)
             {
-                Timer timer = _timerList[i];
-                if (timer.isLoop && timer.curTime <= 0)
+                _hasBadFrame = false;
+                LinkedListNode<Timer> curNode = _timerList.First;
+
+                while (curNode != null && checkCount-- > 0)
                 {
-                    if (timer.Handler != null)
-                    {
-                        timer.Handler(timer.Args);
-                    }
+                    LinkedListNode<Timer> nextNode = curNode.Next;
 
-                    timer.curTime += timer.time;
-                    if (timer.curTime <= 0)
+                    if (curNode.Value.isLoop && curNode.Value.curTime <= 0
+                        && !curNode.Value.isNeedRemove && curNode.Value.isRunning)
                     {
-                        isLoopCall = true;
+                        curNode.Value.Handler?.Invoke(curNode.Value.Args);
+
+                        if (curNode.Value.hasLoopCount)
+                        {
+                            curNode.Value.loopCount -= 1;
+
+                            if (curNode.Value.loopCount > 0)
+                            {
+                                curNode.Value.curTime += curNode.Value.time;
+
+                                if (curNode.Value.curTime <= 0)
+                                {
+                                    _hasBadFrame = true;
+                                }
+                            }
+                            else
+                            {
+                                _timerList.Remove(curNode);
+                            }
+                        }
+                        else
+                        {
+                            curNode.Value.curTime += curNode.Value.time;
+
+                            if (curNode.Value.curTime <= 0)
+                            {
+                                _hasBadFrame = true;
+                            }
+                        }
                     }
+                    curNode = nextNode;
                 }
-            }
-
-            if (isLoopCall)
-            {
-                LoopCallInBadFrame();
             }
         }
 
-        private void LoopCallUnscaledInBadFrame()
+        private void HandleUnscaledLoopBadFrame()
         {
-            bool isLoopCall = false;
-            for (int i = 0, len = _unscaledTimerList.Count; i < len; i++)
+            int checkCount = MaxBadFrameCheckCount;
+            while (_hasUnscaledBadFrame && checkCount > 0)
             {
-                Timer timer = _unscaledTimerList[i];
-                if (timer.isLoop && timer.curTime <= 0)
+                _hasUnscaledBadFrame = false;
+                LinkedListNode<Timer> curNode = _unscaledTimerList.First;
+
+                while (curNode != null && checkCount-- > 0)
                 {
-                    if (timer.Handler != null)
-                    {
-                        timer.Handler(timer.Args);
-                    }
+                    LinkedListNode<Timer> nextNode = curNode.Next;
 
-                    timer.curTime += timer.time;
-                    if (timer.curTime <= 0)
+                    if (curNode.Value.isLoop && curNode.Value.curTime <= 0
+                        && !curNode.Value.isNeedRemove && curNode.Value.isRunning)
                     {
-                        isLoopCall = true;
+                        curNode.Value.Handler?.Invoke(curNode.Value.Args);
+
+                        if (curNode.Value.hasLoopCount)
+                        {
+                            curNode.Value.loopCount -= 1;
+
+                            if (curNode.Value.loopCount > 0)
+                            {
+                                curNode.Value.curTime += curNode.Value.time;
+
+                                if (curNode.Value.curTime <= 0)
+                                {
+                                    _hasUnscaledBadFrame = true;
+                                }
+                            }
+                            else
+                            {
+                                _unscaledTimerList.Remove(curNode);
+                            }
+                        }
+                        else
+                        {
+                            curNode.Value.curTime += curNode.Value.time;
+
+                            if (curNode.Value.curTime <= 0)
+                            {
+                                _hasUnscaledBadFrame = true;
+                            }
+                        }
                     }
+                    curNode = nextNode;
                 }
-            }
-
-            if (isLoopCall)
-            {
-                LoopCallUnscaledInBadFrame();
             }
         }
 
         private void UpdateTimer(float elapseSeconds)
         {
-            bool isLoopCall = false;
-            for (int i = 0, len = _timerList.Count; i < len; i++)
+            bool hasBadFrame = false;
+            LinkedListNode<Timer> curNode = _timerList.First;
+
+            while (curNode != null)
             {
-                Timer timer = _timerList[i];
-                if (timer.isNeedRemove)
+                LinkedListNode<Timer> nextNode = curNode.Next;
+
+                if (curNode.Value.isNeedRemove)
                 {
-                    _cacheRemoveTimers.Add(i);
+                    _timerList.Remove(curNode);
+                    curNode = nextNode;
                     continue;
                 }
 
-                if (!timer.isRunning) continue;
-                timer.curTime -= elapseSeconds;
-                if (timer.curTime <= 0)
+                if (!curNode.Value.isRunning)
                 {
-                    if (timer.Handler != null)
-                    {
-                        timer.Handler(timer.Args);
-                    }
+                    curNode = nextNode;
+                    continue;
+                }
 
-                    if (timer.isLoop)
+                curNode.Value.curTime -= elapseSeconds;
+
+                if (curNode.Value.curTime <= 0)
+                {
+                    curNode.Value.Handler?.Invoke(curNode.Value.Args);
+
+                    if (curNode.Value.hasLoopCount)
                     {
-                        timer.curTime += timer.time;
-                        if (timer.curTime <= 0)
+                        curNode.Value.loopCount -= 1;
+
+                        if (curNode.Value.loopCount > 0)
                         {
-                            isLoopCall = true;
+                            curNode.Value.curTime += curNode.Value.time;
+                            if (curNode.Value.curTime <= 0)
+                            {
+                                hasBadFrame = true;
+                            }
+                        }
+                        else
+                        {
+                            _timerList.Remove(curNode);
                         }
                     }
                     else
                     {
-                        _cacheRemoveTimers.Add(i);
+                        if (curNode.Value.isLoop)
+                        {
+                            curNode.Value.curTime += curNode.Value.time;
+
+                            if (curNode.Value.curTime <= 0)
+                            {
+                                hasBadFrame = true;
+                            }
+                        }
+                        else
+                        {
+                            _timerList.Remove(curNode);
+                        }
                     }
                 }
+
+                curNode = nextNode;
             }
 
-            for (int i = _cacheRemoveTimers.Count - 1; i >= 0; i--)
-            {
-                _timerList.RemoveAt(_cacheRemoveTimers[i]);
-                _cacheRemoveTimers.RemoveAt(i);
-            }
-
-            if (isLoopCall)
-            {
-                LoopCallInBadFrame();
-            }
+            _hasBadFrame = hasBadFrame;
         }
 
         private void UpdateUnscaledTimer(float realElapseSeconds)
         {
-            bool isLoopCall = false;
-            for (int i = 0, len = _unscaledTimerList.Count; i < len; i++)
+            bool hasBadFrame = false;
+            LinkedListNode<Timer> curNode = _unscaledTimerList.First;
+
+            while (curNode != null)
             {
-                Timer timer = _unscaledTimerList[i];
-                if (timer.isNeedRemove)
+                LinkedListNode<Timer> nextNode = curNode.Next;
+
+                if (curNode.Value.isNeedRemove)
                 {
-                    _cacheRemoveUnscaledTimers.Add(i);
+                    _unscaledTimerList.Remove(curNode);
+                    curNode = nextNode;
                     continue;
                 }
 
-                if (!timer.isRunning) continue;
-                timer.curTime -= realElapseSeconds;
-                if (timer.curTime <= 0)
+                if (!curNode.Value.isRunning)
                 {
-                    if (timer.Handler != null)
-                    {
-                        timer.Handler(timer.Args);
-                    }
+                    curNode = nextNode;
+                    continue;
+                }
 
-                    if (timer.isLoop)
+                curNode.Value.curTime -= realElapseSeconds;
+
+                if (curNode.Value.curTime <= 0)
+                {
+                    curNode.Value.Handler?.Invoke(curNode.Value.Args);
+
+                    if (curNode.Value.hasLoopCount)
                     {
-                        timer.curTime += timer.time;
-                        if (timer.curTime <= 0)
+                        curNode.Value.loopCount -= 1;
+
+                        if (curNode.Value.loopCount > 0)
                         {
-                            isLoopCall = true;
+                            curNode.Value.curTime += curNode.Value.time;
+                            if (curNode.Value.curTime <= 0)
+                            {
+                                hasBadFrame = true;
+                            }
+                        }
+                        else
+                        {
+                            _unscaledTimerList.Remove(curNode);
                         }
                     }
                     else
                     {
-                        _cacheRemoveUnscaledTimers.Add(i);
+                        if (curNode.Value.isLoop)
+                        {
+                            curNode.Value.curTime += curNode.Value.time;
+
+                            if (curNode.Value.curTime <= 0)
+                            {
+                                hasBadFrame = true;
+                            }
+                        }
+                        else
+                        {
+                            _unscaledTimerList.Remove(curNode);
+                        }
                     }
                 }
+
+                curNode = nextNode;
             }
 
-            for (int i = _cacheRemoveUnscaledTimers.Count - 1; i >= 0; i--)
-            {
-                _unscaledTimerList.RemoveAt(_cacheRemoveUnscaledTimers[i]);
-                _cacheRemoveUnscaledTimers.RemoveAt(i);
-            }
-
-            if (isLoopCall)
-            {
-                LoopCallUnscaledInBadFrame();
-            }
+            _hasUnscaledBadFrame = hasBadFrame;
         }
 
         private readonly List<System.Timers.Timer> _ticker = new List<System.Timers.Timer>();
@@ -456,8 +607,10 @@ namespace TEngine
                 if (ticker != null)
                 {
                     ticker.Stop();
+                    ticker.Dispose();
                 }
             }
+            _ticker.Clear();
         }
 
         public override void OnInit()
@@ -467,13 +620,17 @@ namespace TEngine
         public override void Shutdown()
         {
             RemoveAllTimer();
+            _timerList.ClearCachedNodes();
+            _unscaledTimerList.ClearCachedNodes();
             DestroySystemTimer();
         }
 
         public void Update(float elapseSeconds, float realElapseSeconds)
         {
             UpdateTimer(elapseSeconds);
+            HandleLoopBadFrame();
             UpdateUnscaledTimer(realElapseSeconds);
+            HandleUnscaledLoopBadFrame();
         }
     }
 }

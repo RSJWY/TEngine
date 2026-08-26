@@ -22,9 +22,11 @@
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 | [obfuscation.md](obfuscation.md) |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](runtime-tools.md) |
+| 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 | [timer-module.md](timer-module.md) |
 
 ## 最近重点
 
+- 整合 DGame `GameTimerModule` 改进到 `TimerModule`：链表存储 O(1) 删除、坏帧 `while` + 10 次上限防栈溢出、新增 `AddLoopCountTimer` 限定循环次数，旧 API 全保留。
 - 迁移 DGame 的 `GameTickWatcher` 到独立 `RuntimeTools` 程序集，命名空间与日志 API 适配 TEngine，补全文档注释。
 - 新增纯数据 DataBinding 运行时与 Editor 生成器，菜单和 Odin 面板已中文化。
 - 日志系统新增 Unity/Task/UniTask 到 TouchSocket `FileLogger` 的统一落盘链路，并补充独立 LogViewer 工具。

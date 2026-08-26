@@ -21,6 +21,7 @@
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 | [window-management.md](Fork/window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 | [obfuscation.md](Fork/obfuscation.md) |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](Fork/runtime-tools.md) |
+| 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 | [timer-module.md](Fork/timer-module.md) |
 
 ## 维护规则
 

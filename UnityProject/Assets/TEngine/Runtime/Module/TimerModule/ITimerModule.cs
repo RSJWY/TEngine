@@ -14,6 +14,17 @@
         public int AddTimer(TimerHandler callback, float time, bool isLoop = false, bool isUnscaled = false, params object[] args);
 
         /// <summary>
+        /// 添加指定循环次数的计时器。
+        /// </summary>
+        /// <param name="callback">计时器回调。</param>
+        /// <param name="time">计时器间隔。</param>
+        /// <param name="loopCount">循环次数。</param>
+        /// <param name="isUnscaled">是否不收时间缩放影响。</param>
+        /// <param name="args">传参。(避免闭包)</param>
+        /// <returns>计时器Id。</returns>
+        public int AddLoopCountTimer(TimerHandler callback, float time, int loopCount, bool isUnscaled = false, params object[] args);
+
+        /// <summary>
         /// 暂停计时器。
         /// </summary>
         /// <param name="timerId">计时器Id。</param>

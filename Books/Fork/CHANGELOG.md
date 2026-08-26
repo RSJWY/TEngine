@@ -4,6 +4,7 @@
 
 ## 2026-08-26
 
+- 整合 DGame `GameTimerModule` 改进到 `TimerModule`：底层 `List<Timer>` 改为 `GameFrameworkLinkedList<T>`（O(1) 删除 + 节点池）；坏帧处理由递归改为 `while` + `MaxBadFrameCheckCount=10` 上限，消除栈溢出风险；新增 `AddLoopCountTimer` 支持限定循环次数；旧 API（`int` 句柄、`params` 传参）全保留，业务代码零改动；`DestroySystemTimer` 补 `Dispose`/`Clear`。
 - 迁移 DGame 的 `GameTickWatcher` 到独立 `RuntimeTools` 程序集（`Assets/GameScripts/RuntimeTools/`），命名空间改为 `RuntimeTools`，日志由 `DLogger.Info` 改为 `Log.Info`，补全 XML 文档注释；行为不变（构造即启动、`Restart` 清零、`ElapseTime` 返回秒）。
 
 ## 2026-08-24
