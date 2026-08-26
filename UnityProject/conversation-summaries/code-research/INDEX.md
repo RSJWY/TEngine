@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-08-26
+- [DGame ClientSaveData 存档系统深度分析](./2026-08-26-dgame-clientsavedata-research.md)
+  - 关键词：ClientSaveDataMgr、BaseClientSaveData、ClientSaveDataAttribute、ClientSaveDataHelper、SystemSaveData、PlayerPrefsUtil、JsonFile、PerRoleID、SaveDataVersion、OnUpgradeData、PopulateObject、懒迁移、坏档备份、corrupt、SaveAsync、SwitchToThreadPool、key冲突校验、单例缓存
+  - 结论：特性驱动注册+双存储后端+版本升级+懒迁移+坏档保护+异步写入的成熟存档框架，TEngine 完全无对应物。
 - [TEngine TimerModule vs DGame GameTimer 对比研究](./2026-08-26-tengine-timer-vs-dgame-gametimer-research.md)
   - 关键词：TimerModule、GameTimer、GameTimerModule、ITimerModule、TimerHandler、DGameLinkedList、LoopCount、坏帧处理、isUnscaled、句柄、节点池、系统定时器
   - 结论：DGame GameTimer 是 TEngine TimerModule 改良版——对象引用句柄、限定循环次数、坏帧 while+10 上限防栈溢出、双向链表+节点池 O(1) 删除。

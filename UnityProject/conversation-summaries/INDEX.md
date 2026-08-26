@@ -4,6 +4,11 @@
 > 新增会话总结时，按日期倒序在本文件顶部追加条目；禁止另建按日期拆分的索引文件。
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
+## 2026-08-26
+- [DGame ClientSaveData + DataCenter 迁移到 TEngine GameLogic](./2026-08-26-clientsavedata-datacenter-migration-summary.md)
+  - 关键词：ClientSaveDataMgr、BaseClientSaveData、ClientSaveDataAttribute、DataCenterSys、DataCenterModule、PlayerData、SystemSaveData、Singleton、IUpdate、Newtonsoft.Json、UniTask、Utility.PlayerPrefs、JsonFile、PerRoleID、SaveDataVersion、OnUpgradeData、坏档备份、懒迁移、GameLogic.asmdef、RuntimeTools废弃方案
+  - 结论：DGame 存档系统+数据中心迁移到 GameLogic/DataCenter/，复用 Singleton<IUpdate>，GameLogic.asmdef 新增 Newtonsoft.Json 引用。
+
 ## 2026-08-23
 - [InnoSetup 安装包 iss 变量输入补全](./2026-08-23-innosetup-iss-define-input-fields-summary.md)
   - 关键词：setup.iss、IssInstallerConfig、SyncIssDefines、MyAppName、MyAppPublisher、MyAppPassword、BrandWatermark、MyAppId不回写、BuildConfig、BuildPipelineSetting、BuildPipelineWindow、双Box分区、ISCC编译区

@@ -4,6 +4,7 @@
 
 ## 2026-08-26
 
+- 迁移 DGame `ClientSaveData` 存档系统与 `DataCenterSys` 数据中心到 `GameLogic/DataCenter/`：特性驱动注册、双存储后端（PlayerPrefs/JsonFile）、版本升级、坏档备份、PlayerPrefs→JsonFile 懒迁移、异步线程池写入；复用 `Singleton<T>`/`IUpdate`/`SingletonSystem` 自动驱动，避免重复实现；`GameLogic.asmdef` 新增 Newtonsoft.Json 引用。
 - 整合 DGame `GameTimerModule` 改进到 `TimerModule`：底层 `List<Timer>` 改为 `GameFrameworkLinkedList<T>`（O(1) 删除 + 节点池）；坏帧处理由递归改为 `while` + `MaxBadFrameCheckCount=10` 上限，消除栈溢出风险；新增 `AddLoopCountTimer` 支持限定循环次数；旧 API（`int` 句柄、`params` 传参）全保留，业务代码零改动；`DestroySystemTimer` 补 `Dispose`/`Clear`。
 - 迁移 DGame 的 `GameTickWatcher` 到独立 `RuntimeTools` 程序集（`Assets/GameScripts/RuntimeTools/`），命名空间改为 `RuntimeTools`，日志由 `DLogger.Info` 改为 `Log.Info`，补全 XML 文档注释；行为不变（构造即启动、`Restart` 清零、`ElapseTime` 返回秒）。
 
