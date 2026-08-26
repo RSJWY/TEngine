@@ -19,5 +19,6 @@ MonoBehaviour:
     EnumValue: 0
     SceneGuid: c48868a3ea4925547a6a5627f0693d1f
     EnumName: MainScene
-    DisplayName: "\u4E3BUI\u5E38\u9A7B\u7A7A\u573A\u666F"
+    ChineseName: "UI\u573A\u666F"
     Active: 1
+    DisplayName: "\u4E3BUI\u5E38\u9A7B\u7A7A\u573A\u666F"
