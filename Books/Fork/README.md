@@ -24,9 +24,11 @@
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](runtime-tools.md) |
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 | [timer-module.md](timer-module.md) |
 | 存档与数据中心 | `ClientSaveDataMgr` 存档框架、`DataCenterSys` 玩家数据中枢 | [save-data.md](save-data.md) |
+| UI 组件扩展 | `UIButton`/`UIImage`/`UIText`/`RichTextItem` + `ListPool` 公共化 | [ui-expansion.md](ui-expansion.md) |
 
 ## 最近重点
 
+- 迁移 DGame 自研 UI 组件扩展（`UIButton`/`UIImage`/`UIText`/`RichTextItem`）到 `GameLogic/Module/UIModule/Expansion/`；`ListPool<T>` + `Pool<T>` 抽到 `TEngine/Runtime/Core/ListPool/` 公共化（命名空间 `TEngine`、`public`）；`UIButtonClickSoundExtend` 去 Luban 依赖改用资源地址字符串；`RichTextItem` 删 `using DGame` 天然兼容 TEngine `SetSprite` 全局扩展；`UITextOutlineExtend` 描边材质依赖 YooAsset `UGUIPro_UIText`；Editor 脚本隔离到 `Assets/Editor/UIModuleExpansion/` 含配套 `UnityEditorUtil`。`SuperScrollView` 付费插件未迁移。
 - 迁移 DGame 的 `ClientSaveData` 存档系统与 `DataCenterSys` 数据中心到 `GameLogic/DataCenter/`，复用 `Singleton<T>`/`IUpdate`/`SingletonSystem` 自动驱动；特性驱动注册、双存储后端（PlayerPrefs/JsonFile）、版本升级、坏档备份、PlayerPrefs→JsonFile 懒迁移、异步线程池写入；`GameLogic.asmdef` 新增 Newtonsoft.Json 引用。
 - 整合 DGame `GameTimerModule` 改进到 `TimerModule`：链表存储 O(1) 删除、坏帧 `while` + 10 次上限防栈溢出、新增 `AddLoopCountTimer` 限定循环次数，旧 API 全保留。
 - 迁移 DGame 的 `GameTickWatcher` 到独立 `RuntimeTools` 程序集，命名空间与日志 API 适配 TEngine，补全文档注释。

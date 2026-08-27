@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-08-27
+- [DGame 可迁移功能评估与逐模块迁移指南](./2026-08-26-dgame-migration-evaluation-research.md)
+  - 关键词：DGame迁移、UI组件扩展、UIButton、UIImage、UIText、RichTextItem、ListPool、Pool、TEngine.Core、SetSpriteExtensions、GameModule.Resource、GameModule.Audio、DLogger→Log、ClickSound去Luban、SysSoundID、SoundConfigMgr、DOTween、Shader、Editor隔离、asmdef引用、HybridCLR热更
+  - 结论：第一梯队四组件迁移完成——ListPool 抽到 TEngine Core；UIButton 的 ClickSound 去 Luban 改用资源地址 string；RichTextItem 删 using DGame 天然兼容 TEngine SetSprite；零 DGame 残留，待 Unity 编译验证。
+
 ## 2026-08-26
 - [DGame 可迁移功能评估与逐模块迁移指南](./2026-08-26-dgame-migration-evaluation-research.md)
   - 关键词：DGame迁移评估、UI组件扩展、UIButton、UIImage、UIText、RichTextItem、SuperScrollView、LoopListView2、RedDotModule、RedDotNode、FrameAnimModule、FrameSpriteMgr、InputModule、AnimModule、GameObjectPoolModule、TextModule、GMPanel、GuideModule、迁移优先级、Luban依赖、Singleton对齐

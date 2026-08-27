@@ -231,3 +231,75 @@ SpineModelHelper.cs + UISpineModelHelper.cs，依赖 Spine-Unity 运行时。仅
 4. （视需求）InputModule / AnimModule / GameObjectPoolModule — 按项目实际需求决定
 
 每个模块迁移时遵循：拷贝 → 命名空间/基类/Log 对齐 → Editor 隔离 → 编译验证 → 提交。
+
+---
+
+## 八、第一梯队迁移执行结果（2026-08-27）
+
+### 迁移范围决策
+
+- **迁移**：DGame 自研的 UIButton / UIImage / UIText / RichTextItem + 配套 ListPool + 2 个 Shader
+- **不迁移**：SuperScrollView（付费第三方插件）、Utility 散件（四组件无引用）
+
+### 实际目录结构
+
+#### TEngine Core 层（公共化抽离）
+```
+Assets/TEngine/Runtime/Core/ListPool/
+├── ListPool.cs   (public static class ListPool<T>，命名空间 TEngine)
+└── Pool.cs       (public class Pool<T>，命名空间 TEngine)
+```
+> 原因：ListPool 是纯泛型对象池，不绑定 UI 语义，5 个 Extend 共用。TEngine 无等价物，放 Core 层与 MemoryPool 同级，所有程序集可复用。可见性 internal→public，命名空间 GameLogic→TEngine。
+
+#### GameLogic 热更程序集
+```
+Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/
+├── UIButton/    (Core: BaseUIButton/UIButton + 5 Extend)
+├── UIImage/     (Core: BaseUIImage/UIImage + 3 Extend)
+├── UIText/      (Core: BaseUIText/UIText + 6 Extend)
+├── RichTextItem/(RichTextItem/Parser/Data/Config)
+└── Shader/      (GuideMask.shader + Sprites Shader.shader)
+```
+
+#### Editor 隔离
+```
+Assets/Editor/UIModuleExpansion/{UIButton,UIImage,UIText,RichTextItem}/
+```
+
+### 改造点详表
+
+| 组件 | 改造内容 | 原代码 → 新代码 |
+|------|---------|----------------|
+| ListPool | 命名空间 + 可见性 | `namespace GameLogic internal` → `namespace TEngine public` |
+| UIImage | 加 using | MirrorExtend 加 `using TEngine;`（用 ListPool<UIVertex>） |
+| UIText | DLogger→Log + using + API 名 | `DGame.DLogger.Error` → `Log.Error`；`GameModule.ResourceModule` → `GameModule.Resource`；`DGame.Utility.UnityUtil.FindObjectOfType` → `Object.FindObjectOfType`；4 个 Extend 加 `using TEngine;` |
+| UIButton | ClickSound 去 Luban | 删 `using GameProto`；`int m_clickSoundID = (int)SysSoundID.BTN_CLICK` → `string m_clickSoundLocation = "btn_click"`；删 `SoundConfigMgr.TryGetValue` 查表；`GameModule.AudioModule.Play(DGame.AudioType.UISound, ...)` → `GameModule.Audio.Play(AudioType.UISound, ..., bInPool: true)`；`SetClickSoundID(int)` → `SetClickSoundLocation(string)`；BaseUIButton 对应方法名同步改 |
+| RichTextItem | 删 using + DLogger→Log | 删 `using DGame;`（TEngine SetSprite 是全局静态类，天然兼容）；加 `using TEngine;`；`DLogger.Info` → `Log.Info` |
+
+### 关键 API 对齐对照
+
+| DGame | TEngine | 说明 |
+|-------|---------|------|
+| `GameModule.ResourceModule` | `GameModule.Resource` | 属性名不同 |
+| `GameModule.AudioModule` | `GameModule.Audio` | 属性名不同 |
+| `DGame.DLogger.Error/Info` | `TEngine.Log.Error/Info` | 命名空间+类名 |
+| `DGame.AudioType.UISound` | `TEngine.AudioType.UISound` | 枚举命名空间 |
+| `DGame.SetSpriteExtensions.SetSprite` | `SetSpriteExtensions.SetSprite`（全局） | TEngine 无命名空间，删 using 即生效 |
+| `DGame.Utility.UnityUtil.FindObjectOfType` | `UnityEngine.Object.FindObjectOfType` | 直接用 Unity 原生 |
+| `GameProto.SysSoundID` + `SoundConfigMgr` | （去除）直接用资源地址 string | 去 Luban 依赖 |
+
+### 依赖验证结果
+
+- **GameLogic.asmdef** 已引用 `TEngine.Runtime`（GUID 24c092a...）✅ → `GameModule.Resource/Audio` 可用
+- **DOTween** 在 `Assets/Plugins/Demigiant/DOTween/DOTween.dll`（预编译 DLL，autoReferenced）✅ → ClickScale 的 `DG.Tweening` 自动可用，asmdef 无需补引用
+- **TEngine SetSpriteExtensions** 全局静态类（无命名空间）✅ → RichTextConfig 删 `using DGame` 后自动生效
+- **TEngine AudioModule.Play** 签名 `Play(AudioType, string, bLoop, volume, bAsync, bInPool)` ✅ → `bInPool` 参数名一致
+- **TEngine Log** 有 `Error(string)`/`Info(string)` ✅
+
+### 待 Unity 内编译验证
+
+由于 Unity 项目无法命令行编译，以下需在 Unity Editor 打开时确认：
+1. HybridCLR 编译 GameLogic 程序集是否通过
+2. Editor 程序集（Assembly-CSharp-Editor）引用 GameLogic 是否通过
+3. UIText 描边材质 `UGUIPro_UIText` 的 YooAsset 资源是否已配置（未配置则描边功能不可用，但不阻塞编译）
+

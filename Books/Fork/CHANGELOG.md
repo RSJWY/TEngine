@@ -2,6 +2,15 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-27
+
+- 迁移 DGame 自研 UI 组件扩展到 `GameLogic/Module/UIModule/Expansion/`：`UIButton`（5 Extend：点击保护/缩放/长按/双击/音效）、`UIImage`（圆角/遮罩/镜像）、`UIText`（描边/渐变/阴影/字间距/顶点色/环形）、`RichTextItem`（图文混排）；`ListPool<T>`+`Pool<T>` 抽到 `TEngine/Runtime/Core/ListPool/` 公共化（`internal`→`public`，命名空间 `GameLogic`→`TEngine`）；2 个配套 Shader 迁移；Editor 脚本隔离到 `Assets/Editor/UIModuleExpansion/` 含配套 `UnityEditorUtil`。
+- `UIButtonClickSoundExtend` 去 Luban 依赖：`int m_clickSoundID`（查 `SoundConfigMgr` 表）改为 `string m_clickSoundLocation`（直接资源地址），`SetClickSoundID(int)`→`SetClickSoundLocation(string)`；`BaseUIButton` 对应方法名同步。
+- `UITextOutlineExtend` 的 `DGame.Utility.UnityUtil.FindObjectOfType` 改 `Object.FindObjectOfType`；`DGame.DLogger.Error` 改 `Log.Error`；`GameModule.ResourceModule`→`GameModule.Resource`；`GameModule.AudioModule`→`GameModule.Audio`。
+- `RichTextItem`/`RichTextConfig` 删 `using DGame`，TEngine `SetSpriteExtensions` 是全局静态类无命名空间，`image.SetSprite(...)` 天然兼容。
+- `UIButtonClickSoundExtend` 加 `using AudioType = TEngine.AudioType;` 别名消除 `TEngine.AudioType` 与 `UnityEngine.AudioType` 二义性。
+- `SuperScrollView`（付费第三方插件）和 `Utility/` 散件（四组件无引用）未迁移。
+
 ## 2026-08-26
 
 - 迁移 DGame `ClientSaveData` 存档系统与 `DataCenterSys` 数据中心到 `GameLogic/DataCenter/`：特性驱动注册、双存储后端（PlayerPrefs/JsonFile）、版本升级、坏档备份、PlayerPrefs→JsonFile 懒迁移、异步线程池写入；复用 `Singleton<T>`/`IUpdate`/`SingletonSystem` 自动驱动，避免重复实现；`GameLogic.asmdef` 新增 Newtonsoft.Json 引用。

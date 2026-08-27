@@ -4,6 +4,11 @@
 > 新增会话总结时，按日期倒序在本文件顶部追加条目；禁止另建按日期拆分的索引文件。
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
+## 2026-08-27
+- [DGame UI 组件扩展迁移到 TEngine（第一梯队）](./2026-08-27-dgame-ui-expansion-migration-summary.md)
+  - 关键词：UIButton、UIImage、UIText、RichTextItem、ListPool、Pool、TEngine.Core、SetSpriteExtensions、GameModule.Resource、GameModule.Audio、DLogger→Log、ClickSound去Luban、SysSoundID、SoundConfigMgr、DOTween、AudioType二义性、UnityEditorUtil、Shader、Editor隔离、SuperScrollView未迁移、Utility散件未迁移
+  - 结论：四组件+ListPool+Shader迁移完成，ListPool 公共化到 TEngine Core，ClickSound 去 Luban 改资源地址，零 DGame 残留待 Unity 编译验证。
+
 ## 2026-08-26
 - [DGame ClientSaveData + DataCenter 迁移到 TEngine GameLogic](./2026-08-26-clientsavedata-datacenter-migration-summary.md)
   - 关键词：ClientSaveDataMgr、BaseClientSaveData、ClientSaveDataAttribute、DataCenterSys、DataCenterModule、PlayerData、SystemSaveData、Singleton、IUpdate、Newtonsoft.Json、UniTask、Utility.PlayerPrefs、JsonFile、PerRoleID、SaveDataVersion、OnUpgradeData、坏档备份、懒迁移、GameLogic.asmdef、RuntimeTools废弃方案
