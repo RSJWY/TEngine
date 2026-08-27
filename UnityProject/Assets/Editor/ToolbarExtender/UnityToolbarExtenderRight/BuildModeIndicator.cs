@@ -37,8 +37,13 @@ namespace TEngine
 
             var prevColor = GUI.color;
             GUI.color = IsReleaseBuildMode ? ReleaseModeColor : DevModeColor;
+            string label = IsReleaseBuildMode ? "模式: release" : "模式: dev";
+            if (BuildDLLCommand.IsObfuzInstalled)
+            {
+                label += $" | Obfuz: {(IsObfuzBuildMode ? "开" : "关")}";
+            }
             if (GUILayout.Button(
-                    new GUIContent(IsReleaseBuildMode ? "模式: release" : "模式: dev", BuildModeTooltip()),
+                    new GUIContent(label, BuildModeTooltip()),
                     _buildModeButtonStyle))
             {
                 ShowBuildModeMenu();

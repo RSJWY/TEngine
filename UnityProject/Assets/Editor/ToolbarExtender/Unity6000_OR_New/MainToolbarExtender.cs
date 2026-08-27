@@ -358,7 +358,18 @@ public class MainToolbarBuildModeDropdown
     public static MainToolbarElement CreateBuildModeDropdown()
     {
         bool isRelease = BuildDLLCommand.IsReleaseModeActive;
-        var content = new MainToolbarContent(isRelease ? "模式: release" : "模式: dev");
+        string label = isRelease ? "模式: release" : "模式: dev";
+        string tooltip = isRelease
+            ? "当前构建模式：release（发布：不生成/不加载 pdb）"
+            : "当前构建模式：dev（开发：pdb 有则加载）";
+        if (BuildDLLCommand.IsObfuzInstalled)
+        {
+            bool obfuzOn = BuildDLLCommand.IsObfuzActiveSafe;
+            label += $" | Obfuz: {(obfuzOn ? "开" : "关")}";
+            tooltip += $"\nObfuz 混淆：{(obfuzOn ? "开" : "关")}";
+        }
+        tooltip += "\n点击弹出快捷切换菜单";
+        var content = new MainToolbarContent(label, null, tooltip);
         return new MainToolbarDropdown(content, ShowDropdownMenu);
     }
 
