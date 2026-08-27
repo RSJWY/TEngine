@@ -110,6 +110,39 @@ namespace TEngine
                     throw new GameFrameworkException(Text.Format("Can not convert to object with exception '{0}'.", exception), exception);
                 }
             }
+
+            /// <summary>
+            /// 将 JSON 字符串反序列化并填充到已有对象（覆盖写入）。
+            /// </summary>
+            /// <param name="json">要反序列化的 JSON 字符串。</param>
+            /// <param name="obj">被填充的对象。</param>
+            /// <param name="settings">序列化设置。</param>
+            public static void FromJsonOverwrite(string json, object obj, object settings = null)
+            {
+                if (_jsonHelper == null)
+                {
+                    throw new GameFrameworkException("JSON helper is invalid.");
+                }
+
+                if (obj == null)
+                {
+                    throw new GameFrameworkException("Object is invalid.");
+                }
+
+                try
+                {
+                    _jsonHelper.FromJsonOverwrite(json, obj, settings);
+                }
+                catch (Exception exception)
+                {
+                    if (exception is GameFrameworkException)
+                    {
+                        throw;
+                    }
+
+                    throw new GameFrameworkException(Text.Format("Can not populate object with exception '{0}'.", exception), exception);
+                }
+            }
         }
     }
 }

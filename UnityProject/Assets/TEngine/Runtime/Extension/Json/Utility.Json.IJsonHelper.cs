@@ -36,6 +36,14 @@ namespace TEngine
                 /// <param name="settings">序列化设置。</param>
                 /// <returns>反序列化后的对象。</returns>
                 object ToObject(Type objectType, string json, object settings = null);
+
+                /// <summary>
+                /// 将 JSON 字符串反序列化并填充到已有对象（覆盖写入）。
+                /// </summary>
+                /// <param name="json">要反序列化的 JSON 字符串。</param>
+                /// <param name="obj">被填充的对象。</param>
+                /// <param name="settings">序列化设置。</param>
+                void FromJsonOverwrite(string json, object obj, object settings = null);
             }
         }
     }

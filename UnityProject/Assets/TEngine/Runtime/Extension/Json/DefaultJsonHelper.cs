@@ -42,5 +42,23 @@ namespace TEngine
         {
             return JsonUtility.FromJson(json, objectType);
         }
+
+        /// <summary>
+        /// 将 JSON 字符串反序列化并填充到已有对象（覆盖写入）。
+        /// 注意：Unity JsonUtility 不支持 PopulateObject，此实现为创建新对象后手动复制字段。
+        /// 如需精确覆盖语义请使用 NewtonsoftJsonHelper。
+        /// </summary>
+        public void FromJsonOverwrite(string json, object obj, object settings = null)
+        {
+            if (obj == null || string.IsNullOrEmpty(json))
+            {
+                return;
+            }
+
+            var newObj = JsonUtility.FromJson(json, obj.GetType());
+            // 回退：序列化新对象再反序列化到目标（逐字段覆盖）
+            var wrapper = JsonUtility.ToJson(newObj);
+            JsonUtility.FromJsonOverwrite(wrapper, obj);
+        }
     }
 }

@@ -4,6 +4,13 @@
 
 ## 2026-08-27
 
+- 合并 DGame `UnityUtil` 缺失方法到 `Utility.Unity`：补回组件增删（`AddMonoBehaviour`/`RmvMonoBehaviour`，TryGetComponent 去重）、子节点查找（`FindChild`/`FindChildByName`/`FindChildComponent`）、`SetLayer` 批量、`AddCustomEventListener`/`RemoveCustomEventListener`（EventTrigger 封装）、随机数/实例化/射线/正则/材质/触摸/数组创建/HashCode/分辨率等共 14 个 region；4 个 `Type` 参数泛型方法标注 `[TypeInferenceRule]`（Obfuz 混淆类型推断），需 `using UnityEngineInternal;` + `#pragma warning disable CS0618`。
+- 新建 `UnityExtension.cs`（`TEngine/Runtime/Extension/Unity/`）：`AddCustomEventListener`/`RemoveCustomEventListener` 扩展方法糖衣，`UIBehaviour` 直接调用。
+- JSON 体系补 `FromJsonOverwrite`：`IJsonHelper` 接口 + `NewtonsoftJsonHelper`（`PopulateObject`）+ `DefaultJsonHelper`（`JsonUtility.FromJsonOverwrite` 兜底）+ `Utility.Json` 对外 API，四件套同步。
+- 迁移来源：[DGame](https://github.com/AmaniDawn/DGame) `Assets/DGame/Runtime/Core/Utility/UnityUtil.cs` + `ExtensionUtil.cs`。
+
+## 2026-08-27
+
 - 迁移 DGame 自研 UI 组件扩展到 `GameLogic/Module/UIModule/Expansion/`：`UIButton`（5 Extend：点击保护/缩放/长按/双击/音效）、`UIImage`（圆角/遮罩/镜像）、`UIText`（描边/渐变/阴影/字间距/顶点色/环形）、`RichTextItem`（图文混排）；`ListPool<T>`+`Pool<T>` 抽到 `TEngine/Runtime/Core/ListPool/` 公共化（`internal`→`public`，命名空间 `GameLogic`→`TEngine`）；2 个配套 Shader 迁移；Editor 脚本隔离到 `Assets/Editor/UIModuleExpansion/` 含配套 `UnityEditorUtil`。
 - `UIButtonClickSoundExtend` 去 Luban 依赖：`int m_clickSoundID`（查 `SoundConfigMgr` 表）改为 `string m_clickSoundLocation`（直接资源地址），`SetClickSoundID(int)`→`SetClickSoundLocation(string)`；`BaseUIButton` 对应方法名同步。
 - `UITextOutlineExtend` 的 `DGame.Utility.UnityUtil.FindObjectOfType` 改 `Object.FindObjectOfType`；`DGame.DLogger.Error` 改 `Log.Error`；`GameModule.ResourceModule`→`GameModule.Resource`；`GameModule.AudioModule`→`GameModule.Audio`。

@@ -29,5 +29,10 @@ namespace TEngine
         {
             return JsonConvert.DeserializeObject(json, objectType, settings as JsonSerializerSettings ?? DefaultSettings);
         }
+
+        public void FromJsonOverwrite(string json, object obj, object settings = null)
+        {
+            JsonConvert.PopulateObject(json, obj, settings as JsonSerializerSettings ?? DefaultSettings);
+        }
     }
 }

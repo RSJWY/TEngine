@@ -25,9 +25,13 @@
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 | [timer-module.md](timer-module.md) |
 | 存档与数据中心 | `ClientSaveDataMgr` 存档框架、`DataCenterSys` 玩家数据中枢 | [save-data.md](save-data.md) |
 | UI 组件扩展 | `UIButton`/`UIImage`/`UIText`/`RichTextItem` + `ListPool` 公共化 | [ui-expansion.md](ui-expansion.md) |
+| 运行时工具合并 | `Utility.Unity` 补齐组件增删/子节点查找/Layer/EventTrigger/物理/分辨率等；JSON 补 `FromJsonOverwrite` | [utility-merge.md](utility-merge.md) |
 
 ## 最近重点
 
+- 合并 DGame `UnityUtil` 缺失方法到 `Utility.Unity`：补回组件增删（`AddMonoBehaviour`/`RmvMonoBehaviour`，TryGetComponent 去重，Editor 防 Asset 误销毁）、子节点查找（`FindChild`/`FindChildByName`/`FindChildComponent`）、`SetLayer` 批量、`AddCustomEventListener`/`RemoveCustomEventListener`（EventTrigger 封装）、随机数/实例化/射线/正则/材质/触摸/数组创建/HashCode/分辨率共 14 个 region；4 个 `Type` 泛型方法标注 `[TypeInferenceRule]`（Obfuz 混淆类型推断，`using UnityEngineInternal;` + `#pragma disable CS0618`）。
+- 新建 `UnityExtension.cs`（`TEngine/Runtime/Extension/Unity/`）：`AddCustomEventListener`/`RemoveCustomEventListener` 扩展方法糖衣，`UIBehaviour` 直接调用。
+- JSON 体系补 `FromJsonOverwrite`：`IJsonHelper` 接口 + `NewtonsoftJsonHelper`（`PopulateObject`）+ `DefaultJsonHelper`（`JsonUtility.FromJsonOverwrite` 兜底）+ `Utility.Json` 对外 API，四件套同步。
 - 迁移 DGame 自研 UI 组件扩展（`UIButton`/`UIImage`/`UIText`/`RichTextItem`）到 `GameLogic/Module/UIModule/Expansion/`；`ListPool<T>` + `Pool<T>` 抽到 `TEngine/Runtime/Core/ListPool/` 公共化（命名空间 `TEngine`、`public`）；`UIButtonClickSoundExtend` 去 Luban 依赖改用资源地址字符串；`RichTextItem` 删 `using DGame` 天然兼容 TEngine `SetSprite` 全局扩展；`UITextOutlineExtend` 描边材质依赖 YooAsset `UGUIPro_UIText`；Editor 脚本隔离到 `Assets/Editor/UIModuleExpansion/` 含配套 `UnityEditorUtil`。`SuperScrollView` 付费插件未迁移。
 - 迁移 DGame 的 `ClientSaveData` 存档系统与 `DataCenterSys` 数据中心到 `GameLogic/DataCenter/`，复用 `Singleton<T>`/`IUpdate`/`SingletonSystem` 自动驱动；特性驱动注册、双存储后端（PlayerPrefs/JsonFile）、版本升级、坏档备份、PlayerPrefs→JsonFile 懒迁移、异步线程池写入；`GameLogic.asmdef` 新增 Newtonsoft.Json 引用。
 - 整合 DGame `GameTimerModule` 改进到 `TimerModule`：链表存储 O(1) 删除、坏帧 `while` + 10 次上限防栈溢出、新增 `AddLoopCountTimer` 限定循环次数，旧 API 全保留。
