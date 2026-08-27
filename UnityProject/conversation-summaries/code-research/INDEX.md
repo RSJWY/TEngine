@@ -4,6 +4,9 @@
 - [DGame 可迁移功能评估与逐模块迁移指南](./2026-08-26-dgame-migration-evaluation-research.md)
   - 关键词：DGame迁移、UI组件扩展、UIButton、UIImage、UIText、RichTextItem、ListPool、Pool、TEngine.Core、SetSpriteExtensions、GameModule.Resource、GameModule.Audio、DLogger→Log、ClickSound去Luban、SysSoundID、SoundConfigMgr、DOTween、Shader、Editor隔离、asmdef引用、HybridCLR热更
   - 结论：第一梯队四组件迁移完成——ListPool 抽到 TEngine Core；UIButton 的 ClickSound 去 Luban 改用资源地址 string；RichTextItem 删 using DGame 天然兼容 TEngine SetSprite；零 DGame 残留，待 Unity 编译验证。
+- [DGame 模块迁移到 TEngine 研究记录](./2026-08-27-DGame模块迁移到TEngine.md)
+  - 关键词：FrameAnimModule迁移、GameObjectPoolModule迁移、MemoryObject、Spawn→Alloc、Singleton、OnDestroy→OnRelease、GameTimer→int timerId、ITimerModule、GameModule.Resource/Timer、FrameSpritePoolGenerator、SourceGenerator手写Gen、ModuleSystem反射约定注册、FrameAnimConfig替代ModelConfig、DGameLinkedList→LinkedList、UIFrameRawAnimatorAgent、RawImage.sprite.texture
+  - 结论：FrameAnimModule（含新建 UIFrameRawAnimatorAgent）与 GameObjectPoolModule 迁移完成，依赖映射全部对齐 TEngine；FrameSpritePool 的 Roslyn 生成器改手写 Gen.cs；模块靠反射约定自动注册无需手动；GameModule 新增 GameObjectPool 访问器；待 Unity 编译验证。
 
 ## 2026-08-26
 - [DGame 可迁移功能评估与逐模块迁移指南](./2026-08-26-dgame-migration-evaluation-research.md)

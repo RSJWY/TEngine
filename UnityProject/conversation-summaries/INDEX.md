@@ -5,6 +5,9 @@
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
 ## 2026-08-27
+- [DGame FrameAnimModule 与 GameObjectPoolModule 迁移到 TEngine](./2026-08-27-frame-anim-gameobject-pool-migration-summary.md)
+  - 关键词：FrameAnimModule迁移、GameObjectPoolModule迁移、UIFrameRawAnimatorAgent、RawImage.sprite.texture、FrameAnimConfig替代ModelConfig、FrameSpritePoolGenerator手写Gen、MemoryObject Spawn→Alloc、Singleton OnDestroy→OnRelease、GameTimer→int timerId、ITimerModule、ModuleSystem反射约定注册、DGameLinkedList→LinkedList、GameModule.GameObjectPool访问器
+  - 结论：帧动画模块（场景版+UI版+新建RawImage版）与GameObject对象池模块迁移完成并编译通过，依赖映射全部对齐TEngine，SourceGenerator改手写Gen，模块靠反射约定自动注册。
 - [DGame Utility 散件迁移到 TEngine（第二梯队）](./2026-08-27-dgame-utility-migration-summary.md)
   - 关键词：EmptyGraph、NestedScrollRect、CircleLayoutGroup、UIEffectSortingOrder、UIDragListener、UIExtension、UIImageEffect、EaseUtil、EaseType、UIMat.mat、Utility.Unity、AddMonoBehaviour、Utility.Tween空壳、UIModule.UIRoot、UIModule.Instance.UICamera、同步LoadAsset、GUID一致、命名空间遮蔽、GameLogic.Utility遮蔽TEngine.Utility、Editor命名空间遮蔽UnityEditor.Editor、CS0117、CS0118
   - 结论：7 散件+EaseUtil+UIMat 材质全部迁移完成，纠正 AddMonoBehaviour 误判，Tween 空壳用 EaseUtil 绕开，修复 GameLogic.Utility 与 Editor 命名空间遮蔽两个编译坑。

@@ -4,6 +4,11 @@
 
 ## 2026-08-27
 
+- 迁移 DGame `FrameAnimModule`（序列帧动画）到 `GameLogic/Module/FrameAnimModule/`：含 `FrameAnimatorAgent`（场景版 `SpriteRenderer`）、`UIFrameAnimatorAgent`（UI 版 `Image`），**新增 `UIFrameRawAnimatorAgent`**（`RawImage` 版，`rawImage.texture = sprite.texture`）；`FrameSpritePool` 的 Roslyn SourceGenerator 改手写 `FrameSpritePool.Gen.cs`；`ModelConfig` Luban 依赖改新建 `FrameAnimConfig` 结构体；`GameTimer` 对象句柄改 `ITimerModule` 的 `int timerId`；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`）；私有字段 `_小驼峰`。
+- 迁移 DGame `GameObjectPoolModule` 到 `TEngine/Runtime/Module/GameObjectPoolModule/`（框架层）：基于 YooAsset location 的异步实例化池，支持预热/容量上限/自动销毁/DontDestroy 常驻/并发建池锁/每帧空池回收；靠 `ModuleSystem` 反射约定自动注册（接口→实现类去 `I` 前缀）；`DGameLinkedList`→`LinkedList`，`AddMonoBehaviour` 内联，`DGameException`→`Exception`；热更 `GameModule` 新增 `GameObjectPool` 访问器；Editor 调试窗口菜单 `TEngine Tools/Debugger/GameObject Pool`。
+
+## 2026-08-27
+
 - 迁移 DGame `Utility/` 7 个 UGUI 散件到 `GameLogic/Module/UIModule/Expansion/Utility/`：`EmptyGraph`（零顶点 Graphic）、`NestedScrollRect`（嵌套滚动冲突解决）、`CircleLayoutGroup`（圆形/扇形布局）、`UIEffectSortingOrder`（特效排序同步 Canvas）、`UIDragListener`（拖拽事件聚合）、`UIExtension`（SetActive 防抖 + UniTask 缓动 + 坐标转换）、`UIImageEffect`（灰度 + 圆形遮罩二合一）。
 - 搬 `EaseUtil.cs` + `EaseType` 枚举到 `Expansion/Utility/EaseUtil/`（命名空间 `DGame`→`GameLogic`），自包含 UniTask 缓动工具，TEngine 原生 `Utility.Tween` 是空壳无实现。
 

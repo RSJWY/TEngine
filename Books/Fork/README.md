@@ -26,8 +26,13 @@
 | 存档与数据中心 | `ClientSaveDataMgr` 存档框架、`DataCenterSys` 玩家数据中枢 | [save-data.md](save-data.md) |
 | UI 组件扩展 | `UIButton`/`UIImage`/`UIText`/`RichTextItem` + `ListPool` 公共化 | [ui-expansion.md](ui-expansion.md) |
 | 运行时工具合并 | `Utility.Unity` 补齐组件增删/子节点查找/Layer/EventTrigger/物理/分辨率等；JSON 补 `FromJsonOverwrite` | [utility-merge.md](utility-merge.md) |
+| 帧动画模块 | 序列帧动画（场景版+UI版+RawImage版），手写替代 SourceGenerator | [frame-anim.md](frame-anim.md) |
+| GameObject 对象池 | 基于 YooAsset location 的异步实例化池，预热/回收/自动销毁 | [game-object-pool.md](game-object-pool.md) |
 
 ## 最近重点
+
+- 迁移 DGame `FrameAnimModule`（序列帧动画）到热更层，含场景版（`SpriteRenderer`）、UI 版（`Image`），**新增 `UIFrameRawAnimatorAgent`**（`RawImage` 版，`rawImage.texture = sprite.texture`）；`FrameSpritePool` 的 Roslyn SourceGenerator 改手写 `FrameSpritePool.Gen.cs`；`ModelConfig` Luban 依赖改新建 `FrameAnimConfig` 结构体；`GameTimer` 对象句柄改 `ITimerModule` 的 `int timerId`；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`）。
+- 迁移 DGame `GameObjectPoolModule` 到 `TEngine/Runtime/Module/GameObjectPoolModule/`（框架层）：基于 YooAsset location 的异步实例化池，支持预热/容量上限/自动销毁/DontDestroy 常驻/并发建池锁/每帧空池回收；靠 `ModuleSystem` 反射约定自动注册无需手动；热更 `GameModule` 新增 `GameObjectPool` 访问器；Editor 调试窗口菜单 `TEngine Tools/Debugger/GameObject Pool`。
 
 - 合并 DGame `UnityUtil` 缺失方法到 `Utility.Unity`：补回组件增删（`AddMonoBehaviour`/`RmvMonoBehaviour`，TryGetComponent 去重，Editor 防 Asset 误销毁）、子节点查找（`FindChild`/`FindChildByName`/`FindChildComponent`）、`SetLayer` 批量、`AddCustomEventListener`/`RemoveCustomEventListener`（EventTrigger 封装）、随机数/实例化/射线/正则/材质/触摸/数组创建/HashCode/分辨率共 14 个 region；4 个 `Type` 泛型方法标注 `[TypeInferenceRule]`（Obfuz 混淆类型推断，`using UnityEngineInternal;` + `#pragma disable CS0618`）。
 - 新建 `UnityExtension.cs`（`TEngine/Runtime/Extension/Unity/`）：`AddCustomEventListener`/`RemoveCustomEventListener` 扩展方法糖衣，`UIBehaviour` 直接调用。

@@ -113,6 +113,14 @@ public class GameModule
     public static IGameSceneModule GameScene => _gameScene ??= Get<IGameSceneModule>();
 
     private static IGameSceneModule _gameScene;
+
+    /// <summary>
+    /// 获取 GameObject 对象池模块。
+    /// <para>提供基于 YooAsset location 的异步实例化、预热、回收、自动销毁等能力。</para>
+    /// </summary>
+    public static IGameObjectPoolModule GameObjectPool => _gameObjectPool ??= Get<IGameObjectPoolModule>();
+
+    private static IGameObjectPoolModule _gameObjectPool;
     #endregion
     
     
