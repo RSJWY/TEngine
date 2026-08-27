@@ -5,6 +5,9 @@
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
 ## 2026-08-27
+- [DGame AnimModule 迁移到 TEngine](./2026-08-27-anim-module-migration-summary.md)
+  - 关键词：AnimModule迁移、PlayableGraph、AnimPlayable、AnimClip、AnimMixer、AnimNode、AnimationWrapper、MemoryObject Alloc/Dealloc、InitFromPool/RecycleToPool、Module OnInit/Shutdown、IUpdateModule、ModuleSystem反射约定注册、DGameException→Exception、DLogger→Log、GameModule.Anim访问器、TEngine.Runtime程序集、3D动画图
+  - 结论：PlayableGraph 代码驱动 3D 动画图模块 9 文件迁移完成，MemoryObject/Module/异常/日志 API 全对齐，靠反射约定自动注册，GameModule 新增 Anim 访问器，静态检查零残留待编译验证。
 - [DGame FrameAnimModule 与 GameObjectPoolModule 迁移到 TEngine](./2026-08-27-frame-anim-gameobject-pool-migration-summary.md)
   - 关键词：FrameAnimModule迁移、GameObjectPoolModule迁移、UIFrameRawAnimatorAgent、RawImage.sprite.texture、FrameAnimConfig替代ModelConfig、FrameSpritePoolGenerator手写Gen、MemoryObject Spawn→Alloc、Singleton OnDestroy→OnRelease、GameTimer→int timerId、ITimerModule、ModuleSystem反射约定注册、DGameLinkedList→LinkedList、GameModule.GameObjectPool访问器
   - 结论：帧动画模块（场景版+UI版+新建RawImage版）与GameObject对象池模块迁移完成并编译通过，依赖映射全部对齐TEngine，SourceGenerator改手写Gen，模块靠反射约定自动注册。

@@ -121,6 +121,14 @@ public class GameModule
     public static IGameObjectPoolModule GameObjectPool => _gameObjectPool ??= Get<IGameObjectPoolModule>();
 
     private static IGameObjectPoolModule _gameObjectPool;
+
+    /// <summary>
+    /// 获取动画模块。
+    /// <para>基于 PlayableGraph 的代码驱动 3D 动画图，支持多层级混合、权重过渡等。</para>
+    /// </summary>
+    public static IAnimModule Anim => _anim ??= Get<IAnimModule>();
+
+    private static IAnimModule _anim;
     #endregion
     
     
@@ -156,5 +164,7 @@ public class GameModule
         _screen = null;
         _uiJumpControl = null;
         _gameScene = null;
+        _gameObjectPool = null;
+        _anim = null;
     }
 }

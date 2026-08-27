@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-08-27
+- [DGame AnimModule 迁移到 TEngine 研究记录](./2026-08-27-AnimModule迁移到TEngine.md)
+  - 关键词：AnimModule迁移、PlayableGraph、AnimPlayable、AnimClip、AnimMixer、AnimNode、AnimationWrapper、MemoryObject Alloc/Dealloc、InitFromPool/RecycleToPool、Module OnInit/Shutdown、IUpdateModule、ModuleSystem反射约定注册、DGameException→Exception、DLogger→Log、GameModule.Anim访问器、TEngine.Runtime程序集、3D动画图
+  - 结论：PlayableGraph 代码驱动 3D 动画图模块 9 文件迁移完成，MemoryObject OnRelease 拆分为 InitFromPool+RecycleToPool，Module OnCreate/OnDestroy→OnInit/Shutdown，靠反射约定自动注册无需手动，静态检查零残留待编译验证。
 - [DGame 可迁移功能评估与逐模块迁移指南](./2026-08-26-dgame-migration-evaluation-research.md)
   - 关键词：DGame迁移、UI组件扩展、UIButton、UIImage、UIText、RichTextItem、ListPool、Pool、TEngine.Core、SetSpriteExtensions、GameModule.Resource、GameModule.Audio、DLogger→Log、ClickSound去Luban、SysSoundID、SoundConfigMgr、DOTween、Shader、Editor隔离、asmdef引用、HybridCLR热更
   - 结论：第一梯队四组件迁移完成——ListPool 抽到 TEngine Core；UIButton 的 ClickSound 去 Luban 改用资源地址 string；RichTextItem 删 using DGame 天然兼容 TEngine SetSprite；零 DGame 残留，待 Unity 编译验证。
