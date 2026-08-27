@@ -62,7 +62,7 @@ DGame 在 `Assets/Scripts/HotFix/GameLogic/Module/UIModule/Expansion/` 下沉淀
 
 ### EaseUtil 缓动工具
 
-`EaseUtil` + `EaseType` 枚举从 DGame 整文件迁移，命名空间 `DGame` → `GameLogic`，放 `Expansion/Utility/EaseUtil/`。自包含（只依赖 UniTask + UGUI + `System.Threading`，TEngine 全有），提供 `FadeToAlphaAsync`/`SmoothValue`（CanvasGroup/Slider/Image/Scrollbar/float）+ 4 种缓动曲线（Linear/EaseInQuad/EaseOutQuad/EaseInOutQuad）。TEngine 原生 `Utility.Tween` 是 `ITweenHelper` 空壳（无实现类、无 `SetTweenHelper` 调用），调任何 Tween API 都会抛异常，故 `UIExtension` 的缓动部分直接依赖 `GameLogic.Utility.EaseUtil`。
+`EaseUtil` + `EaseType` 枚举从 DGame 整文件迁移，命名空间 `DGame` → `GameLogic`，放 `Expansion/Utility/EaseUtil/`。自包含（只依赖 UniTask + UGUI + `System.Threading`，TEngine 全有），提供 `FadeToAlphaAsync`/`SmoothValue`（CanvasGroup/Slider/Image/Scrollbar/float）+ 4 种缓动曲线（Linear/EaseInQuad/EaseOutQuad/EaseInOutQuad）。TEngine 原生 `Utility.Tween`（`ITweenHelper` 空壳，845 行全 `throw`，无实现类、无 `SetTweenHelper` 调用）**已删除**，故 `UIExtension` 的缓动部分直接依赖 `GameLogic.EaseUtil`。后续若上游补充 `ITweenHelper` 实现，可再合并回来。
 
 ### UIMat 材质资源
 

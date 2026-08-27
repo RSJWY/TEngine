@@ -6,6 +6,10 @@
 
 - 迁移 DGame `Utility/` 7 个 UGUI 散件到 `GameLogic/Module/UIModule/Expansion/Utility/`：`EmptyGraph`（零顶点 Graphic）、`NestedScrollRect`（嵌套滚动冲突解决）、`CircleLayoutGroup`（圆形/扇形布局）、`UIEffectSortingOrder`（特效排序同步 Canvas）、`UIDragListener`（拖拽事件聚合）、`UIExtension`（SetActive 防抖 + UniTask 缓动 + 坐标转换）、`UIImageEffect`（灰度 + 圆形遮罩二合一）。
 - 搬 `EaseUtil.cs` + `EaseType` 枚举到 `Expansion/Utility/EaseUtil/`（命名空间 `DGame`→`GameLogic`），自包含 UniTask 缓动工具，TEngine 原生 `Utility.Tween` 是空壳无实现。
+
+## 2026-08-27
+
+- 删除 TEngine 原生 `Utility.Tween` 僵尸模块：`Assets/TEngine/Runtime/Extension/Tween/` 整目录（`Utility.Tween.cs` 845 行 + `ITweenHelper.cs` 79 行 + 2 个 .meta）。845 行代码里 82 处 `if (_tweenHelper == null) throw new GameFrameworkException("ITweenHelper is invalid.")`，全仓库无任何 `ITweenHelper` 实现类、无 `SetTweenHelper` 调用，调任何 Tween API 都会抛异常。本次迁移引入的 `GameLogic.EaseUtil` 已满足缓动需求，后续上游若补充实现可再合并回来。
 - `UIDragListener` 的 `DGame.Utility.UnityUtil.AddMonoBehaviour` 改 `TEngine.Utility.Unity.AddMonoBehaviour`（第一梯队已补齐此 API，签名一致）。
 - `UIExtension` 内联 `TryGetMouseDownUIPos`（从 DGame `MathUtil` 抽单方法），`UIModule.UICanvas`→`UIModule.UIRoot`、`UIModule.UICamera`→`UIModule.Instance.UICamera`。
 - `UIImageEffect` 的 `GameModule.ResourceModule.LoadAsset<Material>` 改 `GameModule.Resource.LoadAsset<Material>`（同步 API 签名一致）；`UIMat.mat` 材质复制到 `Assets/AssetRaw/Materials/`，引用的 `Sprites Shader.shader` GUID 已在第一梯队迁移时保留，材质直接生效。

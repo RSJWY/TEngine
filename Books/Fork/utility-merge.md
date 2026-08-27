@@ -82,5 +82,5 @@ TEngine 已有完整 JSON 体系（`IJsonHelper` + `Utility.Json` + `NewtonsoftJ
 | 类 | 原因 |
 | --- | --- |
 | `PhysicsUtil` | 泛型化物理范围检测，价值高但需确认业务需求 |
-| `EaseUtil` | UGUI 缓动（CanvasGroup/Slider/Image/Scrollbar），TEngine 已有 Tween 扩展体系 |
+| `EaseUtil` | UGUI 缓动（CanvasGroup/Slider/Image/Scrollbar），**已迁移**（见 `ui-expansion.md`），TEngine 原 `Utility.Tween` 空壳已删除 |
 | `BitMask32/64` | 轻量位运算工具，按需迁移 |
