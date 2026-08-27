@@ -5,6 +5,9 @@
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
 ## 2026-08-27
+- [DGame Utility 散件迁移到 TEngine（第二梯队）](./2026-08-27-dgame-utility-migration-summary.md)
+  - 关键词：EmptyGraph、NestedScrollRect、CircleLayoutGroup、UIEffectSortingOrder、UIDragListener、UIExtension、UIImageEffect、EaseUtil、EaseType、UIMat.mat、Utility.Unity、AddMonoBehaviour、Utility.Tween空壳、UIModule.UIRoot、UIModule.Instance.UICamera、同步LoadAsset、GUID一致、命名空间遮蔽、GameLogic.Utility遮蔽TEngine.Utility、Editor命名空间遮蔽UnityEditor.Editor、CS0117、CS0118
+  - 结论：7 散件+EaseUtil+UIMat 材质全部迁移完成，纠正 AddMonoBehaviour 误判，Tween 空壳用 EaseUtil 绕开，修复 GameLogic.Utility 与 Editor 命名空间遮蔽两个编译坑。
 - [DGame UI 组件扩展迁移到 TEngine（第一梯队）](./2026-08-27-dgame-ui-expansion-migration-summary.md)
   - 关键词：UIButton、UIImage、UIText、RichTextItem、ListPool、Pool、TEngine.Core、SetSpriteExtensions、GameModule.Resource、GameModule.Audio、DLogger→Log、ClickSound去Luban、SysSoundID、SoundConfigMgr、DOTween、AudioType二义性、UnityEditorUtil、Shader、Editor隔离、SuperScrollView未迁移、Utility散件未迁移
   - 结论：四组件+ListPool+Shader迁移完成，ListPool 公共化到 TEngine Core，ClickSound 去 Luban 改资源地址，零 DGame 残留待 Unity 编译验证。

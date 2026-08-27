@@ -6,7 +6,7 @@
 
 DGame 在 `Assets/Scripts/HotFix/GameLogic/Module/UIModule/Expansion/` 下沉淀了一套自研 UGUI 扩展组件，设计上借鉴 UGUI Pro 类商业资产，但代码为自研实现。TEngine 原生 UI 模块只提供 `UIWindow`/`UIWidget` 生命周期骨架，缺少按钮缩放/长按/双击/点击音效、图片圆角/遮罩/镜像、文本描边/渐变/阴影/字间距、图文混排富文本等常用 UI 组件能力。
 
-本 fork 将 DGame 的四个自研组件（`UIButton`/`UIImage`/`UIText`/`RichTextItem`）迁移到 TEngine 的 `GameLogic` 热更程序集，并配套迁移了 `ListPool` 通用对象池和两个 Shader。`SuperScrollView` 为付费第三方插件，**未迁移**；`Utility/` 下的散件辅助组件（`CircleLayoutGroup`/`EmptyGraph`/`NestedScrollRect`/`UIDragListener` 等）四个核心组件未引用，也未迁移，按需另议。
+本 fork 将 DGame 的四个自研组件（`UIButton`/`UIImage`/`UIText`/`RichTextItem`）迁移到 TEngine 的 `GameLogic` 热更程序集，并配套迁移了 `ListPool` 通用对象池和两个 Shader。第二梯队补迁了 `Utility/` 下的 7 个 UGUI 散件辅助组件（`CircleLayoutGroup`/`EmptyGraph`/`NestedScrollRect`/`UIDragListener`/`UIEffectSortingOrder`/`UIExtension`/`UIImageEffect`）+ `EaseUtil` 缓动工具 + `UIMat` 材质资源。`SuperScrollView` 为付费第三方插件，**未迁移**。
 
 ## 改动摘要
 
@@ -43,6 +43,30 @@ DGame 在 `Assets/Scripts/HotFix/GameLogic/Module/UIModule/Expansion/` 下沉淀
 | `int m_clickSoundID` | `string m_clickSoundLocation` | ClickSound 去配置表，改为序列化资源地址字符串 |
 | `SetClickSoundID(int)` | `SetClickSoundLocation(string)` | 方法名同步改 |
 | `namespace GameLogic` `internal class Pool<T>` | `namespace TEngine` `public class Pool<T>` | ListPool 公共化 |
+| `DGame.Utility.UnityUtil.AddMonoBehaviour` | `TEngine.Utility.Unity.AddMonoBehaviour`（完全限定名） | `GameLogic` 命名空间下不能简写为 `Utility.Unity`，会匹配到 `GameLogic.Utility`（若存在）而非 `TEngine.Utility`，详见「命名空间遮蔽」注意事项 |
+| `: Editor`（Editor 脚本基类） | `: UnityEditor.Editor`（完全限定名） | `Assets/Editor/` 目录下存在 `global::Editor` 命名空间，`Editor` 被解析为命名空间而非 `UnityEditor.Editor` 基类 |
+
+### Utility 散件辅助组件（第二梯队）
+
+第一梯队迁移时，`Utility/` 下的 7 个散件因"四组件无引用"未迁。第二梯队补迁，均为零外部依赖或低改造成本：
+
+| 组件 | 说明 | 改造点 |
+| --- | --- | --- |
+| `EmptyGraph` | 零顶点 `Graphic`，做透明可点击区/分隔条，省 mesh | 无，直接搬 |
+| `NestedScrollRect` | 解决嵌套 `ScrollRect` 拖拽抢事件，按 `delta` 与 `Vector2.up` 夹角判定手势归内外层 | 无 |
+| `CircleLayoutGroup` | `LayoutGroup` 派生，圆形均匀分布 + 扇形分布，三角递推避免逐元素 `Sin/Cos`，脏标记防重复 rebuild | 无 |
+| `UIEffectSortingOrder` | 让 UI 子树里的 `Renderer`/`SortingGroup` 跟随 Canvas `sortingOrder` + 偏移，`Auto/SortingGroup/Renderer/Both` 四模式 | 无 |
+| `UIDragListener` | 聚合 `IBeginDrag/IDrag/IEndDrag/IPointerDown/Up` 五接口到事件包装器 | `DGame.Utility.UnityUtil.AddMonoBehaviour` → `TEngine.Utility.Unity.AddMonoBehaviour`（已存在等价 API） |
+| `UIExtension` | 19 个 `SetActive` 重载（带 cache 防抖 + 纯 null 保护）+ UniTask 缓动扩展（`FadeToAlpha`/`SmoothValue`）+ `TryGetMouseDownUIPos` | 搬 `EaseUtil.cs`（自包含）+ 内联 `TryGetMouseDownUIPos`（原 DGame `MathUtil` 单方法）+ `UIModule.UICanvas`→`UIModule.UIRoot`、`UIModule.UICamera`→`UIModule.Instance.UICamera` |
+| `UIImageEffect` | `BaseMeshEffect` 派生，灰度 + 圆形遮罩二合一，材质按 4 组合静态缓存，`LateUpdate` 集中刷新 | `GameModule.ResourceModule.LoadAsset<Material>` → `GameModule.Resource.LoadAsset<Material>`（同步 API 签名一致） |
+
+### EaseUtil 缓动工具
+
+`EaseUtil` + `EaseType` 枚举从 DGame 整文件迁移，命名空间 `DGame` → `GameLogic`，放 `Expansion/Utility/EaseUtil/`。自包含（只依赖 UniTask + UGUI + `System.Threading`，TEngine 全有），提供 `FadeToAlphaAsync`/`SmoothValue`（CanvasGroup/Slider/Image/Scrollbar/float）+ 4 种缓动曲线（Linear/EaseInQuad/EaseOutQuad/EaseInOutQuad）。TEngine 原生 `Utility.Tween` 是 `ITweenHelper` 空壳（无实现类、无 `SetTweenHelper` 调用），调任何 Tween API 都会抛异常，故 `UIExtension` 的缓动部分直接依赖 `GameLogic.Utility.EaseUtil`。
+
+### UIMat 材质资源
+
+`UIImageEffect` 依赖的 `UIMat.mat` 材质从 DGame `Assets/BundleAssets/Materials/UIMat.mat` 复制到 TEngine `Assets/AssetRaw/Materials/UIMat.mat`。该材质零纹理依赖，只引用 `Sprites Shader.shader`（GUID `d92937db9d207ab459cbcf9fcb5160a6`，第一梯队已迁移且 GUID 一致，材质引用直接生效，无需重定向）。
 
 ### 明确保持不变
 
@@ -139,6 +163,14 @@ TEngine 的 `SetSpriteExtensions` 在 `Assets/TEngine/Runtime/Module/ResourceMod
 
 `ListPool<T>` 从 DGame 的 `GameLogic` 命名空间 `internal` 改为 `TEngine` 命名空间 `public`。调用方代码 `ListPool<UIVertex>.Get()`/`Recycle(list)` **类名和方法名不变**，只需加 `using TEngine;`。TEngine 原无等价物（`MemoryPool` 是对象池但 API 不同），无冲突。
 
+### 命名空间遮蔽（迁移坑）
+
+**`GameLogic.Utility` 遮蔽 `TEngine.Utility`**：DGame 原代码用 `namespace DGame { public static partial class Utility { ... } }` 组织工具类。迁移时若照搬到 `namespace GameLogic { public static partial class Utility { ... } }`，则 `GameLogic` 命名空间下引用 `Utility.Unity`/`Utility.PlayerPrefs` 时，C# 解析优先匹配当前命名空间的 `GameLogic.Utility`（只有 `EaseUtil`），而非 `TEngine.Utility`，报 `CS0117: 'Utility' does not contain a definition for 'Unity'`。
+
+**解法**：`EaseUtil`/`EaseType` 不嵌套在 `Utility` partial class 里，直接作为 `GameLogic` 命名空间下的独立平级类型。`GameLogic` 命名空间下不保留 `Utility` 类名。`UIDragListener` 引用 `TEngine.Utility.Unity` 时用**完全限定名**（双保险）。**后续迁移 DGame 代码若见 `DGame.Utility.XXX` partial class 组织方式，不要照搬到 `GameLogic` 命名空间下，改用独立类名。**
+
+**`Editor` 命名空间遮蔽 `UnityEditor.Editor` 类**：`Assets/Editor/` 目录编译时存在 `global::Editor` 命名空间（Unity 机制），`using UnityEditor;` 后写 `: Editor` 会被解析为命名空间，报 `CS0118: 'Editor' is a namespace but is used like a type`。所有 Editor 脚本基类必须写完全限定名 `: UnityEditor.Editor`。第一梯队迁移时已踩此坑（`RichTextItemEditor` 等均用完全限定名），第二梯队迁移 `CircleLayoutGroupEditor`/`UIEffectSortingOrderEditor` 时漏改，后修复。
+
 ## 关键文件
 
 ### 运行时 — TEngine Core（公共化）
@@ -165,6 +197,23 @@ TEngine 的 `SetSpriteExtensions` 在 `Assets/TEngine/Runtime/Module/ResourceMod
 - `Assets/Editor/UIModuleExpansion/UIImage/UIImageEditor.cs` / `UIImageDrawEditor.cs`
 - `Assets/Editor/UIModuleExpansion/UIText/UITextEditor.cs` / `UITextDrawEditor.cs` / `GradientColorInspector.cs`
 - `Assets/Editor/UIModuleExpansion/RichTextItem/RichTextItemEditor.cs`
+- `Assets/Editor/UIModuleExpansion/Utility/CircleLayoutGroupEditor.cs` — 圆形布局 Editor（含 Scene 辅助线）
+- `Assets/Editor/UIModuleExpansion/Utility/UIEffectSortingOrderEditor.cs` — 特效排序 Editor（含影响预览）
+
+### 运行时 — Utility 散件（第二梯队）
+
+- `Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/EmptyGraph.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/NestedScrollRect.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/CircleLayoutGroup.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/UIEffectSortingOrder.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/UIDragListener.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/UIExtension.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/UIImageEffect.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/EaseUtil/EaseUtil.cs` — 缓动工具 + `EaseType` 枚举
+
+### 资源
+
+- `Assets/AssetRaw/Materials/UIMat.mat` — `UIImageEffect` 灰度/圆形遮罩材质
 
 ## 常见问题排查
 

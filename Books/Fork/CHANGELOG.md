@@ -4,6 +4,17 @@
 
 ## 2026-08-27
 
+- 迁移 DGame `Utility/` 7 个 UGUI 散件到 `GameLogic/Module/UIModule/Expansion/Utility/`：`EmptyGraph`（零顶点 Graphic）、`NestedScrollRect`（嵌套滚动冲突解决）、`CircleLayoutGroup`（圆形/扇形布局）、`UIEffectSortingOrder`（特效排序同步 Canvas）、`UIDragListener`（拖拽事件聚合）、`UIExtension`（SetActive 防抖 + UniTask 缓动 + 坐标转换）、`UIImageEffect`（灰度 + 圆形遮罩二合一）。
+- 搬 `EaseUtil.cs` + `EaseType` 枚举到 `Expansion/Utility/EaseUtil/`（命名空间 `DGame`→`GameLogic`），自包含 UniTask 缓动工具，TEngine 原生 `Utility.Tween` 是空壳无实现。
+- `UIDragListener` 的 `DGame.Utility.UnityUtil.AddMonoBehaviour` 改 `TEngine.Utility.Unity.AddMonoBehaviour`（第一梯队已补齐此 API，签名一致）。
+- `UIExtension` 内联 `TryGetMouseDownUIPos`（从 DGame `MathUtil` 抽单方法），`UIModule.UICanvas`→`UIModule.UIRoot`、`UIModule.UICamera`→`UIModule.Instance.UICamera`。
+- `UIImageEffect` 的 `GameModule.ResourceModule.LoadAsset<Material>` 改 `GameModule.Resource.LoadAsset<Material>`（同步 API 签名一致）；`UIMat.mat` 材质复制到 `Assets/AssetRaw/Materials/`，引用的 `Sprites Shader.shader` GUID 已在第一梯队迁移时保留，材质直接生效。
+- `CircleLayoutGroupEditor`/`UIEffectSortingOrderEditor` 迁移到 `Assets/Editor/UIModuleExpansion/Utility/`，依赖已迁移的 `UnityEditorUtil.LayoutFrameBox`。
+- 迁移来源：[DGame](https://github.com/AmaniDawn/DGame) `Assets/Scripts/HotFix/GameLogic/Module/UIModule/Expansion/Utility/` + `Assets/Scripts/HotFix/GameLogic/Module/UIModule/Editor/`。
+- 编译修复（命名空间遮蔽）：① `EaseUtil.cs` 原按 DGame 习惯写为 `namespace GameLogic { public static partial class Utility { ... } }`，导致 `GameLogic.Utility` 遮蔽 `TEngine.Utility`，`UIDragListener`/`BaseClientSaveData` 报 `CS0117`；修复为 `EaseUtil`/`EaseType` 独立平级类，`GameLogic` 命名空间下不保留 `Utility` 类名。② `CircleLayoutGroupEditor`/`UIEffectSortingOrderEditor` 的 `: Editor` 报 `CS0118`（`Assets/Editor/` 下 `Editor` 是命名空间），修复为 `: UnityEditor.Editor` 完全限定名。
+
+## 2026-08-27
+
 - 合并 DGame `UnityUtil` 缺失方法到 `Utility.Unity`：补回组件增删（`AddMonoBehaviour`/`RmvMonoBehaviour`，TryGetComponent 去重）、子节点查找（`FindChild`/`FindChildByName`/`FindChildComponent`）、`SetLayer` 批量、`AddCustomEventListener`/`RemoveCustomEventListener`（EventTrigger 封装）、随机数/实例化/射线/正则/材质/触摸/数组创建/HashCode/分辨率等共 14 个 region；4 个 `Type` 参数泛型方法标注 `[TypeInferenceRule]`（Obfuz 混淆类型推断），需 `using UnityEngineInternal;` + `#pragma warning disable CS0618`。
 - 新建 `UnityExtension.cs`（`TEngine/Runtime/Extension/Unity/`）：`AddCustomEventListener`/`RemoveCustomEventListener` 扩展方法糖衣，`UIBehaviour` 直接调用。
 - JSON 体系补 `FromJsonOverwrite`：`IJsonHelper` 接口 + `NewtonsoftJsonHelper`（`PopulateObject`）+ `DefaultJsonHelper`（`JsonUtility.FromJsonOverwrite` 兜底）+ `Utility.Json` 对外 API，四件套同步。
