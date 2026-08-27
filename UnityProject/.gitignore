@@ -96,6 +96,10 @@ Odin Inspector
 [Aa]ssets/Plugins/Sirenix/
 [Aa]ssets/Plugins/Sirenix.meta
 
+#DOTween Pro（付费插件，含免费核心同目录）
+[Aa]ssets/Plugins/Demigiant/
+[Aa]ssets/Plugins/Demigiant.meta
+
 #YooAssets
 package/
 yoo/
