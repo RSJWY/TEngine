@@ -93,18 +93,18 @@ Assets/Obfuz/
 
 | 维度 | TEngine 现状 | DGame | 差距 |
 |------|-------------|-------|------|
-| **运行时静态密钥初始化** | ❌ **ProcedureLoadAssembly 中无 SetUpStaticSecretKey** | ✅ 有 | **关键缺失** |
-| 引用跟随程序集声明 | 空 | 3 个主包程序集 | 建议补 |
+| **运行时静态密钥初始化** | ✅ **已补**（方案 B，见 5.1） | ✅ 有（方案 A 位置） | ~~关键缺失~~ 已解决；TEngine 进一步用 `AfterAssembliesLoaded` + `!UNITY_EDITOR` 守卫，时机更早更正确 |
+| 引用跟随程序集声明 | `TEngine.Runtime, Assembly-CSharp, Launcher` | 3 个主包程序集 | ~~建议补~~ 已补 |
 | buildPipeline 自动混淆 | `enable=0`（默认关） | `enable=1`（开） | 可保持关（手动触发更可控） |
-| obfuscateObfuzRuntime | `=1`（混淆 runtime） | `=0`（不混淆） | TEngine 更激进，需确保初始化方法有 ObfuzIgnore |
+| obfuscateObfuzRuntime | `=1`（混淆 runtime） | `=0`（不混淆） | TEngine 更激进；但 `ProcedureLoadAssembly` 属 Assembly-CSharp（不混淆），初始化方法无需 ObfuzIgnore（见 5.1 修正） |
 
-### 2.3 核心问题
+### 2.3 核心问题（已解决）
 
-TEngine 的 `ProcedureLoadAssembly.cs` 在 `OnEnter` 中直接调用 `LoadAssembly()`，**没有在加载混淆后的 DLL 前初始化 `EncryptionService<DefaultStaticEncryptionScope>.Encryptor`**。
+~~TEngine 的 `ProcedureLoadAssembly.cs` 在 `OnEnter` 中直接调用 `LoadAssembly()`，**没有在加载混淆后的 DLL 前初始化 `EncryptionService<DefaultStaticEncryptionScope>.Encryptor`**。~~
 
-后果：如果启用了 `ConstEncrypt`/`FieldEncrypt` 等 Pass，混淆后的常量/字段在运行时无法解密，会崩溃或读到错误值。
+**已修复（2026-08-28）**：`OnEnter` 现在依次执行 `SetUpStaticSecretKey()` → `LoadAssembly()`，静态密钥在加载混淆 DLL 前完成初始化（见 5.1）。
 
-TEngine 当前 `enabledPasses = -3`（Symbol + RemoveConstField），暂未启用加密类 Pass，所以暂时不会崩。但一旦通过 ObfuzConfigWindow 切到"均衡"或"强化"预设（含 ConstEncrypt/FieldEncrypt），就会出问题。
+历史背景：TEngine 当前 `enabledPasses = -3`（Symbol + RemoveConstField），未启用加密类 Pass，所以修复前暂不出问题。修复后可安全切到含 ConstEncrypt/FieldEncrypt 的预设。
 
 ---
 
@@ -114,7 +114,7 @@ TEngine 当前 `enabledPasses = -3`（Symbol + RemoveConstField），暂未启�
 |--------|---------|-------|---------|
 | `buildPipelineSettings.enable` | `0` | `1` | DGame 打包自动混淆；TEngine 需手动触发 |
 | `assembliesToObfuscate` | `GameLogic, GameProto` | `GameProto, GameBattle, GameLogic` | DGame 多混淆 GameBattle |
-| `nonObfuscatedButReferencingObfuscatedAssemblies` | **空** | `DGame.Runtime, Assembly-CSharp, DGame.AOT` | **TEngine 缺引用跟随声明** |
+| `nonObfuscatedButReferencingObfuscatedAssemblies` | `TEngine.Runtime, Assembly-CSharp, Launcher` | `DGame.Runtime, Assembly-CSharp, DGame.AOT` | 两者均已声明引用跟随程序集（原研究记 TEngine 为"空"系旧状态，已补） |
 | `obfuscateObfuzRuntime` | `1` | `0` | TEngine 混淆 runtime（更激进） |
 | `obfuscationPassSettings.enabledPasses` | `-3` | `-1` | TEngine 当前只开 Symbol+RemoveConstField；DGame 全开 |
 | `secretSettings.*` | 相同 | 相同 | 密钥路径/种子一致 |
@@ -138,45 +138,108 @@ Obfuz（代码混淆）和资源加密（FileOffset/FileStream/XXTEA）是**两�
 
 ## 五、TEngine 应借鉴的改进清单
 
-### 5.1 必须补：运行时静态密钥初始化
+### 5.1 ✅ 已实施：运行时静态密钥初始化（方案 B：RuntimeInitializeOnLoadMethod + 延迟报告）
 
-在 `ProcedureLoadAssembly.cs` 的 `OnEnter` 最前面加 `SetUpStaticSecretKey()`，参考 DGame 实现：
+> **方案演进**：初版（方案 A）放 `ProcedureLoadAssembly.OnEnter`，能跑但时机偏晚、且与官方推荐不符。经讨论后改为方案 B——独立 `[RuntimeInitializeOnLoadMethod(AfterAssembliesLoaded)]`，时机最早且职责单一。方案 A 的 ProcedureLoadAssembly 改动已回退。
+
+#### 设计依据
+
+1. **官方推荐时机**（2026-08-14 报告 L20-30）：`[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`，主包/AOT 程序集刚加载完、任何被混淆代码执行前。
+2. **Obfuz FAQ 约束**（https://github.com/focus-creative-games/obfuz-doc/blob/main/docs/help/faq.md）：
+   - **禁止在 Editor 下运行混淆后代码**——Editor 已加载原始未混淆程序集，混淆 DLL 引用混淆后类型会 "TypeLoadException: Could not resolve type"。
+   - 未初始化 `EncryptionService<T>.Encryptor` 就跑混淆代码 → `$$Obfuz$RVA$` 类型初始化异常。
+3. **TEngine 实情**：`ENABLE_OBFUZ` 是全局宏（`ScriptingDefineSymbols` 设到所有 BuildTargetGroup），Editor 点"开启混淆"后 Editor 下也定义该宏；但 `ProcedureLoadAssembly` 在 `EditorSimulateMode` 走 `GetMainLogicAssembly()`（取 `AppDomain` 已加载的**原始未混淆**程序集），不加载混淆 DLL。
+4. **结论**：初始化代码必须用 `#if ENABLE_OBFUZ && !UNITY_EDITOR` 守卫——Editor 下整段不编译，避免对未加密常量误调用 Decrypt 破坏运行。
+
+#### 实现
+
+**初始化侧**：新建 `Assets/GameScripts/ObfuzRuntimeInitializer.cs`（Assembly-CSharp，不混淆）
 
 ```csharp
-protected override void OnEnter(IFsm<IProcedureModule> procedureOwner)
+public static class ObfuzRuntimeInitializer
 {
-    base.OnEnter(procedureOwner);
-    Log.Debug($"HybridCLR ProcedureLoadAssembly OnEnter, package: {_assemblyPackageName}");
-    _procedureOwner = procedureOwner;
-    SetUpStaticSecretKey();  // 新增
-    LoadAssembly().Forget();
-}
+#if ENABLE_OBFUZ && !UNITY_EDITOR
+    private static bool s_Failed;
+    private static string s_ErrorMsg;
 
-#if ENABLE_OBFUZ
-[Obfuz.Ignore(ObfuzScope.MethodBody)]  // 方法体不能被加密 Pass 处理
-#endif
-private void SetUpStaticSecretKey()
-{
-#if ENABLE_OBFUZ
-    Log.Info("Enable Obfuz");
-    EncryptionService<DefaultStaticEncryptionScope>.Encryptor =
-        new GeneratedEncryptionVirtualMachine(
-            Resources.Load<TextAsset>("Obfuz/defaultStaticSecretKey").bytes);
-    Log.Info("SetUpStaticSecret complete");
-#else
-    Log.Info("Disable Obfuz");
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
+    private static void SetUpStaticSecretKey()
+    {
+        var asset = Resources.Load<TextAsset>("Obfuz/defaultStaticSecretKey");
+        if (asset == null || asset.bytes == null || asset.bytes.Length == 0)
+        {
+            s_Failed = true;
+            s_ErrorMsg = "Obfuz 静态密钥加载失败：Resources/Obfuz/defaultStaticSecretKey.bytes 缺失或为空。"
+                + "已启用 ConstEncrypt/FieldEncrypt 等 Pass，但无密钥将无法解密混淆代码中的常量与字段，程序将退出。";
+            Log.Fatal($"[Obfuz] {s_ErrorMsg}");
+            return;
+        }
+        EncryptionService<DefaultStaticEncryptionScope>.Encryptor =
+            new GeneratedEncryptionVirtualMachine(asset.bytes);
+        Log.Info("[Obfuz] Static secret key initialized (AfterAssembliesLoaded).");
+    }
+
+    /// UI 就绪后由启动流程调用，报告初始化阶段延迟的致命错误。
+    /// 返回 true 表示存在致命错误、已弹出确认框，调用方应阻断后续流程。
+    public static bool CheckFailureAndReport()
+    {
+        if (!s_Failed) return false;
+        LauncherMgr.ShowMessageBox(s_ErrorMsg, Application.Quit);
+        return true;
+    }
 #endif
 }
 ```
 
-**注意事项**：
-- `ProcedureLoadAssembly` 属于 Assembly-CSharp（主包，不热更），引用 Obfuz runtime 无热更边界问题
-- 密钥文件在 `Resources/` 下随主包出包，不参与热更——静态密钥必须固化在主包
-- 方法需 `[ObfuzIgnore(ObfuzScope.MethodBody)]`，因为 `obfuscateObfuzRuntime=1` 时 Obfuz runtime 自身被混淆，初始化方法若被 ConstEncrypt/ExprObfus 处理可能产生循环依赖
+**报告侧**：`ProcedureLaunch.OnEnter`（入口流程，紧接 `LauncherMgr.Initialize()` 之后 UI 就绪时）
 
-### 5.2 建议补：引用跟随程序集声明
+```csharp
+protected override void OnEnter(ProcedureOwner procedureOwner)
+{
+    base.OnEnter(procedureOwner);
+    LauncherMgr.Initialize();
 
-`Obfuz.asset` 的 `nonObfuscatedButReferencingObfuscatedAssemblies` 应补上：
+#if ENABLE_OBFUZ && !UNITY_EDITOR
+    // Obfuz 静态密钥在 AfterAssembliesLoaded 已尝试初始化；此处 UI 就绪后报告失败并阻断流程。
+    if (ObfuzRuntimeInitializer.CheckFailureAndReport())
+    {
+        return;  // 致命错误：弹窗已出，等待用户确认退出，不继续后续初始化
+    }
+#endif
+
+    InitLanguageSettings();
+    InitSoundSettings();
+    LoadDeployConfigAsync().Forget();
+}
+```
+
+**回退**：`ProcedureLoadAssembly.cs` 恢复到改动前原始状态（删除方案 A 加的 import / OnEnter 调用 / `SetUpStaticSecretKey()` 方法体）。
+
+#### 关键设计点
+
+| 维度 | 决策 | 理由 |
+|------|------|------|
+| 初始化时机 | `AfterAssembliesLoaded` | 官方推荐最早时机；覆盖主包 AOT 代码被混淆的常量 |
+| Editor 守卫 | `#if ENABLE_OBFUZ && !UNITY_EDITOR` | FAQ 禁止 Editor 跑混淆代码；EditorSimulateMode 加载原始未混淆程序集，注入 Encryptor 反而破坏运行 |
+| 失败报告时机 | `ProcedureLaunch.OnEnter`（LauncherMgr.Initialize 之后） | AfterAssembliesLoaded 时场景/UI 未就绪无法弹窗；ProcedureLaunch 是入口流程、必经、且紧接 LauncherMgr.Initialize 后 UI 可用 |
+| 失败报告 UI | `LauncherMgr.ShowMessageBox(msg, Application.Quit)` | 只传 onConfirm，onUpdate/onCancel 传 null → LoadTipsUI 仅显示确认按钮；点击确认 `Application.Quit()` |
+| 失败阻断 | `return` 跳过语言/声音/部署配置 + OnUpdate 卡在 `_deployConfigLoaded=false` | 密钥缺失下继续跑到 LoadAssembly 会因 Encryptor null 而崩成乱码，不如明确阻断 |
+| 初始化类位置 | `Assets/GameScripts/`（Assembly-CSharp，不混淆） | 与 GameEntry.cs 同层；Assembly-CSharp 在 `nonObfuscatedButReferencingObfuscatedAssemblies`，无需 `[ObfuzIgnore]` |
+| Launcher 永不混淆 | 已在 `nonObfuscatedButReferencingObfuscatedAssemblies` | Launcher 代码可安全在密钥初始化前/后执行；但 UI 显示仍受场景依赖制约（故延迟报告） |
+
+#### 为何不用 `[ObfuzIgnore]`（沿袭方案 A 的修正结论）
+
+`ObfuzRuntimeInitializer` 在 Assembly-CSharp，不在 `assembliesToObfuscate = {GameLogic, GameProto}` 中，任何 Pass 都不会处理它，attribute 完全多余。`obfuscateObfuzRuntime=1` 影响的是 `Packages/com.code-philosophy.obfuz/Runtime`（Obfuz.Runtime 程序集自身），与 Assembly-CSharp 无关。
+
+#### 对 DGame 原版的改进
+
+1. DGame 放 `ProcedureLoadAssembly.OnEnter`（方案 A 位置），TEngine 改为 `AfterAssembliesLoaded`（方案 B，时机更早更正确）。
+2. DGame 直接 `Resources.Load(...).bytes` 无校验，TEngine 增加密钥 asset/bytes 空值检查 + `Log.Fatal` + 延迟弹窗。
+3. DGame 无 Editor 守卫（DGame 的 `ENABLE_OBFUZ` 是否区分 Editor 未考证），TEngine 显式 `!UNITY_EDITOR` 规避 FAQ 警告。
+
+### 5.2 ✅ 已就绪：引用跟随程序集声明
+
+`Obfuz.asset` 的 `nonObfuscatedButReferencingObfuscatedAssemblies` 已配置：
 
 ```yaml
 nonObfuscatedButReferencingObfuscatedAssemblies:
@@ -185,7 +248,7 @@ nonObfuscatedButReferencingObfuscatedAssemblies:
 - Launcher
 ```
 
-不补的后果：这些程序集 IL 中对混淆后类型/方法的调用点不会被同步改写，可能运行时 `MissingMethodException`。
+覆盖了主包中所有引用混淆类型（GameLogic/GameProto）但自身不混淆的程序集，调用点会被 Obfuz 同步改写，不会 `MissingMethodException`。
 
 ### 5.3 可选：动态密钥扩展（未来）
 
@@ -199,9 +262,22 @@ nonObfuscatedButReferencingObfuscatedAssemblies:
 
 ## 六、结论
 
-TEngine 的 Obfuz 集成在**编辑器侧**（ObfuzConfigWindow 配置窗口、BuildDLLCommand 混淆链路、健康检查）已经比 DGame 更完善，但**运行时缺了最关键的一环**——ProcedureLoadAssembly 中没有像 DGame 那样在加载 DLL 前初始化静态密钥。
+TEngine 的 Obfuz 集成在**编辑器侧**（ObfuzConfigWindow 配置窗口、BuildDLLCommand 混淆链路、健康检查）已经比 DGame 更完善。
 
-补上 `SetUpStaticSecretKey()` + 引用跟随程序集声明，TEngine 的 Obfuz 链路就完整了。当前 `enabledPasses=-3`（只 Symbol+RemoveConstField）暂不出问题，但切到含加密 Pass 的预设前必须补上。
+**运行时初始化已于 2026-08-28 补齐，方案演进 A→B**：
+- ~~方案 A：放 `ProcedureLoadAssembly.OnEnter`~~（已回退）——能跑但时机偏晚、与官方推荐不符。
+- **方案 B（最终）**：独立 `ObfuzRuntimeInitializer`，`[RuntimeInitializeOnLoadMethod(AfterAssembliesLoaded)]` 初始化 + `#if ENABLE_OBFUZ && !UNITY_EDITOR` 守卫；失败延迟到 `ProcedureLaunch.OnEnter`（`LauncherMgr.Initialize` 后 UI 就绪）经 `LauncherMgr.ShowMessageBox` 弹仅含确认按钮的原生对话框，点击 `Application.Quit()` 退出。
+
+方案 B 相对 DGame 的三点改进：① 时机从 ProcedureLoadAssembly 提前到 AfterAssembliesLoaded（覆盖主包 AOT 代码被混淆的常量）；② 密钥 asset/bytes 空值校验 + `Log.Fatal` + 延迟弹窗（DGame 无校验）；③ `!UNITY_EDITOR` 守卫规避 FAQ "Editor 不可跑混淆代码" 警告。
+
+引用跟随程序集声明（`nonObfuscatedButReferencingObfuscatedAssemblies`）也已就位（`TEngine.Runtime, Assembly-CSharp, Launcher`）。
+
+至此 TEngine 的 Obfuz 链路完整。当前 `enabledPasses=-3`（只 Symbol+RemoveConstField）不出问题，切到含 ConstEncrypt/FieldEncrypt 的预设前现已具备运行时解密能力。**注意**：启用加密 Pass 后只能在真机验证，不可在 Editor 下测试（Obfuz FAQ 明确禁止）。
+
+**研究→实施中修正的误判**（供后续参考）：
+1. `[ObfuzIgnore(ObfuzScope.MethodBody)]` 不需要——`ObfuzRuntimeInitializer` 属 Assembly-CSharp，不在 `assembliesToObfuscate` 中，任何 Pass 都不会处理它。
+2. "引用跟随程序集声明缺失"系旧状态，Obfuz.asset 现已配置完整。
+3. 方案 A 时机偏晚——ProcedureLoadAssembly 在流程机中部，晚于 YooAsset/场景/GameEntry；若主包 AOT 代码被混淆会漏。方案 B 提前到 AfterAssembliesLoaded 修正此隐患。
 
 ---
 

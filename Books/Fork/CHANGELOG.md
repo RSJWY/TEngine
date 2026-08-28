@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-28
+
+- 新增 `ObfuzRuntimeInitializer`：用 `[RuntimeInitializeOnLoadMethod(AfterAssembliesLoaded)]` 初始化静态密钥（`#if ENABLE_OBFUZ && !UNITY_EDITOR` 守卫），失败延迟到 `ProcedureLaunch` 经 `LauncherMgr.ShowMessageBox` 弹仅含确认的对话框并退出。Editor 下不编译，规避 Obfuz FAQ 禁止 Editor 跑混淆代码的约束。详见 [obfuscation.md](obfuscation.md)。
+
 ## 2026-08-27
 
 - 迁移 DGame `AnimModule` 到 `TEngine/Runtime/Module/AnimModule/`（框架层）：基于 PlayableGraph 的代码驱动 3D 动画图，封装 Unity 底层 Playable API（`AnimationClipPlayable`/`AnimationMixerPlayable`/`AnimationLayerMixerPlayable`），支持多层级混合/权重过渡/动态增删动画片段/手动驱动；9 个 .cs 文件自成体系无外部依赖；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`），`Module.OnCreate/OnDestroy→OnInit/Shutdown`，`DGameException→Exception`，`DLogger→Log`，私有字段 `_小驼峰`；靠 `ModuleSystem` 反射约定自动注册（接口→实现类去 `I` 前缀）；热更 `GameModule` 新增 `Anim` 访问器。

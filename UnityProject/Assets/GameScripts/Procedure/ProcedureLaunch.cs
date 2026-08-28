@@ -31,6 +31,14 @@ namespace Procedure
             //热更新UI初始化
             LauncherMgr.Initialize();
 
+#if ENABLE_OBFUZ && !UNITY_EDITOR
+            // Obfuz 静态密钥在 AfterAssembliesLoaded 已尝试初始化；此处 UI 就绪后报告失败并阻断流程。
+            if (ObfuzRuntimeInitializer.CheckFailureAndReport())
+            {
+                return;
+            }
+#endif
+
             // 语言配置：设置当前使用的语言，如果不设置，则默认使用操作系统语言
             InitLanguageSettings();
 

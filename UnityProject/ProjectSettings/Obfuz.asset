@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   buildPipelineSettings:
-    enable: 0
+    enable: 1
     linkXmlProcessCallbackOrder: 10000
     obfuscationProcessCallbackOrder: 10000
   compatibilitySettings:
@@ -22,7 +22,10 @@ MonoBehaviour:
     assembliesToObfuscate:
     - GameLogic
     - GameProto
-    nonObfuscatedButReferencingObfuscatedAssemblies: []
+    nonObfuscatedButReferencingObfuscatedAssemblies:
+    - TEngine.Runtime
+    - Assembly-CSharp
+    - Launcher
     additionalAssemblySearchPaths: []
     obfuscateObfuzRuntime: 1
   obfuscationPassSettings:
