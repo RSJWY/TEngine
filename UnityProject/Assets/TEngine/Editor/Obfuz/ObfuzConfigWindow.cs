@@ -805,7 +805,8 @@ namespace TEngine
         [LabelText("加密指令数"), MinValue(64)]
         [InfoBox("$OpCodeCountError", InfoMessageType.Error, VisibleIf = nameof(OpCodeCountInvalid))]
         [InfoBox("$OpCodeCountExceedsWarning", InfoMessageType.Warning, VisibleIf = nameof(OpCodeCountExceedsRecommend))]
-        [InlineButton(nameof(ResetOpCodeCountToDefault), "重置为默认值 256", ShowIf = nameof(OpCodeCountInvalid))]
+        [InlineButton(nameof(StepDownOpCodeCount), "调小")]
+        [InlineButton(nameof(StepUpOpCodeCount), "调大")]
         [OnValueChanged(nameof(MarkDirty))]
         [ShowInInspector]
         private int EncryptionOpCodeCount
@@ -833,9 +834,28 @@ namespace TEngine
 
         private string OpCodeCountExceedsWarning => $"当前值 {S.encryptionVMSettings.encryptionOpCodeCount} 合法，但官方建议不要超过 1024";
 
-        private void ResetOpCodeCountToDefault()
+        private void StepDownOpCodeCount() => StepOpCodeCount(-1);
+
+        private void StepUpOpCodeCount() => StepOpCodeCount(1);
+
+        // 步进仅在文档建议的取值集合 64/128/256/512/1024 内进行，非法或越界的当前值会收敛到最近的合法值
+        private void StepOpCodeCount(int direction)
         {
-            S.encryptionVMSettings.encryptionOpCodeCount = 256;
+            int[] steps = { 64, 128, 256, 512, 1024 };
+            int current = S.encryptionVMSettings.encryptionOpCodeCount;
+            int result = direction < 0 ? steps[0] : steps[steps.Length - 1];
+            foreach (int step in steps)
+            {
+                if (direction < 0 ? step < current : step > current)
+                {
+                    result = step;
+                    if (direction > 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            S.encryptionVMSettings.encryptionOpCodeCount = result;
             MarkDirty();
         }
 
