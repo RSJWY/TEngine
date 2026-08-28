@@ -155,7 +155,11 @@ namespace TEngine
             }
             if (!IsPowerOfTwo(vm.encryptionOpCodeCount) || vm.encryptionOpCodeCount < 64)
             {
-                Add("错误", $"加密指令数 {vm.encryptionOpCodeCount} 无效：必须为不小于 64 的 2 的幂（建议 256）");
+                Add("错误", $"加密指令数 {vm.encryptionOpCodeCount} 无效：必须是 2 的幂且不小于 64（默认值为 256，建议不要超过 1024）");
+            }
+            else if (vm.encryptionOpCodeCount > 1024)
+            {
+                Add("警告", $"加密指令数 {vm.encryptionOpCodeCount} 为合法值，但官方建议不要超过 1024");
             }
             if (S.assemblySettings.assembliesToObfuscate == null || S.assemblySettings.assembliesToObfuscate.Length == 0)
             {
@@ -800,7 +804,8 @@ namespace TEngine
         [BoxGroup("Pages/加密与密钥/加密 VM")]
         [LabelText("加密指令数"), MinValue(64)]
         [InfoBox("$OpCodeCountError", InfoMessageType.Error, VisibleIf = nameof(OpCodeCountInvalid))]
-        [InlineButton(nameof(FixOpCodeCount), "修正为256")]
+        [InfoBox("$OpCodeCountExceedsWarning", InfoMessageType.Warning, VisibleIf = nameof(OpCodeCountExceedsRecommend))]
+        [InlineButton(nameof(ResetOpCodeCountToDefault), "重置为默认值 256", ShowIf = nameof(OpCodeCountInvalid))]
         [OnValueChanged(nameof(MarkDirty))]
         [ShowInInspector]
         private int EncryptionOpCodeCount
@@ -822,9 +827,13 @@ namespace TEngine
             }
         }
 
-        private string OpCodeCountError => $"当前值 {S.encryptionVMSettings.encryptionOpCodeCount} 无效：必须为不小于 64 的 2 的幂（默认 256，不建议超过 1024）";
+        private string OpCodeCountError => $"当前值 {S.encryptionVMSettings.encryptionOpCodeCount} 无效：必须是 2 的幂且不小于 64（默认值为 256，建议不要超过 1024）";
 
-        private void FixOpCodeCount()
+        private bool OpCodeCountExceedsRecommend => !OpCodeCountInvalid && S.encryptionVMSettings.encryptionOpCodeCount > 1024;
+
+        private string OpCodeCountExceedsWarning => $"当前值 {S.encryptionVMSettings.encryptionOpCodeCount} 合法，但官方建议不要超过 1024";
+
+        private void ResetOpCodeCountToDefault()
         {
             S.encryptionVMSettings.encryptionOpCodeCount = 256;
             MarkDirty();
@@ -871,7 +880,7 @@ namespace TEngine
 
         [TabGroup("Pages", "加密与密钥")]
         [BoxGroup("Pages/加密与密钥/密钥文件")]
-        [InfoBox("参数冻结：VM 密钥/指令数/静态密钥在同主包的热更新中禁止修改；动态密钥与随机种子可随热更轮换。", InfoMessageType.None)]
+        [InfoBox("参数冻结：VM 密钥/加密指令数/静态密钥发布 App 后请不要修改（同主包热更同样禁止）；动态密钥与随机种子可随热更轮换。", InfoMessageType.None)]
         [LabelText("静态密钥（AOT/启动早期）")]
         [DelayedProperty]
         [InlineButton(nameof(RandomizeStaticKey), "随机")]
