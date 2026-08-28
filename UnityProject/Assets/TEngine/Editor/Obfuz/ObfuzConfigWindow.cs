@@ -1384,7 +1384,7 @@ namespace TEngine
 
         [TabGroup("Pages", "高级")]
         [BoxGroup("Pages/高级/多态 DLL")]
-        [InfoBox("依赖 HybridCLR 8.4.0+ 自定义 DLL 结构；密钥与主包结构强绑定，主包发布后不可变更。", InfoMessageType.None)]
+        [InfoBox("依赖 HybridCLR 8.4.0+ 自定义 DLL 结构；密钥与主包结构强绑定，主包发布后不可变更。开启后执行“HybridCLR/ObfuzExtension/GenerateAll”以实现注入修改支持多态加载", InfoMessageType.None)]
         [LabelText("启用多态 DLL"), ToggleLeft]
         [OnValueChanged(nameof(MarkDirty))]
         [ShowInInspector]
