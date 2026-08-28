@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-08-28
+- [DGame 与 TEngine 启动加载流程对比研究](./2026-08-28-dgame-vs-tengine-startup-flow-comparison.md)
+  - 关键词：启动流程对比、GameEntry、ProcedureLaunch、ProcedureInitPackage、ProcedureInitResources、ProcedureCreateDownloader、ProcedureDownloadFile、ProcedureLoadAssembly、GameStart.Entrance、GameApp.Entrance、RootModule、RuntimePackageEntry多包、本地版本回退、版本确认弹窗、PackageNote模式校验、指数退避重试、PDB缓存加载、AOTMetadataManifest动态列表、UpdateUIDefine、Obfuz密钥、LoadScene场景驱动、ShowWindow UI驱动
+  - 结论：TEngine 在多资源包/弱网容错/下载重试/PDB调试/动态AOT列表上完胜；DGame 轻量直观适合单包小项目。
+
 ## 2026-08-27
 - [DGame AnimModule 迁移到 TEngine 研究记录](./2026-08-27-AnimModule迁移到TEngine.md)
   - 关键词：AnimModule迁移、PlayableGraph、AnimPlayable、AnimClip、AnimMixer、AnimNode、AnimationWrapper、MemoryObject Alloc/Dealloc、InitFromPool/RecycleToPool、Module OnInit/Shutdown、IUpdateModule、ModuleSystem反射约定注册、DGameException→Exception、DLogger→Log、GameModule.Anim访问器、TEngine.Runtime程序集、3D动画图
