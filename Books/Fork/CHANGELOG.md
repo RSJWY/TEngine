@@ -4,6 +4,7 @@
 
 ## 2026-08-28
 
+- 热更构建链路接入 Obfuz 多态 DLL：`CopyAOTHotUpdateDlls` 在混淆后按 `polymorphicDllSettings.enable` 调 `GeneratePolymorphicDll` 把热更程序集转为多态格式（产物目录 `Obfuz/{target}/PolymorphicHotUpdateAssemblies/`），运行时加载代码零改动，补充元数据暂维持标准格式。详见 [obfuscation.md](obfuscation.md)。
 - 新增 `ObfuzRuntimeInitializer`：用 `[RuntimeInitializeOnLoadMethod(AfterAssembliesLoaded)]` 初始化静态密钥（`#if ENABLE_OBFUZ && !UNITY_EDITOR` 守卫），失败延迟到 `ProcedureLaunch` 经 `LauncherMgr.ShowMessageBox` 弹仅含确认的对话框并退出。Editor 下不编译，规避 Obfuz FAQ 禁止 Editor 跑混淆代码的约束。详见 [obfuscation.md](obfuscation.md)。
 
 ## 2026-08-27

@@ -87,3 +87,41 @@ Obfuz 的 `ConstEncrypt`/`FieldEncrypt` 等 Pass 会在编译期把常量与字�
 
 - `UnityProject/conversation-summaries/code-research/2026-08-28-dgame-obfuz-secret-loading-analysis.md`
 - `UnityProject/conversation-summaries/code-research/2026-08-14-obfuz-runtime-and-scope-research.md`
+
+## Obfuz 多态 DLL 热更产物集成
+
+### 背景
+
+Obfuz 的多态 DLL（`polymorphicDllSettings`）通过自定义随机化文件结构（魔数 `CODEPHPY`）对抗 ILSpy 反编译与运行时 dump。官方文档与 obfuz4hybridclr 包均不提供产物生成环节的管线集成：`enable` 开关只控制 `GenerateAll` 时是否向 libil2cpp 注入多态加载支持（`PolymorphicRawImage` 等 C++ 代码），dll 本身的多态化必须显式调 `ObfuscateUtil.GeneratePolymorphicDll`——该 API 包内无任何调用点。本项目开启开关后发现热更产物仍是混淆后的标准格式 dll，遂在 TEngine 构建链路补上转换环节。
+
+### 改动摘要
+
+- `BuildDLLCommand.CopyAOTHotUpdateDlls` 在混淆之后、拷贝 `.bytes` 之前插入多态化步骤：`polymorphicDllSettings.enable` 时对每个热更程序集调 `GeneratePolymorphicHotUpdateDll`（内部调 `ObfuscateUtil.GeneratePolymorphicDll`），产物落 `Obfuz/{target}/PolymorphicHotUpdateAssemblies/`（与混淆产物目录平行），再拷成 `.dll.bytes`。流程变为**编译 → 混淆 → 多态化 → 拷贝**。
+- 多态化输入取混淆产物（链式组合）；未混淆的热更程序集取原始编译产物。官方示例（obfuz-samples 的 `WorkWithHybridCLR`）取的是原始产物、未演示链式，链式属官方未背书用法，需真机验证。
+- 转换失败直接抛异常中断构建，不静默回退标准格式。
+- 明确不变的部分：运行时 `Assembly.Load` / `RuntimeApi.LoadMetadataForAOTAssembly` 传法零改动；AOT 补充元数据 dll 维持标准格式（当前 `disableLoadStandardDll: 0`，两种格式按文件头逐个识别、可混用）；开关关闭时构建行为与改动前完全一致。
+
+### 使用方式
+
+1. 混淆配置窗口（`TEngine/Build/混淆配置窗口`）"高级"页开启「启用多态 DLL」并替换多态密钥（默认值 `obfuz-polymorphic-key` 必须换掉）。
+2. 打 App 前执行菜单 `HybridCLR/ObfuzExtension/GenerateAll`，向 libil2cpp 注入多态加载支持（需重新编译 il2cpp）。
+3. 照常执行 `BuildAndCopyDlls` / 打包窗口构建，热更产物自动为多态格式。
+
+### 注意事项
+
+- **多态密钥是冻结参数**：决定 dll 结构布局，第一次多态打 App 前必须定死，之后不可修改——旧 App 无法加载新密钥生成的热更 dll。
+- **打 App（而非打资源包）前必须跑一次 `GenerateAll`**：未注入的 App 运行时不认识多态格式。判断是否已注入：`HybridCLRData/il2cpp_plus_repo/libil2cpp/hybridclr/metadata/` 下存在 `PolymorphicRawImage.cpp/.h`。
+- **`disableLoadStandardDll` 一旦开 1**：所有经 `Assembly.Load` / `LoadMetadataForAOTAssembly` 加载的 dll（含 AOTMetadataManifest 全部补充元数据）必须都是多态格式，且该开关作为 C++ 常量烧进 App，发包后不可改。二期开启时需同步改 `CopyAOTAssembliesToAssetPath` 把补充元数据全量多态化。
+- dev 模式 pdb 与多态字节不配对（混淆场景既有限制，release 模式不生成 pdb 不受影响）。
+- HybridCLR 包版本需 ≥ 8.4.0（本项目 8.13.0 满足）。
+
+### 关键文件
+
+- `UnityProject/Assets/TEngine/Editor/HybridCLR/BuildDLLCommand.cs`（`CopyAOTHotUpdateDlls` + 两个私有助手）
+- `UnityProject/ProjectSettings/Obfuz.asset`（`polymorphicDllSettings`）
+- `UnityProject/Packages/com.code-philosophy.obfuz4hybridclr/`（上游 API：`ObfuscateUtil.GeneratePolymorphicDll`、`PrebuildCommandExt.GenerateAll`）
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-28-obfuz-polymorphic-dll-hotupdate-summary.md`
+- `UnityProject/conversation-summaries/code-research/2026-08-28-obfuz-polymorphic-dll-mechanism-research.md`

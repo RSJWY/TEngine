@@ -20,7 +20,7 @@
 | 资源打包 | 按包构建、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
 | 场景系统 | DynamicSpawn 通用化、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
-| 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、运行时静态密钥初始化 | [obfuscation.md](obfuscation.md) |
+| 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、运行时静态密钥初始化、多态 DLL 热更产物 | [obfuscation.md](obfuscation.md) |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](runtime-tools.md) |
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 | [timer-module.md](timer-module.md) |
 | 存档与数据中心 | `ClientSaveDataMgr` 存档框架、`DataCenterSys` 玩家数据中枢 | [save-data.md](save-data.md) |
@@ -32,6 +32,7 @@
 
 ## 最近重点
 
+- 热更构建链路接入 Obfuz 多态 DLL：`CopyAOTHotUpdateDlls` 在混淆后按 `polymorphicDllSettings.enable` 调 `GeneratePolymorphicDll` 转多态格式再拷 `.bytes`，产物目录 `Obfuz/{target}/PolymorphicHotUpdateAssemblies/`；运行时加载零改动，补充元数据暂维持标准格式（`disableLoadStandardDll: 0` 混用合法）。
 - 迁移 DGame `AnimModule` 到 `TEngine/Runtime/Module/AnimModule/`（框架层）：基于 PlayableGraph 的代码驱动 3D 动画图，封装 Unity 底层 Playable API（`AnimationClipPlayable`/`AnimationMixerPlayable`/`AnimationLayerMixerPlayable`），支持多层级混合/权重过渡/动态增删动画片段/手动驱动；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`），`Module.OnCreate/OnDestroy→OnInit/Shutdown`，`DGameException→Exception`，`DLogger→Log`，私有字段 `_小驼峰`；靠 `ModuleSystem` 反射约定自动注册；热更 `GameModule` 新增 `Anim` 访问器。
 - 迁移 DGame `FrameAnimModule`（序列帧动画）到热更层，含场景版（`SpriteRenderer`）、UI 版（`Image`），**新增 `UIFrameRawAnimatorAgent`**（`RawImage` 版，`rawImage.texture = sprite.texture`）；`FrameSpritePool` 的 Roslyn SourceGenerator 改手写 `FrameSpritePool.Gen.cs`；`ModelConfig` Luban 依赖改新建 `FrameAnimConfig` 结构体；`GameTimer` 对象句柄改 `ITimerModule` 的 `int timerId`；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`）。
 - 迁移 DGame `GameObjectPoolModule` 到 `TEngine/Runtime/Module/GameObjectPoolModule/`（框架层）：基于 YooAsset location 的异步实例化池，支持预热/容量上限/自动销毁/DontDestroy 常驻/并发建池锁/每帧空池回收；靠 `ModuleSystem` 反射约定自动注册无需手动；热更 `GameModule` 新增 `GameObjectPool` 访问器；Editor 调试窗口菜单 `TEngine Tools/Debugger/GameObject Pool`。

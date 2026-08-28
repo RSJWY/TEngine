@@ -31,7 +31,7 @@
 | 资源打包 | 按包构建管线、发布整理、Odin 化打包窗口 |
 | 场景系统 | DynamicSpawn 通用化、加载进度下沉到 `GameSceneModule` |
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 `ScreenModule` |
-| 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 |
+| 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、多态 DLL 热更产物 |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） |
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 |
 | 存档与数据中心 | `ClientSaveDataMgr` 存档框架、`DataCenterSys` 玩家数据中枢 |
