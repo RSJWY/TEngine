@@ -300,7 +300,7 @@ EncryptionService<DefaultDynamicEncryptionScope>.Encryptor =
 
 ##### A. 配置变更（`ProjectSettings/Obfuz.asset`）
 
-> **已落地**：`dynamicSecretKeyOutputPath` 已从 `Assets/Resources/Obfuz/` 迁移到 `Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes`，密钥文件作为 YooAsset 热更资源管理、不随主包出包。`defaultStaticSecretKey` / `defaultDynamicSecretKey` 种子值与 `assembliesUsingDynamicSecretKeys` 待后续在密钥轮换 editor 页面统一配置。
+> **已落地**：`dynamicSecretKeyOutputPath` 已从 `Assets/Resources/Obfuz/` 迁移到 `Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes`，密钥文件作为 YooAsset 热更资源管理、不随主包出包。`defaultStaticSecretKey` / `defaultDynamicSecretKey` 种子值与 `assembliesUsingDynamicSecretKeys` 待在 `ObfuzConfigWindow`「加密与密钥」页统一配置（页面已交付，见 5.3.4）。
 
 当前 Obfuz.asset `secretSettings` 实际状态：
 
@@ -462,9 +462,9 @@ private async UniTaskVoid LoadAssembly()
 | 真机验证 | 启用动态密钥后只能在真机测试（Obfuz FAQ 禁止 Editor 跑混淆代码） |
 | 密钥文件不入主包 | ✅ 已迁移到 `Assets/AssetRaw/DLL/Obfuz/`（YooAsset 热更资源目录）；主包只保留 `Assets/Resources/Obfuz/defaultStaticSecretKey.bytes` |
 
-##### F. 密钥轮换流程（后续 editor 页面实现，本阶段不做）
+##### F. 密钥轮换流程（「加密与密钥」页承载，暂无自动化）
 
-> **本阶段不做密钥轮换**：后续会做一个 editor 页面来统一管理密钥种子更新、密钥文件重新生成、`assembliesUsingDynamicSecretKeys` 配置等。此处仅记录轮换原理供该 editor 页面参考。
+> **轮换为手动分步操作**：密钥种子更新、密钥文件重新生成、`assembliesUsingDynamicSecretKeys` 配置已由 `ObfuzConfigWindow`「加密与密钥」页承载；一键轮换、种子/文件失配检测、密钥台账等自动化增强待定。以下记录轮换原理供参考。
 
 动态密钥的核心价值是轮换。轮换步骤（由后续 editor 页面封装）：
 
@@ -483,11 +483,12 @@ private async UniTaskVoid LoadAssembly()
 
 - [x] ~~将 `defaultDynamicSecretKey.bytes` 从 `Assets/Resources/Obfuz/` 移除，改为热更资源~~ → 已迁移到 `Assets/AssetRaw/DLL/Obfuz/`
 - [x] ~~`Obfuz.asset` 的 `dynamicSecretKeyOutputPath` 同步更新~~ → 已改为 `Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes`
-- [ ] 替换 `Obfuz.asset` 中 `defaultDynamicSecretKey` 的默认值（`Code Philosophy-Dynamic`）——后续 editor 页面统一处理
-- [ ] 在 `assembliesUsingDynamicSecretKeys` 中填入 `GameLogic`——后续 editor 页面统一处理
-- [ ] 运行 `Obfuz/GenerateSecretKeyFile` 重新生成密钥文件
-- [ ] 实现 `ObfuzRuntimeInitializer.SetUpDynamicSecretKeyAsync()`
-- [ ] 在 `ProcedureLoadAssembly.LoadAssembly()` 中、`Assembly.Load` 前调用动态密钥初始化
+- [x] ~~密钥轮换 editor 页面~~ → 已随 `ObfuzConfigWindow`「加密与密钥」分页交付（2026-08-16 会话，`TEngine/Build/混淆配置窗口`）：静态/动态种子编辑+随机、`assembliesUsingDynamicSecretKeys` 下拉（候选取自 HybridCLR 热更程序集）、生成密钥文件按钮、默认值健康检查与参数冻结提示，无需再建独立窗口
+- [ ] 实际操作：替换 `defaultDynamicSecretKey` 默认种子（`Obfuz.asset` 当前仍为 `Code Philosophy-Dynamic`；静态种子 `Code Philosophy-Static` 同样未替换）——在「加密与密钥」页操作
+- [ ] 实际操作：将 `GameLogic` 填入 `assembliesUsingDynamicSecretKeys`（当前为空）——在「加密与密钥」页操作
+- [ ] 实际操作：运行"生成密钥文件"重新生成密钥文件——在「加密与密钥」页操作
+- [x] ~~实现 `ObfuzRuntimeInitializer.SetUpDynamicSecretKeyAsync()`~~ → 已实现（commit a66b0020：YooAsset 热更资源加载 + 空值校验 + 失败延迟报告）
+- [x] ~~在 `ProcedureLoadAssembly.LoadAssembly()` 中、`Assembly.Load` 前调用动态密钥初始化~~ → 已接入（`ProcedureLoadAssembly.cs:98`，位于热更 DLL 加载循环之前，失败弹窗并阻断 `Assembly.Load`）
 - [ ] 真机验证：静态密钥 → 动态密钥 → 热更 DLL 加载 → GameApp.Entrance 全链路
 - [ ] 评估 `GameProto` 是否纳入动态 scope（序列化兼容性验证）
 
@@ -505,7 +506,7 @@ TEngine 的 Obfuz 集成在**编辑器侧**（ObfuzConfigWindow 配置窗口、B
 
 引用跟随程序集声明（`nonObfuscatedButReferencingObfuscatedAssemblies`）也已就位（`TEngine.Runtime, Assembly-CSharp, Launcher`）。
 
-**动态密钥扩展方案（5.3）已部分落地**：密钥文件已迁移到 `Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes`（YooAsset 热更资源目录），`Obfuz.asset` 的 `dynamicSecretKeyOutputPath` 已同步更新。通过源码验证了 Obfuz 的 `EncryptionScopeProvider.GetScope()` 按 `assembliesUsingDynamicSecretKeys` 分配静态/动态 scope 的机制；方案核心是在 `ProcedureLoadAssembly.LoadAssembly()` 中、`Assembly.Load` 前调用 `ObfuzRuntimeInitializer.SetUpDynamicSecretKeyAsync()`（通过 YooAsset 加载热更密钥资源），确保动态 scope 的 Encryptor 在混淆代码执行前就绪。密钥种子替换、`assembliesUsingDynamicSecretKeys` 填充和密钥轮换流程留待后续 editor 页面统一处理。
+**动态密钥扩展方案（5.3）已部分落地**：密钥文件已迁移到 `Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes`（YooAsset 热更资源目录），`Obfuz.asset` 的 `dynamicSecretKeyOutputPath` 已同步更新。通过源码验证了 Obfuz 的 `EncryptionScopeProvider.GetScope()` 按 `assembliesUsingDynamicSecretKeys` 分配静态/动态 scope 的机制；方案核心是在 `ProcedureLoadAssembly.LoadAssembly()` 中、`Assembly.Load` 前调用 `ObfuzRuntimeInitializer.SetUpDynamicSecretKeyAsync()`（通过 YooAsset 加载热更密钥资源），确保动态 scope 的 Encryptor 在混淆代码执行前就绪。运行时初始化已落地（2026-08-28，commit 21e61c9b 静态 / a66b0020 动态）。密钥轮换 editor 页面已于 2026-08-16 随 `ObfuzConfigWindow`「加密与密钥」分页交付（种子编辑与随机、`assembliesUsingDynamicSecretKeys` 选择、密钥文件生成、默认值健康检查与参数冻结提示），无需再建独立窗口；剩余为实际操作项（替换默认种子、填入 GameLogic、重新生成密钥文件）、真机验证与 GameProto 动态 scope 评估。
 
 至此 TEngine 的 Obfuz 链路完整。当前 `enabledPasses=-3`（只 Symbol+RemoveConstField）不出问题，切到含 ConstEncrypt/FieldEncrypt 的预设前现已具备运行时解密能力。**注意**：启用加密 Pass 后只能在真机验证，不可在 Editor 下测试（Obfuz FAQ 明确禁止）。
 
