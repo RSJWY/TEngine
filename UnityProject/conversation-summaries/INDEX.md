@@ -4,6 +4,11 @@
 > 新增会话总结时，按日期倒序在本文件顶部追加条目；禁止另建按日期拆分的索引文件。
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
+## 2026-08-28
+- [TEngine_Fantasy 分支结构与侵入性分析](./2026-08-28-tengine-fantasy-branch-analysis-summary.md)
+  - 关键词：TEngine_Fantasy分支、Fantasy.Unity、GameServer、外挂式集成、AOT拆分、TEngine.AOT程序集、GameClient、ProtocolExportTool、NetworkProtocol、proto生成、OuterMessage、OuterOpcode、RouteType、共享协议源、侵入性极小、框架核心零改动、ReadMe补丁清单、SuperScrollView
+  - 结论：Fantasy 是外挂式集成，TEngine 框架核心零改动（仅 8 文件 ~290 行边缘改动），协议源头在 GameServer/Tools/NetworkProtocol/，导出工具分发生成代码到两端。
+
 ## 2026-08-27
 - [DGame AnimModule 迁移到 TEngine](./2026-08-27-anim-module-migration-summary.md)
   - 关键词：AnimModule迁移、PlayableGraph、AnimPlayable、AnimClip、AnimMixer、AnimNode、AnimationWrapper、MemoryObject Alloc/Dealloc、InitFromPool/RecycleToPool、Module OnInit/Shutdown、IUpdateModule、ModuleSystem反射约定注册、DGameException→Exception、DLogger→Log、GameModule.Anim访问器、TEngine.Runtime程序集、3D动画图
