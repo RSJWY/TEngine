@@ -250,13 +250,246 @@ nonObfuscatedButReferencingObfuscatedAssemblies:
 
 覆盖了主包中所有引用混淆类型（GameLogic/GameProto）但自身不混淆的程序集，调用点会被 Obfuz 同步改写，不会 `MissingMethodException`。
 
-### 5.3 可选：动态密钥扩展（未来）
+### 5.3 动态密钥扩展方案（部分已落地）
 
-两者都未用动态密钥。若未来需要更高安全级别：
-- 在 `GameApp.Entrance`（热更入口）中、任何使用动态 Scope 的代码前初始化
-- 密钥文件作为热更资源通过 YooAsset 加载（而非 Resources.Load）
-- `assembliesUsingDynamicSecretKeys` 填入使用动态密钥的程序集名
-- 动态密钥可随热更轮换，增加逆向难度
+两者都未用动态密钥（`assembliesUsingDynamicSecretKeys: []`）。本节为 TEngine 制定完整的动态密钥落地方案。
+
+#### 5.3.1 为什么需要动态密钥
+
+| 维度 | 静态密钥（现状） | 动态密钥（目标） |
+|------|-----------------|-----------------|
+| 适用范围 | AOT / 启动早期代码（Assembly-CSharp、TEngine.Runtime、Launcher） | 热更新程序集（GameLogic、GameProto） |
+| 密钥绑定 | 与主包绑定，主包发布后不可改 | 与热更版本绑定，可随热更轮换 |
+| 轮换能力 | ❌ 不可轮换（旧主包无法解密新密钥） | ✅ 每次热更可换新密钥 |
+| 安全等级 | 中（密钥随主包出包，可逆向提取） | 高（密钥可不随主包出包，由服务端下发或热更资源下载） |
+| 逆向成本 | 提取主包即得密钥 | 需逆向混淆 VM + 动态获取密钥，成本显著提升 |
+
+核心价值：**动态密钥让热更代码的加密密钥可随版本轮换**，攻击者从旧包提取的密钥无法解密新热更版本的混淆常量/字段。
+
+#### 5.3.2 Obfuz 动态密钥的工作原理（源码验证）
+
+**混淆期（编辑器/打包时）**——`Obfuscator.cs:284-296` + `ObfuscationPassContext.cs:50-72`：
+
+```csharp
+// Obfuscator.CreateEncryptionScopeProvider()
+var defaultStaticScope = CreateEncryptionScope(_coreSettings.defaultStaticSecretKey);  // 静态 scope
+var defaultDynamicScope = CreateEncryptionScope(_coreSettings.defaultDynamicSecretKey); // 动态 scope
+// 校验：assembliesUsingDynamicSecretKeys 中的程序集必须在 assembliesToObfuscate 中
+return new EncryptionScopeProvider(defaultStaticScope, defaultDynamicScope, _assembliesUsingDynamicSecretKeys);
+
+// EncryptionScopeProvider.GetScope(module)
+// → 若 module 属于 assembliesUsingDynamicSecretKeys → 返回 dynamicScope（用动态密钥加密）
+// → 否则 → 返回 staticScope（用静态密钥加密）
+```
+
+**运行时**——必须手动初始化 `EncryptionService<DefaultDynamicEncryptionScope>.Encryptor`：
+
+```csharp
+// 动态 scope 的解密器，与静态 scope 使用同一个 GeneratedEncryptionVirtualMachine 类
+// 但接收的是动态密钥字节流（defaultDynamicSecretKey.bytes）
+EncryptionService<DefaultDynamicEncryptionScope>.Encryptor =
+    new GeneratedEncryptionVirtualMachine(dynamicSecretBytes);
+```
+
+**关键约束**：
+1. `assembliesUsingDynamicSecretKeys` 中的程序集必须同时出现在 `assembliesToObfuscate` 中（Obfuscator.cs:290-293 会校验，不满足抛异常）。
+2. 同一个 `GeneratedEncryptionVirtualMachine` 类同时服务静态和动态 scope——区别仅在于喂给构造函数的密钥字节不同。VM 代码生成密钥（`codeGenerationSecretKey`）决定的是指令表结构，与静态/动态密钥无关，不可随热更改。
+3. 动态密钥初始化必须在**使用动态 Scope 的任何混淆代码执行前**完成，否则触发 `$$Obfuz$RVA$` 类型初始化异常。
+
+#### 5.3.3 TEngine 动态密钥落地方案
+
+##### A. 配置变更（`ProjectSettings/Obfuz.asset`）
+
+> **已落地**：`dynamicSecretKeyOutputPath` 已从 `Assets/Resources/Obfuz/` 迁移到 `Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes`，密钥文件作为 YooAsset 热更资源管理、不随主包出包。`defaultStaticSecretKey` / `defaultDynamicSecretKey` 种子值与 `assembliesUsingDynamicSecretKeys` 待后续在密钥轮换 editor 页面统一配置。
+
+当前 Obfuz.asset `secretSettings` 实际状态：
+
+```yaml
+secretSettings:
+  defaultStaticSecretKey: Code Philosophy-Static                              # 待替换为自定义种子（后续 editor 页面）
+  defaultDynamicSecretKey: Code Philosophy-Dynamic                            # 待替换为自定义种子（后续 editor 页面）
+  staticSecretKeyOutputPath: Assets/Resources/Obfuz/defaultStaticSecretKey.bytes   # 静态密钥仍在 Resources（AfterAssembliesLoaded 时 YooAsset 未就绪）
+  dynamicSecretKeyOutputPath: Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes  # ← 已迁移到热更资源目录
+  randomSeed: 0
+  assembliesUsingDynamicSecretKeys: []                                        # 待填入 GameLogic（后续 editor 页面）
+```
+
+> **静态/动态密钥路径分离的设计依据**：静态密钥在 `AfterAssembliesLoaded` 初始化，此时 YooAsset 尚未就绪，必须走 `Resources.Load`（主包内）；动态密钥在 `ProcedureLoadAssembly` 初始化，此时 YooAsset 已完成热更下载，走 `LoadAssetAsync`（热更资源）。两者 IO 路径不同，故配置路径必须分离。
+>
+> **GameProto 慎重**：协议 DTO 的字段名若被序列化框架（JSON/网络协议）按名反射，启用 FieldEncrypt 会破坏序列化。建议 GameProto **不**纳入动态密钥 scope，或仅启用 Symbol+RemoveConstField Pass（不启用 FieldEncrypt）。
+
+##### B. 密钥分发策略（已落地）
+
+动态密钥文件 `defaultDynamicSecretKey.bytes` **不应随主包出包**（否则等于静态密钥）。两种分发方式：
+
+| 方式 | 实现 | 适用场景 | 复杂度 |
+|------|------|---------|--------|
+| **方式一：热更资源下载** | 将密钥文件作为热更资源打入 YooAsset 资源包，运行时通过 `LoadAssetAsync<TextAsset>` 加载 | 中等安全要求、无服务端密钥管理 | 低 |
+| **方式二：服务端下发** | 登录/设备认证后，服务端通过加密通道下发密钥字节；与用户/设备/版本绑定 | 高安全要求 | 高 |
+
+**已采用方式一**（TEngine 已有 YooAsset 热更基础设施）：
+- ✅ `defaultDynamicSecretKey.bytes` 已迁移到 `Assets/AssetRaw/DLL/Obfuz/`（YooAsset 热更资源目录）
+- ✅ 主包不包含该文件——通过 YooAsset 的 buildin 资源过滤或独立资源包配置排除
+- 运行时在热更 DLL 加载前、通过 YooAsset 的 `LoadAssetAsync<TextAsset>` 加载密钥
+
+##### C. 运行时初始化时机（关键）
+
+回顾 TEngine 启动流程链（`ProcedureLaunch → ProcedureSplash → ProcedureInitPackage → ProcedureInitResources → ProcedureCreateDownloader → ProcedureDownloadFile → ProcedureLoadAssembly → ProcedureStartGame`）：
+
+```
+AfterAssembliesLoaded（静态密钥初始化，已有 ObfuzRuntimeInitializer）
+  ↓
+ProcedureLaunch（UI 就绪，检查静态密钥失败报告）
+  ↓
+ProcedureInitPackage / ProcedureInitResources / ProcedureDownloadFile（YooAsset 初始化 + 热更下载）
+  ↓
+ProcedureLoadAssembly（加载热更 DLL 前，必须先初始化动态密钥！）  ← 新增动态密钥初始化点
+  ↓
+Assembly.Load(热更DLL) → GameApp.Entrance
+```
+
+**动态密钥初始化必须插入 `ProcedureLoadAssembly.LoadAssembly()` 中、`Assembly.Load(dllBytes)` 之前**——因为热更 DLL 中的混淆代码一旦被 Assembly.Load 加载，其类型静态构造器可能立即执行（引用了被混淆的常量/字段），此时动态 scope 的 Encryptor 必须已就绪。
+
+##### D. 实现代码方案
+
+**方案 1：扩展 `ObfuzRuntimeInitializer`（推荐——职责集中）**
+
+在 `Assets/GameScripts/ObfuzRuntimeInitializer.cs`（Assembly-CSharp，不混淆）中新增动态密钥初始化：
+
+```csharp
+public static class ObfuzRuntimeInitializer
+{
+#if ENABLE_OBFUZ && !UNITY_EDITOR
+    private static bool s_Failed;
+    private static string s_ErrorMsg;
+    private static byte[] s_DynamicSecretKey;  // 动态密钥字节缓存
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
+    private static void SetUpStaticSecretKey()
+    {
+        // ... 静态密钥初始化（已有，不变）...
+    }
+
+    /// <summary>
+    /// 加载动态密钥。由 ProcedureLoadAssembly 在加载热更 DLL 前调用。
+    /// 密钥文件作为热更资源通过 YooAsset 加载，不随主包出包。
+    /// </summary>
+    /// <returns>true=成功；false=失败（已记 Log.Fatal，调用方应阻断加载流程）</returns>
+    public static async UniTask<bool> SetUpDynamicSecretKeyAsync()
+    {
+        // 静态密钥初始化失败则不继续
+        if (s_Failed)
+        {
+            return false;
+        }
+
+        // 通过 YooAsset 加载动态密钥（密钥文件作为热更 TextAsset 资源）
+        // location：defaultDynamicSecretKey，放在热更资源包中
+        TextAsset keyAsset = null;
+        try
+        {
+            keyAsset = await GameModule.Resource.LoadAssetAsync<TextAsset>("defaultDynamicSecretKey");
+        }
+        catch (Exception e)
+        {
+            s_Failed = true;
+            s_ErrorMsg = $"Obfuz 动态密钥加载失败：YooAsset 加载异常。{e.Message}";
+            Log.Fatal($"[Obfuz] {s_ErrorMsg}");
+            return false;
+        }
+
+        if (keyAsset == null || keyAsset.bytes == null || keyAsset.bytes.Length == 0)
+        {
+            s_Failed = true;
+            s_ErrorMsg = "Obfuz 动态密钥加载失败：defaultDynamicSecretKey 资源缺失或为空。"
+                + "已将 GameLogic 纳入 assembliesUsingDynamicSecretKeys，但无动态密钥将无法解密混淆代码。";
+            Log.Fatal($"[Obfuz] {s_ErrorMsg}");
+            if (keyAsset != null) GameModule.Resource.UnloadAsset(keyAsset);
+            return false;
+        }
+
+        s_DynamicSecretKey = keyAsset.bytes;
+        GameModule.Resource.UnloadAsset(keyAsset);
+
+        EncryptionService<DefaultDynamicEncryptionScope>.Encryptor =
+            new GeneratedEncryptionVirtualMachine(s_DynamicSecretKey);
+        Log.Info("[Obfuz] Dynamic secret key initialized (before Assembly.Load).");
+        return true;
+    }
+
+    public static bool CheckFailureAndReport()
+    {
+        if (!s_Failed) return false;
+        LauncherMgr.ShowMessageBox(s_ErrorMsg, Application.Quit);
+        return true;
+    }
+#endif
+}
+```
+
+**调用侧：`ProcedureLoadAssembly.LoadAssembly()` 中插入动态密钥初始化**
+
+```csharp
+private async UniTaskVoid LoadAssembly()
+{
+    _loadAssemblyComplete = false;
+    _hotfixAssemblyList = new List<Assembly>();
+
+#if ENABLE_OBFUZ && !UNITY_EDITOR
+    // 动态密钥必须在 Assembly.Load 热更 DLL 前初始化！
+    // 此时 YooAsset 已初始化（ProcedureInitResources 已完成），可加载热更密钥资源
+    if (!await ObfuzRuntimeInitializer.SetUpDynamicSecretKeyAsync())
+    {
+        // 动态密钥加载失败：标记失败，由 OnUpdate/后续流程报告
+        // 此处不 return（保持与静态密钥相同的延迟报告模式）
+        // 但绝不能继续 Assembly.Load——否则混淆代码无密钥会崩
+        _loadAssemblyComplete = true;  // 跳过加载，直接进入 OnUpdate 的完成检查
+        return;
+    }
+#endif
+
+    // ... 后续原有的 AOT metadata + DLL 加载逻辑不变 ...
+}
+```
+
+> **注意**：`ProcedureLoadAssembly` 属 Assembly-CSharp（不混淆），调用 `ObfuzRuntimeInitializer` 无 ObfuzIgnore 需求。动态密钥初始化方法用 `#if ENABLE_OBFUZ && !UNITY_EDITOR` 守卫，与静态密钥一致。
+
+##### E. Editor 守卫与测试约束
+
+| 约束 | 说明 |
+|------|------|
+| `!UNITY_EDITOR` 守卫 | 与静态密钥一致——EditorSimulateMode 加载原始未混淆程序集，常量未加密，注入 Encryptor 会破坏运行 |
+| 真机验证 | 启用动态密钥后只能在真机测试（Obfuz FAQ 禁止 Editor 跑混淆代码） |
+| 密钥文件不入主包 | ✅ 已迁移到 `Assets/AssetRaw/DLL/Obfuz/`（YooAsset 热更资源目录）；主包只保留 `Assets/Resources/Obfuz/defaultStaticSecretKey.bytes` |
+
+##### F. 密钥轮换流程（后续 editor 页面实现，本阶段不做）
+
+> **本阶段不做密钥轮换**：后续会做一个 editor 页面来统一管理密钥种子更新、密钥文件重新生成、`assembliesUsingDynamicSecretKeys` 配置等。此处仅记录轮换原理供该 editor 页面参考。
+
+动态密钥的核心价值是轮换。轮换步骤（由后续 editor 页面封装）：
+
+1. 在 `Obfuz.asset` 中修改 `defaultDynamicSecretKey` 为新种子值
+2. 运行 `Obfuz/GenerateSecretKeyFile` 重新生成密钥文件
+3. 将新的 `defaultDynamicSecretKey.bytes` 打入热更资源包
+4. 用混淆器重新混淆热更 DLL（`assembliesUsingDynamicSecretKeys` 中的程序集会自动用新动态密钥加密）
+5. 发布热更版本
+
+**不可轮换项**（参数冻结矩阵）：
+- `codeGenerationSecretKey`（VM 代码生成密钥）——VM 在 AOT 时固化，不可随热更改
+- `encryptionOpCodeCount`——ops 解码基数，不可改
+- `defaultStaticSecretKey`——静态密钥与主包绑定，不可改
+
+#### 5.3.4 实施检查清单
+
+- [x] ~~将 `defaultDynamicSecretKey.bytes` 从 `Assets/Resources/Obfuz/` 移除，改为热更资源~~ → 已迁移到 `Assets/AssetRaw/DLL/Obfuz/`
+- [x] ~~`Obfuz.asset` 的 `dynamicSecretKeyOutputPath` 同步更新~~ → 已改为 `Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes`
+- [ ] 替换 `Obfuz.asset` 中 `defaultDynamicSecretKey` 的默认值（`Code Philosophy-Dynamic`）——后续 editor 页面统一处理
+- [ ] 在 `assembliesUsingDynamicSecretKeys` 中填入 `GameLogic`——后续 editor 页面统一处理
+- [ ] 运行 `Obfuz/GenerateSecretKeyFile` 重新生成密钥文件
+- [ ] 实现 `ObfuzRuntimeInitializer.SetUpDynamicSecretKeyAsync()`
+- [ ] 在 `ProcedureLoadAssembly.LoadAssembly()` 中、`Assembly.Load` 前调用动态密钥初始化
+- [ ] 真机验证：静态密钥 → 动态密钥 → 热更 DLL 加载 → GameApp.Entrance 全链路
+- [ ] 评估 `GameProto` 是否纳入动态 scope（序列化兼容性验证）
 
 ---
 
@@ -264,13 +497,15 @@ nonObfuscatedButReferencingObfuscatedAssemblies:
 
 TEngine 的 Obfuz 集成在**编辑器侧**（ObfuzConfigWindow 配置窗口、BuildDLLCommand 混淆链路、健康检查）已经比 DGame 更完善。
 
-**运行时初始化已于 2026-08-28 补齐，方案演进 A→B**：
+**运行时静态密钥初始化已于 2026-08-28 补齐，方案演进 A→B**：
 - ~~方案 A：放 `ProcedureLoadAssembly.OnEnter`~~（已回退）——能跑但时机偏晚、与官方推荐不符。
 - **方案 B（最终）**：独立 `ObfuzRuntimeInitializer`，`[RuntimeInitializeOnLoadMethod(AfterAssembliesLoaded)]` 初始化 + `#if ENABLE_OBFUZ && !UNITY_EDITOR` 守卫；失败延迟到 `ProcedureLaunch.OnEnter`（`LauncherMgr.Initialize` 后 UI 就绪）经 `LauncherMgr.ShowMessageBox` 弹仅含确认按钮的原生对话框，点击 `Application.Quit()` 退出。
 
 方案 B 相对 DGame 的三点改进：① 时机从 ProcedureLoadAssembly 提前到 AfterAssembliesLoaded（覆盖主包 AOT 代码被混淆的常量）；② 密钥 asset/bytes 空值校验 + `Log.Fatal` + 延迟弹窗（DGame 无校验）；③ `!UNITY_EDITOR` 守卫规避 FAQ "Editor 不可跑混淆代码" 警告。
 
 引用跟随程序集声明（`nonObfuscatedButReferencingObfuscatedAssemblies`）也已就位（`TEngine.Runtime, Assembly-CSharp, Launcher`）。
+
+**动态密钥扩展方案（5.3）已部分落地**：密钥文件已迁移到 `Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes`（YooAsset 热更资源目录），`Obfuz.asset` 的 `dynamicSecretKeyOutputPath` 已同步更新。通过源码验证了 Obfuz 的 `EncryptionScopeProvider.GetScope()` 按 `assembliesUsingDynamicSecretKeys` 分配静态/动态 scope 的机制；方案核心是在 `ProcedureLoadAssembly.LoadAssembly()` 中、`Assembly.Load` 前调用 `ObfuzRuntimeInitializer.SetUpDynamicSecretKeyAsync()`（通过 YooAsset 加载热更密钥资源），确保动态 scope 的 Encryptor 在混淆代码执行前就绪。密钥种子替换、`assembliesUsingDynamicSecretKeys` 填充和密钥轮换流程留待后续 editor 页面统一处理。
 
 至此 TEngine 的 Obfuz 链路完整。当前 `enabledPasses=-3`（只 Symbol+RemoveConstField）不出问题，切到含 ConstEncrypt/FieldEncrypt 的预设前现已具备运行时解密能力。**注意**：启用加密 Pass 后只能在真机验证，不可在 Editor 下测试（Obfuz FAQ 明确禁止）。
 

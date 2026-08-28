@@ -35,7 +35,7 @@ MonoBehaviour:
     defaultStaticSecretKey: Code Philosophy-Static
     defaultDynamicSecretKey: Code Philosophy-Dynamic
     staticSecretKeyOutputPath: Assets/Resources/Obfuz/defaultStaticSecretKey.bytes
-    dynamicSecretKeyOutputPath: Assets/Resources/Obfuz/defaultDynamicSecretKey.bytes
+    dynamicSecretKeyOutputPath: Assets/AssetRaw/DLL/Obfuz/defaultDynamicSecretKey.bytes
     randomSeed: 0
     assembliesUsingDynamicSecretKeys: []
   encryptionVMSettings:

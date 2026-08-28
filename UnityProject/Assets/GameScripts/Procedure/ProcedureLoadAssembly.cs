@@ -91,6 +91,21 @@ namespace Procedure
                         }
                     }
 
+#if ENABLE_OBFUZ && !UNITY_EDITOR
+                    // 动态密钥必须在 Assembly.Load 热更 DLL 前初始化！
+                    // 此时 YooAsset 已初始化（ProcedureInitResources 已完成），可加载热更密钥资源。
+                    // 密钥文件位于 Assets/AssetRaw/DLL/Obfuz/，与热更 DLL 同包。
+                    if (!await ObfuzRuntimeInitializer.SetUpDynamicSecretKeyAsync(_assemblyPackageName))
+                    {
+                        // 动态密钥加载失败：UI 已在 ProcedureLaunch 初始化，直接弹窗报告并退出。
+                        // 不继续 Assembly.Load——无密钥下加载混淆 DLL 会触发类型初始化异常。
+                        ObfuzRuntimeInitializer.CheckFailureAndReport();
+                        _loadAssemblyComplete = true;
+                        _loadAssemblyWait = true;
+                        return;
+                    }
+#endif
+
                     // 加载热更 dll
                     foreach (string hotUpdateDllName in _setting.HotUpdateAssemblies)
                     {

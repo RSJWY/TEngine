@@ -1,9 +1,9 @@
 # 代码研究索引
 
 ## 2026-08-28
-- [DGame Obfuz 密钥加载处理分析与 TEngine 借鉴方案](./2026-08-28-dgame-obfuz-secret-loading-analysis.md)（方案 B 最终实施）
-  - 关键词：Obfuz密钥初始化实施、ObfuzRuntimeInitializer、RuntimeInitializeOnLoadMethod、AfterAssembliesLoaded、EncryptionService注入、DefaultStaticEncryptionScope、GeneratedEncryptionVirtualMachine、Resources.Load密钥、空值校验Log.Fatal、延迟报告、CheckFailureAndReport、ProcedureLaunch.OnEnter、LauncherMgr.ShowMessageBox、仅确认按钮Application.Quit、ENABLE_OBFUZ宏、!UNITY_EDITOR守卫、Obfuz FAQ禁止Editor跑混淆代码、EditorSimulateMode加载原始程序集、方案A已回退、ProcedureLoadAssembly恢复原状
-  - 结论：独立 ObfuzRuntimeInitializer 用 AfterAssembliesLoaded 初始化静态密钥（!UNITY_EDITOR 守卫），失败延迟到 ProcedureLaunch（LauncherMgr.Initialize 后）弹仅含确认的对话框并退出；方案 A（放 ProcedureLoadAssembly）已回退；Editor 不可测混淆代码。
+- [DGame Obfuz 密钥加载处理分析与 TEngine 借鉴方案](./2026-08-28-dgame-obfuz-secret-loading-analysis.md)（方案 B 最终实施 + 动态密钥方案部分落地）
+  - 关键词：Obfuz密钥初始化实施、ObfuzRuntimeInitializer、RuntimeInitializeOnLoadMethod、AfterAssembliesLoaded、EncryptionService注入、DefaultStaticEncryptionScope、GeneratedEncryptionVirtualMachine、Resources.Load静态密钥、空值校验Log.Fatal、延迟报告、CheckFailureAndReport、ProcedureLaunch.OnEnter、LauncherMgr.ShowMessageBox、仅确认按钮Application.Quit、ENABLE_OBFUZ宏、!UNITY_EDITOR守卫、Obfuz FAQ禁止Editor跑混淆代码、EditorSimulateMode加载原始程序集、方案A已回退、ProcedureLoadAssembly恢复原状、动态密钥方案、DefaultDynamicEncryptionScope、assembliesUsingDynamicSecretKeys、EncryptionScopeProvider.GetScope、SetupDynamicSecretKeyAsync、YooAsset加载热更密钥、密钥迁移AssetRaw/DLL/Obfuz、密钥不随主包出包、密钥轮换后续editor页面、参数冻结矩阵、GameLogic动态scope、ProcedureLoadAssembly.Assembly.Load前初始化
+  - 结论：静态密钥用 AfterAssembliesLoaded 初始化（!UNITY_EDITOR 守卫），失败延迟到 ProcedureLaunch 弹框退出；动态密钥密钥文件已迁移到 AssetRaw/DLL/Obfuz（YooAsset 热更资源），方案在 ProcedureLoadAssembly.Assembly.Load 前用 YooAsset 加载初始化 DefaultDynamicEncryptionScope，密钥种子替换和轮换留待后续 editor 页面。
 - [DGame Obfuz 密钥加载处理分析与 TEngine 借鉴方案](./2026-08-28-dgame-obfuz-secret-loading-analysis.md)
   - 关键词：Obfuz密钥、SetUpStaticSecretKey、EncryptionService、DefaultStaticEncryptionScope、GeneratedEncryptionVirtualMachine、Resources.Load密钥、ENABLE_OBFUZ宏、ProcedureLoadAssembly、密钥初始化时机、nonObfuscatedReferencingAssemblies、obfuscateObfuzRuntime、动态密钥未用、ObfuzConfigWindow、资源加密正交、ConstEncrypt/FieldEncrypt前置条件
   - 结论：TEngine 编辑器侧 Obfuz 集成已强于 DGame，但运行时缺关键一环——ProcedureLoadAssembly 未初始化静态密钥，补上 SetUpStaticSecretKey + 引用跟随声明即完整。（已实施，见上方更新条目）
