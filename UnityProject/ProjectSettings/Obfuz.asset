@@ -29,7 +29,7 @@ MonoBehaviour:
     additionalAssemblySearchPaths: []
     obfuscateObfuzRuntime: 1
   obfuscationPassSettings:
-    enabledPasses: -3
+    enabledPasses: 1052419
     ruleFiles: []
   secretSettings:
     defaultStaticSecretKey: Code Philosophy-Static
@@ -40,7 +40,7 @@ MonoBehaviour:
     assembliesUsingDynamicSecretKeys: []
   encryptionVMSettings:
     codeGenerationSecretKey: Obfuz
-    encryptionOpCodeCount: 256
+    encryptionOpCodeCount: 128
     codeOutputPath: Assets/Obfuz/GeneratedEncryptionVirtualMachine.cs
   symbolObfusSettings:
     debug: 0
@@ -83,7 +83,7 @@ MonoBehaviour:
       methodCountPerClass: 10
       fieldCountPerClass: 50
       garbageCodeType: 1
-      outputPath: Assets/Obfuz/GarbageCode
+      outputPath: Assets/GameScripts/HotFix/GameLogic/GarbageCode
     additionalTasks: []
   watermarkSettings:
     text: Obfuscated by Obfuz
