@@ -275,22 +275,49 @@ public static class BuildDLLCommand
 
         string hotUpdateDllPath = $"{SettingsUtil.GetHotUpdateDllsOutputDirByTarget(target)}";
         List<string> obfuscationRelativeAssemblyNames = ObfuzSettings.Instance.assemblySettings.GetObfuscationRelativeAssemblyNames();
+        bool polymorphicEnabled = ObfuzSettings.Instance.polymorphicDllSettings.enable;
+        string polymorphicHotUpdateDllPath = GetPolymorphicHotUpdateAssemblyOutputPath(target);
 
         foreach (string assName in SettingsUtil.HotUpdateAssemblyNamesIncludePreserved)
         {
             string srcDir = obfuscationRelativeAssemblyNames.Contains(assName) ? obfuscatedHotUpdateDllPath : hotUpdateDllPath;
             string srcFile = $"{srcDir}/{assName}.dll";
             string dstFile = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.HotUpdateAssemblySubPath + $"/{assName}.dll.bytes";
-            if (File.Exists(srcFile))
+            if (!File.Exists(srcFile))
             {
-                File.Copy(srcFile, dstFile, true);
-                Debug.Log($"[CompileAndObfuscate] Copy {srcFile} to {dstFile}");
+                continue;
             }
+            if (polymorphicEnabled)
+            {
+                srcFile = GeneratePolymorphicHotUpdateDll(srcFile, polymorphicHotUpdateDllPath, assName);
+            }
+            File.Copy(srcFile, dstFile, true);
+            Debug.Log($"[CompileAndObfuscate] Copy {srcFile} to {dstFile}");
         }
 #endif
         
         AssetDatabase.Refresh();
     }
+
+#if ENABLE_HYBRIDCLR && ENABLE_OBFUZ
+    /// <summary>多态热更 dll 输出目录，与混淆产物目录平行，避免标准/多态两种格式混写。</summary>
+    private static string GetPolymorphicHotUpdateAssemblyOutputPath(BuildTarget target)
+    {
+        return $"{ObfuzSettings.Instance.ObfuzRootDir}/{target}/PolymorphicHotUpdateAssemblies";
+    }
+
+    /// <summary>
+    /// 将混淆/原始 dll 转为多态格式（结构由 polymorphicDllSettings.codeGenerationSecretKey 决定）。
+    /// 转换失败直接抛异常中断构建，避免静默回退标准格式产物。
+    /// </summary>
+    private static string GeneratePolymorphicHotUpdateDll(string srcFile, string outputDir, string assemblyName)
+    {
+        Directory.CreateDirectory(outputDir);
+        string dstFile = $"{outputDir}/{assemblyName}.dll";
+        ObfuscateUtil.GeneratePolymorphicDll(srcFile, dstFile);
+        return dstFile;
+    }
+#endif
 
     public static void CopyAOTAssembliesToAssetPath()
     {
