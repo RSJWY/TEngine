@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-08-28
+- [Obfuz 多态 DLL（PolymorphicDll）机制研究](./2026-08-28-obfuz-polymorphic-dll-mechanism-research.md)
+  - 关键词：PolymorphicDll、GeneratePolymorphicDll、CODEPHPY签名、Image.cpp INIT_RAW_IMAGE、disableLoadStandardDll烧入App、PolymorphicRawImage、obfuz-samples WorkWithHybridCLR、混淆产物链式、补充元数据跟随、密钥冻结参数、GenerateAll注入libil2cpp
+  - 结论：enable 只管运行时支持，生成需显式调 GeneratePolymorphicDll；格式按文件头逐个识别可混用，补充元数据是否跟随由 disableLoadStandardDll 决定。
 - [DGame Obfuz 密钥加载处理分析与 TEngine 借鉴方案](./2026-08-28-dgame-obfuz-secret-loading-analysis.md)（方案 B 最终实施 + 动态密钥方案部分落地）
   - 关键词：Obfuz密钥初始化实施、ObfuzRuntimeInitializer、RuntimeInitializeOnLoadMethod、AfterAssembliesLoaded、EncryptionService注入、DefaultStaticEncryptionScope、GeneratedEncryptionVirtualMachine、Resources.Load静态密钥、空值校验Log.Fatal、延迟报告、CheckFailureAndReport、ProcedureLaunch.OnEnter、LauncherMgr.ShowMessageBox、仅确认按钮Application.Quit、ENABLE_OBFUZ宏、!UNITY_EDITOR守卫、Obfuz FAQ禁止Editor跑混淆代码、EditorSimulateMode加载原始程序集、方案A已回退、ProcedureLoadAssembly恢复原状、动态密钥方案、DefaultDynamicEncryptionScope、assembliesUsingDynamicSecretKeys、EncryptionScopeProvider.GetScope、SetupDynamicSecretKeyAsync、YooAsset加载热更密钥、密钥迁移AssetRaw/DLL/Obfuz、密钥不随主包出包、密钥轮换后续editor页面、参数冻结矩阵、GameLogic动态scope、ProcedureLoadAssembly.Assembly.Load前初始化
   - 结论：静态密钥用 AfterAssembliesLoaded 初始化（!UNITY_EDITOR 守卫），失败延迟到 ProcedureLaunch 弹框退出；动态密钥密钥文件已迁移到 AssetRaw/DLL/Obfuz（YooAsset 热更资源），方案在 ProcedureLoadAssembly.Assembly.Load 前用 YooAsset 加载初始化 DefaultDynamicEncryptionScope，密钥种子替换和轮换留待后续 editor 页面。

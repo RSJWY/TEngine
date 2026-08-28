@@ -5,6 +5,9 @@
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
 ## 2026-08-28
+- [Obfuz 多态 DLL 接入热更构建链路](./2026-08-28-obfuz-polymorphic-dll-hotupdate-summary.md)
+  - 关键词：PolymorphicDll、GeneratePolymorphicDll、CopyAOTHotUpdateDlls、混淆产物链式、PolymorphicHotUpdateAssemblies、disableLoadStandardDll、GenerateAll注入、多态密钥冻结、补充元数据标准格式、obfuz-samples参考、BuildDLLCommand、ENABLE_OBFUZ
+  - 结论：enable 不自动生成多态 dll，已在 CopyAOTHotUpdateDlls 接入混淆后转换，待换密钥/GenerateAll 注入/真机冒烟。
 - [TEngine_Fantasy 分支结构与侵入性分析](./2026-08-28-tengine-fantasy-branch-analysis-summary.md)
   - 关键词：TEngine_Fantasy分支、Fantasy.Unity、GameServer、外挂式集成、AOT拆分、TEngine.AOT程序集、GameClient、ProtocolExportTool、NetworkProtocol、proto生成、OuterMessage、OuterOpcode、RouteType、共享协议源、侵入性极小、框架核心零改动、ReadMe补丁清单、SuperScrollView
   - 结论：Fantasy 是外挂式集成，TEngine 框架核心零改动（仅 8 文件 ~290 行边缘改动），协议源头在 GameServer/Tools/NetworkProtocol/，导出工具分发生成代码到两端。
