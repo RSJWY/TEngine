@@ -21,7 +21,7 @@
       <Collector CollectPath="Assets/AssetRaw/Materials" CollectGUID="228b1547e7065d546ad0bf215fd6a276" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>
     <Group GroupActiveRule="EnableGroup" GroupName="Scenes" GroupDesc="" AssetTags="">
-      <Collector CollectPath="Assets/AssetRaw/Scenes" CollectGUID="cace6ee6539f661419b5e5f8ae1c0146" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
+      <Collector CollectPath="Assets/AssetRaw/Scenes" CollectGUID="cace6ee6539f661419b5e5f8ae1c0146" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackSceneFile" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>
     <Group GroupActiveRule="EnableGroup" GroupName="UI" GroupDesc="" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/UI" CollectGUID="27e87d83814156648b58f380b834e046" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackSeparately" FilterRule="CollectAll" UserData="" AssetTags="" />
@@ -36,14 +36,14 @@
     </Group>
   </Package>
   <Package PackageName="CodePackage" PackageDesc="" AutoAddressable="true" SupportExtensionless="true" LocationToLower="false" IncludeAssetGUID="false" AutoCollectShaders="false" IgnoreRuleName="RawFileIgnoreRule">
-    <Group GroupActiveRule="EnableGroup" GroupName="AOT" GroupDesc="aotdll" AssetTags="">
-      <Collector CollectPath="Assets/AssetRaw/DLL/AOT" CollectGUID="daad56d8c5d0f2f4680a7320e3203182" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectAll" UserData="" AssetTags="" />
+    <Group GroupActiveRule="EnableGroup" GroupName="AOT" GroupDesc="" AssetTags="">
+      <Collector CollectPath="Assets/AssetRaw/DLL/AOT" CollectGUID="daad56d8c5d0f2f4680a7320e3203182" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectBytesOnly" UserData="" AssetTags="" />
     </Group>
     <Group GroupActiveRule="EnableGroup" GroupName="HotDll" GroupDesc="" AssetTags="">
-      <Collector CollectPath="Assets/AssetRaw/DLL/HotDll" CollectGUID="7ced23d46eb69044bb8c10765c763d4d" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectAll" UserData="" AssetTags="" />
+      <Collector CollectPath="Assets/AssetRaw/DLL/HotDll" CollectGUID="7ced23d46eb69044bb8c10765c763d4d" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectBytesOnly" UserData="" AssetTags="" />
     </Group>
     <Group GroupActiveRule="EnableGroup" GroupName="PDB" GroupDesc="" AssetTags="">
-      <Collector CollectPath="Assets/AssetRaw/DLL/PDB" CollectGUID="129fef731ed71b942bd87c51f17c560e" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectAll" UserData="" AssetTags="" />
+      <Collector CollectPath="Assets/AssetRaw/DLL/PDB" CollectGUID="129fef731ed71b942bd87c51f17c560e" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectBytesOnly" UserData="" AssetTags="" />
     </Group>
     <Group GroupActiveRule="EnableGroup" GroupName="obfuz" GroupDesc="" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/DLL/Obfuz" CollectGUID="7d5d2c636bdd6b442a46d61d4bf4482d" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectAll" UserData="" AssetTags="" />

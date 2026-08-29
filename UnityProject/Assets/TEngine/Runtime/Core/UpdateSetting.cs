@@ -461,6 +461,13 @@ namespace TEngine
         public string GetAOTMetadataManifestAssetPath()
             => Utility.Path.GetRegularPath(Path.Combine(GetAOTAssemblyAssetPath(), $"{AOTMetadataManifest.ManifestAssetName}.asset"));
 
+        /// <summary>
+        /// 获取 AOT 元数据清单打包资产路径（.json.bytes，供 YooAsset 收集与运行时加载）。
+        /// 归档管线与非归档管线统一从此路径加载 JSON 字节流。
+        /// </summary>
+        public string GetAOTMetadataManifestBytesAssetPath()
+            => Utility.Path.GetRegularPath(Path.Combine(GetAOTAssemblyAssetPath(), AOTMetadataManifest.ManifestJsonAssetName));
+
         private string GetDefaultVersionKey(string packageName, bool isAssemblyPackage)
         {
             if (string.Equals(packageName, DefaultPackageName, StringComparison.Ordinal))

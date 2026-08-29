@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: AOTMetadataManifest
   m_EditorClassIdentifier: 
   AOTMetaAssemblies:
+  - DOTween.dll
   - System.Core.dll
   - TEngine.Runtime.dll
   - UniTask.dll

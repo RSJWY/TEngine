@@ -229,10 +229,14 @@ public static class BuildDLLCommand
         EditorUtility.SetDirty(manifest);
         AssetDatabase.SaveAssets();
 
+        // 同步写入 .json.bytes 打包资产：归档管线与非归档管线统一从 JSON 字节流加载 manifest。
+        WriteAOTMetadataManifestJson(newList);
+
         Debug.Log($"[AOTMetadata] 同步完成：{GetAOTMetadataManifestAssetPath()}\n" +
                   $"  生成项：{generatedAssemblies.Count} 个 [{string.Join(", ", generatedAssemblies)}]\n" +
                   $"  保留额外项：{extra.Count} 个 [{string.Join(", ", extra)}]\n" +
-                  $"  最终：{newList.Count} 个");
+                  $"  最终：{newList.Count} 个\n" +
+                  $"  JSON 资产已写入：{GetAOTMetadataManifestBytesAssetPath()}");
 #else
         Debug.LogWarning("[AOTMetadata] 同步跳过：需启用 ENABLE_HYBRIDCLR 宏定义");
 #endif
@@ -423,6 +427,29 @@ public static class BuildDLLCommand
     private static string GetAOTMetadataManifestAssetPath()
     {
         return TEngine.Settings.UpdateSetting.GetAOTMetadataManifestAssetPath();
+    }
+
+    private static string GetAOTMetadataManifestBytesAssetPath()
+    {
+        return TEngine.Settings.UpdateSetting.GetAOTMetadataManifestBytesAssetPath();
+    }
+
+    /// <summary>
+    /// 将 manifest 列表写入 .json.bytes 打包资产。
+    /// 归档管线（RawFileObject.GetBytes）与非归档管线（TextAsset.bytes）统一读取此文件。
+    /// </summary>
+    private static void WriteAOTMetadataManifestJson(List<string> assemblies)
+    {
+        string assetPath = GetAOTMetadataManifestBytesAssetPath();
+        string fullDir = Path.GetDirectoryName(Application.dataPath + "/" + assetPath.Substring("Assets/".Length));
+        Directory.CreateDirectory(fullDir);
+
+        var manifest = LoadAOTMetadataManifest();
+        string json = manifest != null ? manifest.ToJson() : JsonUtility.ToJson(new { AOTMetaAssemblies = assemblies }, true);
+        string fullPath = Application.dataPath + "/" + assetPath.Substring("Assets/".Length);
+        File.WriteAllText(fullPath, json);
+        AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+        Debug.Log($"[AOTMetadata] JSON 资产已写入：{assetPath}");
     }
 
     private static List<string> GetGeneratedPatchedAOTAssemblies()

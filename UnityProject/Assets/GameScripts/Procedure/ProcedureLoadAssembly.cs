@@ -330,50 +330,49 @@ namespace Procedure
 
         private async UniTask<List<string>> GetAOTMetaAssembliesAsync()
         {
-            if (_setting.GetRuntimePackage(_assemblyPackageName)?.BuildPipeline == RuntimePackageBuildPipeline.ArchiveFileBuildPipeline)
-            {
-                return _setting.AOTMetaAssemblies
-                    .Where(assembly => !string.IsNullOrWhiteSpace(assembly))
-                    .Distinct(StringComparer.Ordinal)
-                    .ToList();
-            }
-
+            // 统一从 .json.bytes 加载 manifest：归档管线用 RawFileObject.GetBytes，非归档管线用 TextAsset.bytes。
+            // 两种管线反序列化路径相同，仅资产类型不同。
             var manifestLocation = AOTMetadataManifest.ManifestAssetName;
+            var isArchivePackage = _setting.GetRuntimePackage(_assemblyPackageName)?.BuildPipeline == RuntimePackageBuildPipeline.ArchiveFileBuildPipeline;
             if (!_enableAddressable)
             {
                 manifestLocation = Utility.Path.GetRegularPath(
-                    Path.Combine("Assets", _setting.AssemblyTextAssetPath, $"{AOTMetadataManifest.ManifestAssetName}.asset"));
+                    Path.Combine("Assets", _setting.AssemblyTextAssetPath, _setting.AOTAssemblySubPath, AOTMetadataManifest.ManifestJsonAssetName));
             }
 
-            Log.Debug($"[AOTMetadata] 查找运行时AOTMetadataManifest。Location:{manifestLocation}, Package:{_assemblyPackageName}");
+            Log.Debug($"[AOTMetadata] 查找运行时 AOTMetadataManifest JSON。Location:{manifestLocation}, Package:{_assemblyPackageName}, Archive:{isArchivePackage}");
             if (_resourceModule.CheckLocationValid(manifestLocation, _assemblyPackageName))
             {
-                Log.Debug($"[AOTMetadata] AOTMetadataManifest location有效，开始加载。Location:{manifestLocation}, Package:{_assemblyPackageName}");
-                var manifest = await _resourceModule.LoadAssetAsync<AOTMetadataManifest>(manifestLocation, default, _assemblyPackageName);
-                if (manifest != null && manifest.AOTMetaAssemblies != null && manifest.AOTMetaAssemblies.Count > 0)
+                Log.Debug($"[AOTMetadata] AOTMetadataManifest JSON location 有效，开始加载。Location:{manifestLocation}, Package:{_assemblyPackageName}");
+                byte[] jsonBytes = null;
+                if (isArchivePackage)
                 {
-                    var assemblies = manifest.AOTMetaAssemblies
-                        .Where(assembly => !string.IsNullOrWhiteSpace(assembly))
-                        .Distinct(StringComparer.Ordinal)
-                        .ToList();
-                    _resourceModule.UnloadAsset(manifest);
-                    Log.Debug($"[AOTMetadata] 使用热更AOTMetadataManifest列表。Location:{manifestLocation}, Count:{assemblies.Count}, List:{string.Join(", ", assemblies)}");
-                    return assemblies;
-                }
-
-                if (manifest != null)
-                {
-                    Log.Warning($"[AOTMetadata] AOTMetadataManifest已加载但列表为空，回退 UpdateSetting.AOTMetaAssemblies。Location:{manifestLocation}");
-                    _resourceModule.UnloadAsset(manifest);
+                    var rawFile = await _resourceModule.LoadAssetAsync<RawFileObject>(manifestLocation, default, _assemblyPackageName);
+                    jsonBytes = rawFile?.GetBytes();
+                    if (rawFile != null) _resourceModule.UnloadAsset(rawFile);
                 }
                 else
                 {
-                    Log.Warning($"[AOTMetadata] AOTMetadataManifest加载结果为空，回退 UpdateSetting.AOTMetaAssemblies。Location:{manifestLocation}");
+                    var textAsset = await _resourceModule.LoadAssetAsync<TextAsset>(manifestLocation, default, _assemblyPackageName);
+                    jsonBytes = textAsset?.bytes;
+                    if (textAsset != null) _resourceModule.UnloadAsset(textAsset);
                 }
+
+                if (jsonBytes != null && jsonBytes.Length > 0)
+                {
+                    var assemblies = AOTMetadataManifest.FromJsonBytes(jsonBytes)
+                        .Where(assembly => !string.IsNullOrWhiteSpace(assembly))
+                        .Distinct(StringComparer.Ordinal)
+                        .ToList();
+                    Log.Debug($"[AOTMetadata] 使用 AOTMetadataManifest JSON 列表。Location:{manifestLocation}, Count:{assemblies.Count}, List:{string.Join(", ", assemblies)}");
+                    return assemblies;
+                }
+
+                Log.Warning($"[AOTMetadata] AOTMetadataManifest JSON 已加载但字节为空，回退 UpdateSetting.AOTMetaAssemblies。Location:{manifestLocation}");
             }
             else
             {
-                Log.Warning($"[AOTMetadata] AOTMetadataManifest location无效，回退 UpdateSetting.AOTMetaAssemblies。Location:{manifestLocation}, Package:{_assemblyPackageName}");
+                Log.Warning($"[AOTMetadata] AOTMetadataManifest JSON location 无效，回退 UpdateSetting.AOTMetaAssemblies。Location:{manifestLocation}, Package:{_assemblyPackageName}");
             }
 
             var fallbackAssemblies = _setting.AOTMetaAssemblies

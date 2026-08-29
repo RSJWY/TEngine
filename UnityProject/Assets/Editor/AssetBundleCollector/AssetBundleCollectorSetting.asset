@@ -26,8 +26,8 @@ MonoBehaviour:
     IgnoreRuleName: NormalIgnoreRule
     Groups:
     - GroupName: Actor
-      GroupDesc:
-      AssetTags:
+      GroupDesc: 
+      AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
       - CollectPath: Assets/AssetRaw/Actor
@@ -36,8 +36,8 @@ MonoBehaviour:
         AddressRuleName: AddressByFileName
         PackRuleName: PackDirectory
         FilterRuleName: CollectAll
-        AssetTags:
-        UserData:
+        AssetTags: 
+        UserData: 
     - GroupName: Audios
       GroupDesc: 
       AssetTags: 
@@ -112,7 +112,7 @@ MonoBehaviour:
         CollectorGUID: cace6ee6539f661419b5e5f8ae1c0146
         CollectorType: 0
         AddressRuleName: AddressByFileName
-        PackRuleName: PackDirectory
+        PackRuleName: PackSceneFile
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
@@ -181,7 +181,7 @@ MonoBehaviour:
     IgnoreRuleName: RawFileIgnoreRule
     Groups:
     - GroupName: AOT
-      GroupDesc: aotdll
+      GroupDesc: 
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
@@ -190,7 +190,7 @@ MonoBehaviour:
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackGroup
-        FilterRuleName: CollectAll
+        FilterRuleName: CollectBytesOnly
         AssetTags: 
         UserData: 
     - GroupName: HotDll
@@ -203,7 +203,7 @@ MonoBehaviour:
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackGroup
-        FilterRuleName: CollectAll
+        FilterRuleName: CollectBytesOnly
         AssetTags: 
         UserData: 
     - GroupName: PDB
@@ -216,12 +216,12 @@ MonoBehaviour:
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackGroup
-        FilterRuleName: CollectAll
+        FilterRuleName: CollectBytesOnly
         AssetTags: 
         UserData: 
     - GroupName: obfuz
-      GroupDesc:
-      AssetTags:
+      GroupDesc: 
+      AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
       - CollectPath: Assets/AssetRaw/DLL/Obfuz
@@ -230,5 +230,5 @@ MonoBehaviour:
         AddressRuleName: AddressByFileName
         PackRuleName: PackGroup
         FilterRuleName: CollectAll
-        AssetTags:
-        UserData:
+        AssetTags: 
+        UserData: 
