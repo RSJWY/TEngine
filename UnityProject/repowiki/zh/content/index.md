@@ -1,5 +1,8 @@
 ## wiki参考
 
+**当前 Fork（优先阅读）**：
+- [项目概述/当前Fork定制功能.md](repowiki/zh/content/项目概述/当前Fork定制功能.md) - 当前 fork 的资源、热更新、模块、UI 与构建基线
+
 **项目概述**：
 - [项目概述/](repowiki/zh/content/项目概述/) - 项目整体结构与概述
 
@@ -19,6 +22,7 @@
 - [模块系统/模块生命周期管理.md](repowiki/zh/content/模块系统/模块生命周期管理.md) - 生命周期管理
 - [模块系统/模块间通信.md](repowiki/zh/content/模块系统/模块间通信.md) - 模块通信
 - [模块系统/自定义模块开发.md](repowiki/zh/content/模块系统/自定义模块开发.md) - 自定义模块
+- [模块系统/Fork运行时模块.md](repowiki/zh/content/模块系统/Fork运行时模块.md) - RuntimeConfig、Timer、GameObjectPool、Anim、GameScene、Screen
 
 **资源管理**：
 - [资源管理/](repowiki/zh/content/资源管理/) - 资源管理（YooAsset）
@@ -40,6 +44,7 @@
 - [UI系统/UI框架架构.md](repowiki/zh/content/UI系统/UI框架架构.md) - 框架架构
 - [UI系统/UI窗口管理.md](repowiki/zh/content/UI系统/UI窗口管理.md) - 窗口管理
 - [UI系统/UI脚本生成器.md](repowiki/zh/content/UI系统/UI脚本生成器.md) - 脚本生成器
+- [UI系统/Fork业务数据与UI.md](repowiki/zh/content/UI系统/Fork业务数据与UI.md) - DataBinding、存档、帧动画、UGUI 扩展和日志工具
 
 **音频系统**：
 - [音频系统/](repowiki/zh/content/音频系统/) - 音频系统
@@ -55,7 +60,7 @@
 - [流程管理/自定义流程开发.md](repowiki/zh/content/流程管理/自定义流程开发.md) - 自定义流程
 
 **配置系统**：
-- [配置系统/](repowiki/zh/content/配置系统/) - 配置系统（Luban）
+- [配置系统/配置系统.md](repowiki/zh/content/配置系统/配置系统.md) - RuntimeConfig 轻量配置与可选 Luban 配置表
 
 **内存管理**：
 - [内存管理/内存管理.md](repowiki/zh/content/内存管理/内存管理.md) - 内存管理
@@ -68,6 +73,7 @@
 **编辑器工具**：
 - [编辑器工具/编辑器工具.md](repowiki/zh/content/编辑器工具/编辑器工具.md) - 编辑器工具
 - [编辑器工具/HybridCLR工具.md](repowiki/zh/content/编辑器工具/HybridCLR工具.md) - HybridCLR 工具
+- [编辑器工具/Fork构建与调试工具.md](repowiki/zh/content/编辑器工具/Fork构建与调试工具.md) - 打包窗口、Inno Setup、场景枚举和调试入口
 
 **部署发布**：
 - [部署发布/](repowiki/zh/content/部署发布/) - 部署发布

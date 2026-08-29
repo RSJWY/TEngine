@@ -1,5 +1,7 @@
 # Luban配置系统集成
 
+> **适用范围**：本文是可选的 Luban 配置表集成说明。当前 fork 默认不使用 Luban；轻量运行时配置请使用 `GameModule.Config`。参见 [当前 Fork 定制功能](../项目概述/当前Fork定制功能.md)。
+
 <cite>
 **本文档引用的文件**
 - [BeanBase.cs](file://Assets/GameScripts/HotFix/GameProto/LubanLib/BeanBase.cs)

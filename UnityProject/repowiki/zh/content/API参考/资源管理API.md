@@ -1,5 +1,7 @@
 # 资源管理API
 
+> **YooAsset 3 提示**：当前 fork 使用 `LoadPackageManifestOperation`、`ClearCacheOperation` 和下载器 `StartDownload()`；不要照搬旧版 `UpdatePackageManifestOperation` 或 `BeginDownload()`。Archive 程序集包内二进制资源使用 `RawFileObject`，普通业务资源仍通过 `IResourceModule` 类型化 API 加载。参见 [当前 Fork 定制功能](../项目概述/当前Fork定制功能.md)。
+
 <cite>
 **本文档引用的文件**
 - [IResourceModule.cs](file://Assets/TEngine/Runtime/Module/ResourceModule/IResourceModule.cs)
@@ -160,7 +162,7 @@ class IResourceModule {
 +string PackageVersion
 +string GetPackageVersion(packageName)
 +RequestPackageVersionOperation RequestPackageVersionAsync(appendTimeTicks, timeout, packageName)
-+UpdatePackageManifestOperation UpdatePackageManifestAsync(packageVersion, timeout, packageName)
++LoadPackageManifestOperation UpdatePackageManifestAsync(packageVersion, timeout, packageName)
 +void SetRemoteServicesUrl(defaultHostServer, fallbackHostServer)
 +void OnLowMemory()
 +void SetForceUnloadUnusedAssetsAction(action)
@@ -185,7 +187,7 @@ class ResourceModule {
 +string GetPackageVersion(packageName)
 +RequestPackageVersionOperation RequestPackageVersionAsync(...)
 +void SetRemoteServicesUrl(defaultHostServer, fallbackHostServer)
-+UpdatePackageManifestOperation UpdatePackageManifestAsync(...)
++LoadPackageManifestOperation UpdatePackageManifestAsync(...)
 +ResourceDownloaderOperation Downloader
 +ResourceDownloaderOperation CreateResourceDownloader(packageName)
 +ClearCacheFilesOperation ClearCacheFilesAsync(...)

@@ -1,5 +1,7 @@
 # HybridCLR集成
 
+> **当前 Fork 状态**：Obfuz 静态密钥初始化、多态热更 DLL 产物转换和 Archive `CodePackage` 二进制加载已经接入。本文以当前实现为准，背景与迁移记录见 [obfuscation.md](../../../../../../Books/Fork/obfuscation.md)。
+
 ## 为什么需要Obfuz4HybridCLR
 
 普通 Obfuz 能独立混淆 DLL，但 HybridCLR 还有特殊流程：
@@ -83,8 +85,9 @@ flowchart TD
 2. 获取 `PrebuildCommandExt.GetObfuscatedHotUpdateAssemblyOutputPath(target)`；
 3. 调用 `ObfuscateUtil.ObfuscateHotUpdateAssemblies`；
 4. 读取待混淆程序集名；
-5. 对列表内 DLL 从混淆目录复制，其他 DLL 从原始目录复制；
-6. 输出为 `*.dll.bytes` 供 YooAsset CodePackage 收集。
+5. 当 `polymorphicDllSettings.enable` 开启时，调用 `GeneratePolymorphicDll` 输出到 `PolymorphicHotUpdateAssemblies/`；
+6. 对列表内 DLL 选择混淆或多态产物，其他 DLL 使用原始产物；
+7. 输出为 `*.dll.bytes` 供 YooAsset 程序集包收集。
 
 已有保护：
 
@@ -94,21 +97,18 @@ flowchart TD
 - `ENABLE_OBFUZ` 与 release 模式关联；
 - dev PDB 与 release 清理流程已存在。
 
-## 当前未验证项
+## 当前实现与发布前检查
 
-- Obfuz/Obfuz4HybridCLR 未在 `Packages/manifest.json` 显式锁定；
-- `Assets/Obfuz` 和密钥资源不存在；
-- 未看到 EncryptionService 初始化；
-- mapping 不存在；
-- 未验证扩展 `GenerateAll` 已执行；
-- `PolymorphicDllSettings.enable=1`，但 native 支持和输出未证明；
-- Build Pipeline 自动混淆关闭；
-- 所有 Pass 开启且无规则，风险过高；
-- 混淆分支重复编译与 PDB 行为需要验证。
+- `ObfuzRuntimeInitializer` 在 `AfterAssembliesLoaded` 初始化静态 Encryption Scope，并受 `!UNITY_EDITOR` 约束。
+- 动态密钥在热更程序集加载前初始化；Archive 管线读取 `RawFileObject`，其他管线读取 `TextAsset`。
+- 构建链路已经显式生成多态热更 DLL，`polymorphicDllSettings.enable` 不再只是 native 注入开关。
+- 当前 `disableLoadStandardDll = 0`，允许多态热更 DLL 与标准 AOT 补充元数据混用。
+- 首次发布或修改多态配置后，仍必须执行 `HybridCLR/ObfuzExtension/GenerateAll` 并在真机验证 native 支持。
+- Release 构建必须确认不携带 PDB、默认 secret 和调试 mapping；线上排障 mapping 需要独立安全保存。
 
 ## 运行时加载
 
-TEngine 的 [ProcedureLoadAssembly.cs](file://Assets/GameScripts/Procedure/ProcedureLoadAssembly.cs) 从 YooAsset 加载 TextAsset，再调用 `Assembly.Load`。普通混淆 DLL 仍是标准 PE/CLI 文件，可直接加载；多态 DLL 需要对应 HybridCLR native 支持。
+TEngine 的 [ProcedureLoadAssembly.cs](file://Assets/GameScripts/Procedure/ProcedureLoadAssembly.cs) 根据程序集包构建管线加载字节：Archive 管线读取 `RawFileObject.GetBytes()`，其他管线读取 `TextAsset.bytes`，随后仍调用 `Assembly.Load`。多态 DLL 不需要额外的 C# 加载 API，但 Player 必须包含由 `GenerateAll` 注入的 HybridCLR native 支持。
 
 加载顺序建议：
 
@@ -151,4 +151,3 @@ TEngine 的 [ProcedureLoadAssembly.cs](file://Assets/GameScripts/Procedure/Proce
 - [与HybridCLR协同工作](https://github.com/focus-creative-games/obfuz-doc/blob/main/docs/manual/hybridclr/work-with-hybridclr.md)
 - [Obfuz+HybridCLR入门](https://github.com/focus-creative-games/obfuz-doc/blob/main/docs/beginner/work-with-hybridclr.md)
 - [Obfuz4HybridCLR仓库](https://github.com/focus-creative-games/obfuz4hybridclr)
-

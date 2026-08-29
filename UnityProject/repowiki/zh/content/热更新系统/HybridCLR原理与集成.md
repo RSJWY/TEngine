@@ -1,5 +1,7 @@
 # HybridCLR原理与集成
 
+> **当前 Fork 基线**：构建前会同步并校验 `AOTMetadataManifest`；热更程序集按 `UpdateSetting.RuntimePackages` 构建到独立程序集包。Archive 管线下 DLL、PDB、AOT 元数据和动态密钥通过 `RawFileObject` 获取，其他管线兼容 `TextAsset`。启用 Obfuz 多态 DLL 时，产物流程为“编译 -> 混淆 -> `GeneratePolymorphicDll` -> 拷贝”。总览见 [当前 Fork 定制功能](../项目概述/当前Fork定制功能.md)。
+
 <cite>
 **本文引用的文件**
 - [ProjectSettings/HybridCLRSettings.asset](file://ProjectSettings/HybridCLRSettings.asset)

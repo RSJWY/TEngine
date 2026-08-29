@@ -1,5 +1,7 @@
 # Obfuz架构与混淆管线
 
+> **当前 Fork 提示**：多态热更 DLL 已接入显式产物转换，程序集包使用 Archive 管线时由 `RawFileObject` 提供字节。当前实现见 [HybridCLR集成](HybridCLR集成.md) 和 [当前 Fork 定制功能](../../项目概述/当前Fork定制功能.md)。
+
 ## 总体架构
 
 Obfuz 在编辑器阶段加载托管程序集，通过 dnlib 修改程序集元数据和 IL，再写出新的 DLL。运行时的 `Obfuz.Runtime` 提供解密、类型映射等基础设施；HybridCLR 扩展负责把混淆结果接入热更新 DLL、AOT 裁剪和多态 DLL 生成流程。
@@ -155,4 +157,3 @@ CompileDll
 - [构建过程中执行混淆](https://github.com/focus-creative-games/obfuz-doc/blob/main/docs/manual/build-pipeline.md)
 - [单独执行混淆](https://github.com/focus-creative-games/obfuz-doc/blob/main/docs/manual/run-obfuscation-standalonely.md)
 - [Obfuz 源码：ObfuscatorBuilder](https://github.com/focus-creative-games/obfuz/blob/main/Editor/ObfuscatorBuilder.cs)
-

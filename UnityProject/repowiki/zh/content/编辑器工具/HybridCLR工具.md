@@ -1,5 +1,7 @@
 # HybridCLR工具
 
+> **当前 Fork 基线**：构建入口会同步 `AOTMetadataManifest`，再按 dev/release、Obfuz 和程序集包配置生成产物。启用多态 DLL 时还会执行 `GeneratePolymorphicDll`。固定复制到 `AssemblyTextAssetPath` 的内容属于旧版流程。参见 [当前 Fork 定制功能](../项目概述/当前Fork定制功能.md)。
+
 <cite>
 **本文引用的文件**
 - [BuildDLLCommand.cs](file://Assets/TEngine/Editor/HybridCLR/BuildDLLCommand.cs)

@@ -1,5 +1,7 @@
 # 模块系统API
 
+> **当前 Fork 新增入口**：热更业务通过 `GameModule.Config`、`GameModule.Screen`、`GameModule.GameScene`、`GameModule.GameObjectPool` 和 `GameModule.Anim` 访问新增模块，不要在业务代码中重复调用 `ModuleSystem.GetModule<T>()`。`TimerModule` 另新增 `AddLoopCountTimer`。用法总览见 [当前 Fork 定制功能](../项目概述/当前Fork定制功能.md)。
+
 <cite>
 **本文引用的文件**
 - [Module.cs](file://Assets/TEngine/Runtime/Core/Module.cs)

@@ -1,5 +1,7 @@
 # YooAsset集成
 
+> **当前 Fork 基线**：项目使用 YooAsset 3.x 原生 API，不启用 `YOOASSET_LEGACY_API`。资源包初始化使用各运行模式的 `*PlayModeOptions` 与 `FileSystemParameters`；`EPlayMode` 包含 `None = 0`。`CodePackage` 默认使用 `ArchiveFileBuildPipeline + ChaCha20`，归档内 DLL/PDB/AOT 元数据和 Obfuz 动态密钥通过 `RawFileObject.GetBytes()` 读取。总览见 [当前 Fork 定制功能](../项目概述/当前Fork定制功能.md)，迁移细节见 [yooasset-3-migration.md](../../../../../Books/Fork/yooasset-3-migration.md)。
+
 <cite>
 **本文档引用的文件**
 - [YooAssetSettings.asset](file://Assets/TEngine/Settings/Resources/YooAssetSettings.asset)
@@ -158,13 +160,13 @@ Module->>Yoo : SetOperationSystemMaxTimeSlice(ms)
 Module->>Yoo : CreatePackage(name)/SetDefaultPackage()
 Driver->>Module : InitPackage(packageName, needInitMainFest)
 alt 编辑器模拟模式
-Module->>Pack : InitializeAsync(EditorSimulateModeParameters)
+Module->>Pack : InitializePackageAsync(EditorSimulateModeOptions)
 else 单机模式
-Module->>Pack : InitializeAsync(OfflinePlayModeParameters)
+Module->>Pack : InitializePackageAsync(OfflinePlayModeOptions)
 else 联机模式
-Module->>Pack : InitializeAsync(HostPlayModeParameters)
+Module->>Pack : InitializePackageAsync(HostPlayModeOptions)
 else WebGL模式
-Module->>Pack : InitializeAsync(WebPlayModeParameters)
+Module->>Pack : InitializePackageAsync(WebPlayModeOptions)
 end
 opt 需要更新清单
 Module->>Pack : RequestPackageVersionAsync()
