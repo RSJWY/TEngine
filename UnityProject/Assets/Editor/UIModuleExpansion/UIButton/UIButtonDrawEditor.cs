@@ -156,7 +156,7 @@ namespace GameLogic
         #region 开启点击音效
 
         public static void DrawClickSoundGUI(string title, ref bool isPanelOpen, SerializedProperty isUseClickSound,
-            SerializedProperty clickSoundID)
+            SerializedProperty clickSoundLocation)
         {
             UnityEditorUtil.LayoutFrameBox(() =>
             {
@@ -165,7 +165,7 @@ namespace GameLogic
                 if (isUseClickSound.boolValue)
                 {
                     EditorGUI.indentLevel++;
-                    EditorGUILayout.PropertyField(clickSoundID, new GUIContent("点击音效ID"));
+                    EditorGUILayout.PropertyField(clickSoundLocation, new GUIContent("点击音效ID"));
                     EditorGUI.indentLevel--;
                 }
             }, title, ref isPanelOpen, true);
