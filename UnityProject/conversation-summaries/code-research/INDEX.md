@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-08-29
+- [UIText 的 TextMeshPro 版本可行性研究](./2026-08-29-uitext-textmeshpro-version-research.md)
+  - 关键词：UIText、TextMeshProUGUI、OnPreRenderText、TMP_TextInfo、IMeshModifier不生效、每字符4顶点、characterSpacing原生、enableAutoSizing原生、SDF描边_OutlineWidth、VertexGradient、ResizeMeshInfo、meshInfo多材质、TMPShadowExtend、TMPGradientExtend、TMPCircleExtend、AdditionalCanvasShaderChannels
+  - 结论：可行；TMP 绕过 IMeshModifier 须用 OnPreRenderText 重写 Gradient/Circle/Shadow 三扩展，Spacing/BestFit/Outline 用原生能力，文档已存。
+
 ## 2026-08-28
 - [Obfuz 多态 DLL（PolymorphicDll）机制研究](./2026-08-28-obfuz-polymorphic-dll-mechanism-research.md)
   - 关键词：PolymorphicDll、GeneratePolymorphicDll、CODEPHPY签名、Image.cpp INIT_RAW_IMAGE、disableLoadStandardDll烧入App、PolymorphicRawImage、obfuz-samples WorkWithHybridCLR、混淆产物链式、补充元数据跟随、密钥冻结参数、GenerateAll注入libil2cpp
