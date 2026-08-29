@@ -83,6 +83,20 @@ GameEvent.RemoveEventListener(string eventType, Delegate handler);  // Delegate 
 T GameEvent.Get<T>();
 ```
 
+#### RemoveAllListeners（按事件类型批量移除）
+
+凭事件 ID 清空该事件下的**全部监听**，无需传入注册时的委托。适合"从别处取消、拿不到原 handler"的场景。只影响指定事件，不波及其他事件。
+
+```csharp
+// int 版本：凭 const 或接口事件生成的 IXxx_Event.OnXxx
+GameEvent.RemoveAllListeners(int eventType);
+
+// string 版本（内部通过 RuntimeId.ToRuntimeId 转为 int）
+GameEvent.RemoveAllListeners(string eventType);
+```
+
+底层链路：`GameEvent.RemoveAllListeners` → `EventDispatcher.RemoveAllListeners(int)`（字典定位到 `EventDelegateData`）→ `EventDelegateData.RemoveAll()`（清空 `_listExist`，回调过程中调用走延迟删除）。
+
 #### Shutdown（清除所有事件注册）
 
 ```csharp
@@ -90,7 +104,7 @@ T GameEvent.Get<T>();
 GameEvent.Shutdown();
 ```
 
-> **注意**：源码中没有 `UnRegisterAll<T>()` 或 `UnRegisterAll()` 方法。需要清除所有事件时使用 `Shutdown()`（全局）或 `GameEventMgr.Clear()`（局部）。
+> **清除事件的三种粒度**：`RemoveEventListener(eventType, handler)` 移除单个监听（需原委托）；`RemoveAllListeners(eventType)` 清空单个事件的全部监听（凭事件 ID，无需委托）；`GameEventMgr.Clear()` 清局部管理器记录的那批；`GameEvent.Shutdown()` 全局重置（仅游戏退出）。
 
 ### GameEventMgr 局部管理器
 
@@ -290,7 +304,8 @@ GameEvent.UnRegisterAll<int>(eventType);
 GameEvent.UnRegisterAll();
 
 // 正确：按需使用以下方式清除
-GameEvent.RemoveEventListener(eventType, handler);  // 移除单个监听
+GameEvent.RemoveEventListener(eventType, handler);  // 移除单个监听（需原委托）
+GameEvent.RemoveAllListeners(eventType);            // 清空单个事件的全部监听（凭事件ID，无需委托）
 GameEventMgr.Clear();                               // 局部批量清除
 GameEvent.Shutdown();                               // 全局清除（仅游戏退出时）
 ```

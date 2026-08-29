@@ -2,6 +2,8 @@
 
 > **适用场景**：HybridCLR 热更边界划分、GameApp 热更入口、DLL 加载流程、AOT 泛型补全 | **关联文档**：[architecture.md](architecture.md)（程序集划分）、[modules.md](modules.md)（GameModule 访问）
 
+> **当前项目约束**：`GameProto`/Luban 仅作为可选兼容能力保留。用户未明确要求配置表时，只处理 `GameLogic`、TEngine 模块和 RuntimeConfig，不主动引入 Luban。
+
 ## 核心 API
 
 ### 程序集划分
@@ -133,7 +135,7 @@ public async UniTask CheckAndDownloadUpdate()
     if (downloader.TotalDownloadCount == 0) return;
     // 4. 下载
     downloader.OnDownloadProgressCallback = OnProgress;
-    downloader.BeginDownload();
+    downloader.StartDownload();
     await downloader.Task;
     // 5. 清理旧缓存
     await GameModule.Resource.ClearCacheFilesAsync();

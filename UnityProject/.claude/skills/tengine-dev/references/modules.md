@@ -17,6 +17,11 @@ GameModule.UI            // UIModule            — UI 管理
 GameModule.Scene         // ISceneModule        — 场景
 GameModule.Timer         // ITimerModule        — 计时器
 GameModule.Localization  // ILocalizationModule — 本地化
+GameModule.Config        // IRuntimeConfigModule — TOML/JSON 轻量运行时配置
+GameModule.Screen        // IScreenModule       — Windows 多屏窗口布局
+GameModule.GameScene     // IGameSceneModule    — 业务场景加载状态机
+GameModule.GameObjectPool // IGameObjectPoolModule — GameObject 实例池
+GameModule.Anim          // IAnimModule         — PlayableGraph 动画图
 
 GameModule.Shutdown()   // 清空所有模块缓存引用，仅在游戏退出时调用
 ```
@@ -34,6 +39,7 @@ GameModule.Shutdown()   // 清空所有模块缓存引用，仅在游戏退出�
 int tid = GameModule.Timer.AddTimer(OnTick, time: 3f);                         // 单次
 int tid = GameModule.Timer.AddTimer(OnTick, time: 1f, isLoop: true);           // 循环
 int tid = GameModule.Timer.AddTimer(OnTick, time: 5f, isUnscaled: true);       // 非缩放时间
+int tid = GameModule.Timer.AddLoopCountTimer(OnTick, time: 0.5f, loopCount: 3); // 限定次数循环
 
 // 控制
 GameModule.Timer.Stop(timerId);         // 暂停
@@ -150,6 +156,7 @@ Log.Assert(condition, "断言失败提示");
 | `GameModule.LoadScene` | `GameModule.Scene.LoadSceneAsync` | 不存在 `GameModule.LoadScene`，场景加载通过 `GameModule.Scene` |
 | `new FsmState<>()` | 继承 `FsmState<TOwner>` | 状态必须继承基类，不能直接 new |
 | `GameModule.Timer.AddTimer(time, callback)` | `GameModule.Timer.AddTimer(callback, time)` | 参数顺序：回调在前，时间在后 |
+| 用 `ObjectPoolModule` 管 Prefab 实例 | `GameModule.GameObjectPool` | 前者管理 `ObjectBase` 逻辑对象，后者管理 GameObject 实例 |
 
 ---
 
@@ -163,3 +170,4 @@ Log.Assert(condition, "断言失败提示");
 | 事件系统 | event-system.md | `GameEvent` 模块间解耦，`AddUIEvent` UI 内部事件 |
 | 热更边界 | hotfix-workflow.md | `GameModule` 所在程序集与热更边界 |
 | 资源管理模式 | resource-patterns.md | 资源生命周期与模块协作 |
+| Fork 运行时模块 | fork-runtime-modules.md | RuntimeConfig、Screen、GameScene、GameObjectPool、Anim、Timer 扩展 |

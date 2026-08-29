@@ -170,15 +170,15 @@ RequestPackageVersionOperation RequestPackageVersionAsync(
     bool appendTimeTicks = false, int timeout = 60, string customPackageName = "")
 
 // 更新资源清单
-UpdatePackageManifestOperation UpdatePackageManifestAsync(
+LoadPackageManifestOperation UpdatePackageManifestAsync(
     string packageVersion, int timeout = 60, string customPackageName = "")
 
 // 创建差量下载器
 ResourceDownloaderOperation CreateResourceDownloader(string customPackageName = "")
 
 // 清理冗余缓存文件
-ClearCacheFilesOperation ClearCacheFilesAsync(
-    EFileClearMode clearMode = EFileClearMode.ClearUnusedBundleFiles, string customPackageName = "")
+ClearCacheOperation ClearCacheFilesAsync(
+    string clearMode = ClearCacheMethods.ClearUnusedBundleFiles, string customPackageName = "")
 
 // 清理沙盒路径所有缓存
 void ClearAllBundleFiles(string customPackageName = "")

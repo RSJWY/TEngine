@@ -344,6 +344,118 @@
         "StartCoroutine",
         "TEngine.ProcedureBase"
       ]
+    },
+    {
+      "id": 21,
+      "name": "archive-codepackage-load",
+      "description": "验证 AI 能识别 YooAsset 3 Archive CodePackage：按包配置判断 ArchiveFileBuildPipeline，读取 RawFileObject.GetBytes，并成对 UnloadAsset；不使用 TextAsset-only、XXTEA 或 legacy API。",
+      "prompt": "CodePackage 已改成 ArchiveFileBuildPipeline。我需要在 ProcedureLoadAssembly 中加载一个热更 dll.bytes，请给出正确的二进制读取和释放方式，并说明非 Archive 管线如何兼容。",
+      "expected_patterns": [
+        "ArchiveFileBuildPipeline",
+        "RawFileObject",
+        "GetBytes()",
+        "UnloadAsset",
+        "TextAsset"
+      ],
+      "forbidden_patterns": [
+        "EncryptionType.XXTEA",
+        "YOOASSET_LEGACY_API",
+        "BeginDownload()"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "runtime-config-fallback",
+      "description": "验证 AI 使用 GameModule.Config 读取 TOML/JSON 轻量配置，并按 TryGet 失败回退默认值；不主动引入 Luban 或 Resources.Load。",
+      "prompt": "我要从 StreamingAssets/Configs/sub/Feature.toml 读取 FeatureConfig。配置缺失或格式错误时继续用默认值，不应阻断游戏启动。请给出读取模式。",
+      "expected_patterns": [
+        "GameModule.Config",
+        "TryGet<FeatureConfig>",
+        "sub/Feature",
+        "默认"
+      ],
+      "forbidden_patterns": [
+        "ConfigSystem.Instance",
+        "Resources.Load",
+        "new Tables"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "gameobject-pool-usage",
+      "description": "验证 AI 区分 GameObjectPoolModule 与 ObjectPoolModule，使用 SpawnAsync/Recycle 管理 Prefab 实例，并在切场景时清理非常驻池。",
+      "prompt": "敌人 Prefab 需要按 YooAsset location 预热 10 个、最多 50 个，战斗中异步取出并回收，切场景销毁非常驻池。请用项目现有对象池实现。",
+      "expected_patterns": [
+        "GameModule.GameObjectPool",
+        "CreateGameObjectPoolAsync",
+        "SpawnAsync",
+        "Recycle",
+        "DestroyAllPool"
+      ],
+      "forbidden_patterns": [
+        "ObjectPoolModule",
+        "Instantiate(",
+        "ModuleSystem.GetModule<IGameObjectPoolModule>"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "databinding-generated-model",
+      "description": "验证 AI 使用纯数据 DataBinding 特性、生成 Binder、DataBindingScope 生命周期和 Sync/Flush 模式，不用 GameEvent 做高频字段广播。",
+      "prompt": "给一个包含 hp、float progress 和一次性 confirm 信号的数据模型加 DataBinding，并展示订阅、批量同步和销毁清理。",
+      "expected_patterns": [
+        "[DataBindingModel]",
+        "[DataBindTolerance",
+        "[DataBindSignal]",
+        "DataBindingScope",
+        "SyncFrom",
+        "Flush()",
+        "Dispose()"
+      ],
+      "forbidden_patterns": [
+        "GameEvent.Send",
+        "AddUIEvent",
+        "DataBindFormat"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "obfuz-polymorphic-release",
+      "description": "验证 AI 理解 Obfuz 多态 DLL 的构建顺序、GenerateAll 注入、密钥冻结和 Editor 禁测边界，不发明运行时专用加载 API。",
+      "prompt": "我要首次发布启用 Obfuz 多态 DLL 的 Windows App，之后继续热更。请列出必须执行的构建步骤和发布后不能再改的参数。",
+      "expected_patterns": [
+        "GenerateAll",
+        "GeneratePolymorphicDll",
+        "编译",
+        "混淆",
+        "多态",
+        "密钥",
+        "Assembly.Load"
+      ],
+      "forbidden_patterns": [
+        "EditorSimulateMode 测试",
+        "运行时专用加载 API",
+        "EncryptionType.XXTEA"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "scene-enum-generator",
+      "description": "验证 AI 使用 SceneEnumConfig 同步 YooAsset Scenes Group 并生成三个 .g.cs，保持枚举值稳定，不手改生成文件。",
+      "prompt": "我新增并重命名了几个场景，如何正确更新 SceneType、资源地址和双向映射，避免破坏旧枚举值？",
+      "expected_patterns": [
+        "TEngine/场景枚举配置",
+        "同步场景资源",
+        "SceneType.g.cs",
+        "SceneConstName.g.cs",
+        "SceneTypeMapping.g.cs",
+        "GUID"
+      ],
+      "forbidden_patterns": [
+        "手动修改 SceneType.g.cs",
+        "复用删除场景的枚举值",
+        "直接编辑 SceneTypeMapping.g.cs"
+      ]
     }
   ]
 }

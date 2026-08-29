@@ -2,6 +2,8 @@
 
 > **适用场景**：理解项目分层架构、程序集划分、目录结构、启动流程 | **关联文档**：[modules.md](modules.md)、[hotfix-workflow.md](hotfix-workflow.md)、[resource-api.md](resource-api.md)
 
+> **当前项目约束**：仓库保留 `GameProto`/Luban 相关目录和可选能力，但当前业务默认不使用 Luban。除非用户明确要求配置表，否则不要新增 Luban 依赖或围绕 `ConfigSystem` 设计功能。
+
 ## 核心架构
 
 ### 分层架构

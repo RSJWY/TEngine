@@ -184,7 +184,9 @@ public class IconManager
 _imgIcon.SetSprite($"icon_{itemCfg.IconId}");
 ```
 
-### 模式：共享配置数据通过 ConfigSystem
+### 可选模式：明确使用 Luban 时通过 ConfigSystem 共享配置数据
+
+当前项目默认不使用 Luban。只有用户明确要求配置表时才采用本节；普通轻量配置使用 `GameModule.Config`。
 
 ```csharp
 // ✅ 正确：Luban 配置数据通过 ConfigSystem 统一管理
@@ -281,7 +283,7 @@ public async UniTask EnsureDLCReady(string packageName)
     var downloader = GameModule.Resource.CreateResourceDownloader(packageName);
     if (downloader.TotalDownloadCount > 0)
     {
-        downloader.BeginDownload();
+        downloader.StartDownload();
         await downloader.Task;
     }
 }
