@@ -38,7 +38,12 @@ namespace TEngine
 #else
                     if (_instance == null)
                     {
-                        Log.Fatal($"CryptoKeyConfig<{typeof(T).Name}> not found in Resources/{CryptoUtils.ResourceConfigFolder}. Build the asset in the Editor first.");
+                        // 不能仅记录日志后继续返回 null：后续访问 .key 会 NRE，
+                        // 此时包初始化已进行到一半，错误时机晚、定位困难。
+                        // 直接抛异常让资源包初始化在最早点失败。
+                        throw new InvalidOperationException(
+                            $"CryptoKeyConfig<{typeof(T).Name}> not found in Resources/{CryptoUtils.ResourceConfigFolder}. " +
+                            "请在编辑器内构建密钥资产后再打运行时包。");
                     }
 #endif
                 }

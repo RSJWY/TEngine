@@ -48,35 +48,53 @@ namespace TEngine
         /// </summary>
         public static BundleCrypto Create(EncryptionType type)
         {
+            BundleCrypto crypto;
             switch (type)
             {
                 case EncryptionType.FileOffSet:
-                    return new BundleCrypto
+                    crypto = new BundleCrypto
                     {
                         Encryptor = new FileOffsetEncryption(),
                         Local = new FileOffsetDecryption(),
                         Web = new FileOffsetMemoryDecryption(),
                         Archive = new FileOffsetMemoryDecryption(),
                     };
+                    break;
                 case EncryptionType.FileStream:
-                    return new BundleCrypto
+                    crypto = new BundleCrypto
                     {
                         Encryptor = new XorBundleEncryption(),
                         Local = new XorStreamDecryption(),
                         Web = new XorMemoryDecryption(),
                         Archive = new XorMemoryDecryption(),
                     };
+                    break;
                 case EncryptionType.ChaCha20:
-                    return new BundleCrypto
+                    crypto = new BundleCrypto
                     {
                         Encryptor = new ChaCha20BundleEncryption(),
                         Local = new ChaCha20StreamDecryption(),
                         Web = new ChaCha20MemoryDecryption(),
                         Archive = new ChaCha20MemoryDecryption(),
                     };
+                    break;
                 default:
                     return null;
             }
+
+            // 契约：YooAsset 的 ArchiveBundle 加载（LoadLocalArchiveBundleOperation /
+            // LoadWebArchiveBundleOperation）仅支持 IBundleMemoryDecryptor，
+            // 其它解密器类型会在运行时才报 "does not support"，构建期无法发现。
+            // 在此提前校验，防止误配（例如把 Archive 配成 Offset/Stream 解密器）。
+            if (crypto.Archive != null && !(crypto.Archive is IBundleMemoryDecryptor))
+            {
+                throw new InvalidOperationException(
+                    $"Archive 解密器必须实现 {nameof(IBundleMemoryDecryptor)}，" +
+                    $"当前类型 {crypto.Archive.GetType().Name} 不被 YooAsset 的 ArchiveBundle 加载路径支持。" +
+                    " 请在 BundleCrypto.Create 中为 Archive 指定内存式解密器。");
+            }
+
+            return crypto;
         }
     }
 
@@ -84,9 +102,15 @@ namespace TEngine
 
     public sealed class FileOffsetEncryption : IBundleEncryptor
     {
+        /// <summary>
+        /// 文件偏移加密头部填充字节数。加密端与所有解密端必须引用本常量，
+        /// 避免散落的魔法数字在改动时导致加解密不匹配。
+        /// </summary>
+        public const int Offset = 32;
+
         public BundleEncryptResult Encrypt(BundleEncryptArgs args)
         {
-            const int offset = 32;
+            int offset = Offset;
             var data = File.ReadAllBytes(args.FilePath);
             var encrypted = new byte[data.Length + offset];
             Buffer.BlockCopy(data, 0, encrypted, offset, data.Length);
@@ -99,7 +123,7 @@ namespace TEngine
     /// </summary>
     public sealed class FileOffsetDecryption : IBundleOffsetDecryptor
     {
-        public long GetFileOffset(BundleDecryptArgs args) => 32;
+        public long GetFileOffset(BundleDecryptArgs args) => FileOffsetEncryption.Offset;
     }
 
     /// <summary>
@@ -109,7 +133,7 @@ namespace TEngine
     {
         public byte[] GetDecryptedData(BundleDecryptArgs args)
         {
-            const int offset = 32;
+            int offset = FileOffsetEncryption.Offset;
             var data = args.FileData ?? File.ReadAllBytes(args.FilePath);
             if (data.Length < offset)
                 throw new InvalidDataException("Encrypted bundle is smaller than the configured file offset.");
@@ -151,10 +175,14 @@ namespace TEngine
         public byte[] GetDecryptedData(BundleDecryptArgs args)
         {
             var key = XorKeyConfig.Instance.key;
-            var data = args.FileData ?? File.ReadAllBytes(args.FilePath);
-            for (int i = 0; i < data.Length; i++)
-                data[i] ^= key[i % key.Length];
-            return data;
+            // 注意：args.FileData 可能是下载请求内部持有的缓冲（Web 场景），
+            // 原地异或会污染原始缓冲，导致重试/并发场景二次解密时还原成密文。
+            // 因此始终分配新数组，不动输入数据。
+            var src = args.FileData ?? File.ReadAllBytes(args.FilePath);
+            var decrypted = new byte[src.Length];
+            for (int i = 0; i < src.Length; i++)
+                decrypted[i] = (byte)(src[i] ^ key[i % key.Length]);
+            return decrypted;
         }
     }
 
