@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using YooAsset.Editor;
 
@@ -15,10 +16,41 @@ namespace GameEditor
         public BundlePackRuleResult GetPackRuleResult(BundlePackRuleData data)
         {
             string assetPath = data.AssetPath;
+            
+            if (!assetPath.EndsWith(".unity", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new System.Exception(
+                    $"PackSceneFile 只能用于场景资源：{assetPath}！请确保仅仅收集场景文件！");
+            }
             string dir = Path.GetDirectoryName(assetPath);
             string fileName = Path.GetFileNameWithoutExtension(assetPath);
             string bundleName = $"{dir}/{fileName}_scene";
             return new BundlePackRuleResult(bundleName, DefaultBundlePackRule.AssetBundleFileExtension);
+        }
+    }
+    /// <summary>
+    /// 资源过滤规则：排除所有 Unity 场景文件。
+    /// </summary>
+    [DisplayName("仅排除场景（可用收集场景烘焙）")]
+    public class FilterExcludeScene : IAssetFilterRule
+    {
+        /// <summary>
+        /// 搜索全部资源类型。
+        /// </summary>
+        public string FindAssetType => EAssetFilterType.All.ToString();
+
+        /// <summary>
+        /// 检查是否收集资源。
+        /// </summary>
+        /// <returns>
+        /// 非场景资源返回 true；
+        /// .unity 场景返回 false。
+        /// </returns>
+        public bool IsCollectAsset(AssetFilterRuleData data)
+        {
+            return !data.AssetPath.EndsWith(
+                ".unity",
+                StringComparison.OrdinalIgnoreCase);
         }
     }
 }

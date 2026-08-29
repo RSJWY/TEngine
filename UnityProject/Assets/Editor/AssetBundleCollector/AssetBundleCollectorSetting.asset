@@ -113,7 +113,20 @@ MonoBehaviour:
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackSceneFile
-        FilterRuleName: CollectAll
+        FilterRuleName: CollectScene
+        AssetTags: 
+        UserData: 
+    - GroupName: SceneBakeData
+      GroupDesc: "\u6536\u96C6\u573A\u666F\u70D8\u7119\u6570\u636E"
+      AssetTags: 
+      ActiveRuleName: EnableGroup
+      Collectors:
+      - CollectPath: Assets/AssetRaw/Scenes
+        CollectorGUID: cace6ee6539f661419b5e5f8ae1c0146
+        CollectorType: 1
+        AddressRuleName: AddressDisable
+        PackRuleName: PackTopDirectory
+        FilterRuleName: FilterExcludeScene
         AssetTags: 
         UserData: 
     - GroupName: UI
@@ -151,7 +164,7 @@ MonoBehaviour:
         AssetTags: 
         UserData: 
     - GroupName: Reference
-      GroupDesc: 
+      GroupDesc: "\u5F15\u7528\u6570\u636E\uFF0C\u4E0D\u4E3B\u52A8\u52A0\u8F7D"
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
@@ -181,7 +194,7 @@ MonoBehaviour:
     IgnoreRuleName: RawFileIgnoreRule
     Groups:
     - GroupName: AOT
-      GroupDesc: 
+      GroupDesc: "\u8865\u5145\u5143\u6570\u636E"
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
@@ -194,7 +207,7 @@ MonoBehaviour:
         AssetTags: 
         UserData: 
     - GroupName: HotDll
-      GroupDesc: 
+      GroupDesc: "\u70ED\u66F4\u4EE3\u7801"
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
@@ -207,7 +220,7 @@ MonoBehaviour:
         AssetTags: 
         UserData: 
     - GroupName: PDB
-      GroupDesc: 
+      GroupDesc: "\u8C03\u8BD5\u884C\u53F7"
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
@@ -220,7 +233,7 @@ MonoBehaviour:
         AssetTags: 
         UserData: 
     - GroupName: obfuz
-      GroupDesc: 
+      GroupDesc: "\u6DF7\u6DC6key"
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
@@ -232,3 +245,17 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
+  - PackageName: RawFilePackage
+    PackageDesc: 
+    EnableAddressable: 0
+    SupportExtensionless: 1
+    LocationToLower: 0
+    IncludeAssetGUID: 0
+    AutoCollectShaders: 1
+    IgnoreRuleName: NormalIgnoreRule
+    Groups:
+    - GroupName: Default Group
+      GroupDesc: 
+      AssetTags: 
+      ActiveRuleName: EnableGroup
+      Collectors: []
