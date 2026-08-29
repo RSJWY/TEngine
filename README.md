@@ -23,6 +23,7 @@
 
 | 主题 | 主要改动 |
 | --- | --- |
+| YooAsset 3.0.5 迁移 | 无兼容层迁移、运行模式偏移修复和 OfflinePlayMode 说明 |
 | 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、LogViewer 工具 |
 | 事件系统 | `GameEvent.RemoveAllListeners` 按事件 ID 批量移除监听 |
 | 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 |

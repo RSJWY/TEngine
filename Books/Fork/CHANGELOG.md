@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-29
+
+- YooAsset 升级到 3.0.5 并完成无 `YOOASSET_LEGACY_API` 迁移；补充 2.x/3.x 差异、OfflinePlayMode 使用要求，并修复 `EPlayMode` 枚举偏移导致的编辑器运行模式误判。详见 [yooasset-3-migration.md](yooasset-3-migration.md)。
+
 ## 2026-08-28
 
 - 热更构建链路接入 Obfuz 多态 DLL：`CopyAOTHotUpdateDlls` 在混淆后按 `polymorphicDllSettings.enable` 调 `GeneratePolymorphicDll` 把热更程序集转为多态格式（产物目录 `Obfuz/{target}/PolymorphicHotUpdateAssemblies/`），运行时加载代码零改动，补充元数据暂维持标准格式。详见 [obfuscation.md](obfuscation.md)。

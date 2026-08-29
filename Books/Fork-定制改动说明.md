@@ -11,6 +11,7 @@
 
 | 主题 | 内容 | 文档 |
 | --- | --- | --- |
+| YooAsset 3.0.5 迁移 | 无兼容层迁移、运行模式偏移修复和 OfflinePlayMode 说明 | [yooasset-3-migration.md](Fork/yooasset-3-migration.md) |
 | 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、LogViewer | [logging.md](Fork/logging.md) |
 | 事件系统 | 按事件 ID 批量移除监听 | [event-system.md](Fork/event-system.md) |
 | 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 | [data-binding.md](Fork/data-binding.md) |

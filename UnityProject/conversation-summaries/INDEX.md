@@ -5,6 +5,9 @@
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
 ## 2026-08-29
+- [YooAsset 2.x/3.x 差异与运行模式修复](./2026-08-29-yooasset-2-vs-3-and-playmode-fix-summary.md)
+  - 关键词：EPlayMode、None=0、EditorPrefs、OfflinePlayMode、EditorSimulateMode、YOOASSET_LEGACY_API、Options API
+  - 结论：记录 2.x/3.x 主要 API 和行为差异，并修复扩展工具将下拉索引误存为 3.x 枚举值的问题。
 - [YooAsset 3.0.5 无兼容层迁移](./2026-08-29-yooasset-3-migration-summary.md)
   - 关键词：YooAsset 3.0.5、MigrationGuide、YOOASSET_LEGACY_API、InitializePackageAsync、ResourcePackage、IRemoteService、BundleEncryptor、Collector、ClearCacheOptions
   - 结论：运行时和编辑器 YooAsset 集成已切换到 3.x 原生 API，完整解决方案编译通过；未做真实远端下载和目标平台运行验证。
