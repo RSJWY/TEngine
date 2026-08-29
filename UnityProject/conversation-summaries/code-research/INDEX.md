@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-08-29
+- [UIRawImage 扩展可行性研究](./2026-08-29-uirawimage-expansion-feasibility-research.md)
+  - 关键词：UIRawImage、RawImage、IMeshModifier、ModifyMesh、Graphic.UpdateGeometry、uvRect替代GetOuterUV、GetPixelAdjustedRect、圆角RoundedCorners、不规则图形Mask、RayCrossing、镜像Mirror仅Simple、RawImageEditor、UIImageDrawEditor复用、菜单GameObject/UI
+  - 结论：可行；BaseUIRawImage : RawImage, IMeshModifier 与 UIImage 同构，3 扩展 UV 改 uvRect 映射即可，Inspector 绘制函数可全复用。
 - [UIText 的 TextMeshPro 版本可行性研究](./2026-08-29-uitext-textmeshpro-version-research.md)
   - 关键词：UIText、TextMeshProUGUI、OnPreRenderText、TMP_TextInfo、IMeshModifier不生效、每字符4顶点、characterSpacing原生、enableAutoSizing原生、SDF描边_OutlineWidth、VertexGradient、ResizeMeshInfo、meshInfo多材质、TMPShadowExtend、TMPGradientExtend、TMPCircleExtend、AdditionalCanvasShaderChannels
   - 结论：可行；TMP 绕过 IMeshModifier 须用 OnPreRenderText 重写 Gradient/Circle/Shadow 三扩展，Spacing/BestFit/Outline 用原生能力，文档已存。
