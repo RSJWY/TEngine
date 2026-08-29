@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using YooAsset;
 using YooAsset.Editor;
 
 namespace TEngine.Editor.Inspector
@@ -15,6 +16,14 @@ namespace TEngine.Editor.Inspector
             "OfflinePlayMode (单机模式)",
             "HostPlayMode (联机运行模式)",
             "WebGLPlayMode (WebGL运行模式)"
+        };
+
+        private static readonly EPlayMode[] m_playModes =
+        {
+            EPlayMode.EditorSimulateMode,
+            EPlayMode.OfflinePlayMode,
+            EPlayMode.HostPlayMode,
+            EPlayMode.WebPlayMode
         };
 
         private static readonly string[] m_encryptionNames = new string[]
@@ -144,7 +153,7 @@ namespace TEngine.Editor.Inspector
                         if (selectedIndex != m_playModeIndex)
                         {
                             m_playModeIndex = selectedIndex;
-                            m_playMode.enumValueIndex = selectedIndex;
+                            m_playMode.intValue = (int)m_playModes[selectedIndex];
                         }
                     }
 
@@ -606,7 +615,9 @@ namespace TEngine.Editor.Inspector
 
         private void RefreshPlayModeNames()
         {
-            m_playModeIndex = m_playMode.enumValueIndex > 0 ? m_playMode.enumValueIndex : 0;
+            m_playModeIndex = Array.IndexOf(m_playModes, (EPlayMode)m_playMode.intValue);
+            if (m_playModeIndex < 0)
+                m_playModeIndex = 0;
             m_encryptionNameIndex = m_encryptionType.enumValueIndex > 0 ? m_encryptionType.enumValueIndex : 0;
         }
     }

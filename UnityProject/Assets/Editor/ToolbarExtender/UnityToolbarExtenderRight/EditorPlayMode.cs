@@ -3,6 +3,7 @@
 using UnityEditor;
 using UnityEngine;
 using UnityToolbarExtender;
+using YooAsset;
 
 namespace TEngine
 {
@@ -12,6 +13,9 @@ namespace TEngine
     public partial class UnityToolbarExtenderRight
     {
         private const string BUTTON_STYLE_NAME = "Tab middle";
+        private const string RESOURCE_MODE_PREFS_KEY = "EditorPlayMode";
+        private const string RESOURCE_MODE_PREFS_VERSION_KEY = "TEngine.EditorPlayModePrefsVersion";
+        private const int RESOURCE_MODE_PREFS_VERSION = 1;
 
         private static readonly string[] _resourceModeNames =
         {
@@ -21,8 +25,41 @@ namespace TEngine
             "WebPlayMode (WebGL运行模式)"
         };
 
-        private static int _resourceModeIndex = 0;
+        private static readonly EPlayMode[] _resourceModes =
+        {
+            EPlayMode.EditorSimulateMode,
+            EPlayMode.OfflinePlayMode,
+            EPlayMode.HostPlayMode,
+            EPlayMode.WebPlayMode
+        };
+
+        private static int _resourceModeIndex = GetResourceModeIndex();
         public static int ResourceModeIndex => _resourceModeIndex;
+
+        private static int GetResourceModeIndex()
+        {
+            MigrateLegacyResourceModePreference();
+            int savedMode = EditorPrefs.GetInt(RESOURCE_MODE_PREFS_KEY, (int)EPlayMode.EditorSimulateMode);
+            for (int i = 0; i < _resourceModes.Length; i++)
+            {
+                if ((int)_resourceModes[i] == savedMode)
+                    return i;
+            }
+
+            return 0;
+        }
+
+        private static void MigrateLegacyResourceModePreference()
+        {
+            if (EditorPrefs.GetInt(RESOURCE_MODE_PREFS_VERSION_KEY, 0) >= RESOURCE_MODE_PREFS_VERSION)
+                return;
+
+            int legacyIndex = EditorPrefs.GetInt(RESOURCE_MODE_PREFS_KEY, 0);
+            if (legacyIndex >= 0 && legacyIndex < _resourceModes.Length)
+                EditorPrefs.SetInt(RESOURCE_MODE_PREFS_KEY, (int)_resourceModes[legacyIndex]);
+
+            EditorPrefs.SetInt(RESOURCE_MODE_PREFS_VERSION_KEY, RESOURCE_MODE_PREFS_VERSION);
+        }
 
         static class ToolbarStyles
         {
@@ -71,7 +108,7 @@ namespace TEngine
                 {
                     Debug.Log($"更改编辑器资源运行模式：{_resourceModeNames[selectedIndex]}");
                     _resourceModeIndex = selectedIndex;
-                    EditorPrefs.SetInt("EditorPlayMode", selectedIndex);
+                    EditorPrefs.SetInt(RESOURCE_MODE_PREFS_KEY, (int)_resourceModes[selectedIndex]);
                 }
                 GUILayout.EndHorizontal();
             }

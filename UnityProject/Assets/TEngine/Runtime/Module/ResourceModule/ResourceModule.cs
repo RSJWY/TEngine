@@ -139,7 +139,8 @@ namespace TEngine
         {
 #if UNITY_EDITOR
             //编辑器模式使用。
-            EPlayMode playMode = (EPlayMode)UnityEditor.EditorPrefs.GetInt("EditorPlayMode");
+            EPlayMode playMode = (EPlayMode)UnityEditor.EditorPrefs.GetInt(
+                "EditorPlayMode", (int)EPlayMode.EditorSimulateMode);
             Log.Warning($"Editor Module Used :{playMode}");
 #else
             //运行时使用。

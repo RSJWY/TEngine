@@ -18,7 +18,7 @@ namespace TEngine
             UpdateScenes();
             ToolbarExtender.RightToolbarGUI.Add(OnToolbarGUI_EditorPlayMode);
             ToolbarExtender.RightToolbarGUI.Add(OnToolbarGUI_BuildMode);
-            _resourceModeIndex = EditorPrefs.GetInt("EditorPlayMode", 0);
+            _resourceModeIndex = GetResourceModeIndex();
         }
     }
 }

@@ -7,6 +7,7 @@ using UnityEditor.SceneManagement;
 using UnityEditor.Toolbars;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using YooAsset;
 
 [InitializeOnLoad]
 public class MainToolbarInitializeOnLoad
@@ -288,6 +289,9 @@ public class MainToolbarDropdownSceneSelector
 public class MainToolbarDropdownPlayMode
 {
     const string kElementPath = "TEngine/Play Mode";
+    private const string ResourceModePrefsKey = "EditorPlayMode";
+    private const string ResourceModePrefsVersionKey = "TEngine.EditorPlayModePrefsVersion";
+    private const int ResourceModePrefsVersion = 1;
 
     private static readonly string[] _resourceModeNames =
     {
@@ -295,6 +299,14 @@ public class MainToolbarDropdownPlayMode
         "OfflinePlayMode (单机模式)",
         "HostPlayMode (联机运行模式)",
         "WebPlayMode (WebGL运行模式)"
+    };
+
+    private static readonly EPlayMode[] _resourceModes =
+    {
+        EPlayMode.EditorSimulateMode,
+        EPlayMode.OfflinePlayMode,
+        EPlayMode.HostPlayMode,
+        EPlayMode.WebPlayMode
     };
 
     private static int _resourceModeIndex = 0;
@@ -305,13 +317,38 @@ public class MainToolbarDropdownPlayMode
     [MainToolbarElement(kElementPath, defaultDockPosition = MainToolbarDockPosition.Middle, defaultDockIndex = 51)]
     public static MainToolbarElement CreateExampleDropdown()
     {
+        _resourceModeIndex = GetResourceModeIndex();
         var content = new MainToolbarContent(_resourceModeNames[ResourceModeIndex]);
         m_btn = new MainToolbarDropdown(content, ShowDropdownMenu)
         {
             enabled = !EditorApplication.isPlaying
         };
-        _resourceModeIndex = EditorPrefs.GetInt("EditorPlayMode");
         return m_btn;
+    }
+
+    private static int GetResourceModeIndex()
+    {
+        MigrateLegacyResourceModePreference();
+        int savedMode = EditorPrefs.GetInt(ResourceModePrefsKey, (int)EPlayMode.EditorSimulateMode);
+        for (int i = 0; i < _resourceModes.Length; i++)
+        {
+            if ((int)_resourceModes[i] == savedMode)
+                return i;
+        }
+
+        return 0;
+    }
+
+    private static void MigrateLegacyResourceModePreference()
+    {
+        if (EditorPrefs.GetInt(ResourceModePrefsVersionKey, 0) >= ResourceModePrefsVersion)
+            return;
+
+        int legacyIndex = EditorPrefs.GetInt(ResourceModePrefsKey, 0);
+        if (legacyIndex >= 0 && legacyIndex < _resourceModes.Length)
+            EditorPrefs.SetInt(ResourceModePrefsKey, (int)_resourceModes[legacyIndex]);
+
+        EditorPrefs.SetInt(ResourceModePrefsVersionKey, ResourceModePrefsVersion);
     }
 
     public static void Init()
@@ -340,7 +377,7 @@ public class MainToolbarDropdownPlayMode
             {
                 _resourceModeIndex = i;
                 Debug.Log($"更改编辑器资源运行模式：{_resourceModeNames[_resourceModeIndex]}");
-                EditorPrefs.SetInt("EditorPlayMode", _resourceModeIndex);
+                EditorPrefs.SetInt(ResourceModePrefsKey, (int)_resourceModes[_resourceModeIndex]);
                 MainToolbar.Refresh(kElementPath);
             });
         }

@@ -57,7 +57,8 @@ namespace TEngine
             {
 #if UNITY_EDITOR
                 //编辑器模式使用。
-                return (EPlayMode)UnityEditor.EditorPrefs.GetInt("EditorPlayMode");
+                return (EPlayMode)UnityEditor.EditorPrefs.GetInt(
+                    "EditorPlayMode", (int)EPlayMode.EditorSimulateMode);
 #else
                 if (playMode == EPlayMode.EditorSimulateMode)
                 {

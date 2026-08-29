@@ -207,7 +207,7 @@ MonoBehaviour:
   maxUnloadUnusedAssetsInterval: 300
   useSystemUnloadUnusedAssets: 1
   packageName: DefaultPackage
-  playMode: 0
+  playMode: 1
   encryptionType: 0
   updatableWhilePlaying: 0
   milliseconds: 30
