@@ -179,13 +179,13 @@ namespace TEngine
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
 
-            IBundleDecryptor bundleDecryptor = CreateDecryptionServices(packageName);
+            BundleCrypto bundleCrypto = BundleCrypto.Create(GetEncryptionType(packageName));
 
             // 单机运行模式
             if (playMode == EPlayMode.OfflinePlayMode)
             {
                 var createParameters = new OfflinePlayModeOptions();
-                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleDecryptor);
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
@@ -198,8 +198,8 @@ namespace TEngine
                 Log.Info($"HostPlay 资源包远端目录：{packageName} => {defaultHostServer}");
                 IRemoteService remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
                 var createParameters = new HostPlayModeOptions();
-                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleDecryptor);
-                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleDecryptor);
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local);
+                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleCrypto?.Local);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
@@ -215,16 +215,16 @@ namespace TEngine
 #if UNITY_WEBGL && WEIXINMINIGAME && !UNITY_EDITOR
                 Log.Info("=======================WEIXINMINIGAME=======================");
                 string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE";
-                createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateFileSystemParameters(packageRoot, remoteServices, bundleDecryptor);
+                createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateFileSystemParameters(packageRoot, remoteServices, bundleCrypto?.Web);
                 AddWebRequestCreator(createParameters.WebServerFileSystemParameters);
 #else
                 Log.Info("=======================UNITY_WEBGL=======================");
                 if (LoadResWayWebGL == LoadResWayWebGL.Remote)
                 {
-                    createParameters.WebNetworkFileSystemParameters = CreateWebNetworkFileSystemParameters(remoteServices, bundleDecryptor);
+                    createParameters.WebNetworkFileSystemParameters = CreateWebNetworkFileSystemParameters(remoteServices, bundleCrypto?.Web);
                 }
 
-                createParameters.WebServerFileSystemParameters = CreateWebServerFileSystemParameters(bundleDecryptor);
+                createParameters.WebServerFileSystemParameters = CreateWebServerFileSystemParameters(bundleCrypto?.Web);
 #endif
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
@@ -259,20 +259,6 @@ namespace TEngine
             }
 
             return initializationOperation;
-        }
-
-        /// <summary>
-        /// 创建解密服务。
-        /// </summary>
-        private IBundleDecryptor CreateDecryptionServices(string packageName)
-        {
-            return GetEncryptionType(packageName) switch
-            {
-                EncryptionType.FileOffSet => new FileOffsetDecryption(),
-                EncryptionType.FileStream => new FileStreamDecryption(),
-                EncryptionType.XXTEA => new XXTEADecryption(),
-                _ => null
-            };
         }
 
         private FileSystemParameters CreateBuiltinFileSystemParameters(IBundleDecryptor decryptor)

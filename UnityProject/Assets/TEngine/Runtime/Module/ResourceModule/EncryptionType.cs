@@ -25,8 +25,9 @@ namespace TEngine
         FileStream,
 
         /// <summary>
-        /// XXTEA 加密。
+        /// ChaCha20 流密码加密（RFC 7539）。
+        /// <remarks>本地文件系统流式解密，Web 文件系统内存式解密。</remarks>
         /// </summary>
-        XXTEA,
+        ChaCha20,
     }
 }

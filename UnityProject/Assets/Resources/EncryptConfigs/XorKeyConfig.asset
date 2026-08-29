@@ -1,0 +1,15 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5dfc381df12784cdf8b3ba41b299fa3c, type: 3}
+  m_Name: XorKeyConfig
+  m_EditorClassIdentifier: 
+  _key: ee4d10cb1f9672cda05a3b4a1575dd5d08bfe4c5354a75c140b6b6cbbfb40e200f321ce4feacbd7fc14fb467179c8425b30209a1fe85028593eb6539a3ad2df6fa1676c178cf6d02f9e4a7ee101bf396ed3cfc43fb0cfe08833f3fd37461ce727aead8a3cac84b6c6614978cc4afdbd0d635c8f0e555

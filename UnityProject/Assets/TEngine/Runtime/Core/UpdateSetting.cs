@@ -429,7 +429,7 @@ namespace TEngine
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName, true),
                 BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
-                EncryptionType = EncryptionType.XXTEA,
+                EncryptionType = EncryptionType.ChaCha20,
             };
         }
 

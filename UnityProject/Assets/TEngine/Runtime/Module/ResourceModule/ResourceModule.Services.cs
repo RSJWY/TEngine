@@ -9,13 +9,11 @@ namespace TEngine
     {
         private readonly string _defaultHostServer;
         private readonly string _fallbackHostServer;
-
         public RemoteServices(string defaultHostServer, string fallbackHostServer)
         {
             _defaultHostServer = defaultHostServer;
             _fallbackHostServer = fallbackHostServer;
         }
-
         public IReadOnlyList<string> GetRemoteUrls(string fileName)
         {
             var urls = new List<string>(2);
@@ -27,32 +25,57 @@ namespace TEngine
         }
     }
 
-    public sealed class FileStreamEncryption : IBundleEncryptor
+    /// <summary>
+    /// 一套加密方案的运行时集合。
+    /// 本地文件系统使用流式（或偏移式）解密器以避免整包内存峰值；
+    /// Web 文件系统的数据已在内存中，只能使用内存式解密器（YooAsset 的 Web 加载操作仅支持 IBundleMemoryDecryptor）。
+    /// </summary>
+    public sealed class BundleCrypto
     {
-        public BundleEncryptResult Encrypt(BundleEncryptArgs args)
+        /// <summary>构建管线使用的加密器。</summary>
+        public IBundleEncryptor Encryptor { get; private set; }
+
+        /// <summary>本地文件系统（Builtin/Sandbox）使用的解密器。</summary>
+        public IBundleDecryptor Local { get; private set; }
+
+        /// <summary>Web 文件系统（WebNetwork/WebServer/WeChat）使用的解密器。</summary>
+        public IBundleDecryptor Web { get; private set; }
+
+        /// <summary>
+        /// 按加密类型创建对应方案。None 返回 null（不加密）。
+        /// </summary>
+        public static BundleCrypto Create(EncryptionType type)
         {
-            var data = File.ReadAllBytes(args.FilePath);
-            for (int i = 0; i < data.Length; i++)
-                data[i] ^= BundleStream.KEY;
-            return new BundleEncryptResult(true, data);
+            switch (type)
+            {
+                case EncryptionType.FileOffSet:
+                    return new BundleCrypto
+                    {
+                        Encryptor = new FileOffsetEncryption(),
+                        Local = new FileOffsetDecryption(),
+                        Web = new FileOffsetMemoryDecryption(),
+                    };
+                case EncryptionType.FileStream:
+                    return new BundleCrypto
+                    {
+                        Encryptor = new XorBundleEncryption(),
+                        Local = new XorStreamDecryption(),
+                        Web = new XorMemoryDecryption(),
+                    };
+                case EncryptionType.ChaCha20:
+                    return new BundleCrypto
+                    {
+                        Encryptor = new ChaCha20BundleEncryption(),
+                        Local = new ChaCha20StreamDecryption(),
+                        Web = new ChaCha20MemoryDecryption(),
+                    };
+                default:
+                    return null;
+            }
         }
     }
 
-    public sealed class FileStreamDecryption : IBundleStreamDecryptor, IBundleMemoryDecryptor
-    {
-        public Stream CreateDecryptionStream(BundleDecryptArgs args)
-            => new BundleStream(args.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-
-        public int GetBufferSize(BundleDecryptArgs args) => 1024;
-
-        public byte[] GetDecryptedData(BundleDecryptArgs args)
-        {
-            var data = args.FileData ?? File.ReadAllBytes(args.FilePath);
-            for (int i = 0; i < data.Length; i++)
-                data[i] ^= BundleStream.KEY;
-            return data;
-        }
-    }
+    #region FileOffset 文件偏移（伪加密）
 
     public sealed class FileOffsetEncryption : IBundleEncryptor
     {
@@ -66,10 +89,19 @@ namespace TEngine
         }
     }
 
-    public sealed class FileOffsetDecryption : IBundleOffsetDecryptor, IBundleMemoryDecryptor
+    /// <summary>
+    /// 偏移式解密：本地文件直接跳过头部加载，零拷贝。
+    /// </summary>
+    public sealed class FileOffsetDecryption : IBundleOffsetDecryptor
     {
         public long GetFileOffset(BundleDecryptArgs args) => 32;
+    }
 
+    /// <summary>
+    /// 偏移式解密的内存版本，供 Web 文件系统使用。
+    /// </summary>
+    public sealed class FileOffsetMemoryDecryption : IBundleMemoryDecryptor
+    {
         public byte[] GetDecryptedData(BundleDecryptArgs args)
         {
             const int offset = 32;
@@ -83,126 +115,78 @@ namespace TEngine
         }
     }
 
-    public sealed class XXTEAEncryption : IBundleEncryptor
+    #endregion
+
+    #region XOR 变长密钥流加密（本地流式）
+
+    public sealed class XorBundleEncryption : IBundleEncryptor
     {
         public BundleEncryptResult Encrypt(BundleEncryptArgs args)
-            => new BundleEncryptResult(true, XXTEACrypto.Encrypt(File.ReadAllBytes(args.FilePath)));
+        {
+            var key = XorKeyConfig.Instance.key;
+            if (CryptoUtils.IsEmpty(key))
+                throw new InvalidOperationException("[Xor] key is empty. Missing XorKeyConfig asset in Resources/EncryptConfigs?");
+            var data = File.ReadAllBytes(args.FilePath);
+            for (int i = 0; i < data.Length; i++)
+                data[i] ^= key[i % key.Length];
+            return new BundleEncryptResult(true, data);
+        }
     }
 
-    public sealed class XXTEADecryption : IBundleMemoryDecryptor
+    public sealed class XorStreamDecryption : IBundleStreamDecryptor
+    {
+        public Stream CreateDecryptionStream(BundleDecryptArgs args)
+            => new XorStream(XorKeyConfig.Instance.key, args.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        public int GetBufferSize(BundleDecryptArgs args) => 2048;
+    }
+
+    public sealed class XorMemoryDecryption : IBundleMemoryDecryptor
     {
         public byte[] GetDecryptedData(BundleDecryptArgs args)
-            => XXTEACrypto.Decrypt(args.FileData ?? File.ReadAllBytes(args.FilePath));
-    }
-}
-
-public sealed class BundleStream : FileStream
-{
-    public const byte KEY = 64;
-
-    public BundleStream(string path, FileMode mode, FileAccess access, FileShare share)
-        : base(path, mode, access, share) { }
-
-    public override int Read(byte[] array, int offset, int count)
-    {
-        int read = base.Read(array, offset, count);
-        for (int i = offset; i < offset + read; i++)
-            array[i] ^= KEY;
-        return read;
-    }
-}
-
-internal static class XXTEACrypto
-{
-    private const uint Delta = 0x9E3779B9;
-    private static readonly uint[] Key = { 0x54454E47, 0x696E6548, 0x6F744469, 0x78585445 };
-
-    public static byte[] Encrypt(byte[] data)
-    {
-        if (data == null || data.Length == 0)
-            return Array.Empty<byte>();
-
-        uint[] value = ToUInt32Array(data, true);
-        int n = value.Length - 1;
-        uint z = value[n];
-        uint sum = 0;
-        uint q = (uint)(6 + 52 / (n + 1));
-        unchecked
         {
-            while (q-- > 0)
-            {
-                sum += Delta;
-                uint e = (sum >> 2) & 3;
-                for (int p = 0; p < n; p++)
-                {
-                    uint y = value[p + 1];
-                    z = value[p] += MX(sum, y, z, p, e);
-                }
-                uint first = value[0];
-                z = value[n] += MX(sum, first, z, n, e);
-            }
+            var key = XorKeyConfig.Instance.key;
+            var data = args.FileData ?? File.ReadAllBytes(args.FilePath);
+            for (int i = 0; i < data.Length; i++)
+                data[i] ^= key[i % key.Length];
+            return data;
         }
-        return ToByteArray(value, false);
     }
 
-    public static byte[] Decrypt(byte[] data)
-    {
-        if (data == null || data.Length == 0)
-            return Array.Empty<byte>();
+    #endregion
 
-        uint[] value = ToUInt32Array(data, false);
-        int n = value.Length - 1;
-        uint y = value[0];
-        uint q = (uint)(6 + 52 / (n + 1));
-        uint sum = q * Delta;
-        unchecked
+    #region ChaCha20（本地流式 / Web 内存式）
+
+    public sealed class ChaCha20BundleEncryption : IBundleEncryptor
+    {
+        public BundleEncryptResult Encrypt(BundleEncryptArgs args)
         {
-            while (sum != 0)
-            {
-                uint e = (sum >> 2) & 3;
-                for (int p = n; p > 0; p--)
-                {
-                    uint z = value[p - 1];
-                    y = value[p] -= MX(sum, y, z, p, e);
-                }
-                uint last = value[n];
-                y = value[0] -= MX(sum, y, last, 0, e);
-                sum -= Delta;
-            }
+            var config = ChaCha20KeyConfig.Instance;
+            return new BundleEncryptResult(true,
+                ChaCha20Util.Encrypt(File.ReadAllBytes(args.FilePath), config.key, config.nonce));
         }
-        return ToByteArray(value, true);
     }
 
-    private static uint MX(uint sum, uint y, uint z, int p, uint e)
-        => (((z >> 5) ^ (y << 2)) + ((y >> 3) ^ (z << 4))) ^
-           ((sum ^ y) + (Key[(p & 3) ^ (int)e] ^ z));
-
-    private static uint[] ToUInt32Array(byte[] data, bool includeLength)
+    public sealed class ChaCha20StreamDecryption : IBundleStreamDecryptor
     {
-        int length = data.Length;
-        int n = (length & 3) == 0 ? length >> 2 : (length >> 2) + 1;
-        uint[] result = includeLength ? new uint[n + 1] : new uint[n];
-        for (int i = 0; i < length; i++)
-            result[i >> 2] |= (uint)data[i] << ((i & 3) << 3);
-        if (includeLength)
-            result[n] = (uint)length;
-        return result;
-    }
-
-    private static byte[] ToByteArray(uint[] data, bool includeLength)
-    {
-        int n = data.Length << 2;
-        if (includeLength)
+        public Stream CreateDecryptionStream(BundleDecryptArgs args)
         {
-            int length = (int)data[data.Length - 1];
-            n -= 4;
-            if (length < n - 3 || length > n)
-                throw new InvalidDataException("Invalid XXTEA data length.");
-            n = length;
+            var config = ChaCha20KeyConfig.Instance;
+            return new ChaCha20Stream(config.key, config.nonce, args.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
-        byte[] result = new byte[n];
-        for (int i = 0; i < n; i++)
-            result[i] = (byte)(data[i >> 2] >> ((i & 3) << 3));
-        return result;
+
+        public int GetBufferSize(BundleDecryptArgs args) => 2048;
     }
+
+    public sealed class ChaCha20MemoryDecryption : IBundleMemoryDecryptor
+    {
+        public byte[] GetDecryptedData(BundleDecryptArgs args)
+        {
+            var config = ChaCha20KeyConfig.Instance;
+            var data = args.FileData ?? File.ReadAllBytes(args.FilePath);
+            return ChaCha20Util.Decrypt(data, config.key, config.nonce);
+        }
+    }
+
+    #endregion
 }

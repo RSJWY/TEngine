@@ -804,13 +804,7 @@ namespace TEngine
         /// </summary>
         private static IBundleEncryptor GetEncryptionFromType(EncryptionType encryptionType)
         {
-            return encryptionType switch
-            {
-                EncryptionType.FileOffSet => new FileOffsetEncryption(),
-                EncryptionType.FileStream => new FileStreamEncryption(),
-                EncryptionType.XXTEA => new XXTEAEncryption(),
-                _ => null
-            };
+            return BundleCrypto.Create(encryptionType)?.Encryptor;
         }
 
         /// <summary>

@@ -1533,7 +1533,7 @@ namespace TEngine
                 VersionKey = GetDefaultVersionKey(packageName),
                 EncryptionType = Settings.UpdateSetting != null &&
                                  string.Equals(packageName, Settings.UpdateSetting.AssemblyPackageName, StringComparison.Ordinal)
-                    ? EncryptionType.XXTEA
+                    ? EncryptionType.ChaCha20
                     : EncryptionType.None,
                 BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
             };
@@ -2103,7 +2103,7 @@ namespace TEngine
             { "无加密", EncryptionType.None },
             { "文件偏移加密", EncryptionType.FileOffSet },
             { "文件流加密", EncryptionType.FileStream },
-            { "XXTEA加密", EncryptionType.XXTEA },
+            { "ChaCha20加密", EncryptionType.ChaCha20 },
         };
 
         private static ValueDropdownList<EBundledCopyOption> BuildinFileCopyOptions => new ValueDropdownList<EBundledCopyOption>
