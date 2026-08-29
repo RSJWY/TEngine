@@ -256,7 +256,7 @@ namespace TEngine
             }
 
             buildParameters.BuildOutputRoot = outputRoot;
-            buildParameters.BuildinFileRoot = AssetBundleBuilderHelper.GetStreamingAssetsRoot();
+            buildParameters.BundledFileRoot = BundleBuilderHelper.GetStreamingAssetsRoot();
             buildParameters.BuildPipeline = buildPipeline.ToString();
             buildParameters.BuildTarget = config.BuildTarget;
             buildParameters.BuildBundleType = GetBuildBundleType(buildPipeline);
@@ -266,9 +266,9 @@ namespace TEngine
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
             buildParameters.EnableSharePackRule = config.EnableSharePackRule;
             buildParameters.FileNameStyle = config.FileNameStyle;
-            buildParameters.BuildinFileCopyOption = GetBuildinFileCopyOption(config.BuildinFileCopyOption, appendBuildinFiles);
-            buildParameters.BuildinFileCopyParams = string.Empty;
-            buildParameters.EncryptionServices = GetEncryptionFromType(runtimePackage.EncryptionType);
+            buildParameters.BundledCopyOption = GetBundledFileCopyOption(config.BuildinFileCopyOption, appendBuildinFiles);
+            buildParameters.BundledCopyParams = string.Empty;
+            buildParameters.BundleEncryptor = GetEncryptionFromType(runtimePackage.EncryptionType);
             buildParameters.ClearBuildCacheFiles = config.ClearBuildCache;
             buildParameters.UseAssetDependencyDB = config.UseAssetDependencyDB;
 
@@ -534,14 +534,14 @@ namespace TEngine
         /// </summary>
         public static void ProcessMinimalPackage(IReadOnlyList<string> packageNames, string packageVersion, string retainTags, string outputPackageDirectory)
         {
-            string streamingRoot = AssetBundleBuilderHelper.GetStreamingAssetsRoot();
+            string streamingRoot = BundleBuilderHelper.GetStreamingAssetsRoot();
 
             HashSet<string> retainFileNames = new HashSet<string>();
             string[] retainTagArray = ParseRetainTags(retainTags);
 
             foreach (var packageName in packageNames)
             {
-                string reportFileName = YooAssetSettingsData.GetBuildReportFileName(packageName, packageVersion);
+                string reportFileName = YooAssetConfiguration.GetBuildReportFileName(packageName, packageVersion);
                 string reportPath = $"{outputPackageDirectory}/{reportFileName}";
                 if (!File.Exists(reportPath))
                 {
@@ -624,11 +624,11 @@ namespace TEngine
         private static int GetBuildBundleType(EBuildPipeline buildPipeline)
         {
             return buildPipeline == EBuildPipeline.RawFileBuildPipeline
-                ? (int)EBuildBundleType.RawBundle
-                : (int)EBuildBundleType.AssetBundle;
+                ? (int)EBundleType.RawBundle
+                : (int)EBundleType.AssetBundle;
         }
 
-        private static EBuildinFileCopyOption GetBuildinFileCopyOption(EBuildinFileCopyOption option, bool appendBuildinFiles)
+        private static EBundledCopyOption GetBundledFileCopyOption(EBundledCopyOption option, bool appendBuildinFiles)
         {
             if (!appendBuildinFiles)
             {
@@ -637,8 +637,8 @@ namespace TEngine
 
             return option switch
             {
-                EBuildinFileCopyOption.ClearAndCopyAll => EBuildinFileCopyOption.OnlyCopyAll,
-                EBuildinFileCopyOption.ClearAndCopyByTags => EBuildinFileCopyOption.OnlyCopyByTags,
+                EBundledCopyOption.ClearAndCopyAll => EBundledCopyOption.OnlyCopyAll,
+                EBundledCopyOption.ClearAndCopyByTags => EBundledCopyOption.OnlyCopyByTags,
                 _ => option
             };
         }
@@ -794,15 +794,15 @@ namespace TEngine
 
         private static string GetBuiltinShaderBundleName(string packageName)
         {
-            var uniqueBundleName = AssetBundleCollectorSettingData.Setting.UniqueBundleName;
-            var packRuleResult = DefaultPackRule.CreateShadersPackRuleResult();
+            var uniqueBundleName = BundleCollectorSettingData.Setting.UniqueBundleName;
+            var packRuleResult = DefaultBundlePackRule.CreateShadersPackRuleResult();
             return packRuleResult.GetBundleName(packageName, uniqueBundleName);
         }
 
         /// <summary>
         /// 根据 EncryptionType 枚举获取加密服务
         /// </summary>
-        private static IEncryptionServices GetEncryptionFromType(EncryptionType encryptionType)
+        private static IBundleEncryptor GetEncryptionFromType(EncryptionType encryptionType)
         {
             return encryptionType switch
             {
@@ -816,7 +816,7 @@ namespace TEngine
         /// <summary>
         /// 根据 ResourceModuleDriver 的 encryptionType 获取对应的加密服务（旧版兼容）
         /// </summary>
-        private static IEncryptionServices GetEncryptionFromResourceModuleDriver()
+        private static IBundleEncryptor GetEncryptionFromResourceModuleDriver()
         {
             var guids = AssetDatabase.FindAssets("t:Prefab GameEntry");
             if (guids.Length == 0)

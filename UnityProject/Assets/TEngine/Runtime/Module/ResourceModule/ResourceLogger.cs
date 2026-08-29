@@ -7,17 +7,17 @@
             TEngine.Log.Info(message);
         }
 
-        public void Warning(string message)
+        public void LogWarning(string message)
         {
             TEngine.Log.Warning(message);
         }
 
-        public void Error(string message)
+        public void LogError(string message)
         {
             TEngine.Log.Error(message);
         }
 
-        public void Exception(System.Exception exception)
+        public void LogException(System.Exception exception)
         {
             TEngine.Log.Fatal(exception.Message);
         }

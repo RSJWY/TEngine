@@ -49,8 +49,9 @@ namespace TEngine
 
         private async UniTask<Sprite> GetSubSpriteImp(string location, string spriteName, CancellationToken cancellationToken = default)
         {
-            var assetInfo = YooAssets.GetAssetInfo(location);
-            if (assetInfo.IsInvalid)
+            var package = YooAssets.GetPackage(Settings.UpdateSetting.GetDefaultPackageName());
+            var assetInfo = package.GetAssetInfo(location);
+            if (!string.IsNullOrEmpty(assetInfo.Error))
             {
                 throw new GameFrameworkException($"Invalid location: {location}");
             }
@@ -59,7 +60,7 @@ namespace TEngine
 
             if (!_subAssetsHandles.TryGetValue(location, out var subAssetsHandle))
             {
-                subAssetsHandle = YooAssets.LoadSubAssetsAsync<Sprite>(location);
+                subAssetsHandle = package.LoadSubAssetsAsync<Sprite>(location);
                 await subAssetsHandle.ToUniTask(cancellationToken: cancellationToken);
                 _subAssetsHandles[location] = subAssetsHandle;
             }

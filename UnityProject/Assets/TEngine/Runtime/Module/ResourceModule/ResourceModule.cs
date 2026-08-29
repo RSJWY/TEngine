@@ -114,22 +114,20 @@ namespace TEngine
         /// </summary>
         private readonly HashSet<string> _assetLoadingList = new HashSet<string>();
 
+        private UnityWebRequestCreator _unityWebRequestCreator;
+
         #endregion
 
         public void Initialize()
         {
             // 初始化资源系统
             YooAssets.Initialize(new ResourceLogger());
-            YooAssets.SetOperationSystemMaxTimeSlice(Milliseconds);
+            YooAssets.SetAsyncOperationMaxTimeSlice(Milliseconds);
 
             // 创建默认的资源包
             string packageName = DefaultPackageName;
-            var defaultPackage = YooAssets.TryGetPackage(packageName);
-            if (defaultPackage == null)
-            {
+            if (!YooAssets.TryGetPackage(packageName, out var defaultPackage))
                 defaultPackage = YooAssets.CreatePackage(packageName);
-                YooAssets.SetDefaultPackage(defaultPackage);
-            }
 
             DefaultPackage = defaultPackage;
 
@@ -137,7 +135,7 @@ namespace TEngine
             SetObjectPoolModule(objectPoolManager);
         }
 
-        public async UniTask<InitializationOperation> InitPackage(string packageName, bool needInitMainFest = false)
+        public async UniTask<InitializePackageOperation> InitPackage(string packageName, bool needInitMainFest = false)
         {
 #if UNITY_EDITOR
             //编辑器模式使用。
@@ -150,7 +148,7 @@ namespace TEngine
 
             if (PackageMap.TryGetValue(packageName, out var resourcePackage))
             {
-                if (resourcePackage.InitializeStatus is EOperationStatus.Processing or EOperationStatus.Succeed)
+                if (resourcePackage.InitializeStatus is EOperationStatus.Processing or EOperationStatus.Succeeded)
                 {
                     Log.Error($"ResourceSystem has already init package : {packageName}");
                     return null;
@@ -162,35 +160,33 @@ namespace TEngine
             }
 
             // 创建资源包裹类
-            var package = YooAssets.TryGetPackage(packageName);
-            if (package == null)
-            {
+            if (!YooAssets.TryGetPackage(packageName, out var package))
                 package = YooAssets.CreatePackage(packageName);
-            }
 
             PackageMap[packageName] = package;
 
             // 编辑器下的模拟模式
-            InitializationOperation initializationOperation = null;
+            InitializePackageOperation initializationOperation = null;
             if (playMode == EPlayMode.EditorSimulateMode)
             {
-                var buildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
+                var buildResult = EditorSimulateBuildInvoker.Build(packageName, (int)EBundleType.VirtualAssetBundle);
                 var packageRoot = buildResult.PackageRootDirectory;
-                var createParameters = new EditorSimulateModeParameters();
+                var createParameters = new EditorSimulateModeOptions();
                 createParameters.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(packageRoot);
+                AddWebRequestCreator(createParameters.EditorFileSystemParameters);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
-                initializationOperation = package.InitializeAsync(createParameters);
+                initializationOperation = package.InitializePackageAsync(createParameters);
             }
 
-            IDecryptionServices decryptionServices = CreateDecryptionServices(packageName);
+            IBundleDecryptor bundleDecryptor = CreateDecryptionServices(packageName);
 
             // 单机运行模式
             if (playMode == EPlayMode.OfflinePlayMode)
             {
-                var createParameters = new OfflinePlayModeParameters();
-                createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters(decryptionServices);
+                var createParameters = new OfflinePlayModeOptions();
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleDecryptor);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
-                initializationOperation = package.InitializeAsync(createParameters);
+                initializationOperation = package.InitializePackageAsync(createParameters);
             }
 
             // 联机运行模式
@@ -199,39 +195,42 @@ namespace TEngine
                 string defaultHostServer = Settings.UpdateSetting.GetPackageHostServerURL(packageName);
                 string fallbackHostServer = Settings.UpdateSetting.GetPackageFallbackHostServerURL(packageName);
                 Log.Info($"HostPlay 资源包远端目录：{packageName} => {defaultHostServer}");
-                IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
-                var createParameters = new HostPlayModeParameters();
-                createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters(decryptionServices);
-                createParameters.CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices, decryptionServices);
+                IRemoteService remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
+                var createParameters = new HostPlayModeOptions();
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleDecryptor);
+                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleDecryptor);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
-                initializationOperation = package.InitializeAsync(createParameters);
+                initializationOperation = package.InitializePackageAsync(createParameters);
             }
 
             // WebGL运行模式
             if (playMode == EPlayMode.WebPlayMode)
             {
-                var createParameters = new WebPlayModeParameters();
-                IWebDecryptionServices webDecryptionServices = CreateWebDecryptionServices(packageName);
+                var createParameters = new WebPlayModeOptions();
                 string defaultHostServer = Settings.UpdateSetting.GetPackageHostServerURL(packageName);
                 string fallbackHostServer = Settings.UpdateSetting.GetPackageFallbackHostServerURL(packageName);
                 Log.Info($"WebPlay 资源包远端目录：{packageName} => {defaultHostServer}");
-                IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
+                IRemoteService remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
 #if UNITY_WEBGL && WEIXINMINIGAME && !UNITY_EDITOR
                 Log.Info("=======================WEIXINMINIGAME=======================");
                 string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE";
-                createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateFileSystemParameters(packageRoot, remoteServices, webDecryptionServices);
+                createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateFileSystemParameters(packageRoot, remoteServices, bundleDecryptor);
+                AddWebRequestCreator(createParameters.WebServerFileSystemParameters);
 #else
                 Log.Info("=======================UNITY_WEBGL=======================");
                 if (LoadResWayWebGL == LoadResWayWebGL.Remote)
                 {
-                    createParameters.WebRemoteFileSystemParameters = FileSystemParameters.CreateDefaultWebRemoteFileSystemParameters(remoteServices, webDecryptionServices);
+                    createParameters.WebNetworkFileSystemParameters = CreateWebNetworkFileSystemParameters(remoteServices, bundleDecryptor);
                 }
 
-                createParameters.WebServerFileSystemParameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters(webDecryptionServices);
+                createParameters.WebServerFileSystemParameters = CreateWebServerFileSystemParameters(bundleDecryptor);
 #endif
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
-                initializationOperation = package.InitializeAsync(createParameters);
+                initializationOperation = package.InitializePackageAsync(createParameters);
             }
+
+            if (initializationOperation == null)
+                throw new GameFrameworkException($"Unsupported YooAsset play mode: {playMode}");
 
             await initializationOperation.ToUniTask();
 
@@ -240,12 +239,12 @@ namespace TEngine
             if (needInitMainFest)
             {
                 // 2. 请求资源清单的版本信息
-                var requestPackageVersionOperation = package.RequestPackageVersionAsync();
+                var requestPackageVersionOperation = package.RequestPackageVersionAsync(new RequestPackageVersionOptions(false, 60));
                 await requestPackageVersionOperation;
-                if (requestPackageVersionOperation.Status == EOperationStatus.Succeed)
+                if (requestPackageVersionOperation.Status == EOperationStatus.Succeeded)
                 {
                     // 3. 传入的版本信息更新资源清单
-                    var updatePackageManifestAsync = package.UpdatePackageManifestAsync(requestPackageVersionOperation.PackageVersion);
+                    var updatePackageManifestAsync = package.LoadPackageManifestAsync(new LoadPackageManifestOptions(requestPackageVersionOperation.PackageVersion, 60));
                     await updatePackageManifestAsync;
                     if (updatePackageManifestAsync.Status == EOperationStatus.Failed)
                     {
@@ -264,7 +263,7 @@ namespace TEngine
         /// <summary>
         /// 创建解密服务。
         /// </summary>
-        private IDecryptionServices CreateDecryptionServices(string packageName)
+        private IBundleDecryptor CreateDecryptionServices(string packageName)
         {
             return GetEncryptionType(packageName) switch
             {
@@ -275,18 +274,51 @@ namespace TEngine
             };
         }
 
-        /// <summary>
-        /// 创建Web解密服务。
-        /// </summary>
-        private IWebDecryptionServices CreateWebDecryptionServices(string packageName)
+        private FileSystemParameters CreateBuiltinFileSystemParameters(IBundleDecryptor decryptor)
         {
-            return GetEncryptionType(packageName) switch
+            var parameters = FileSystemParameters.CreateDefaultBuiltinFileSystemParameters();
+            AddBundleDecryptor(parameters, decryptor);
+            AddWebRequestCreator(parameters);
+            return parameters;
+        }
+
+        private FileSystemParameters CreateSandboxFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor)
+        {
+            var parameters = FileSystemParameters.CreateDefaultSandboxFileSystemParameters(remoteService);
+            AddBundleDecryptor(parameters, decryptor);
+            AddWebRequestCreator(parameters);
+            return parameters;
+        }
+
+        private FileSystemParameters CreateWebServerFileSystemParameters(IBundleDecryptor decryptor)
+        {
+            var parameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters();
+            AddBundleDecryptor(parameters, decryptor);
+            AddWebRequestCreator(parameters);
+            return parameters;
+        }
+
+        private FileSystemParameters CreateWebNetworkFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor)
+        {
+            var parameters = FileSystemParameters.CreateDefaultWebNetworkFileSystemParameters(remoteService);
+            AddBundleDecryptor(parameters, decryptor);
+            AddWebRequestCreator(parameters);
+            return parameters;
+        }
+
+        private static void AddBundleDecryptor(FileSystemParameters parameters, IBundleDecryptor decryptor)
+        {
+            if (decryptor != null)
             {
-                EncryptionType.FileOffSet => new FileOffsetWebDecryption(),
-                EncryptionType.FileStream => new FileStreamWebDecryption(),
-                EncryptionType.XXTEA => new XXTEAWebDecryption(),
-                _ => null
-            };
+                parameters.AddParameter(EFileSystemParameter.AssetBundleDecryptor, decryptor);
+                parameters.AddParameter(EFileSystemParameter.RawBundleDecryptor, decryptor);
+            }
+        }
+
+        private void AddWebRequestCreator(FileSystemParameters parameters)
+        {
+            if (_unityWebRequestCreator != null)
+                parameters.AddParameter(EFileSystemParameter.UnityWebRequestCreator, _unityWebRequestCreator);
         }
 
         private EncryptionType GetEncryptionType(string packageName)
@@ -326,7 +358,7 @@ namespace TEngine
             var package = string.IsNullOrEmpty(customPackageName)
                 ? YooAssets.GetPackage(DefaultPackageName)
                 : YooAssets.GetPackage(customPackageName);
-            return package.RequestPackageVersionAsync(appendTimeTicks, timeout);
+            return package.RequestPackageVersionAsync(new RequestPackageVersionOptions(appendTimeTicks, timeout));
         }
 
         public void SetRemoteServicesUrl(string defaultHostServer, string fallbackHostServer)
@@ -341,12 +373,12 @@ namespace TEngine
         /// <param name="packageVersion">更新的包裹版本</param>
         /// <param name="timeout">超时时间（默认值：60秒）</param>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
-        public UpdatePackageManifestOperation UpdatePackageManifestAsync(string packageVersion, int timeout = 60, string customPackageName = "")
+        public LoadPackageManifestOperation UpdatePackageManifestAsync(string packageVersion, int timeout = 60, string customPackageName = "")
         {
             var package = string.IsNullOrEmpty(customPackageName)
                 ? YooAssets.GetPackage(this.DefaultPackageName)
                 : YooAssets.GetPackage(customPackageName);
-            return package.UpdatePackageManifestAsync(packageVersion, timeout);
+            return package.LoadPackageManifestAsync(new LoadPackageManifestOptions(packageVersion, timeout));
         }
 
         /// <summary>
@@ -370,7 +402,7 @@ namespace TEngine
                 package = YooAssets.GetPackage(customPackageName);
             }
 
-            Downloader = package.CreateResourceDownloader(DownloadingMaxNum, FailedTryAgain);
+            Downloader = package.CreateResourceDownloader(new ResourceDownloaderOptions(DownloadingMaxNum, FailedTryAgain));
             return Downloader;
         }
 
@@ -379,14 +411,14 @@ namespace TEngine
         /// </summary>
         /// <param name="clearMode">文件清理方式。</param>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
-        public ClearCacheFilesOperation ClearCacheFilesAsync(
-            EFileClearMode clearMode = EFileClearMode.ClearUnusedBundleFiles,
+        public ClearCacheOperation ClearCacheFilesAsync(
+            string clearMode = ClearCacheMethods.ClearUnusedBundleFiles,
             string customPackageName = "")
         {
             var package = string.IsNullOrEmpty(customPackageName)
                 ? YooAssets.GetPackage(DefaultPackageName)
                 : YooAssets.GetPackage(customPackageName);
-            return package.ClearCacheFilesAsync(clearMode);
+            return package.ClearCacheAsync(new ClearCacheOptions(clearMode));
         }
 
         /// <summary>
@@ -394,7 +426,7 @@ namespace TEngine
         /// </summary>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
         public void ClearAllBundleFiles(string customPackageName = "")
-            => ClearCacheFilesAsync(EFileClearMode.ClearAllBundleFiles, customPackageName);
+            => ClearCacheFilesAsync(ClearCacheMethods.ClearAllBundleFiles, customPackageName);
 
         #region 资源回收
 
@@ -423,7 +455,7 @@ namespace TEngine
             _assetPool.ReleaseAllUnused();
             foreach (var package in PackageMap.Values)
             {
-                if (package is { InitializeStatus: EOperationStatus.Succeed })
+                if (package is { InitializeStatus: EOperationStatus.Succeeded })
                 {
                     package.UnloadUnusedAssetsAsync();
                 }
@@ -442,7 +474,7 @@ namespace TEngine
 
             foreach (var package in PackageMap.Values)
             {
-                if (package is { InitializeStatus: EOperationStatus.Succeed })
+                if (package is { InitializeStatus: EOperationStatus.Succeeded })
                 {
                     package.UnloadAllAssetsAsync();
                 }
@@ -468,12 +500,12 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.IsNeedDownloadFromRemote(location);
+                return DefaultPackage.GetDownloadSize(location) > 0;
             }
             else
             {
                 var package = YooAssets.GetPackage(packageName);
-                return package.IsNeedDownloadFromRemote(location);
+                return package.GetDownloadSize(location) > 0;
             }
         }
 
@@ -486,12 +518,12 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.IsNeedDownloadFromRemote(assetInfo);
+                return DefaultPackage.GetDownloadSize(assetInfo) > 0;
             }
             else
             {
                 var package = YooAssets.GetPackage(packageName);
-                return package.IsNeedDownloadFromRemote(assetInfo);
+                return package.GetDownloadSize(assetInfo) > 0;
             }
         }
 
@@ -505,7 +537,7 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.GetAssetInfos(tag);
+                return DefaultPackage.GetAssetInfos(tag);
             }
             else
             {
@@ -524,7 +556,7 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.GetAssetInfos(tags);
+                return DefaultPackage.GetAssetInfos(tags);
             }
             else
             {
@@ -553,7 +585,7 @@ namespace TEngine
                     return assetInfo;
                 }
 
-                assetInfo = YooAssets.GetAssetInfo(location);
+                assetInfo = DefaultPackage.GetAssetInfo(location);
                 _assetInfoMap[location] = assetInfo;
                 return assetInfo;
             }
@@ -592,7 +624,7 @@ namespace TEngine
 
             AssetInfo assetInfo = GetAssetInfo(location, packageName);
 
-            if (!CheckLocationValid(location))
+            if (!CheckLocationValid(location, packageName))
             {
                 return HasAssetResult.Valid;
             }
@@ -619,12 +651,12 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.CheckLocationValid(location);
+                return DefaultPackage.IsLocationValid(location);
             }
             else
             {
                 var package = YooAssets.GetPackage(packageName);
-                return package.CheckLocationValid(location);
+                return package.IsLocationValid(location);
             }
         }
 
@@ -650,7 +682,7 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.LoadAssetSync(location, assetType);
+                return DefaultPackage.LoadAssetSync(location, assetType);
             }
 
             var package = YooAssets.GetPackage(packageName);
@@ -673,7 +705,7 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.LoadAssetAsync(location, assetType);
+                return DefaultPackage.LoadAssetAsync(location, assetType);
             }
 
             var package = YooAssets.GetPackage(packageName);
@@ -1171,7 +1203,7 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.LoadAssetSync(location, type);
+                return DefaultPackage.LoadAssetSync(location, type);
             }
 
             var package = YooAssets.GetPackage(packageName);
@@ -1194,7 +1226,7 @@ namespace TEngine
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                return YooAssets.LoadAssetAsync(location, assetType);
+                return DefaultPackage.LoadAssetAsync(location, assetType);
             }
 
             var package = YooAssets.GetPackage(packageName);
@@ -1236,15 +1268,15 @@ namespace TEngine
         /// <summary>
         /// 设置下载系统参数，自定义下载请求。
         /// </summary>
-        /// <param name="downloadSystemUnityWebRequest">自定义下载器的请求委托。<see cref="UnityWebRequestDelegate"/></param>
-        public void SetDownloadSystemUnityWebRequest(UnityWebRequestDelegate downloadSystemUnityWebRequest)
+        /// <param name="unityWebRequestCreator">自定义 UnityWebRequest 创建委托。</param>
+        public void SetDownloadSystemUnityWebRequest(UnityWebRequestCreator unityWebRequestCreator)
         {
-            YooAssets.SetDownloadSystemUnityWebRequest(downloadSystemUnityWebRequest);
+            _unityWebRequestCreator = unityWebRequestCreator;
         }
 
-        public UnityEngine.Networking.UnityWebRequest CustomWebRequester(string url)
+        public UnityEngine.Networking.UnityWebRequest CustomWebRequester(string url, string method)
         {
-            var request = new UnityEngine.Networking.UnityWebRequest(url, UnityEngine.Networking.UnityWebRequest.kHttpVerbGET);
+            var request = new UnityEngine.Networking.UnityWebRequest(url, method);
             var authorization = GetAuthorization("Admin", "12345");
             request.SetRequestHeader("AUTHORIZATION", authorization);
             return request;

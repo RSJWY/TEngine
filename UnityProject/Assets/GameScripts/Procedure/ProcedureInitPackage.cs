@@ -51,7 +51,7 @@ namespace Procedure
 
                     Log.Info($"初始化资源包：{runtimePackage.PackageName}");
                     var initializationOperation = await _resourceModule.InitPackage(runtimePackage.PackageName);
-                    if (initializationOperation == null || initializationOperation.Status != EOperationStatus.Succeed)
+                    if (initializationOperation == null || initializationOperation.Status != EOperationStatus.Succeeded)
                     {
                         var error = initializationOperation == null ? $"{runtimePackage.PackageName} 初始化返回空结果" : initializationOperation.Error;
                         OnInitPackageFailed(procedureOwner, runtimePackage.PackageName, error);

@@ -5,7 +5,7 @@ using YooAsset.Editor;
 namespace TEngine.SceneTools
 {
     /// <summary>
-    /// 读取 YooAsset <see cref="AssetBundleCollectorSetting"/> 中 Scenes Group 的收集目录。
+    /// 读取 YooAsset <see cref="BundleCollectorSetting"/> 中 Scenes Group 的收集目录。
     /// 用于联动资源打包配置，避免 <see cref="SceneEnumConfig"/> 与 YooAsset 配置脱节。
     /// </summary>
     public static class YooAssetCollectorReader
@@ -13,14 +13,14 @@ namespace TEngine.SceneTools
         public const string DefaultScenesGroupName = "Scenes";
 
         /// <summary>
-        /// 加载 AssetBundleCollectorSetting 资产（项目内应有且仅有一份）。
+        /// 加载 BundleCollectorSetting 资产（项目内应有且仅有一份）。
         /// </summary>
-        public static AssetBundleCollectorSetting LoadSetting()
+        public static BundleCollectorSetting LoadSetting()
         {
-            string[] guids = AssetDatabase.FindAssets("t:AssetBundleCollectorSetting");
+            string[] guids = AssetDatabase.FindAssets("t:BundleCollectorSetting");
             if (guids.Length == 0) return null;
             string path = AssetDatabase.GUIDToAssetPath(guids[0]);
-            return AssetDatabase.LoadAssetAtPath<AssetBundleCollectorSetting>(path);
+            return AssetDatabase.LoadAssetAtPath<BundleCollectorSetting>(path);
         }
 
         /// <summary>
@@ -29,15 +29,15 @@ namespace TEngine.SceneTools
         public static List<string> GetCollectPaths(string groupName = DefaultScenesGroupName)
         {
             List<string> result = new List<string>();
-            AssetBundleCollectorSetting setting = LoadSetting();
+            BundleCollectorSetting setting = LoadSetting();
             if (setting == null) return result;
 
-            foreach (AssetBundleCollectorPackage package in setting.Packages)
+            foreach (BundleCollectorPackage package in setting.Packages)
             {
-                foreach (AssetBundleCollectorGroup group in package.Groups)
+                foreach (BundleCollectorGroup group in package.Groups)
                 {
                     if (group.GroupName != groupName) continue;
-                    foreach (AssetBundleCollector collector in group.Collectors)
+                    foreach (BundleCollector collector in group.Collectors)
                     {
                         if (!string.IsNullOrEmpty(collector.CollectPath))
                         {

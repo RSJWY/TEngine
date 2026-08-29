@@ -10,15 +10,15 @@ namespace GameEditor
     /// 例如："Assets/AssetRaw/Scenes/机库.unity" --> "assets_assetraw_scenes_机库_scene.bundle"
     /// </summary>
     [DisplayName("资源包名: 场景文件路径(防混包)")]
-    public class PackSceneFile : IPackRule
+    public class PackSceneFile : IBundlePackRule
     {
-        public PackRuleResult GetPackRuleResult(PackRuleData data)
+        public BundlePackRuleResult GetPackRuleResult(BundlePackRuleData data)
         {
             string assetPath = data.AssetPath;
             string dir = Path.GetDirectoryName(assetPath);
             string fileName = Path.GetFileNameWithoutExtension(assetPath);
             string bundleName = $"{dir}/{fileName}_scene";
-            return new PackRuleResult(bundleName, DefaultPackRule.AssetBundleFileExtension);
+            return new BundlePackRuleResult(bundleName, DefaultBundlePackRule.AssetBundleFileExtension);
         }
     }
 }

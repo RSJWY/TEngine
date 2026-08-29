@@ -56,7 +56,7 @@ namespace TEngine
         /// </summary>
         /// <param name="customPackageName">资源包名称。</param>
         /// <param name="needInitMainFest">是否需要直接初始化资源清单。（单机OtherPackage使用）</param>
-        UniTask<InitializationOperation> InitPackage(string customPackageName, bool needInitMainFest = false);
+        UniTask<InitializePackageOperation> InitPackage(string customPackageName, bool needInitMainFest = false);
 
         /// <summary>
         /// 默认资源包名称。
@@ -285,8 +285,8 @@ namespace TEngine
         /// </summary>
         /// <param name="clearMode">文件清理方式。</param>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
-        ClearCacheFilesOperation ClearCacheFilesAsync(
-            EFileClearMode clearMode = EFileClearMode.ClearUnusedBundleFiles, string customPackageName = "");
+        ClearCacheOperation ClearCacheFilesAsync(
+            string clearMode = ClearCacheMethods.ClearUnusedBundleFiles, string customPackageName = "");
 
         /// <summary>
         /// 清理沙盒路径。
@@ -332,7 +332,7 @@ namespace TEngine
         /// <param name="packageVersion">更新的包裹版本</param>
         /// <param name="timeout">超时时间（默认值：60秒）</param>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
-        UpdatePackageManifestOperation UpdatePackageManifestAsync(string packageVersion, int timeout = 60, string customPackageName = "");
+        LoadPackageManifestOperation UpdatePackageManifestAsync(string packageVersion, int timeout = 60, string customPackageName = "");
 
         /// <summary>
         /// 设置远程服务Url。

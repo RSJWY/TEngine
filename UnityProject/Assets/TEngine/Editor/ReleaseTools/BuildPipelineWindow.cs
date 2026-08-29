@@ -275,7 +275,7 @@ namespace TEngine
         [ValueDropdown(nameof(BuildinFileCopyOptions))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
-        private EBuildinFileCopyOption _buildinFileCopyOption = EBuildinFileCopyOption.ClearAndCopyAll;
+        private EBundledCopyOption _buildinFileCopyOption = EBundledCopyOption.ClearAndCopyAll;
 
         [TabGroup("Pages", "高级")]
         [FoldoutGroup("Pages/高级/高级设置")]
@@ -1074,9 +1074,7 @@ namespace TEngine
                 ? setting.BuildTarget
                 : GetActiveSupportedBuildTarget();
 
-            _buildPipeline = setting.BuildPipeline == EBuildPipeline.BuiltinBuildPipeline
-                ? EBuildPipeline.ScriptableBuildPipeline
-                : setting.BuildPipeline;
+            _buildPipeline = setting.BuildPipeline;
             _compressOption = setting.CompressOption;
             _packageVersion = setting.PackageVersion;
             _outputRoot = string.IsNullOrWhiteSpace(setting.OutputRoot) ? DefaultOutputRoot : setting.OutputRoot;
@@ -1198,7 +1196,7 @@ namespace TEngine
             setting.UseAssetDependencyDB = EditorPrefs.GetBool("TEngine_BP_UseDepDB", true);
             setting.ClearBuildCache = EditorPrefs.GetBool("TEngine_BP_ClearCache", false);
             setting.VerifyBuildingResult = EditorPrefs.GetBool("TEngine_BP_VerifyResult", true);
-            setting.BuildinFileCopyOption = (EBuildinFileCopyOption)EditorPrefs.GetInt(
+            setting.BuildinFileCopyOption = (EBundledCopyOption)EditorPrefs.GetInt(
                 "TEngine_BP_CopyOption", (int)defaultConfig.BuildinFileCopyOption);
             setting.FileNameStyle = (EFileNameStyle)EditorPrefs.GetInt("TEngine_BP_FileNameStyle", (int)defaultConfig.FileNameStyle);
             setting.BuildHotFixDll = EditorPrefs.GetBool("TEngine_BP_BuildDll", true);
@@ -1376,7 +1374,8 @@ namespace TEngine
 
         private void NormalizeSettings()
         {
-            if (_buildPipeline == EBuildPipeline.BuiltinBuildPipeline)
+            if (_buildPipeline != EBuildPipeline.ScriptableBuildPipeline &&
+                _buildPipeline != EBuildPipeline.RawFileBuildPipeline)
             {
                 _buildPipeline = EBuildPipeline.ScriptableBuildPipeline;
             }
@@ -2107,13 +2106,13 @@ namespace TEngine
             { "XXTEA加密", EncryptionType.XXTEA },
         };
 
-        private static ValueDropdownList<EBuildinFileCopyOption> BuildinFileCopyOptions => new ValueDropdownList<EBuildinFileCopyOption>
+        private static ValueDropdownList<EBundledCopyOption> BuildinFileCopyOptions => new ValueDropdownList<EBundledCopyOption>
         {
-            { "None (不拷贝)", EBuildinFileCopyOption.None },
-            { "ClearAndCopyAll (清空后拷贝全部)", EBuildinFileCopyOption.ClearAndCopyAll },
-            { "ClearAndCopyByTags (清空后按Tag拷贝)", EBuildinFileCopyOption.ClearAndCopyByTags },
-            { "OnlyCopyAll (仅拷贝全部)", EBuildinFileCopyOption.OnlyCopyAll },
-            { "OnlyCopyByTags (仅按Tag拷贝)", EBuildinFileCopyOption.OnlyCopyByTags },
+            { "None (不拷贝)", EBundledCopyOption.None },
+            { "ClearAndCopyAll (清空后拷贝全部)", EBundledCopyOption.ClearAndCopyAll },
+            { "ClearAndCopyByTags (清空后按Tag拷贝)", EBundledCopyOption.ClearAndCopyByTags },
+            { "OnlyCopyAll (仅拷贝全部)", EBundledCopyOption.OnlyCopyAll },
+            { "OnlyCopyByTags (仅按Tag拷贝)", EBundledCopyOption.OnlyCopyByTags },
         };
 
         private static ValueDropdownList<EFileNameStyle> FileNameStyleOptions => new ValueDropdownList<EFileNameStyle>

@@ -9,6 +9,8 @@ namespace TEngine
 {
     internal class SceneModule : Module, ISceneModule
     {
+        private static ResourcePackage DefaultPackage => YooAssets.GetPackage(Settings.UpdateSetting.GetDefaultPackageName());
+
         private string _currentMainSceneName = string.Empty;
 
         private SceneHandle _currentMainScene;
@@ -36,7 +38,7 @@ namespace TEngine
                 SceneHandle subScene = iter.Current;
                 if (subScene != null)
                 {
-                    subScene.UnloadAsync();
+                    subScene.UnloadSceneAsync();
                 }
             }
 
@@ -71,7 +73,7 @@ namespace TEngine
                     throw new Exception($"Could not load subScene while already loaded. Scene: {location}");
                 }
 
-                subScene = YooAssets.LoadSceneAsync(location, sceneMode, LocalPhysicsMode.None, suspendLoad, priority);
+                subScene = DefaultPackage.LoadSceneAsync(location, sceneMode, LocalPhysicsMode.None, !suspendLoad, priority);
 
                 //Fix 这里前置，subScene.IsDone在UnSupendLoad之后才会是true
                 _subScenes.Add(location, subScene);
@@ -102,7 +104,7 @@ namespace TEngine
 
                 _currentMainSceneName = location;
 
-                _currentMainScene = YooAssets.LoadSceneAsync(location, sceneMode, LocalPhysicsMode.None, suspendLoad, priority);
+                _currentMainScene = DefaultPackage.LoadSceneAsync(location, sceneMode, LocalPhysicsMode.None, !suspendLoad, priority);
 
                 if (progressCallBack != null)
                 {
@@ -155,7 +157,7 @@ namespace TEngine
                     return;
                 }
 
-                subScene = YooAssets.LoadSceneAsync(location, sceneMode, LocalPhysicsMode.None, suspendLoad, priority);
+                subScene = DefaultPackage.LoadSceneAsync(location, sceneMode, LocalPhysicsMode.None, !suspendLoad, priority);
 
                 subScene.Completed += handle =>
                 {
@@ -180,7 +182,7 @@ namespace TEngine
 
                 _currentMainSceneName = location;
 
-                _currentMainScene = YooAssets.LoadSceneAsync(location, sceneMode, LocalPhysicsMode.None, suspendLoad, priority);
+                _currentMainScene = DefaultPackage.LoadSceneAsync(location, sceneMode, LocalPhysicsMode.None, !suspendLoad, priority);
 
                 _currentMainScene.Completed += handle =>
                 {
@@ -252,7 +254,7 @@ namespace TEngine
             {
                 if (_currentMainScene != null)
                 {
-                    return _currentMainScene.UnSuspend();
+                    return _currentMainScene.AllowSceneActivation();
                 }
 
                 return false;
@@ -261,7 +263,7 @@ namespace TEngine
             _subScenes.TryGetValue(location, out SceneHandle subScene);
             if (subScene != null)
             {
-                return subScene.UnSuspend();
+                return subScene.AllowSceneActivation();
             }
 
             Log.Warning($"IsMainScene invalid location:{location}");
@@ -326,7 +328,7 @@ namespace TEngine
                     return false;
                 }
 
-                var unloadOperation = subScene.UnloadAsync();
+                var unloadOperation = subScene.UnloadSceneAsync();
 
                 if (progressCallBack != null)
                 {
@@ -375,8 +377,7 @@ namespace TEngine
                     return;
                 }
 
-                subScene.UnloadAsync();
-                subScene.UnloadAsync().Completed += @base =>
+                subScene.UnloadSceneAsync().Completed += @base =>
                 {
                     _subScenes.Remove(location);
                     _handlingScene.Remove(location);

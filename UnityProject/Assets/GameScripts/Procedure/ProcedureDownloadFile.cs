@@ -47,7 +47,7 @@ namespace Procedure
             base.OnLeave(procedureOwner, isShutdown);
         }
 
-        private async UniTaskVoid RetryCurrentDownloadWithDelay(DownloadErrorData downloadErrorData)
+        private async UniTaskVoid RetryCurrentDownloadWithDelay(DownloadErrorEventArgs downloadErrorData)
         {
             if (_downloadFailedHandled)
             {
@@ -87,7 +87,7 @@ namespace Procedure
             ChangeState<ProcedureCreateDownloader>(_procedureOwner);
         }
 
-        private void ShowDownloadFailedDialog(DownloadErrorData downloadErrorData, int downloadRetryCount)
+        private void ShowDownloadFailedDialog(DownloadErrorEventArgs downloadErrorData, int downloadRetryCount)
         {
             string packageName = string.IsNullOrEmpty(downloadErrorData.PackageName)
                 ? (_procedureOwner.HasData(CurrentDownloadPackageKey)
@@ -128,12 +128,12 @@ namespace Procedure
 
                 LauncherMgr.ShowUI<LoadUpdateUI>($"开始下载更新文件...({packageName})");
 
-                downloader.DownloadErrorCallback = OnDownloadErrorCallback;
-                downloader.DownloadUpdateCallback = OnDownloadProgressCallback;
-                downloader.BeginDownload();
+                downloader.DownloadError += OnDownloadErrorCallback;
+                downloader.DownloadProgressChanged += OnDownloadProgressCallback;
+                downloader.StartDownload();
                 await downloader;
 
-                if (downloader.Status != EOperationStatus.Succeed)
+                if (downloader.Status != EOperationStatus.Succeeded)
                 {
                     return;
                 }
@@ -147,12 +147,12 @@ namespace Procedure
             ChangeState<ProcedureDownloadOver>(_procedureOwner);
         }
 
-        private void OnDownloadErrorCallback(DownloadErrorData downloadErrorData)
+        private void OnDownloadErrorCallback(DownloadErrorEventArgs downloadErrorData)
         {
             RetryCurrentDownloadWithDelay(downloadErrorData).Forget();
         }
 
-        private void OnDownloadProgressCallback(DownloadUpdateData downloadUpdateData)
+        private void OnDownloadProgressCallback(DownloadProgressChangedEventArgs downloadUpdateData)
         {
             var packageName = _procedureOwner.HasData(CurrentDownloadPackageKey)
                 ? _procedureOwner.GetData<string>(CurrentDownloadPackageKey)

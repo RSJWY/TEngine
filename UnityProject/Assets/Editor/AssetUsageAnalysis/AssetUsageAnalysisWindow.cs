@@ -260,7 +260,7 @@ public class AssetUsageAnalysisWindow : EditorWindow
             var usedMap = new Dictionary<string, AssetUsageReportData.AssetEntry>(report.Summary.AssetFileTotalCount);
             foreach (var assetInfo in report.AssetInfos)
             {
-                AddUsed(usedMap, assetInfo.AssetPath, assetInfo.AssetGUID, true);
+                AddUsed(usedMap, assetInfo.AssetPath, assetInfo.AssetGuid, true);
                 foreach (var depend in assetInfo.DependAssets)
                     AddUsed(usedMap, depend.AssetPath, depend.AssetGUID, false);
             }

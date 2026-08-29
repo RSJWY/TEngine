@@ -29,7 +29,7 @@ namespace TEngine
         public bool UseAssetDependencyDB = true;
         public bool ClearBuildCache;
         public bool VerifyBuildingResult = true;
-        public EBuildinFileCopyOption BuildinFileCopyOption = EBuildinFileCopyOption.ClearAndCopyAll;
+        public EBundledCopyOption BuildinFileCopyOption = EBundledCopyOption.ClearAndCopyAll;
         public EFileNameStyle FileNameStyle = EFileNameStyle.BundleName_HashName;
 
         // 热更DLL设置

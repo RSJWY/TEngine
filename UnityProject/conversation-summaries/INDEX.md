@@ -4,6 +4,11 @@
 > 新增会话总结时，按日期倒序在本文件顶部追加条目；禁止另建按日期拆分的索引文件。
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
+## 2026-08-29
+- [YooAsset 3.0.5 无兼容层迁移](./2026-08-29-yooasset-3-migration-summary.md)
+  - 关键词：YooAsset 3.0.5、MigrationGuide、YOOASSET_LEGACY_API、InitializePackageAsync、ResourcePackage、IRemoteService、BundleEncryptor、Collector、ClearCacheOptions
+  - 结论：运行时和编辑器 YooAsset 集成已切换到 3.x 原生 API，完整解决方案编译通过；未做真实远端下载和目标平台运行验证。
+
 ## 2026-08-28
 - [Obfuz 多态 DLL 接入热更构建链路](./2026-08-28-obfuz-polymorphic-dll-hotupdate-summary.md)
   - 关键词：PolymorphicDll、GeneratePolymorphicDll、CopyAOTHotUpdateDlls、混淆产物链式、PolymorphicHotUpdateAssemblies、disableLoadStandardDll、GenerateAll注入、多态密钥冻结、补充元数据标准格式、obfuz-samples参考、BuildDLLCommand、ENABLE_OBFUZ

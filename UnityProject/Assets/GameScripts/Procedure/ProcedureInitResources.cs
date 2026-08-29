@@ -103,7 +103,7 @@ namespace Procedure
                 var savedVersion = updatablePlayMode ? GetLocalPackageVersion(runtimePackage) : string.Empty;
                 var versionOperation = _resourceModule.RequestPackageVersionAsync(customPackageName: runtimePackage.PackageName);
                 yield return versionOperation;
-                if (versionOperation.Status != EOperationStatus.Succeed)
+                if (versionOperation.Status != EOperationStatus.Succeeded)
                 {
                     if (updatablePlayMode && !string.IsNullOrEmpty(savedVersion))
                     {
@@ -111,7 +111,7 @@ namespace Procedure
                         var localManifestOperation = _resourceModule.UpdatePackageManifestAsync(savedVersion,
                             customPackageName: runtimePackage.PackageName);
                         yield return localManifestOperation;
-                        if (localManifestOperation.Status != EOperationStatus.Succeed)
+                        if (localManifestOperation.Status != EOperationStatus.Succeeded)
                         {
                             OnInitResourcesError(procedureOwner, runtimePackage.PackageName,
                                 $"本地版本清单恢复失败：{localManifestOperation.Error}");
@@ -142,7 +142,7 @@ namespace Procedure
                     var localManifestOperation = _resourceModule.UpdatePackageManifestAsync(packageVersion,
                         customPackageName: runtimePackage.PackageName);
                     yield return localManifestOperation;
-                    if (localManifestOperation.Status != EOperationStatus.Succeed)
+                    if (localManifestOperation.Status != EOperationStatus.Succeeded)
                     {
                         OnInitResourcesError(procedureOwner, runtimePackage.PackageName, localManifestOperation.Error);
                         yield break;
@@ -180,7 +180,7 @@ namespace Procedure
 
                 var manifestOperation = _resourceModule.UpdatePackageManifestAsync(selectedVersion, customPackageName: runtimePackage.PackageName);
                 yield return manifestOperation;
-                if (manifestOperation.Status != EOperationStatus.Succeed)
+                if (manifestOperation.Status != EOperationStatus.Succeeded)
                 {
                     OnInitResourcesError(procedureOwner, runtimePackage.PackageName, manifestOperation.Error);
                     yield break;
