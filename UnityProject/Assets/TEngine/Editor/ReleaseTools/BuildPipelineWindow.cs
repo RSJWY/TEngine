@@ -310,6 +310,14 @@ namespace TEngine
             BuildDLLCommand.SyncAOTMetadataManifest();
         }
 
+        [TabGroup("Pages", "高级")]
+        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
+        [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Medium)]
+        private void CopyAOTAssembliesNow()
+        {
+            BuildDLLCommand.CopyAOTAssembliesToAssetPath();
+        }
+
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("构建 Player")]
@@ -653,6 +661,13 @@ namespace TEngine
         private void SyncAOTMetadataManifestFromOperations()
         {
             SyncAOTMetadataManifestNow();
+        }
+
+        [ButtonGroup("操作/HotFix")]
+        [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Large)]
+        private void CopyAOTAssembliesFromOperations()
+        {
+            CopyAOTAssembliesNow();
         }
 
         [TitleGroup("操作")]

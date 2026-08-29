@@ -48,6 +48,13 @@ namespace TEngine.Editor
                     GUIUtility.ExitGUI();
                 }
 
+                if (GUILayout.Button("去重", EditorStyles.toolbarButton))
+                {
+                    Manifest.Dedupe();
+                    EditorUtility.SetDirty(target);
+                    AssetDatabase.SaveAssets();
+                }
+
                 GUILayout.FlexibleSpace();
 
                 if (GUILayout.Button("定位资产", EditorStyles.toolbarButton))

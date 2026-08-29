@@ -14,10 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   AOTMetaAssemblies:
   - DOTween.dll
+  - RuntimeTools.dll
   - System.Core.dll
   - TEngine.Runtime.dll
   - UniTask.dll
-  - Unity.TextMeshPro.dll
   - UnityEngine.CoreModule.dll
+  - UnityEngine.UI.dll
   - YooAsset.dll
   - mscorlib.dll
