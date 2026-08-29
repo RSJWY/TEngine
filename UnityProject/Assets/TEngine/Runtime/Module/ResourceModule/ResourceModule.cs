@@ -170,7 +170,7 @@ namespace TEngine
             InitializePackageOperation initializationOperation = null;
             if (playMode == EPlayMode.EditorSimulateMode)
             {
-                var buildResult = EditorSimulateBuildInvoker.Build(packageName, (int)EBundleType.VirtualAssetBundle);
+                var buildResult = EditorSimulateBuildInvoker.Build(packageName, GetEditorSimulateBundleType(packageName));
                 var packageRoot = buildResult.PackageRootDirectory;
                 var createParameters = new EditorSimulateModeOptions();
                 createParameters.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(packageRoot);
@@ -185,7 +185,7 @@ namespace TEngine
             if (playMode == EPlayMode.OfflinePlayMode)
             {
                 var createParameters = new OfflinePlayModeOptions();
-                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local);
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
@@ -198,8 +198,8 @@ namespace TEngine
                 Log.Info($"HostPlay 资源包远端目录：{packageName} => {defaultHostServer}");
                 IRemoteService remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
                 var createParameters = new HostPlayModeOptions();
-                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local);
-                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleCrypto?.Local);
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive);
+                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleCrypto?.Local, bundleCrypto?.Archive);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
@@ -221,10 +221,10 @@ namespace TEngine
                 Log.Info("=======================UNITY_WEBGL=======================");
                 if (LoadResWayWebGL == LoadResWayWebGL.Remote)
                 {
-                    createParameters.WebNetworkFileSystemParameters = CreateWebNetworkFileSystemParameters(remoteServices, bundleCrypto?.Web);
+                    createParameters.WebNetworkFileSystemParameters = CreateWebNetworkFileSystemParameters(remoteServices, bundleCrypto?.Web, bundleCrypto?.Archive);
                 }
 
-                createParameters.WebServerFileSystemParameters = CreateWebServerFileSystemParameters(bundleCrypto?.Web);
+                createParameters.WebServerFileSystemParameters = CreateWebServerFileSystemParameters(bundleCrypto?.Web, bundleCrypto?.Archive);
 #endif
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
@@ -261,45 +261,59 @@ namespace TEngine
             return initializationOperation;
         }
 
-        private FileSystemParameters CreateBuiltinFileSystemParameters(IBundleDecryptor decryptor)
+        private FileSystemParameters CreateBuiltinFileSystemParameters(IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
         {
             var parameters = FileSystemParameters.CreateDefaultBuiltinFileSystemParameters();
-            AddBundleDecryptor(parameters, decryptor);
+            AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
             AddWebRequestCreator(parameters);
             return parameters;
         }
 
-        private FileSystemParameters CreateSandboxFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor)
+        private FileSystemParameters CreateSandboxFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
         {
             var parameters = FileSystemParameters.CreateDefaultSandboxFileSystemParameters(remoteService);
-            AddBundleDecryptor(parameters, decryptor);
+            AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
             AddWebRequestCreator(parameters);
             return parameters;
         }
 
-        private FileSystemParameters CreateWebServerFileSystemParameters(IBundleDecryptor decryptor)
+        private FileSystemParameters CreateWebServerFileSystemParameters(IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
         {
             var parameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters();
-            AddBundleDecryptor(parameters, decryptor);
+            AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
             AddWebRequestCreator(parameters);
             return parameters;
         }
 
-        private FileSystemParameters CreateWebNetworkFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor)
+        private FileSystemParameters CreateWebNetworkFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
         {
             var parameters = FileSystemParameters.CreateDefaultWebNetworkFileSystemParameters(remoteService);
-            AddBundleDecryptor(parameters, decryptor);
+            AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
             AddWebRequestCreator(parameters);
             return parameters;
         }
 
-        private static void AddBundleDecryptor(FileSystemParameters parameters, IBundleDecryptor decryptor)
+        private static void AddBundleDecryptor(FileSystemParameters parameters, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
         {
             if (decryptor != null)
             {
                 parameters.AddParameter(EFileSystemParameter.AssetBundleDecryptor, decryptor);
                 parameters.AddParameter(EFileSystemParameter.RawBundleDecryptor, decryptor);
             }
+            if (archiveDecryptor != null)
+                parameters.AddParameter(EFileSystemParameter.ArchiveBundleDecryptor, archiveDecryptor);
+        }
+
+        private int GetEditorSimulateBundleType(string packageName)
+        {
+            var pipeline = Settings.UpdateSetting?.GetRuntimePackage(packageName)?.BuildPipeline
+                           ?? RuntimePackageBuildPipeline.UseGlobal;
+            return pipeline switch
+            {
+                RuntimePackageBuildPipeline.ArchiveFileBuildPipeline => (int)EBundleType.VirtualArchiveBundle,
+                RuntimePackageBuildPipeline.RawFileBuildPipeline => (int)EBundleType.VirtualRawBundle,
+                _ => (int)EBundleType.VirtualAssetBundle,
+            };
         }
 
         private void AddWebRequestCreator(FileSystemParameters parameters)

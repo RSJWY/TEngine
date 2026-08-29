@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed48d7201e39fcc061a953e323b179b8, type: 3}
   m_Name: ChaCha20KeyConfig
   m_EditorClassIdentifier: 
-  _key: fc545d935deea265464b2d8186bf58124eac51ac76262ef1adca2f611e2b2927
-  _nonce: 931b889b39e0aaebbfb9cec7
+  _key: 52b2611fd20f9763a5df1e65a08d6af771a40aacc1ff4d8bc184a1b9f3504054
+  _nonce: 7a9a5d0f68ae89989fe9c2e9

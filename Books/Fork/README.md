@@ -12,13 +12,13 @@
 
 | 主题 | 说明 | 详细文档 |
 | --- | --- | --- |
-| YooAsset 3.0.5 迁移 | 无兼容层迁移、运行模式偏移修复和 OfflinePlayMode 说明 | [yooasset-3-migration.md](yooasset-3-migration.md) |
+| YooAsset 3.0.5 迁移 | 无兼容层迁移、运行模式修复、ArchiveFileBuildPipeline 与加密归档加载 | [yooasset-3-migration.md](yooasset-3-migration.md) |
 | 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、日志查看工具 | [logging.md](logging.md) |
 | 事件系统 | 按事件 ID 批量移除监听 | [event-system.md](event-system.md) |
 | 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 | [data-binding.md](data-binding.md) |
 | 运行时配置 | RuntimeConfig、DeployConfig、TOML/JSON 轻量配置 | [runtime-config.md](runtime-config.md) |
-| 热更新 | CodePackage、XXTEA、版本确认、AOT 元数据 | [hot-update.md](hot-update.md) |
-| 资源打包 | 按包构建、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
+| 热更新 | CodePackage、归档二进制加载、版本确认、AOT 元数据 | [hot-update.md](hot-update.md) |
+| 资源打包 | 按包构建、ArchiveFile 管线、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
 | 场景系统 | DynamicSpawn 通用化、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、运行时静态密钥初始化、多态 DLL 热更产物 | [obfuscation.md](obfuscation.md) |
@@ -33,6 +33,7 @@
 
 ## 最近重点
 
+- `CodePackage` 接入 YooAsset 3.0.5 `ArchiveFileBuildPipeline`：构建类型改为 `ArchiveBundle`，编辑器模拟使用 `VirtualArchiveBundle`；运行时文件系统注册归档内存解密器，DLL/PDB/AOT 元数据和 Obfuz 动态密钥按归档语义读取 `RawFileObject`；修复 ChaCha20 变换与密钥配置 Player 编译问题。上游 TEngine 支持 YooAsset 3.x 后继续收敛资源模块和二进制加载抽象。
 - 热更构建链路接入 Obfuz 多态 DLL：`CopyAOTHotUpdateDlls` 在混淆后按 `polymorphicDllSettings.enable` 调 `GeneratePolymorphicDll` 转多态格式再拷 `.bytes`，产物目录 `Obfuz/{target}/PolymorphicHotUpdateAssemblies/`；运行时加载零改动，补充元数据暂维持标准格式（`disableLoadStandardDll: 0` 混用合法）。
 - 迁移 DGame `AnimModule` 到 `TEngine/Runtime/Module/AnimModule/`（框架层）：基于 PlayableGraph 的代码驱动 3D 动画图，封装 Unity 底层 Playable API（`AnimationClipPlayable`/`AnimationMixerPlayable`/`AnimationLayerMixerPlayable`），支持多层级混合/权重过渡/动态增删动画片段/手动驱动；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`），`Module.OnCreate/OnDestroy→OnInit/Shutdown`，`DGameException→Exception`，`DLogger→Log`，私有字段 `_小驼峰`；靠 `ModuleSystem` 反射约定自动注册；热更 `GameModule` 新增 `Anim` 访问器。
 - 迁移 DGame `FrameAnimModule`（序列帧动画）到热更层，含场景版（`SpriteRenderer`）、UI 版（`Image`），**新增 `UIFrameRawAnimatorAgent`**（`RawImage` 版，`rawImage.texture = sprite.texture`）；`FrameSpritePool` 的 Roslyn SourceGenerator 改手写 `FrameSpritePool.Gen.cs`；`ModelConfig` Luban 依赖改新建 `FrameAnimConfig` 结构体；`GameTimer` 对象句柄改 `ITimerModule` 的 `int timerId`；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`）。

@@ -40,7 +40,9 @@ namespace TEngine
         {
             _key = CryptoUtils.GenerateRandomBytes(ChaCha20Util.KeyLength);
             _nonce = CryptoUtils.GenerateRandomBytes(ChaCha20Util.NonceLength);
+#if UNITY_EDITOR
             MarkDirty();
+#endif
         }
 
         protected override void EnsureKey()

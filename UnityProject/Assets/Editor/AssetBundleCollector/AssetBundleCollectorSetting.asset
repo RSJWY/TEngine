@@ -26,8 +26,8 @@ MonoBehaviour:
     IgnoreRuleName: NormalIgnoreRule
     Groups:
     - GroupName: Actor
-      GroupDesc: 
-      AssetTags: 
+      GroupDesc:
+      AssetTags:
       ActiveRuleName: EnableGroup
       Collectors:
       - CollectPath: Assets/AssetRaw/Actor
@@ -36,8 +36,8 @@ MonoBehaviour:
         AddressRuleName: AddressByFileName
         PackRuleName: PackDirectory
         FilterRuleName: CollectAll
-        AssetTags: 
-        UserData: 
+        AssetTags:
+        UserData:
     - GroupName: Audios
       GroupDesc: 
       AssetTags: 
@@ -177,8 +177,8 @@ MonoBehaviour:
     SupportExtensionless: 1
     LocationToLower: 0
     IncludeAssetGUID: 0
-    AutoCollectShaders: 1
-    IgnoreRuleName: NormalIgnoreRule
+    AutoCollectShaders: 0
+    IgnoreRuleName: RawFileIgnoreRule
     Groups:
     - GroupName: AOT
       GroupDesc: aotdll
@@ -219,3 +219,16 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
+    - GroupName: obfuz
+      GroupDesc:
+      AssetTags:
+      ActiveRuleName: EnableGroup
+      Collectors:
+      - CollectPath: Assets/AssetRaw/DLL/Obfuz
+        CollectorGUID: 7d5d2c636bdd6b442a46d61d4bf4482d
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackGroup
+        FilterRuleName: CollectAll
+        AssetTags:
+        UserData:

@@ -1375,7 +1375,8 @@ namespace TEngine
         private void NormalizeSettings()
         {
             if (_buildPipeline != EBuildPipeline.ScriptableBuildPipeline &&
-                _buildPipeline != EBuildPipeline.RawFileBuildPipeline)
+                _buildPipeline != EBuildPipeline.RawFileBuildPipeline &&
+                _buildPipeline != EBuildPipeline.ArchiveFileBuildPipeline)
             {
                 _buildPipeline = EBuildPipeline.ScriptableBuildPipeline;
             }
@@ -1531,11 +1532,12 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName),
-                EncryptionType = Settings.UpdateSetting != null &&
-                                 string.Equals(packageName, Settings.UpdateSetting.AssemblyPackageName, StringComparison.Ordinal)
+                EncryptionType = string.Equals(packageName, GetAssemblyPackageName(), StringComparison.Ordinal)
                     ? EncryptionType.ChaCha20
                     : EncryptionType.None,
-                BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
+                BuildPipeline = string.Equals(packageName, GetAssemblyPackageName(), StringComparison.Ordinal)
+                    ? RuntimePackageBuildPipeline.ArchiveFileBuildPipeline
+                    : RuntimePackageBuildPipeline.UseGlobal,
             };
         }
 
@@ -1757,6 +1759,7 @@ namespace TEngine
                 RuntimePackageBuildPipeline.ScriptableBuildPipeline => EBuildPipeline.ScriptableBuildPipeline,
                 RuntimePackageBuildPipeline.BuiltinBuildPipeline => EBuildPipeline.ScriptableBuildPipeline,
                 RuntimePackageBuildPipeline.RawFileBuildPipeline => EBuildPipeline.RawFileBuildPipeline,
+                RuntimePackageBuildPipeline.ArchiveFileBuildPipeline => EBuildPipeline.ArchiveFileBuildPipeline,
                 _ => config.BuildPipeline,
             };
         }
@@ -2082,6 +2085,7 @@ namespace TEngine
         {
             { "ScriptableBuildPipeline (SBP)", EBuildPipeline.ScriptableBuildPipeline },
             { "RawFileBuildPipeline (原生文件)", EBuildPipeline.RawFileBuildPipeline },
+            { "ArchiveFileBuildPipeline (归档文件)", EBuildPipeline.ArchiveFileBuildPipeline },
         };
 
         private static ValueDropdownList<ECompressOption> CompressOptions => new ValueDropdownList<ECompressOption>
@@ -2096,6 +2100,7 @@ namespace TEngine
             { "使用全局设置", RuntimePackageBuildPipeline.UseGlobal },
             { "ScriptableBuildPipeline (SBP)", RuntimePackageBuildPipeline.ScriptableBuildPipeline },
             { "RawFileBuildPipeline (原生文件)", RuntimePackageBuildPipeline.RawFileBuildPipeline },
+            { "ArchiveFileBuildPipeline (归档文件)", RuntimePackageBuildPipeline.ArchiveFileBuildPipeline },
         };
 
         private static ValueDropdownList<EncryptionType> EncryptionOptions => new ValueDropdownList<EncryptionType>

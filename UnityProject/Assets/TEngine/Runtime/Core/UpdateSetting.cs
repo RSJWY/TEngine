@@ -63,6 +63,7 @@ namespace TEngine
         ScriptableBuildPipeline,
         BuiltinBuildPipeline,
         RawFileBuildPipeline,
+        ArchiveFileBuildPipeline,
     }
 
     [Serializable]
@@ -428,7 +429,7 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName, true),
-                BuildPipeline = RuntimePackageBuildPipeline.UseGlobal,
+                BuildPipeline = RuntimePackageBuildPipeline.ArchiveFileBuildPipeline,
                 EncryptionType = EncryptionType.ChaCha20,
             };
         }

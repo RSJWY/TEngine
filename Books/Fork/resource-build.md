@@ -12,7 +12,7 @@
 
 - 资源包不再统一使用单一构建管线。
 - 支持按包指定 YooAsset 构建管线。
-- 保留 SBP 与 RawFile。
+- 保留 SBP 与 RawFile，并新增 ArchiveFile 管线。
 - 移除 BBP（BuiltinBuildPipeline）。
 - 打包工具页面直接读写运行时配置 `UpdateSetting.RuntimePackages`。
 - 编辑器配置与运行时初始化配置共用同一数据源，避免双份维护。
@@ -26,6 +26,36 @@
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-05-30-resource-package-pipeline-and-default-package-summary.md`
+
+## ArchiveFileBuildPipeline 代码包构建
+
+### 背景
+
+`CodePackage` 由 DLL、PDB、AOT 元数据和动态密钥等原始文件组成。YooAsset 3.0.5 的 `ArchiveFileBuildPipeline` 可以按 BundleName 将这些文件合并为 `ArchiveBundle`，更适合代码包独立发布。
+
+### 改动摘要
+
+- 打包窗口支持选择 `ArchiveFileBuildPipeline`。
+- `CodePackage` 默认使用 ArchiveFile 管线和 ChaCha20 加密。
+- 构建参数使用 `ArchiveFileBuildParameters`，Bundle 类型为 `ArchiveBundle`，默认 4 字节对齐。
+- 编辑器模拟模式按包选择 `VirtualArchiveBundle`。
+- 原有 Scriptable 和 RawFile 管线保持可用。
+
+### 注意事项
+
+- ArchiveBundle 加密后只能使用内存解密器，整包解密会产生内存峰值。
+- 修改密钥或 ChaCha20 实现后必须重新构建资源，旧加密包和缓存不能混用。
+- TEngine 上游支持 YooAsset 3.x 后，应优先合并上游构建抽象并减少本地分支判断。
+
+### 关键文件
+
+- `Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs`
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
+- `Assets/TEngine/Runtime/Core/UpdateSetting.cs`
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-29-yooasset-archive-code-package-summary.md`
 
 ## 发布整理流程
 

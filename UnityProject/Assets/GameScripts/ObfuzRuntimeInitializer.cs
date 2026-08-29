@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using TEngine;
+using YooAsset;
 
 #if ENABLE_OBFUZ && !UNITY_EDITOR
 using Cysharp.Threading.Tasks;
@@ -65,11 +66,19 @@ namespace TEngine
                 return false;
             }
 
-            TextAsset keyAsset = null;
+            UnityEngine.Object keyAsset = null;
             try
             {
-                keyAsset = await ModuleSystem.GetModule<IResourceModule>()
-                    .LoadAssetAsync<TextAsset>("defaultDynamicSecretKey", default, packageName);
+                if (Settings.UpdateSetting.GetRuntimePackage(packageName)?.BuildPipeline == RuntimePackageBuildPipeline.ArchiveFileBuildPipeline)
+                {
+                    keyAsset = await ModuleSystem.GetModule<IResourceModule>()
+                        .LoadAssetAsync<RawFileObject>("defaultDynamicSecretKey", default, packageName);
+                }
+                else
+                {
+                    keyAsset = await ModuleSystem.GetModule<IResourceModule>()
+                        .LoadAssetAsync<TextAsset>("defaultDynamicSecretKey", default, packageName);
+                }
             }
             catch (Exception e)
             {
@@ -79,7 +88,8 @@ namespace TEngine
                 return false;
             }
 
-            if (keyAsset == null || keyAsset.bytes == null || keyAsset.bytes.Length == 0)
+            var keyBytes = keyAsset is RawFileObject rawFile ? rawFile.GetBytes() : (keyAsset as TextAsset)?.bytes;
+            if (keyBytes == null || keyBytes.Length == 0)
             {
                 s_Failed = true;
                 s_ErrorMsg = "Obfuz 动态密钥加载失败：defaultDynamicSecretKey 资源缺失或为空。"
@@ -92,7 +102,7 @@ namespace TEngine
                 return false;
             }
 
-            var dynamicSecretBytes = keyAsset.bytes;
+            var dynamicSecretBytes = keyBytes;
             ModuleSystem.GetModule<IResourceModule>().UnloadAsset(keyAsset);
 
             EncryptionService<DefaultDynamicEncryptionScope>.Encryptor =

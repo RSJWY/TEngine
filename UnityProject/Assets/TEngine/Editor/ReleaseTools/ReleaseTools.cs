@@ -236,6 +236,15 @@ namespace TEngine
                     buildParameters = new RawFileBuildParameters();
                     break;
                 }
+                case EBuildPipeline.ArchiveFileBuildPipeline:
+                {
+                    pipeline = new ArchiveFileBuildPipeline();
+                    buildParameters = new ArchiveFileBuildParameters
+                    {
+                        FileAlignment = 4,
+                    };
+                    break;
+                }
                 default:
                 {
                     var scriptableBuildParameters = new ScriptableBuildParameters();
@@ -617,15 +626,19 @@ namespace TEngine
                 RuntimePackageBuildPipeline.ScriptableBuildPipeline => EBuildPipeline.ScriptableBuildPipeline,
                 RuntimePackageBuildPipeline.BuiltinBuildPipeline => EBuildPipeline.ScriptableBuildPipeline,
                 RuntimePackageBuildPipeline.RawFileBuildPipeline => EBuildPipeline.RawFileBuildPipeline,
+                RuntimePackageBuildPipeline.ArchiveFileBuildPipeline => EBuildPipeline.ArchiveFileBuildPipeline,
                 _ => config.BuildPipeline,
             };
         }
 
         private static int GetBuildBundleType(EBuildPipeline buildPipeline)
         {
-            return buildPipeline == EBuildPipeline.RawFileBuildPipeline
-                ? (int)EBundleType.RawBundle
-                : (int)EBundleType.AssetBundle;
+            return buildPipeline switch
+            {
+                EBuildPipeline.RawFileBuildPipeline => (int)EBundleType.RawBundle,
+                EBuildPipeline.ArchiveFileBuildPipeline => (int)EBundleType.ArchiveBundle,
+                _ => (int)EBundleType.AssetBundle,
+            };
         }
 
         private static EBundledCopyOption GetBundledFileCopyOption(EBundledCopyOption option, bool appendBuildinFiles)

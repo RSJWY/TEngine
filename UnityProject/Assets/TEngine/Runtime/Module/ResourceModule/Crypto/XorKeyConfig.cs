@@ -27,7 +27,9 @@ namespace TEngine
         public override void RegenerateKey()
         {
             _key = CryptoUtils.GenerateRandomBytes(Random.Range(16, 129));
+#if UNITY_EDITOR
             MarkDirty();
+#endif
         }
 
         protected override void EnsureKey()

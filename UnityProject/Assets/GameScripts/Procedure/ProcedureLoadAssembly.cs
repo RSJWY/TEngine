@@ -86,8 +86,16 @@ namespace Procedure
                             string pdbAssetName = Path.GetFileNameWithoutExtension(hotUpdateDllName) + ".pdb";
                             Log.Debug($"LoadAsset (pdb): [ {pdbAssetName} ] from package [ {_assemblyPackageName} ]");
                             _loadAssetCount++;
-                            var result = await _resourceModule.LoadAssetAsync<TextAsset>(pdbAssetName, default, _assemblyPackageName);
-                            LoadAssetSuccess(result);
+                            if (IsArchivePackage)
+                            {
+                                var result = await _resourceModule.LoadAssetAsync<RawFileObject>(pdbAssetName, default, _assemblyPackageName);
+                                LoadAssetSuccess(result, pdbAssetName);
+                            }
+                            else
+                            {
+                                var result = await _resourceModule.LoadAssetAsync<TextAsset>(pdbAssetName, default, _assemblyPackageName);
+                                LoadAssetSuccess(result, pdbAssetName);
+                            }
                         }
                     }
 
@@ -121,8 +129,16 @@ namespace Procedure
 
                         Log.Debug($"LoadAsset: [ {assetLocation} ] from package [ {_assemblyPackageName} ]");
                         _loadAssetCount++;
-                        var result = await _resourceModule.LoadAssetAsync<TextAsset>(assetLocation, default, _assemblyPackageName);
-                        LoadAssetSuccess(result);
+                        if (IsArchivePackage)
+                        {
+                            var result = await _resourceModule.LoadAssetAsync<RawFileObject>(assetLocation, default, _assemblyPackageName);
+                            LoadAssetSuccess(result, assetLocation);
+                        }
+                        else
+                        {
+                            var result = await _resourceModule.LoadAssetAsync<TextAsset>(assetLocation, default, _assemblyPackageName);
+                            LoadAssetSuccess(result, assetLocation);
+                        }
                     }
 
                     _loadAssemblyWait = true;
@@ -210,16 +226,21 @@ namespace Procedure
             return mainLogicAssembly;
         }
 
-        private void LoadAssetSuccess(TextAsset textAsset)
+        private bool IsArchivePackage => _setting.GetRuntimePackage(_assemblyPackageName)?.BuildPipeline == RuntimePackageBuildPipeline.ArchiveFileBuildPipeline;
+
+        private void LoadAssetSuccess(UnityEngine.Object asset, string assetLocation)
         {
             _loadAssetCount--;
-            if (textAsset == null)
+            if (asset == null)
             {
                 Log.Warning("Load Assembly failed.");
                 return;
             }
 
-            var assetName = textAsset.name;
+            var assetName = Path.GetFileName(assetLocation);
+            var rawFile = asset as RawFileObject;
+            var textAsset = asset as TextAsset;
+            var assetBytes = rawFile != null ? rawFile.GetBytes() : textAsset?.bytes;
             Log.Debug($"LoadAssetSuccess, assetName: [ {assetName} ], package: [ {_assemblyPackageName} ]");
 
             try
@@ -231,16 +252,16 @@ namespace Procedure
                     string assemblyName = Path.GetFileNameWithoutExtension(assetName);
                     if (!_pdbBytesCache.ContainsKey(assemblyName))
                     {
-                        _pdbBytesCache[assemblyName] = textAsset.bytes;
+                        _pdbBytesCache[assemblyName] = assetBytes;
                         Log.Debug($"PDB cached: [ {assemblyName} ]");
                     }
-                    _resourceModule.UnloadAsset(textAsset);
+                    _resourceModule.UnloadAsset(asset);
                     return;
                 }
 
                 // 加载 dll（尝试带 pdb）
                 string dllName = Path.GetFileNameWithoutExtension(assetName);
-                byte[] dllBytes = textAsset.bytes;
+                byte[] dllBytes = assetBytes;
                 byte[] pdbBytes = _pdbBytesCache.ContainsKey(dllName) ? _pdbBytesCache[dllName] : null;
 
                 Assembly assembly = pdbBytes != null
@@ -264,7 +285,7 @@ namespace Procedure
             {
                 _loadAssemblyComplete = _loadAssemblyWait && 0 == _loadAssetCount;
             }
-            _resourceModule.UnloadAsset(textAsset);
+            _resourceModule.UnloadAsset(asset);
         }
 
         private async UniTaskVoid LoadMetadataForAOTAssembly()
@@ -294,12 +315,29 @@ namespace Procedure
 
                 Log.Debug($"[AOTMetadata] 请求加载AOT元数据资源。Dll:{aotDllName}, Location:{assetLocation}, Package:{_assemblyPackageName}");
                 _loadMetadataAssetCount++;
-                _resourceModule.LoadAsset<TextAsset>(assetLocation, LoadMetadataAssetSuccess, _assemblyPackageName);
+                if (IsArchivePackage)
+                {
+                    _resourceModule.LoadAsset<RawFileObject>(assetLocation,
+                        asset => LoadMetadataAssetSuccess(asset, assetLocation), _assemblyPackageName);
+                }
+                else
+                {
+                    _resourceModule.LoadAsset<TextAsset>(assetLocation,
+                        asset => LoadMetadataAssetSuccess(asset, assetLocation), _assemblyPackageName);
+                }
             }
         }
 
         private async UniTask<List<string>> GetAOTMetaAssembliesAsync()
         {
+            if (_setting.GetRuntimePackage(_assemblyPackageName)?.BuildPipeline == RuntimePackageBuildPipeline.ArchiveFileBuildPipeline)
+            {
+                return _setting.AOTMetaAssemblies
+                    .Where(assembly => !string.IsNullOrWhiteSpace(assembly))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+            }
+
             var manifestLocation = AOTMetadataManifest.ManifestAssetName;
             if (!_enableAddressable)
             {
@@ -346,21 +384,24 @@ namespace Procedure
             return fallbackAssemblies;
         }
 
-        private void LoadMetadataAssetSuccess(TextAsset textAsset)
+        private void LoadMetadataAssetSuccess(UnityEngine.Object asset, string assetLocation)
         {
             _loadMetadataAssetCount--;
-            if (textAsset == null)
+            if (asset == null)
             {
                 Log.Warning("[AOTMetadata] AOT元数据资源加载失败，TextAsset为空。");
                 _loadMetadataAssemblyComplete = _loadMetadataAssemblyWait && 0 == _loadMetadataAssetCount;
                 return;
             }
 
-            string assetName = textAsset.name;
-            Log.Debug($"[AOTMetadata] AOT元数据资源加载成功。Asset:{assetName}, Package:{_assemblyPackageName}, Size:{textAsset.bytes.Length} bytes, Remaining:{_loadMetadataAssetCount}");
+            string assetName = Path.GetFileName(assetLocation);
+            var rawFile = asset as RawFileObject;
+            var textAsset = asset as TextAsset;
+            byte[] assetBytes = rawFile != null ? rawFile.GetBytes() : textAsset?.bytes;
+            Log.Debug($"[AOTMetadata] AOT元数据资源加载成功。Asset:{assetName}, Package:{_assemblyPackageName}, Size:{assetBytes?.Length ?? 0} bytes, Remaining:{_loadMetadataAssetCount}");
             try
             {
-                byte[] dllBytes = textAsset.bytes;
+                byte[] dllBytes = assetBytes;
 #if ENABLE_HYBRIDCLR
                 HomologousImageMode mode = HomologousImageMode.SuperSet;
                 LoadImageErrorCode err = (LoadImageErrorCode)HybridCLR.RuntimeApi.LoadMetadataForAOTAssembly(dllBytes, mode);
@@ -376,7 +417,7 @@ namespace Procedure
             finally
             {
                 _loadMetadataAssemblyComplete = _loadMetadataAssemblyWait && 0 == _loadMetadataAssetCount;
-                _resourceModule.UnloadAsset(textAsset);
+                _resourceModule.UnloadAsset(asset);
             }
         }
     }

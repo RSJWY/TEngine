@@ -39,6 +39,33 @@
 
 - `UnityProject/conversation-summaries/2026-05-28-hotfix-multipackage-summary.md`
 
+## CodePackage 归档加载
+
+### 背景
+
+ArchiveBundle 中的子文件在 YooAsset 3.x 运行时返回 `RawFileObject`，不再是 Unity 导入后的 `TextAsset` 或 `ScriptableObject`。热更程序集加载链路必须显式读取二进制数据。
+
+### 改动摘要
+
+- 归档 CodePackage 的 DLL、PDB、AOT 元数据和 Obfuz 动态密钥统一读取 `RawFileObject.GetBytes()`。
+- 非归档 CodePackage 继续使用 `TextAsset`，保留旧管线兼容性。
+- AOT 元数据清单无法从 ArchiveBundle 还原为 `ScriptableObject`，归档管线下回退到 `UpdateSetting.AOTMetaAssemblies`。
+- 资源对象继续通过 `IResourceModule.UnloadAsset` 成对释放。
+
+### 后续优化
+
+上游支持 YooAsset 3.x 后，将二进制加载差异下沉到资源模块统一 API，避免 `ProcedureLoadAssembly` 和 `ObfuzRuntimeInitializer` 感知具体构建管线。
+
+### 关键文件
+
+- `Assets/GameScripts/Procedure/ProcedureLoadAssembly.cs`
+- `Assets/GameScripts/ObfuzRuntimeInitializer.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.cs`
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-29-yooasset-archive-code-package-summary.md`
+
 ## 代码包 XXTEA 加密
 
 ### 背景

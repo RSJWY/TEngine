@@ -56,7 +56,7 @@ namespace TEngine
 
                 int blockSize = Math.Min(64, data.Length - offset);
                 for (int i = 0; i < blockSize; i++)
-                    result[offset + i] ^= keystream[i];
+                    result[offset + i] = (byte)(data[offset + i] ^ keystream[i]);
 
                 offset += blockSize;
                 blockCounter++;

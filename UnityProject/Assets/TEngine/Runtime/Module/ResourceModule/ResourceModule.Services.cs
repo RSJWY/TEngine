@@ -41,6 +41,8 @@ namespace TEngine
         /// <summary>Web 文件系统（WebNetwork/WebServer/WeChat）使用的解密器。</summary>
         public IBundleDecryptor Web { get; private set; }
 
+        public IBundleDecryptor Archive { get; private set; }
+
         /// <summary>
         /// 按加密类型创建对应方案。None 返回 null（不加密）。
         /// </summary>
@@ -54,6 +56,7 @@ namespace TEngine
                         Encryptor = new FileOffsetEncryption(),
                         Local = new FileOffsetDecryption(),
                         Web = new FileOffsetMemoryDecryption(),
+                        Archive = new FileOffsetMemoryDecryption(),
                     };
                 case EncryptionType.FileStream:
                     return new BundleCrypto
@@ -61,6 +64,7 @@ namespace TEngine
                         Encryptor = new XorBundleEncryption(),
                         Local = new XorStreamDecryption(),
                         Web = new XorMemoryDecryption(),
+                        Archive = new XorMemoryDecryption(),
                     };
                 case EncryptionType.ChaCha20:
                     return new BundleCrypto
@@ -68,6 +72,7 @@ namespace TEngine
                         Encryptor = new ChaCha20BundleEncryption(),
                         Local = new ChaCha20StreamDecryption(),
                         Web = new ChaCha20MemoryDecryption(),
+                        Archive = new ChaCha20MemoryDecryption(),
                     };
                 default:
                     return null;

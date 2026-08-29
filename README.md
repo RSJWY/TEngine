@@ -23,13 +23,13 @@
 
 | 主题 | 主要改动 |
 | --- | --- |
-| YooAsset 3.0.5 迁移 | 无兼容层迁移、运行模式偏移修复和 OfflinePlayMode 说明 |
+| YooAsset 3.0.5 迁移 | 无兼容层迁移、运行模式修复、ArchiveFileBuildPipeline 与加密归档加载 |
 | 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、LogViewer 工具 |
 | 事件系统 | `GameEvent.RemoveAllListeners` 按事件 ID 批量移除监听 |
 | 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 |
 | 运行时配置 | `RuntimeConfigModule`、`DeployConfig`、TOML/JSON 轻量配置 |
-| 热更新 | 独立 `CodePackage`、XXTEA、AOT 元数据清单、版本确认流程 |
-| 资源打包 | 按包构建管线、发布整理、Odin 化打包窗口 |
+| 热更新 | 独立 `CodePackage`、归档二进制加载、AOT 元数据清单、版本确认流程 |
+| 资源打包 | 按包构建管线、ArchiveFile 管线、发布整理、Odin 化打包窗口 |
 | 场景系统 | DynamicSpawn 通用化、加载进度下沉到 `GameSceneModule` |
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 `ScreenModule` |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、多态 DLL 热更产物 |

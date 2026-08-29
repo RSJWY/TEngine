@@ -4,6 +4,8 @@
 
 ## 2026-08-29
 
+- `CodePackage` 接入 YooAsset 3.0.5 `ArchiveFileBuildPipeline`，补齐 ArchiveBundle 构建、编辑器模拟、Builtin/Host/Web 加载、ChaCha20 加密解密和 `RawFileObject` 热更字节加载；修复密钥配置 Player 编译与 ChaCha20 仅输出 keystream 的错误。详见 [yooasset-3-migration.md](yooasset-3-migration.md)。
+- 记录上游 TEngine 正式支持 YooAsset 3.x 后的收敛计划：优先合并上游 `ResourceModule`，统一二进制加载 API，补充归档加密往返测试并评估整包内存解密峰值。
 - YooAsset 升级到 3.0.5 并完成无 `YOOASSET_LEGACY_API` 迁移；补充 2.x/3.x 差异、OfflinePlayMode 使用要求，并修复 `EPlayMode` 枚举偏移导致的编辑器运行模式误判。详见 [yooasset-3-migration.md](yooasset-3-migration.md)。
 
 ## 2026-08-28
