@@ -43,6 +43,7 @@ MonoBehaviour:
     VersionKey: GAME_VERSION
     BuildPipeline: 1
     EncryptionType: 0
+    ManifestEncrypted: 1
   - PackageName: CodePackage
     Enable: 1
     InitOnStartup: 1
@@ -52,6 +53,7 @@ MonoBehaviour:
     VersionKey: CODE_VERSION
     BuildPipeline: 4
     EncryptionType: 3
+    ManifestEncrypted: 1
   UpdateStyle: 1
   UpdateNotice: 1
   ResDownLoadPath: http://127.0.0.1:80/ProjectHotupdate

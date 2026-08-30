@@ -278,6 +278,13 @@ namespace TEngine
             buildParameters.BundledCopyOption = GetBundledFileCopyOption(config.BuildinFileCopyOption, appendBuildinFiles);
             buildParameters.BundledCopyParams = string.Empty;
             buildParameters.BundleEncryptor = GetEncryptionFromType(runtimePackage.EncryptionType);
+            if (runtimePackage.ManifestEncrypted)
+            {
+                buildParameters.ManifestEncryptor = new ManifestChaCha20Encryptor();
+                // 构建期 TaskCreateCatalog 会反序列化刚加密的清单生成 Catalog，
+                // 必须同时提供解密器，否则 Catalog 生成时 FileMagic 校验失败。
+                buildParameters.ManifestDecryptor = new ManifestChaCha20Decryptor();
+            }
             buildParameters.ClearBuildCacheFiles = config.ClearBuildCache;
             buildParameters.UseAssetDependencyDB = config.UseAssetDependencyDB;
 

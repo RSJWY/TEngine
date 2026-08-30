@@ -180,12 +180,13 @@ namespace TEngine
             }
 
             BundleCrypto bundleCrypto = BundleCrypto.Create(GetEncryptionType(packageName));
+            bool manifestEncrypted = GetManifestEncrypted(packageName);
 
             // 单机运行模式
             if (playMode == EPlayMode.OfflinePlayMode)
             {
                 var createParameters = new OfflinePlayModeOptions();
-                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive);
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
@@ -198,8 +199,8 @@ namespace TEngine
                 Log.Info($"HostPlay 资源包远端目录：{packageName} => {defaultHostServer}");
                 IRemoteService remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
                 var createParameters = new HostPlayModeOptions();
-                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive);
-                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleCrypto?.Local, bundleCrypto?.Archive);
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted);
+                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
@@ -217,14 +218,15 @@ namespace TEngine
                 string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE";
                 createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateFileSystemParameters(packageRoot, remoteServices, bundleCrypto?.Web);
                 AddWebRequestCreator(createParameters.WebServerFileSystemParameters);
+                AddManifestDecryptor(createParameters.WebServerFileSystemParameters, manifestEncrypted);
 #else
                 Log.Info("=======================UNITY_WEBGL=======================");
                 if (LoadResWayWebGL == LoadResWayWebGL.Remote)
                 {
-                    createParameters.WebNetworkFileSystemParameters = CreateWebNetworkFileSystemParameters(remoteServices, bundleCrypto?.Web, bundleCrypto?.Archive);
+                    createParameters.WebNetworkFileSystemParameters = CreateWebNetworkFileSystemParameters(remoteServices, bundleCrypto?.Web, bundleCrypto?.Archive, manifestEncrypted);
                 }
 
-                createParameters.WebServerFileSystemParameters = CreateWebServerFileSystemParameters(bundleCrypto?.Web, bundleCrypto?.Archive);
+                createParameters.WebServerFileSystemParameters = CreateWebServerFileSystemParameters(bundleCrypto?.Web, bundleCrypto?.Archive, manifestEncrypted);
 #endif
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
@@ -261,34 +263,38 @@ namespace TEngine
             return initializationOperation;
         }
 
-        private FileSystemParameters CreateBuiltinFileSystemParameters(IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
+        private FileSystemParameters CreateBuiltinFileSystemParameters(IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor, bool manifestEncrypted)
         {
             var parameters = FileSystemParameters.CreateDefaultBuiltinFileSystemParameters();
             AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
+            AddManifestDecryptor(parameters, manifestEncrypted);
             AddWebRequestCreator(parameters);
             return parameters;
         }
 
-        private FileSystemParameters CreateSandboxFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
+        private FileSystemParameters CreateSandboxFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor, bool manifestEncrypted)
         {
             var parameters = FileSystemParameters.CreateDefaultSandboxFileSystemParameters(remoteService);
             AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
+            AddManifestDecryptor(parameters, manifestEncrypted);
             AddWebRequestCreator(parameters);
             return parameters;
         }
 
-        private FileSystemParameters CreateWebServerFileSystemParameters(IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
+        private FileSystemParameters CreateWebServerFileSystemParameters(IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor, bool manifestEncrypted)
         {
             var parameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters();
             AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
+            AddManifestDecryptor(parameters, manifestEncrypted);
             AddWebRequestCreator(parameters);
             return parameters;
         }
 
-        private FileSystemParameters CreateWebNetworkFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor)
+        private FileSystemParameters CreateWebNetworkFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor, bool manifestEncrypted)
         {
             var parameters = FileSystemParameters.CreateDefaultWebNetworkFileSystemParameters(remoteService);
             AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
+            AddManifestDecryptor(parameters, manifestEncrypted);
             AddWebRequestCreator(parameters);
             return parameters;
         }
@@ -302,6 +308,15 @@ namespace TEngine
             }
             if (archiveDecryptor != null)
                 parameters.AddParameter(EFileSystemParameter.ArchiveBundleDecryptor, archiveDecryptor);
+        }
+
+        /// <summary>
+        /// 按包配置注入清单解密器。清单加密固定为 ChaCha20，密钥与 Bundle 独立。
+        /// </summary>
+        private static void AddManifestDecryptor(FileSystemParameters parameters, bool manifestEncrypted)
+        {
+            if (manifestEncrypted)
+                parameters.AddParameter(EFileSystemParameter.ManifestDecryptor, new ManifestChaCha20Decryptor());
         }
 
         private int GetEditorSimulateBundleType(string packageName)
@@ -326,6 +341,15 @@ namespace TEngine
         {
             var runtimePackage = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetRuntimePackage(packageName) : null;
             return runtimePackage != null ? runtimePackage.EncryptionType : EncryptionType;
+        }
+
+        /// <summary>
+        /// 获取资源包是否启用清单加密。
+        /// </summary>
+        private bool GetManifestEncrypted(string packageName)
+        {
+            var runtimePackage = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetRuntimePackage(packageName) : null;
+            return runtimePackage != null && runtimePackage.ManifestEncrypted;
         }
 
         /// <summary>

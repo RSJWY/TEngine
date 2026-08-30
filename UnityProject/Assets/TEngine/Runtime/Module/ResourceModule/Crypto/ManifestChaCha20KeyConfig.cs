@@ -1,13 +1,15 @@
 using UnityEngine;
+
 using Sirenix.OdinInspector;
 
 namespace TEngine
 {
     /// <summary>
-    /// ChaCha20 加密密钥配置：32 字节 key + 12 字节 nonce。
+    /// 资源清单专用 ChaCha20 密钥配置：32 字节 key + 12 字节 nonce。
+    /// 与 <see cref="ChaCha20KeyConfig"/>（Bundle 用）独立存放，避免从清单解密链路逆向到 Bundle 密钥。
     /// </summary>
-    [CreateAssetMenu(menuName = "TEngine/加密密钥/ChaCha20", fileName = "ChaCha20KeyConfig")]
-    public class ChaCha20KeyConfig : CryptoKeyConfig<ChaCha20KeyConfig>
+    [CreateAssetMenu(menuName = "TEngine/加密密钥/Manifest ChaCha20", fileName = "ManifestChaCha20KeyConfig")]
+    public class ManifestChaCha20KeyConfig : CryptoKeyConfig<ManifestChaCha20KeyConfig>
     {
         [SerializeField, HideInInspector]
         private byte[] _key;
@@ -22,7 +24,7 @@ namespace TEngine
         public byte[] nonce => _nonce;
 
         [ShowInInspector, LabelText("密钥（Hex，32 字节）")]
-        [InfoBox("ChaCha20 需要 32 字节 key + 12 字节 nonce。修改后需重新打包全部资源。", InfoMessageType.None)]
+        [InfoBox("清单 ChaCha20 需要 32 字节 key + 12 字节 nonce。修改后需重新打包全部资源。", InfoMessageType.None)]
         public string KeyHex
         {
             get => ToHex(_key);

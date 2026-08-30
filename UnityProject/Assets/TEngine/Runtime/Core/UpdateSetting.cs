@@ -116,6 +116,12 @@ namespace TEngine
         /// 资源包加密方式。
         /// </summary>
         public EncryptionType EncryptionType = EncryptionType.None;
+
+        /// <summary>
+        /// 是否对该资源包的清单文件加密。
+        /// <remarks>固定使用 ChaCha20（RFC 7539）算法，密钥与 Bundle 加密独立。</remarks>
+        /// </summary>
+        public bool ManifestEncrypted = false;
     }
 
     [CreateAssetMenu(menuName = "TEngine/UpdateSetting", fileName = "UpdateSetting")]
@@ -398,6 +404,7 @@ namespace TEngine
                     _ => sourcePackage.BuildPipeline,
                 },
                 EncryptionType = sourcePackage.EncryptionType,
+                ManifestEncrypted = sourcePackage.ManifestEncrypted,
             };
         }
 

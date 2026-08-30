@@ -1,0 +1,16 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac7be125b4250104eaed9adb10c278f4, type: 3}
+  m_Name: ManifestChaCha20KeyConfig
+  m_EditorClassIdentifier: 
+  _key: 76c62f217d5ffa106243810b74cc4140713ea6531f67da9ecd200514b2007596
+  _nonce: f4e85c98f5a64ce32b2fa205

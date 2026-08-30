@@ -7,6 +7,7 @@ namespace TEngine
     /// <summary>
     /// XOR 加密密钥配置：随机 16~128 字节 key，按文件位置取模使用。
     /// </summary>
+    [CreateAssetMenu(menuName = "TEngine/加密密钥/Xor", fileName = "ChaCha20KeyConfig")]
     public class XorKeyConfig : CryptoKeyConfig<XorKeyConfig>
     {
         [SerializeField, HideInInspector]
