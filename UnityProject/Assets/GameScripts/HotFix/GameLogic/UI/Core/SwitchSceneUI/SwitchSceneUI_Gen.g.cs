@@ -12,7 +12,7 @@ using TEngine;
 
 namespace GameLogic
 {
-	public partial class SwitchUI : UIWindow
+	public partial class SwitchSceneUI : UIWindow
 	{
 		#region 脚本工具生成的代码
 
