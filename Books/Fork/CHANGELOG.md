@@ -4,6 +4,7 @@
 
 ## 2026-08-30
 
+- 资源清单加密接入：`RuntimePackageEntry` 新增 `ManifestEncrypted` 开关，固定 ChaCha20 算法 + 独立密钥（`ManifestChaCha20KeyConfig`），构建端注入 `IManifestEncryptor`/`IManifestDecryptor`（含 Catalog 生成），运行时四个 FileSystem 分支按配置注入 `IManifestDecryptor`。详见 [resource-build.md](resource-build.md)。
 - `GameSceneModule.LoadScene` 新增三个可选时长参数 `warmupDuration` / `finishDuration` / `holdAt100Duration`，按调用覆盖三段式进度"遮羞"时长（默认 0.7s/2s/0.5s，传 null 走默认，传 0 跳过对应阶段）；原三个 `const` 拆为默认常量 + 会话字段，`SkipLoadingAnimation` 与 `warmupDuration<=0` 并列触发跳过模式。详见 [scene-system.md](scene-system.md)。
 - `GameSceneModule.StartSceneLoad` 并发抢占改硬保护：`_isActive` 为 true 时直接拒绝新请求并打 `Log.Error`，不再抢占重置状态机；不触发被拒绝请求的 `finishCallBack`（场景未激活，按成功语义回调会误操作）。详见 [scene-system.md](scene-system.md)。
 

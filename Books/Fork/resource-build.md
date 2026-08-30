@@ -314,3 +314,46 @@ Releases/
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-08-24-innosetup-build-hardening-plan.md`
+
+## 资源清单加密（Manifest Encryption）
+
+### 背景
+
+YooAsset 3.x 的资源清单（Manifest）默认是明文二进制，包含全部资源路径、依赖关系、Hash 和 Bundle 元数据，是离线包里最先被抓取的高价值元数据。YooAsset 原生提供 `IManifestEncryptor` / `IManifestDecryptor` 两个对称接口，但 fork 之前未接入运行时解密链路，构建端选了加密器也会因运行时缺解密器导致清单加载失败。
+
+Bundle 加密与清单加密在 fork 中独立配置：Bundle 加密按 `RuntimePackageEntry.EncryptionType` 走 `FileOffSet`/`FileStream`/`ChaCha20` 三档，清单加密固定为 ChaCha20，密钥与 Bundle 隔离，避免从清单解密链路逆向到 Bundle 密钥。
+
+### 改动摘要
+
+- `RuntimePackageEntry` 新增 `bool ManifestEncrypted`（per-package，默认 false，向后兼容）。
+- 清单加密固定为 ChaCha20（RFC 7539），算法不暴露为枚举，未来更换算法为 breaking change。
+- 新增 `ManifestChaCha20KeyConfig`（`CryptoKeyConfig<T>` 子类，32B key + 12B nonce 单资产承载），密钥资产路径 `Resources/EncryptConfigs/ManifestChaCha20KeyConfig.asset`，与 Bundle 用的 `ChaCha20KeyConfig` 独立。
+- 新增 `ManifestChaCha20Encryptor` / `ManifestChaCha20Decryptor`，复用 `ChaCha20Util`，不引入新加密实现。
+- `ResourceModule` 四个 `Create*FileSystemParameters`（Builtin/Sandbox/WebServer/WebNetwork）及微信小游戏分支统一经 `AddManifestDecryptor` 按 `ManifestEncrypted` 注入 `IManifestDecryptor`。
+- `ReleaseTools` 构建端按 `ManifestEncrypted` 同时设置 `BuildParameters.ManifestEncryptor` 与 `ManifestDecryptor`：前者用于序列化加密清单，后者供 `TaskCreateCatalog` 反序列化生成首包 Catalog（缺解密器会导致 Catalog 生成时 `FileMagic` 校验失败）。
+- `NormalizeRuntimePackageEntry` 同步 `ManifestEncrypted` 字段。
+
+### 使用方式
+
+在 `UpdateSetting` 的 `RuntimePackages` 列表中，对需要清单加密的资源包勾选 `ManifestEncrypted`。首次启用时编辑器会自动创建 `ManifestChaCha20KeyConfig.asset` 并生成随机密钥；如需自定义密钥，在 Project 视图选中该资产，用 Inspector 的 Hex 输入框或「重新生成密钥」按钮修改。
+
+Editor 模拟模式（`EditorSimulateMode`）不经过真实构建清单，清单加密对它不生效，与 Bundle 加密在 EditorSimulate 下的行为一致。
+
+### 注意事项
+
+- 修改密钥或 nonce 后必须重新构建资源，并清理 StreamingAssets、沙盒缓存和远端旧版本，旧加密清单不能与新密钥混用。
+- `ManifestEncrypted` 是 per-package 配置：可以为 `CodePackage` 启用而对 `DefaultPackage` 关闭，互不影响。
+- 清单加密不与 Bundle 加密联动：一个包可以 Bundle 用 `None` 而清单用 ChaCha20，反之亦可。
+- 算法更换（如换 AES-GCM）属于 breaking change，不做运行时自动识别或兼容迁移——清单版本与 Bundle 版本绑定，不存在线上旧清单需兼容的场景。
+
+### 关键文件
+
+- `Assets/TEngine/Runtime/Core/UpdateSetting.cs`（`RuntimePackageEntry.ManifestEncrypted`、`NormalizeRuntimePackageEntry`）
+- `Assets/TEngine/Runtime/Module/ResourceModule/Crypto/ManifestChaCha20KeyConfig.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.ManifestCrypto.cs`（`ManifestChaCha20Encryptor`/`Decryptor`）
+- `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.cs`（`AddManifestDecryptor`、`GetManifestEncrypted`、四个 `Create*FileSystemParameters`）
+- `Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs`（构建端注入）
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-30-yooasset-manifest-encryption-summary.md`
