@@ -331,7 +331,18 @@ namespace TEngine.SceneTools
 
         private static void WriteFile(string path, string content)
         {
+            // 覆盖前先移除只读属性，否则 WriteAllText 抛 UnauthorizedAccessException
+            if (File.Exists(path))
+            {
+                FileAttributes attributes = File.GetAttributes(path);
+                if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+                {
+                    File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
+                }
+            }
+
             File.WriteAllText(path, content);
+            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.ReadOnly);
         }
     }
 }

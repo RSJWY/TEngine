@@ -400,7 +400,7 @@ namespace GameLogic
             }
 
             // 打开加载页（纯展示，不传 UserData；进度由本模块 Update 驱动，UI 每帧读取 DisplayProgress）
-            GameModule.UI.ShowUI<SwitchUI>();
+            GameModule.UI.ShowUI<SwitchSceneUI>();
         }
 
         /// <summary>
@@ -483,7 +483,7 @@ namespace GameLogic
             if (!_isClosing)
             {
                 _isClosing = true;
-                GameModule.UI.CloseUI<SwitchUI>();
+                GameModule.UI.CloseUI<SwitchSceneUI>();
             }
             // 3. 通知场景内逻辑初始化（DynamicSceneSpawner 等监听方据此开始生成；须在 SwitchUI 关闭后派发）
             GameEvent.Get<IGameSceneEvent>().OnSceneReady(_sceneType);
