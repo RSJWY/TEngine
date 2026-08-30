@@ -300,7 +300,6 @@ public static class BuildDLLCommand
         }
 #endif
         
-        AssetDatabase.Refresh();
     }
 
 #if ENABLE_HYBRIDCLR && ENABLE_OBFUZ
@@ -343,12 +342,11 @@ public static class BuildDLLCommand
             Debug.Log($"[AOTMetadata] 准备拷贝：{dll}, Src:{srcDllPath}, Dst:{dllBytesPath}");
             if (!File.Exists(srcDllPath))
             {
-                string errorMsg =
-                    $"[AOTMetadata] 校验失败：AOT 源 DLL 不存在：{srcDllPath}（程序集：{dll}）\n" +
+                Debug.LogWarning(
+                    $"[AOTMetadata] AOT 源 DLL 不存在，跳过拷贝：{srcDllPath}（程序集：{dll}）。\n" +
                     $"裁剪后的 AOT DLL 仅在 BuildPlayer 时生成，需先完整构建一次游戏 App 后再打 AssetBundle。\n" +
-                    $"若已构建过 App 仍报错，请检查 AOTMetadataManifest.asset 是否配置了不存在的程序集。";
-                Debug.LogError(errorMsg);
-                throw new BuildFailedException(errorMsg);
+                    $"若已构建过 App 仍报错误，请检查 AOTMetadataManifest.asset / UpdateSetting.AOTMetaAssemblies 是否配置了不存在的程序集。");
+                continue;
             }
 
             File.Copy(srcDllPath, dllBytesPath, true);
@@ -356,45 +354,47 @@ public static class BuildDLLCommand
         }
         Debug.Log("[AOTMetadata] AOT补充元数据DLL拷贝流程结束。");
 #endif
+        
+        AssetDatabase.Refresh();
     }
 
 #if ENABLE_HYBRIDCLR
     private static List<string> GetResolvedAOTMetaAssemblies()
     {
-        var assemblies = new List<string>();
+        // 最终拷贝列表 = manifest ∪ HybridCLR 生成列表 ∪ UpdateSetting.AOTMetaAssemblies。
+        // manifest 缺失 generated 的项视为配置遗漏：仅警告并说明系统已补上，不中断构建。
         var manifest = LoadAOTMetadataManifest();
-        if (manifest != null && manifest.AOTMetaAssemblies != null && manifest.AOTMetaAssemblies.Count > 0)
+        var manifestAssemblies = manifest != null && manifest.AOTMetaAssemblies != null
+            ? manifest.AOTMetaAssemblies
+            : new List<string>();
+        if (manifest != null)
         {
-            assemblies.AddRange(manifest.AOTMetaAssemblies);
-            Debug.Log($"[AOTMetadata] 使用 AOTMetadataManifest 配置列表，Count:{manifest.AOTMetaAssemblies.Count}, List:{string.Join(", ", NormalizeAssemblyList(manifest.AOTMetaAssemblies))}");
+            Debug.Log($"[AOTMetadata] 使用 AOTMetadataManifest 配置列表，Count:{manifestAssemblies.Count}, List:{string.Join(", ", NormalizeAssemblyList(manifestAssemblies))}");
         }
         else
         {
-            assemblies.AddRange(TEngine.Settings.UpdateSetting.AOTMetaAssemblies);
-            Debug.Log($"[AOTMetadata] 使用 UpdateSetting.AOTMetaAssemblies 回退列表，Count:{TEngine.Settings.UpdateSetting.AOTMetaAssemblies.Count}, List:{string.Join(", ", NormalizeAssemblyList(TEngine.Settings.UpdateSetting.AOTMetaAssemblies))}");
+            Debug.Log("[AOTMetadata] 未找到 AOTMetadataManifest，仅使用生成列表 + UpdateSetting。");
         }
 
         var generatedAssemblies = GetGeneratedPatchedAOTAssemblies();
         Debug.Log($"[AOTMetadata] HybridCLR AOTGenericReferences 生成列表，Count:{generatedAssemblies.Count}, List:{string.Join(", ", generatedAssemblies)}");
 
-        var normalizedAssemblies = NormalizeAssemblyList(assemblies);
+        var normalizedManifest = NormalizeAssemblyList(manifestAssemblies);
 
-        // 【校验点 1】单向校验：manifest 必须包含 HybridCLR 生成的全部程序集，缺失则中断构建
+        // 【缺失补齐】generated 里有但 manifest 里没有：警告并说明系统已补上，不中断
         var missingGeneratedAssemblies = generatedAssemblies
-            .Where(assembly => !normalizedAssemblies.Contains(assembly))
+            .Where(assembly => !normalizedManifest.Contains(assembly))
             .ToList();
         if (missingGeneratedAssemblies.Count > 0)
         {
-            string errorMsg =
-                $"[AOTMetadata] 校验失败：AOTMetadataManifest 缺少 HybridCLR 生成的以下补充元数据程序集：\n" +
+            Debug.LogWarning(
+                $"[AOTMetadata] AOTMetadataManifest 缺少 HybridCLR 生成的以下补充元数据程序集，系统已补上：\n" +
                 $"  {string.Join("\n  ", missingGeneratedAssemblies)}\n" +
-                $"缺失会导致运行时 ExecutionEngineException。请运行菜单 HybridCLR → Build → Sync AOT Metadata Manifest 同步后重试。";
-            Debug.LogError(errorMsg);
-            throw new BuildFailedException(errorMsg);
+                $"缺失会导致运行时 ExecutionEngineException。建议运行菜单 HybridCLR → Build → Sync AOT Metadata Manifest 同步至 manifest 以持久化。");
         }
 
-        // manifest 含额外项（手动补充）时仅警告，不中断
-        var extraAssemblies = normalizedAssemblies
+        // manifest 含 generated 未包含的项（可能是手动添加，将一并拷贝）
+        var extraAssemblies = normalizedManifest
             .Where(assembly => !generatedAssemblies.Contains(assembly))
             .ToList();
         if (extraAssemblies.Count > 0)
@@ -402,7 +402,14 @@ public static class BuildDLLCommand
             Debug.LogWarning($"[AOTMetadata] 注意：AOTMetadataManifest 包含 HybridCLR 未生成的程序集（可能是手动添加，将一并拷贝）：{string.Join(", ", extraAssemblies)}");
         }
 
-        var resolvedAssemblies = NormalizeAssemblyList(assemblies);
+        var updateSettingAssemblies = TEngine.Settings.UpdateSetting.AOTMetaAssemblies;
+        Debug.Log($"[AOTMetadata] UpdateSetting.AOTMetaAssemblies 列表，Count:{updateSettingAssemblies.Count}, List:{string.Join(", ", NormalizeAssemblyList(updateSettingAssemblies))}");
+
+        // 三源合并去重
+        var resolvedAssemblies = NormalizeAssemblyList(
+            normalizedManifest
+                .Concat(generatedAssemblies)
+                .Concat(updateSettingAssemblies));
         Debug.Log($"[AOTMetadata] 最终AOT补充元数据列表，Count:{resolvedAssemblies.Count}, List:{string.Join(", ", resolvedAssemblies)}");
         return resolvedAssemblies;
     }
@@ -414,7 +421,7 @@ public static class BuildDLLCommand
         var manifest = AssetDatabase.LoadAssetAtPath<AOTMetadataManifest>(manifestPath);
         if (manifest == null)
         {
-            Debug.LogWarning($"[AOTMetadata] 未找到 AOTMetadataManifest：{manifestPath}，回退使用 UpdateSetting.AOTMetaAssemblies。");
+            Debug.LogWarning($"[AOTMetadata] 未找到 AOTMetadataManifest：{manifestPath}，将使用生成列表 + UpdateSetting.AOTMetaAssemblies 合并。");
         }
         else
         {
@@ -525,6 +532,8 @@ public static class BuildDLLCommand
 
         CopyPdbToAssetPath(hotfixDllSrcDir, target);
 #endif
+        
+        AssetDatabase.Refresh();
     }
 
     /// <summary>

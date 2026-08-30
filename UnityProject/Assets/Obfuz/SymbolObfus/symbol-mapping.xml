@@ -1611,20 +1611,8 @@
   </assembly>
   <assembly name="Obfuz.Runtime">
     <type fullName="&lt;PrivateImplementationDetails&gt;" newFullName="$nb" status="Renamed">
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize36_3 $Obfuz$WatermarkDataHolderField3" newName="$of" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize36_13 $Obfuz$WatermarkDataHolderField13" newName="$Of" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize36_10 $Obfuz$WatermarkDataHolderField10" newName="$pf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize32_12 $Obfuz$WatermarkDataHolderField12" newName="$Pf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize48_9 $Obfuz$WatermarkDataHolderField9" newName="$qf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize28_7 $Obfuz$WatermarkDataHolderField7" newName="$Qf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/__StaticArrayInitTypeSize=428 7DC72EACF4C52A1729F6C06DF08DBBB25CECF769449A70A0D97F6EADE43D51F3" newName="$rf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize44_2 $Obfuz$WatermarkDataHolderField2" newName="$Rf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize36_6 $Obfuz$WatermarkDataHolderField6" newName="$sf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize28_4 $Obfuz$WatermarkDataHolderField4" newName="$Sf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize44_5 $Obfuz$WatermarkDataHolderField5" newName="$tf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize28_11 $Obfuz$WatermarkDataHolderField11" newName="$Tf" />
       <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/__StaticArrayInitTypeSize=846 420F1D6604C5F76CDF04C23910B68CA5DD995B8AAA16504AD2423EF5307A1673" newName="$uf" />
-      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize36_8 $Obfuz$WatermarkDataHolderField8" newName="$Uf" />
+      <field signature="[Obfuz.Runtime]&lt;PrivateImplementationDetails&gt;/__StaticArrayInitTypeSize=428 7DC72EACF4C52A1729F6C06DF08DBBB25CECF769449A70A0D97F6EADE43D51F3" newName="$rf" />
     </type>
     <type fullName="&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize28_11" newFullName="$nb/$tb" status="Renamed" />
     <type fullName="&lt;PrivateImplementationDetails&gt;/$Obfuz$WatermarkDataHolderSize28_4" newFullName="$nb/$Pb" status="Renamed" />
