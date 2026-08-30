@@ -2,6 +2,11 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-08-30
+
+- `GameSceneModule.LoadScene` 新增三个可选时长参数 `warmupDuration` / `finishDuration` / `holdAt100Duration`，按调用覆盖三段式进度"遮羞"时长（默认 0.7s/2s/0.5s，传 null 走默认，传 0 跳过对应阶段）；原三个 `const` 拆为默认常量 + 会话字段，`SkipLoadingAnimation` 与 `warmupDuration<=0` 并列触发跳过模式。详见 [scene-system.md](scene-system.md)。
+- `GameSceneModule.StartSceneLoad` 并发抢占改硬保护：`_isActive` 为 true 时直接拒绝新请求并打 `Log.Error`，不再抢占重置状态机；不触发被拒绝请求的 `finishCallBack`（场景未激活，按成功语义回调会误操作）。详见 [scene-system.md](scene-system.md)。
+
 ## 2026-08-29
 
 - `CodePackage` 接入 YooAsset 3.0.5 `ArchiveFileBuildPipeline`，补齐 ArchiveBundle 构建、编辑器模拟、Builtin/Host/Web 加载、ChaCha20 加密解密和 `RawFileObject` 热更字节加载；修复密钥配置 Player 编译与 ChaCha20 仅输出 keystream 的错误。详见 [yooasset-3-migration.md](yooasset-3-migration.md)。

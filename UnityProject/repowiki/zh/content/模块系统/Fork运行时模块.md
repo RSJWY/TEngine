@@ -118,13 +118,22 @@ GameModule.Anim.DestroyAnimPlayable(playable);
 业务场景切换使用 `GameModule.GameScene`，底层资源场景 API 仍由 `GameModule.Scene` 提供。
 
 ```csharp
+// 基础用法（时长走默认 0.7s/2s/0.5s）
 GameModule.GameScene.LoadScene(SceneType.BattleScene, OnSceneReady);
+
+// 按场景调三段式"遮羞"时长（传 null 走默认，传 0 跳过对应阶段）
+GameModule.GameScene.LoadScene(SceneType.BattleScene, OnSceneReady,
+    warmupDuration: 0.3f,      // 预热 0→10%
+    finishDuration: 1.0f,      // 收尾 90→100%
+    holdAt100Duration: 0.2f);  // 100% 停留
+
 float progress = GameModule.GameScene.DisplayProgress;
 ```
 
+- `LoadScene` 三个可选时长参数 `warmupDuration` / `finishDuration` / `holdAt100Duration`（`float?`，默认 null 走 `Default*` 常量，传 0 跳过对应阶段）。`warmupDuration<=0` 与 `SkipLoadingAnimation` 并列触发 skip 模式。
 - `SwitchUI` 只展示 `DisplayProgress`，不拥有加载状态机。
 - 加载终结顺序为：完成回调 -> 关闭加载页 -> `OnSceneReady`。
-- 阶段 1 超时使用“停滞 60 秒 + 绝对 180 秒”双门槛。
+- 阶段 1 超时使用"停滞 60 秒 + 绝对 180 秒"双门槛。
 - 通用动态加载场景优先使用 `SpawnPointSceneSpawner`。
 
 详细说明见 [scene-system.md](../../../../../Books/Fork/scene-system.md)。

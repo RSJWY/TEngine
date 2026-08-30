@@ -176,11 +176,21 @@ namespace GameLogic
         /// <summary>展示进度（平滑后驱动 UI）。</summary>
         private float _displayProgress = 0f;
 
-        /// <summary>阶段 0 预热动画时长（0→10%），秒。</summary>
-        private const float WarmupDuration = 0.7f;
+        // ===== 三段式时长默认值（常量基线，会话级字段会按 LoadScene 传参覆盖） =====
 
-        /// <summary>阶段 0 预热速度 = 0.10 / WarmupDuration，每秒前进的进度值。</summary>
-        private const float WarmupSpeed = 0.10f / WarmupDuration;
+        /// <summary>阶段 0 预热动画时长（0→10%）默认值，秒。</summary>
+        private const float DefaultWarmupDuration = 0.7f;
+
+        /// <summary>阶段 2 收尾动画时长（90%→100%）默认值，秒。</summary>
+        private const float DefaultFinishDuration = 2f;
+
+        /// <summary>到达 100% 后的停留时间（让用户看清 100%）默认值，秒。</summary>
+        private const float DefaultHoldAt100Duration = 0.5f;
+
+        // ===== 固定常量（不对外暴露，不由会话覆盖） =====
+
+        /// <summary>阶段 0 预热速度 = 0.10 / 当前预热时长，每秒前进的进度值（按会话时长动态计算）。</summary>
+        private float WarmupSpeed => 0.10f / _warmupDuration;
 
         /// <summary>阶段 1 加载追赶速度：平滑跟随 YooAsset 进度，避免跳变。值 1.0 表示 10%→90% 约需 0.8s。</summary>
         private const float LoadingSpeed = 1.0f;
@@ -193,14 +203,14 @@ namespace GameLogic
         /// <summary>阶段 1 绝对超时：总时长上限，防彻底卡死，秒。无论进度是否在爬升都兜底。</summary>
         private const float Phase1AbsoluteTimeout = 180f;
 
-        /// <summary>阶段 2 收尾动画时长（90%→100%），秒。</summary>
-        private const float FinishDuration = 2f;
+        /// <summary>阶段 2 收尾速度 = 0.10 / 当前收尾时长，每秒前进的进度值（按会话时长动态计算）。</summary>
+        private float FinishSpeed => 0.10f / _finishDuration;
 
-        /// <summary>阶段 2 收尾速度 = 0.10 / FinishDuration，每秒前进的进度值。</summary>
-        private const float FinishSpeed = 0.10f / FinishDuration;
+        // ===== 会话级时长（每次 LoadScene 时设置，null 走默认值） =====
 
-        /// <summary>到达 100% 后的停留时间（让用户看清 100%），秒。</summary>
-        private const float HoldAt100Duration = 0.5f;
+        private float _warmupDuration = DefaultWarmupDuration;       // 本次会话阶段 0 时长
+        private float _finishDuration = DefaultFinishDuration;       // 本次会话阶段 2 收尾动画时长
+        private float _holdAt100Duration = DefaultHoldAt100Duration;  // 本次会话 100% 停留时长
 
         private float _holdAt100Time = 0f;           // 已在 100% 停留的累计时间
         private bool _sceneLoadComplete = false;     // 真实加载已完成（YooAsset 进度到 0.9）
@@ -281,7 +291,7 @@ namespace GameLogic
                         _displayProgress = 1.0f;
                         _holdAt100Time += clampedDelta;
                         // 停留结束 → 执行完成回调并关闭加载页（场景已在 90% 激活完毕）
-                        if (!_isClosing && _holdAt100Time >= HoldAt100Duration)
+                        if (!_isClosing && _holdAt100Time >= _holdAt100Duration)
                         {
                             FinishAndClose();
                         }
@@ -299,15 +309,19 @@ namespace GameLogic
         /// </summary>
         /// <param name="sceneType">目标场景类型。</param>
         /// <param name="finishCallBack">场景激活并显示后的完成回调（可为空）。</param>
+        /// <param name="warmupDuration">阶段 0 预热动画时长（0→10%），秒。传 null 用默认 0.7s，传 0 等同 SkipLoadingAnimation。</param>
+        /// <param name="finishDuration">阶段 2 收尾动画时长（90%→100%），秒。传 null 用默认 2s，传 0 跳过收尾动画。</param>
+        /// <param name="holdAt100Duration">到达 100% 后停留时间，秒。传 null 用默认 0.5s。</param>
         /// <remarks>
         /// 流程：记录上一个/当前关卡 → 派发 <see cref="IGameSceneEvent.OnSceneLoadStart"/> → 重置三段式进度状态机 →
         /// <c>GameModule.UI.ShowUI&lt;SwitchUI&gt;</c> 打开加载页；本模块 <see cref="Update"/> 每帧推进进度，
         /// 加载就绪后 <see cref="EnterFinishPhase"/> 直接 UnSuspend 激活场景，
         /// 收尾动画走满后 <see cref="FinishAndClose"/> 执行完成回调、派发 <see cref="IGameSceneEvent.OnSceneReady"/> 并关闭加载页。
         /// </remarks>
-        public void LoadScene(SceneType sceneType, Action finishCallBack = null)
+        public void LoadScene(SceneType sceneType, Action finishCallBack = null,
+            float? warmupDuration = null, float? finishDuration = null, float? holdAt100Duration = null)
         {
-            StartSceneLoad(sceneType, finishCallBack);
+            StartSceneLoad(sceneType, finishCallBack, warmupDuration, finishDuration, holdAt100Duration);
         }
 
         /// <summary>
@@ -330,12 +344,19 @@ namespace GameLogic
         /// </summary>
         /// <param name="sceneType">目标场景类型。</param>
         /// <param name="finishCallBack">场景激活后的完成回调（可为空）。</param>
-        private void StartSceneLoad(SceneType sceneType, Action finishCallBack)
+        /// <param name="warmupDuration">阶段 0 时长，秒。null 用默认，0 触发跳过模式。</param>
+        /// <param name="finishDuration">阶段 2 收尾时长，秒。null 用默认，0 跳过收尾动画。</param>
+        /// <param name="holdAt100Duration">100% 停留时长，秒。null 用默认。</param>
+        private void StartSceneLoad(SceneType sceneType, Action finishCallBack,
+            float? warmupDuration = null, float? finishDuration = null, float? holdAt100Duration = null)
         {
             if (_isActive)
             {
-                // 上一次加载尚未结束又发起新加载：丢弃旧回调（旧场景可能未激活，强行触发会引发副作用），仅告警。
-                Log.Warning($"[GameScene] 上一次加载尚未结束（{_sceneType}:{_sceneName}），被新的 {sceneType}:{GetSceneName(sceneType)} 抢占。");
+                // 硬保护：上一次加载尚未结束直接拒绝新请求，避免并发加载进度互相干扰、旧回调被静默丢弃、
+                // 以及两个 Single 模式场景加载在 Unity SceneManager 下行为不可可靠。
+                // 不触发 finishCallBack：场景并未激活，调用方按成功语义执行回调反而会误操作错误场景。
+                Log.Error($"[GameScene] 上一次加载尚未结束（{_sceneType}:{_sceneName}），拒绝新的 {sceneType}:{GetSceneName(sceneType)} 加载请求。");
+                return;
             }
 
             RecordScene(sceneType);
@@ -345,7 +366,6 @@ namespace GameLogic
             _sceneType = sceneType;
             _sceneName = GetSceneName(sceneType);
             _finishCallBack = finishCallBack;
-            _skipMode = SkipLoadingAnimation;
             _isSendLoadOver = false;
             _isClosing = false;
             _isFinished = false;
@@ -355,6 +375,14 @@ namespace GameLogic
             _phase1StallElapsed = 0f;
             _holdAt100Time = 0f;
             _isActive = true;
+
+            // 会话级时长：传参覆盖默认值
+            _warmupDuration = warmupDuration ?? DefaultWarmupDuration;
+            _finishDuration = finishDuration ?? DefaultFinishDuration;
+            _holdAt100Duration = holdAt100Duration ?? DefaultHoldAt100Duration;
+
+            // 跳过模式判定：全局开关 OR 预热时长传 0（显式要求跳过预热动画）
+            _skipMode = SkipLoadingAnimation || _warmupDuration <= 0f;
 
             // 快速跳过模式：跳过预热动画，直接进入阶段 1 发起加载
             if (_skipMode)

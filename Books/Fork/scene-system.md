@@ -144,6 +144,44 @@ SwitchUI.OnUpdate
 
 - `UnityProject/conversation-summaries/2026-06-30-switchui-scene-progress-refactor-summary.md`
 
+## 场景加载硬保护（拒绝并发抢占）
+
+### 背景
+
+`StartSceneLoad` 原对"上一次加载未结束又发起新加载"只做软保护——打一条 `Log.Warning` 后继续抢占，重置状态机并覆盖 `_sceneName` 发起新加载。
+
+问题：
+
+- 旧加载是 `LoadSceneAsync(suspendLoad:true)` 的 fire-and-forget，抢占后旧的 `progressCallBack`（`OnLoadProgress`）仍在后台回调，两个加载的进度会互相干扰 `_targetProgress` / `_lastLoadProgress`。
+- 两个并发的 Single 模式场景加载在 Unity SceneManager 下行为不可靠。
+- 旧回调被静默丢弃，调用方不知道自己的 `finishCallBack` 不会执行。
+- 实际项目中没有"需要抢占"的合理场景。
+
+### 改动摘要
+
+- `_isActive` 为 true 时直接 `return`，不重置状态机、不发起新加载。
+- 日志级别从 `Warning` 提升到 `Error`。
+- **不触发**新请求的 `finishCallBack`：场景并未激活，按成功语义执行回调会让业务误操作错误场景。调用方需自行确保不在加载中发起新请求。
+
+保持不变：
+
+- 正常加载流程、`FinishAndClose` 的 `_isActive=false` 重置时机。
+- `SkipLoadingAnimation` 与时长传参等其余行为。
+
+### 注意事项
+
+- 这是硬保护，不是队列：被拒绝的请求不会排队等待，调用方需自行重试或检查 `DisplayProgress` / 业务状态判断当前是否在加载。
+- 如确需在加载中切场景，应先等当前加载完成（监听 `OnSceneReady`）再发起新请求。
+- `JumpToMainScene` 内部走 `StartSceneLoad`，同样受保护。
+
+### 关键文件
+
+- `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/GameSceneModule.cs`
+
+### 验证记录
+
+Unity 编译（`refresh_unity compile=request force scripts wait_for_ready=true`）：0 错误。
+
 ## 阶段 1 超时双门槛化（修复固定 5s 误杀大场景冷启动）
 
 ### 背景
@@ -188,6 +226,82 @@ else if (_phase1ElapsedTime >= 5.0f) EnterFinishPhase();
 
 - `UnityProject/conversation-summaries/2026-08-07-scene-phase1-timeout-fix-summary.md`
 - GitHub Issue #1
+
+## 加载时长按调用传参（三段式遮羞时间可调）
+
+### 背景
+
+三段式进度的三个"遮羞"时长（预热 0→10%、收尾 90→100%、100% 停留）原为 `private const float` 硬编码：
+
+- `WarmupDuration = 0.7f`
+- `FinishDuration = 2f`
+- `HoldAt100Duration = 0.5f`
+
+问题：
+
+- `const` 运行时不可改，不同场景（大厅 vs 战斗 vs 小关卡）无法用不同时长。
+- 只有一个全局 `SkipLoadingAnimation` 开关，粒度太粗——要么全留（约 2.7s），要么全跳（0s），没有中间档。
+- 调用方无法在 `LoadScene` 时按场景特性定制。
+
+### 改动摘要
+
+- 三个 `const` 重命名为 `DefaultWarmupDuration` / `DefaultFinishDuration` / `DefaultHoldAt100Duration`，作为默认基线保留。
+- 新增三个会话级字段 `_warmupDuration` / `_finishDuration` / `_holdAt100Duration`，每次 `StartSceneLoad` 按传参覆盖。
+- `WarmupSpeed` / `FinishSpeed` 由 `const` 改为按会话时长动态计算的只读属性（`0.10f / _warmupDuration`）。
+- `LoadScene` / `StartSceneLoad` / `IGameSceneModule.LoadScene` 新增三个可选参数 `float? warmupDuration / finishDuration / holdAt100Duration`，默认 `null` 走原默认值，向后兼容。
+- `_skipMode` 判定扩展：原仅由 `SkipLoadingAnimation` 决定，现 `warmupDuration <= 0` 也触发跳过模式（显式要求跳过预热）。
+- `Update` 中 `HoldAt100Duration` 引用改为 `_holdAt100Duration` 会话字段。
+
+保持不变：
+
+- 三段式状态机结构、阶段切换条件、`DisplayProgress` 只读语义。
+- `SkipLoadingAnimation` 全局开关（仍生效，优先级与传参并列）。
+- 阶段 1 超时双门槛（停滞 60s + 绝对 180s）。
+- 陷阱 1 / 陷阱 2 规避。
+- 终结顺序：回调 -> 关加载页 -> `OnSceneReady`。
+- 现有调用方（`GameApp.cs` 只传 `sceneType`）零改动。
+
+### 使用方式
+
+```csharp
+// 老用法不变（全走默认 0.7s / 2s / 0.5s）
+GameModule.GameScene.LoadScene(SceneType.MainScene);
+
+// 按场景调时长
+GameModule.GameScene.LoadScene(SceneType.BattleScene,
+    warmupDuration: 0.3f,      // 预热 0.3s（小场景缩短）
+    finishDuration: 1.0f,      // 收尾 1s
+    holdAt100Duration: 0.2f);  // 100% 停留 0.2s
+
+// 传 0 跳过对应阶段（预热传 0 等同 SkipLoadingAnimation）
+GameModule.GameScene.LoadScene(SceneType.MainScene, warmupDuration: 0f);
+```
+
+| 参数 | 默认 | 传 0 | 传 null |
+| --- | --- | --- | --- |
+| `warmupDuration` | 0.7s | 跳过预热，进入 skip 模式 | 用默认 0.7s |
+| `finishDuration` | 2s | 跳过收尾动画（仍激活场景） | 用默认 2s |
+| `holdAt100Duration` | 0.5s | 到 100% 立即关闭加载页 | 用默认 0.5s |
+
+### 注意事项
+
+- `finishDuration` 传 0 **不跳过场景激活**，只跳过 90→100 的动画段；激活在 90% 时由 `EnterFinishPhase` 直接 `UnSuspend` 完成，与收尾动画时长无关。
+- `warmupDuration` 传 0 会进入 `_skipMode`，此时预热段和收尾段都跳过（与 `SkipLoadingAnimation=true` 行为一致）；如只想跳预热不跳收尾，设 `SkipLoadingAnimation=false` 并传 `warmupDuration=0.0001f` 这种极小正值而非 0。
+- 三参数都是 `float?`（可空），不传或传 `null` 走 `Default*` 常量，已发布的调用方无需改动。
+- 会话级字段在 `StartSceneLoad` 重置块统一赋值，抢占场景（上一次未结束又发起新加载）会用新值覆盖。
+
+### 关键文件
+
+- `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/GameSceneModule.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/IGameSceneModule.cs`
+
+### 验证记录
+
+Unity 编译（`refresh_unity compile=request force scripts wait_for_ready=true`）：0 错误。
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-08-30-scene-load-duration-params-summary.md`
 
 ## 场景枚举自动生成（SceneEnumConfig）
 
