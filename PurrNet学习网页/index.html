@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PurrNet 研究学习笔记 · TEngine</title>
+<style>
+:root{
+  --bg:#f4f6fb; --panel:#ffffff; --text:#22283a; --muted:#616a7d; --border:#e2e6f0;
+  --accent:#5350d6; --accent-2:#7c74f0; --accent-soft:#edeeff; --accent-border:#c9cbf5;
+  --code-bg:#101627; --code-text:#dbe3f4; --inline-code-bg:#e9ebfa; --inline-code-text:#3b3a86;
+  --tip:#0b7a45; --tip-bg:#e6f6ed; --tip-border:#b5e3c9;
+  --warn:#8a6100; --warn-bg:#fff4d1; --warn-border:#f0dc9a;
+  --danger:#b33025; --danger-bg:#fdecea; --danger-border:#f5c1ba;
+  --sidebar-w:300px; --shadow:0 1px 3px rgba(30,35,60,.06),0 8px 24px rgba(30,35,60,.05);
+}
+html[data-theme=dark]{
+  --bg:#0d1017; --panel:#151a24; --text:#dfe5f0; --muted:#94a0b4; --border:#273043;
+  --accent:#8d88ff; --accent-2:#a9a4ff; --accent-soft:#1d2138; --accent-border:#3a3f68;
+  --inline-code-bg:#252b40; --inline-code-text:#b8c0f5;
+  --tip:#5ed09a; --tip-bg:#10241a; --tip-border:#1f4a33;
+  --warn:#e5b453; --warn-bg:#271f0d; --warn-border:#57461a;
+  --danger:#f08a7e; --danger-bg:#2b1412; --danger-border:#5e2a24;
+  --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font:15.5px/1.78 "Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ===== 顶部进度条 ===== */
+#progress{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:99;transition:width .1s}
+
+/* ===== 侧边栏 ===== */
+aside{
+  position:fixed;inset:0 auto 0 0;width:var(--sidebar-w);z-index:50;
+  background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.brand{padding:22px 20px 14px;border-bottom:1px solid var(--border)}
+.brand .t{font-size:19px;font-weight:700;letter-spacing:.3px;display:flex;align-items:center;gap:9px}
+.brand .t .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:inline-flex;align-items:center;justify-content:center;font-size:17px}
+.brand .s{color:var(--muted);font-size:12.5px;margin-top:5px}
+#navSearch{
+  margin:14px 16px 6px;padding:8px 12px;border-radius:9px;font-size:13.5px;
+  border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none;width:calc(100% - 32px);
+}
+#navSearch:focus{border-color:var(--accent)}
+nav{flex:1;overflow-y:auto;padding:4px 10px 18px}
+nav .grp{margin:14px 8px 4px;font-size:11.5px;color:var(--muted);letter-spacing:1.5px;font-weight:600}
+nav a{
+  display:block;padding:7px 12px;margin:2px 4px;border-radius:8px;font-size:13.8px;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+nav a:hover{background:var(--accent-soft);text-decoration:none}
+nav a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+nav a .no{display:inline-block;min-width:24px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+nav a.active .no{color:var(--accent)}
+.side-foot{padding:10px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+#themeBtn{
+  border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:8px;
+  padding:6px 12px;cursor:pointer;font-size:13px;
+}
+#themeBtn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ===== 移动端顶栏 ===== */
+.topbar{display:none;position:fixed;top:0;left:0;right:0;z-index:60;height:52px;background:var(--panel);border-bottom:1px solid var(--border);align-items:center;padding:0 14px;gap:12px}
+.topbar .t{font-weight:700;font-size:15px}
+.topbar button{border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:8px;padding:6px 11px;cursor:pointer;font-size:15px}
+#backdrop{display:none;position:fixed;inset:0;background:rgba(10,12,20,.45);z-index:45}
+
+/* ===== 主体 ===== */
+main{margin-left:var(--sidebar-w)}
+.wrap{max-width:960px;margin:0 auto;padding:0 44px 40px}
+
+/* Hero */
+.hero{
+  margin:34px 0 40px;padding:38px 40px;border-radius:18px;color:#fff;position:relative;overflow:hidden;
+  background:linear-gradient(130deg,#4b48c9 0%,#6a5ae8 45%,#8b5cf6 100%);
+  box-shadow:var(--shadow);
+}
+html[data-theme=dark] .hero{background:linear-gradient(130deg,#2c2a6e 0%,#453a8f 50%,#5b3fa8 100%)}
+.hero::after{content:"😺";position:absolute;right:34px;bottom:6px;font-size:110px;opacity:.16;transform:rotate(-8deg)}
+.hero h1{margin:0 0 10px;font-size:30px;letter-spacing:.5px}
+.hero p{margin:0 0 16px;font-size:15.5px;opacity:.92;max-width:640px}
+.hero .chips{display:flex;flex-wrap:wrap;gap:8px}
+.hero .chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:3px 13px;font-size:12.8px}
+.hero .meta{margin-top:18px;font-size:12.8px;opacity:.85}
+.hero .src{margin-top:10px;font-size:12.8px}
+.hero .src a{color:#fff;background:rgba(255,255,255,.14);padding:2px 10px;border-radius:6px;margin-right:6px;display:inline-block;margin-top:4px}
+.hero .src a:hover{background:rgba(255,255,255,.28)}
+
+/* 章节 */
+section{scroll-margin-top:70px;margin:0 0 26px;padding:30px 34px 26px;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow)}
+h2{display:flex;align-items:baseline;gap:12px;font-size:24px;margin:0 0 6px;line-height:1.35}
+h2 .no{font-size:13px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:8px;padding:2px 9px;font-variant-numeric:tabular-nums;transform:translateY(-3px)}
+h2 em{font-style:normal;font-size:13px;color:var(--muted);font-weight:400}
+.sec-line{height:3px;width:52px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:2px;margin:2px 0 18px}
+h3{font-size:18px;margin:26px 0 10px;color:var(--text)}
+h3::before{content:"▸";color:var(--accent);margin-right:7px;font-size:15px}
+h4{font-size:15.5px;margin:18px 0 8px}
+p{margin:9px 0}
+ul,ol{margin:8px 0;padding-left:24px}
+li{margin:5px 0}
+li::marker{color:var(--accent)}
+strong{color:var(--text)}
+html[data-theme=dark] strong{color:#fff}
+.hl{color:var(--accent);font-weight:600}
+
+/* 表格 */
+.tbl{overflow-x:auto;margin:14px 0;border-radius:12px;border:1px solid var(--border)}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:var(--panel)}
+th{background:var(--accent-soft);color:var(--text);text-align:left;padding:9px 13px;font-weight:600;border-bottom:2px solid var(--accent-border);white-space:nowrap}
+td{padding:8px 13px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--bg)}
+tr.row-hl td{background:var(--accent-soft);font-weight:700;color:var(--accent)}
+html[data-theme=dark] tr.row-hl td{color:var(--accent)}
+td b{color:inherit}
+
+/* 代码 */
+code{
+  font-family:Consolas,"Cascadia Code",Menlo,monospace;font-size:.88em;
+  background:var(--inline-code-bg);color:var(--inline-code-text);
+  padding:1.5px 6px;border-radius:6px;word-break:break-word;
+}
+pre{
+  background:var(--code-bg);color:var(--code-text);padding:16px 18px;border-radius:12px;
+  overflow-x:auto;font-size:13px;line-height:1.65;margin:14px 0;
+  border:1px solid rgba(120,130,180,.18);
+}
+html[data-theme=dark] pre{border-color:var(--border)}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+pre .c{color:#7d8ab0}   /* 注释 */
+pre .k{color:#8fd0ff}   /* 关键字/强调 */
+pre .s{color:#a8e6a1}   /* 字符串 */
+html[data-theme=dark] pre .c{color:#68729a}
+
+/* 提示框 */
+.co{display:flex;gap:12px;padding:13px 16px;border-radius:12px;margin:14px 0;font-size:14.2px;border:1px solid}
+.co .ico{font-size:17px;line-height:1.5}
+.co.tip{background:var(--tip-bg);border-color:var(--tip-border);color:var(--tip)}
+.co.warn{background:var(--warn-bg);border-color:var(--warn-border);color:var(--warn)}
+.co.danger{background:var(--danger-bg);border-color:var(--danger-border);color:var(--danger)}
+.co b{color:inherit}
+.co p{margin:4px 0}
+
+/* 徽标 */
+.chip{display:inline-block;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border);border-radius:999px;padding:1px 11px;font-size:12.3px;margin:0 3px 3px 0;white-space:nowrap}
+.chip.g{background:var(--tip-bg);color:var(--tip);border-color:var(--tip-border)}
+.chip.w{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-border)}
+.chip.r{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}
+
+/* 基准条形图 */
+.bars{margin:14px 0}
+.bar-row{display:grid;grid-template-columns:150px 1fr 110px;align-items:center;gap:12px;margin:7px 0;font-size:13.5px}
+.bar-track{background:var(--bg);border:1px solid var(--border);border-radius:99px;height:20px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#9aa2b8,#b7bdc9)}
+.bar-fill.me{background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+.bar-val{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.bar-row.me .bar-val{color:var(--accent);font-weight:700}
+
+/* 卡片网格 */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.card{border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--bg)}
+.card h4{margin:0 0 6px;color:var(--accent)}
+.card p{margin:5px 0;font-size:13.8px}
+
+/* 坑卡片 */
+.pitfalls{counter-reset:pit;margin:14px 0}
+.pit{display:flex;gap:12px;border:1px solid var(--danger-border);background:var(--danger-bg);border-radius:12px;padding:12px 16px;margin:10px 0}
+.pit::before{counter-increment:pit;content:counter(pit);flex:0 0 26px;height:26px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin-top:2px}
+.pit div{font-size:14px}
+.pit b{display:block;margin-bottom:2px}
+.pit code{background:rgba(0,0,0,.06)}
+html[data-theme=dark] .pit code{background:rgba(255,255,255,.08)}
+
+/* 返回顶部 */
+#toTop{
+  position:fixed;right:26px;bottom:26px;width:44px;height:44px;border-radius:50%;border:1px solid var(--border);
+  background:var(--panel);color:var(--accent);font-size:19px;cursor:pointer;box-shadow:var(--shadow);
+  opacity:0;pointer-events:none;transition:.25s;z-index:70;
+}
+#toTop.show{opacity:1;pointer-events:auto}
+#toTop:hover{background:var(--accent-soft)}
+
+/* 页脚 */
+footer{margin:10px 0 30px;padding:22px 34px;border:1px dashed var(--border);border-radius:14px;color:var(--muted);font-size:13px;background:var(--panel)}
+footer a{margin-right:12px}
+
+@media (max-width:1024px){
+  .topbar{display:flex}
+  aside{transform:translateX(-102%);transition:transform .25s}
+  body.nav-open aside{transform:none}
+  body.nav-open #backdrop{display:block}
+  main{margin-left:0;padding-top:52px}
+  .wrap{padding:0 16px 30px}
+  section{padding:22px 18px}
+  .hero{padding:26px 22px}
+  .grid{grid-template-columns:1fr}
+  .bar-row{grid-template-columns:104px 1fr 92px}
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="topbar">
+  <button id="menuBtn" aria-label="菜单">☰</button>
+  <span class="t">PurrNet 研究学习笔记</span>
+  <span style="flex:1"></span>
+  <button id="themeBtn2" aria-label="切换主题">🌓</button>
+</div>
+<div id="backdrop"></div>
+
+<aside>
+  <div class="brand">
+    <div class="t"><span class="logo">😺</span>PurrNet 学习笔记</div>
+    <div class="s">深度研究 · v1.23.0-beta.24 · MIT</div>
+  </div>
+  <input id="navSearch" type="search" placeholder="检索章节…（如 RPC / 预测）">
+  <nav id="nav">
+    <div class="grp">快速了解</div>
+    <a class="nav-link" href="#sec-summary"><span class="no">01</span>执行摘要</a>
+    <a class="nav-link" href="#sec-biz"><span class="no">02</span>定位与商业模式</a>
+    <div class="grp">核心架构</div>
+    <a class="nav-link" href="#sec-arch"><span class="no">03</span>架构总览</a>
+    <a class="nav-link" href="#sec-codegen"><span class="no">04</span>代码生成 Codegen</a>
+    <a class="nav-link" href="#sec-serial"><span class="no">05</span>序列化 BitPacker</a>
+    <a class="nav-link" href="#sec-rpc"><span class="no">06</span>RPC 系统</a>
+    <a class="nav-link" href="#sec-sync"><span class="no">07</span>SyncType 系统</a>
+    <a class="nav-link" href="#sec-rules"><span class="no">08</span>权限与所有权</a>
+    <a class="nav-link" href="#sec-transport"><span class="no">09</span>Transports</a>
+    <a class="nav-link" href="#sec-bench"><span class="no">10</span>性能基准</a>
+    <div class="grp">进阶专题</div>
+    <a class="nav-link" href="#sec-purrdiction"><span class="no">11</span>PurrDiction 客户端预测</a>
+    <a class="nav-link" href="#sec-eco"><span class="no">12</span>免费生态包</a>
+    <a class="nav-link" href="#sec-components"><span class="no">13</span>Plug n' Play 组件</a>
+    <a class="nav-link" href="#sec-tools"><span class="no">14</span>工具链与托管</a>
+    <div class="grp">总结实践</div>
+    <a class="nav-link" href="#sec-pitfalls"><span class="no">15</span>常见坑与术语表</a>
+    <a class="nav-link" href="#sec-eval"><span class="no">16</span>综合评估</a>
+    <a class="nav-link" href="#sec-tengine"><span class="no">17</span>TEngine 集成建议</a>
+  </nav>
+  <div class="side-foot">
+    <span>2026-09-04 研究</span>
+    <button id="themeBtn">🌓 主题</button>
+  </div>
+</aside>
+
+<main><div class="wrap">
+
+<!-- ================= HERO ================= -->
+<header class="hero" id="top">
+  <h1>PurrNet 研究学习笔记</h1>
+  <p>100% 免费（MIT）、服务器权威、高度模块化的 Unity 高层网络库。设计哲学介于 Mirror（易用）与 FishNet（性能）之间且兼取两家之长——特色是<b>编译期代码生成 + 权限外置配置 + 现代化 API</b>。</p>
+  <div class="chips">
+    <span class="chip">服务器权威</span><span class="chip">Mono.Cecil 编译期织入</span>
+    <span class="chip">Instantiate 即网络生成</span><span class="chip">无烘焙 · 无 NetworkObject</span>
+    <span class="chip">带宽基准大幅领先</span><span class="chip">PurrDiction 回滚预测</span>
+  </div>
+  <div class="meta">研究对象：PurrNet 核心 487 文件 / ~95,300 行 + 官方文档 ~90 篇 + 免费生态包源码 ｜ 研究日期 2026-09-04</div>
+  <div class="src">源报告：
+    <a href="../UnityProject/conversation-summaries/code-research/2026-09-04-purrnet-深度研究报告.md">深度研究</a>
+    <a href="../UnityProject/conversation-summaries/code-research/2026-09-04-purrnet-01-源码架构详细报告.md">源码架构</a>
+    <a href="../UnityProject/conversation-summaries/code-research/2026-09-04-purrnet-02-官方文档详细报告.md">官方文档</a>
+    <a href="../UnityProject/conversation-summaries/code-research/2026-09-04-purrnet-03-免费生态包详细报告.md">免费生态包</a>
+  </div>
+</header>
+
+<!-- ================= 01 执行摘要 ================= -->
+<section id="sec-summary">
+  <h2><span class="no">01</span>执行摘要 <em>TL;DR</em></h2>
+  <div class="sec-line"></div>
+  <ul>
+    <li><span class="hl">Instantiate() / Destroy() 即网络生成/销毁</span>——由 IL 编译期织入（Mono.Cecil）自动生成全部 RPC 收发、序列化器、模块注册代码，<b>运行时热路径零反射</b>。</li>
+    <li><span class="hl">无烘焙、无 NetworkObject</span>：每个 NetworkBehaviour 本身就是 NetworkIdentity，支持组件级所有权；场景 ID 运行时按层级计算，无版本控制冲突。</li>
+    <li><span class="hl">Network Rules</span>：权限模型（谁能 spawn / 转移所有权 / 调 RPC）外置为 ScriptableObject 配置，开发期用 Unsafe 快速迭代，上线切 ServerStrict <b>无需改一行代码</b>。</li>
+    <li><span class="hl">带宽性能显著优于竞品</span>：RPC 基准比 FishNet 低 49%、比 Mirror/NetCode 低 ~74%；NetworkTransform 基准比 FishNet 低 49%、比 Mirror 低 61%、比 NetCode 低 73%（官方称尚未做主动优化）。</li>
+    <li><span class="hl">PurrDiction</span>（独立免费包）提供完整的回滚式客户端预测 + 可选确定性定点数模拟，网络模型设计先进：<b>不可靠通道 + 输入冗余窗口 + delta 帧 + 丢包重放代替重传</b>。</li>
+  </ul>
+  <div class="co tip"><span class="ico">💡</span><div><b>一句话定位</b>：免费 MIT、编译期织入零反射、权限外置配置、性能优异——适合从原型一路用到上线的 Unity 联机方案。</div></div>
+</section>
+
+<!-- ================= 02 定位与商业模式 ================= -->
+<section id="sec-biz">
+  <h2><span class="no">02</span>定位与商业模式</h2>
+  <div class="sec-line"></div>
+  <div class="tbl"><table>
+    <thead><tr><th>项</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td>许可</td><td><b>MIT</b>，开源，无座位费、无 CCU 税、无收入分成</td></tr>
+      <tr><td>版本</td><td>核心 v1.23.0-beta.24（492 个 release，迭代极活跃）</td></tr>
+      <tr><td>社区</td><td>Discord ~2,988 人 / GitHub ~656 star</td></tr>
+      <tr><td>要求</td><td>Unity 2022+</td></tr>
+      <tr><td>收费点</td><td>仅工作室支持服务（迁移规划/架构评审/定制开发）与部分增值包（PurrVoice 语音、PurrSave 存档、Host Migration 为 Early Access 付费，未来免费开放）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>免费 vs 付费包清单（官方 packages 页）</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>包</th><th>费用</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><b>PurrNet 核心</b></td><td><span class="chip g">免费</span></td><td>网络框架本体</td></tr>
+      <tr><td><b>PurrDiction</b></td><td><span class="chip g">免费</span></td><td>客户端预测</td></tr>
+      <tr><td><b>PurrLobby</b></td><td><span class="chip g">免费</span></td><td>大厅/匹配前端整包（UI+场景）</td></tr>
+      <tr><td><b>PurrServices</b></td><td><span class="chip g">免费</span></td><td>官方托管后端 SDK（有免费开发层，生产需关联项目）</td></tr>
+      <tr><td><b>EOS Transport</b></td><td><span class="chip g">免费</span></td><td>Epic P2P 传输</td></tr>
+      <tr><td><b>PurrConversion</b></td><td><span class="chip g">免费</span></td><td>迁移工具（目前仅 FishNet）</td></tr>
+      <tr><td>PurrVoice / PurrSave / Host Migration</td><td><span class="chip w">付费 EA</span></td><td>语音/存档/主机迁移（Early Access，将免费）</td></tr>
+      <tr><td>PurrPipes / PurrMonitor / Platform Orchestrator / Diagnostics</td><td><span class="chip r">Studio 级</span></td><td>流量卸载/网络可视化/平台编排/诊断</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ================= 03 架构总览 ================= -->
+<section id="sec-arch">
+  <h2><span class="no">03</span>架构总览 <em>程序集 · 核心类 · 数据流</em></h2>
+  <div class="sec-line"></div>
+
+  <h3>程序集划分</h3>
+  <pre><code>Assets/PurrNet/
+├── Runtime/    → PurrNet.Runtime   全部运行时逻辑（Managers/CoreModules/Components/BitPacker/Transports）
+├── Codegen/    → PurrNet.Codegen   Mono.Cecil ILPostProcessor（PostProcessor.cs 单文件 5,417 行）
+├── Editor/     → PurrNet.Editor    Inspector/构建处理/设置（63 文件）
+├── Addons/     → Steam/UTP/Nakama/Edgegap/Mathematics 各自独立程序集
+├── Defaults/   → NetworkRules/VisibilityRules 预设资产（Unsafe/ServerStrict/ServerOwner）
+├── Externals/  → LiteNetLib、SimpleWebTransport、7zip、K4os.LZ4 等
+└── Tools/      → 带宽 Profiler 等调试工具</code></pre>
+  <p><b>代码规模</b>：核心 487 个 .cs / 约 95,300 行（Runtime 378 文件 69,287 行；Codegen 22 文件 8,581 行；Editor 63 文件 11,636 行；Addons 20 文件 4,030 行）。主要命名空间：<code>PurrNet</code>(182)、<code>PurrNet.Packing</code>(75)、<code>PurrNet.Modules</code>(75)。</p>
+
+  <h3>核心类</h3>
+  <p><b>NetworkManager</b>（<code>Runtime/Managers/NetworkManager.cs</code>，sealed partial，<code>[DefaultExecutionOrder(-999)]</code>）：</p>
+  <ul>
+    <li>持有 <code>GenericTransport</code>、<code>NetworkRules</code>、<code>NetworkPrefabs</code>、可见性规则、认证器。</li>
+    <li><b>双模块集设计</b>：<code>_serverModules</code> / <code>_clientModules</code> 两套 <code>ModulesCollection</code>，host 模式下并存。</li>
+    <li><code>RegisterModules()</code> 按依赖顺序装配 18 个核心模块：BroadcastModule → TickManager → CookiesModule → AuthModule → PlayersManager → PlayersBroadcaster → ScenesModule → ScenePlayersModule → DeltaModule → HierarchyFactory → GlobalOwnershipModule → RPCModule → RpcRequestResponseModule → NetworkTransformFactory 等。</li>
+  </ul>
+  <p><b>其他关键类</b>：</p>
+  <ul>
+    <li><code>NetworkIdentity</code>：挂在网络 GameObject 根上，含 prefabId、观察者列表、网络父子路径、白/黑名单；<b>NetworkBehaviour 只是空壳</b>（<code>NetworkBehaviour : NetworkIdentity</code>）——不要求用户继承专用基类。</li>
+    <li><code>NetworkModule</code>：非 MonoBehaviour 的可序列化同步类型容器（SyncVar 等的基类），可嵌套，byte 级 moduleId（上限 255）。</li>
+    <li><code>PlayerID</code>：readonly struct，id==0 为 Server，配合 CookiesModule 断线重连保持 ID。</li>
+    <li><code>ScenesModule</code>（1,705 行）+ 每场景一个 <code>HierarchyV2</code>（4,314 行）：服务器权威场景 ID 分配、spawn/despawn/观察者管理。</li>
+  </ul>
+
+  <h3>消息流调用链</h3>
+  <pre><code>流入: ITransport.onDataReceived → NetworkManager.OnDataReceived → BroadcastModule（32位类型hash分发
+      + FragmentationLayer分片重组）→ PlayersBroadcaster（Connection→PlayerID）
+      → RPCModule.ReceivedUnionBatchedRPC → 生成的 HandleRPCGenerated_N → 原始方法(改名 XXX_Original_N)
+流出: RPC调用 → RPCBatch 合批 → BroadcastModule 加 5 字节头 → transport.SendToClient/SendToServer</code></pre>
+</section>
+
+<!-- ================= 04 代码生成 ================= -->
+<section id="sec-codegen">
+  <h2><span class="no">04</span>代码生成 Codegen <em>核心竞争力</em></h2>
+  <div class="sec-line"></div>
+  <p><code>PostProcessor : ILPostProcessor</code>（Codegen/PostProcessor.cs，5,417 行）对每个引用 PurrNet 的程序集织入：</p>
+  <ol>
+    <li><b>模块注册</b>：扫描 NetworkIdentity/NetworkModule 子类的同步字段，生成 <code>__XXX_CodeGen_Initialize</code>，逐字段调用 <code>RegisterModuleInternal(fieldName, ...)</code>——避免反射。</li>
+    <li><b>RPC 织入</b>：
+      <ul>
+        <li>发送端：原方法改名 <code>原名_Original_id</code>，生成同名替身——构建 RPCSignature → 构造 RPCPacket/ChildRPCPacket/StaticRPCPacket → 用生成的序列化器写参数 → 处理 runLocally / requireOwnership / deltaPacked / awaitable。</li>
+        <li>接收端：生成 <code>HandleRPCGenerated_N(BitData, RPCInfo, asServer)</code>——解压/解密 → 权限校验 → 调原始方法。</li>
+      </ul>
+    </li>
+    <li><b>序列化器生成</b>：为所有用到的类型生成 <code>{TypeName}_Serializer</code> 类（静态 <code>Write/WriteDelta/Read/ReadDelta</code>），通过 <code>[RegisterPackers]</code> 生成的 <code>Register()</code> 灌入 <code>Packer&lt;T&gt;</code> 委托表。</li>
+    <li>附带生成 <code>IEquatable</code> / <code>IDuplicate</code> 接口实现、<code>IMath&lt;T&gt;</code> 运算符。</li>
+    <li>写回前做程序集引用清理，输出新 PE/PDB。</li>
+  </ol>
+  <div class="co tip"><span class="ico">💡</span><div>理解要点：<b>用户写的 RPC 方法在编译后只是个"壳"</b>——真正的网络收发代码全部由 Codegen 在编译期生成，运行时不需要反射，这是 PurrNet 带宽与性能优势的根基。</div></div>
+</section>
+
+<!-- ================= 05 序列化 ================= -->
+<section id="sec-serial">
+  <h2><span class="no">05</span>序列化系统 BitPacker</h2>
+  <div class="sec-line"></div>
+  <ul>
+    <li><b>BitPacker</b>（884 行）：bit 级读写器，<code>WriteBits/ReadBits</code>、<code>AdvanceOneBitAndSet</code>（"有/无"标志原语）、零拷贝 wrapper、K4os.LZ4 压缩、对象池。</li>
+    <li><b>整数范围压缩</b>：<code>WriteInteger(data, min, max)</code> 按范围计算所需 bit 数。</li>
+    <li><b>Delta Packer 双层</b>：
+      <ul>
+        <li>值层：zigzag 差分 + 2bit bucket 选择器（buckets32={4,8,16,32}）；</li>
+        <li>集合层：<b>Myers 差分算法</b>产生 Add/Delete 操作流，覆盖 List/Dict/HashSet/Queue/Stack。</li>
+      </ul>
+    </li>
+    <li><b>用户类型四级序列化方案</b>：<code>IPackedAuto</code>（全自动）→ <code>IPackedSimple</code> → <code>IPacked</code> → 静态扩展方法（最高性能）。</li>
+    <li><b>Packer&lt;T&gt;</b>：静态泛型注册表，区分"精确类型"与"考虑继承"（class 多态写类型 hash）；内置类型手写 packer（Vector3 按范围压缩等），优化类型提供 PackedUInt(varint)、Half 精度浮点/向量等。</li>
+    <li><b>DeltaPacker&lt;T&gt;</b>：无注册 delta 时自动回退为"changed 位 + 全量"，无需注册即可用。</li>
+  </ul>
+</section>
+
+<!-- ================= 06 RPC ================= -->
+<section id="sec-rpc">
+  <h2><span class="no">06</span>RPC 系统 <em>泛型 · 静态 · Awaitable</em></h2>
+  <div class="sec-line"></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Attribute</th><th>关键参数</th></tr></thead>
+    <tbody>
+      <tr><td><code>[ServerRpc]</code></td><td>requireOwnership(默认true)、runLocally、channel、compressionLevel(LZ4)、stripCode(服务器构建裁剪)、deltaPacked、immediate、asyncTimeoutInSec</td></tr>
+      <tr><td><code>[ObserversRpc]</code></td><td>requireServer(默认true)、bufferLast(迟到/重连玩家补发)、excludeOwner、excludeSender</td></tr>
+      <tr><td><code>[TargetRpc]</code></td><td>首参 PlayerID 为目标；bufferLast</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><b>Static RPC</b>：不依赖 NetworkIdentity，按类型名 stable hash 寻址。</li>
+    <li><b>Generic RPC</b>：发送端写泛型实参类型 hash，接收端 <code>Hasher.ResolveType</code> 还原 Type[] 再反序列化调用。</li>
+    <li><b>Awaitable RPC</b>：返回 <code>Task&lt;T&gt;</code>（支持 UniTask，条件编译 <code>UNITASK_PURRNET_SUPPORT</code>），自动 TaskCompletionSource 配对 requestId；ObserversRpc 禁止返回 Task。</li>
+    <li><b>RPCInfo</b>：<code>void TestRpc(int v, RPCInfo info = default)</code> → <code>info.sender</code>。</li>
+    <li><b>MTU 策略</b>：全局/RPC 级 <code>mtuExceeded</code> = Fragment(默认) / UpgradeToReliable / Drop。</li>
+    <li><b>本地执行</b>：<code>PurrCompilerFlags.EnterLocalExecution()</code> 局部绕网。</li>
+    <li><b>合批</b>：<code>RPCBatch</code> 把同玩家多个 RPC 打包（count+BitData），配合 <code>UnionRPCHeader</code> 三合一去重包头。</li>
+  </ul>
+
+<pre><code><span class="c">// 泛型（支持所有 RPC 类型 + static/awaitable 组合）</span>
+[ServerRpc] <span class="k">private void</span> TestRpc&lt;T, P&gt;(T d1, P d2) { }
+
+<span class="c">// 静态</span>
+[ServerRpc] <span class="k">private static void</span> TestRpc(<span class="k">int</span> myNumber) { }
+
+<span class="c">// 可返回值（asyncTimeoutInSec 默认 5）</span>
+[ServerRpc(requireOwnership:<span class="s">false</span>, asyncTimeoutInSec:<span class="s">10</span>)]
+<span class="k">public async</span> Task&lt;<span class="k">bool</span>&gt; SetReady(RPCInfo info = <span class="k">default</span>) { ... }
+<span class="k">var</span> allReady = <span class="k">await</span> shopPhase.SetReady();</code></pre>
+
+  <h3>Broadcast / Scene / Addressables / InstanceHandler</h3>
+  <ul>
+    <li><b>Broadcast</b>：无 NetworkIdentity 的全局消息（struct 实现 <code>IPackedAuto</code>），<code>InstanceHandler.NetworkManager.Subscribe&lt;T&gt;/SendToAll/SendToServer</code>；客户端只能发往 server。</li>
+    <li><b>Scene Module</b>（仅服务端调用）：<code>sceneModule.LoadSceneAsync("name", settings)</code>；PurrSceneSettings：mode（Single/Additive）、physicsMode、isPublic（是否拉所有玩家进场景）。</li>
+    <li><b>Addressables</b>：IL weaving 拦截 <code>Addressables.InstantiateAsync/ReleaseInstance</code> 自动 spawn/despawn；或显式 <code>networkManager.SpawnAddressableAsync(...)</code>。</li>
+    <li><b>InstanceHandler</b>：<code>InstanceHandler.NetworkManager</code> 全局访问；<code>RegisterInstance&lt;T&gt;/TryGetInstance&lt;T&gt;</code> 替代单例。</li>
+  </ul>
+</section>
+
+<!-- ================= 07 SyncType ================= -->
+<section id="sec-sync">
+  <h2><span class="no">07</span>SyncType 系统</h2>
+  <div class="sec-line"></div>
+  <div class="co danger"><span class="ico">🚫</span><div><b>硬性纪律</b>：SyncType 以 <code>[SerializeField] NetworkModule</code> 字段挂在 Identity 上——<b>禁止 <code>List&lt;SyncVar&gt;</code>、禁止 spawn 后替换实例</b>。模块初始化放 <code>OnInitializeModules()</code>（在发数据/分配 ID 之前）；嵌套必须成树。</div></div>
+
+  <h3>SyncVar 发送策略（精妙）</h3>
+  <p>变更检测 → 权限检查 → 脏标记。发送策略为：<b>脏后首帧可靠、后续不可靠、停止脏后补一次可靠确保终态</b>；<code>_id</code> 单调递增供接收端丢旧包；新观察者加入全量补发。</p>
+
+  <h3>家族清单</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>类型</th><th>要点</th></tr></thead>
+    <tbody>
+      <tr><td><code>SyncVar&lt;T&gt;</code></td><td><code>new(5, ownerAuth:true, ownerOnly:true)</code>；<code>onChanged</code> 回调</td></tr>
+      <tr><td><code>ValidatedSyncVar</code></td><td>客户端预测立即生效（validated=false），服务器 multicast 验证通过广播（validated=true），拒绝则回滚；packetId 忽略过期 ack</td></tr>
+      <tr><td><code>SyncList/Dictionary/Hashset/Queue/Array</code></td><td>操作级增量（Added/Removed/Insert/Set/Cleared），接收端重放并触发 onChanged</td></tr>
+      <tr><td><code>SyncLazyRef&lt;T&gt;</code></td><td>懒解析 NetworkIdentity 引用（目标未加载时等待，出现自动解析）</td></tr>
+      <tr><td><code>SyncEvent</code></td><td><code>Invoke(10)</code> 自动网络广播，Inspector 可像 UnityEvent 一样配置</td></tr>
+      <tr><td><code>SyncTimer</code></td><td>自动对账（默认 3s），可 <code>manualUpdate:true</code> 手动驱动</td></tr>
+      <tr><td><code>SyncInput&lt;T&gt;</code></td><td>owner 发输入 server 跑逻辑，自动去重，支持模拟 host ping 保证公平</td></tr>
+      <tr><td><code>ownerOnly: true</code></td><td>数据只发 owner+server（真服务端过滤）；转移所有权自动补发</td></tr>
+      <tr><td><code>SyncBigData</code></td><td>字节数组 + KB/s 限速，异步分片，断线续传</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ================= 08 权限与所有权 ================= -->
+<section id="sec-rules">
+  <h2><span class="no">08</span>权限与所有权 <em>NetworkRules</em></h2>
+  <div class="sec-line"></div>
+  <div class="co tip"><span class="ico">💡</span><div><b>核心卖点</b>：权限模型外置为 ScriptableObject 资产——开发期用 <b>Unsafe</b> 预设快速迭代，上线切 <b>ServerStrict</b> <b>无需改一行游戏代码</b>。</div></div>
+
+  <p><b>NetworkRules</b>（ScriptableObject）结构化子规则：</p>
+  <ul>
+    <li><code>SpawnRules</code>：spawnAuth / despawnAuth / defaultOwner / propagateOwnershipByDefault / despawnIfOwnerDisconnects</li>
+    <li><code>OwnershipRules</code>：assignAuth(Server默认) / transferAuth(Owner|Server) / removeAuth</li>
+    <li><code>RpcRules</code>：可放宽 ignoreRequireServerAttribute 等</li>
+    <li>另有 VisibilityRules / NetworkSceneRules / NetworkTransformRules / HostMigrationRules</li>
+  </ul>
+  <p><b>运行时</b>：<code>NetworkIdentity.GiveOwnership(PlayerID, silent, propagateToChildren)</code> / <code>RemoveOwnership</code>；核心判定：</p>
+<pre><code>isController = isSpawned &amp;&amp; (hasConnectedOwner ? isOwner : isServer)
+<span class="c">// owner 在线时 owner 主导，否则回落 server；断线按 despawnIfOwnerDisconnects 处理</span></code></pre>
+  <p>支持 host 迁移（<code>IPromoteToServerModule</code> 接口贯穿各模块）。单个 GameObject 可挂多个 NetworkIdentity，<b>所有权可按组件分裂</b>。</p>
+</section>
+
+<!-- ================= 09 Transports ================= -->
+<section id="sec-transport">
+  <h2><span class="no">09</span>Transports</h2>
+  <div class="sec-line"></div>
+  <p><b>接口分层</b>：<code>IListener</code> + <code>IConnectable</code> → <b>ITransport</b>（onConnected/onDisconnected/onDataReceived/onDataSent/onConnectionState + GetMTU/GetRoundTripTime/FlushConnection）。<code>GenericTransport</code>（MonoBehaviour 抽象桥）负责挂接 NetworkManager、async Ping 探测。</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Transport</th><th>实现</th><th>要点</th></tr></thead>
+    <tbody>
+      <tr><td>UDP（默认）</td><td>LiteNetLib</td><td>支持延迟/丢包模拟、Edgegap 云配置</td></tr>
+      <tr><td>Web</td><td>SimpleWebTransport</td><td>WebSocket/WebGL，支持 SSL</td></tr>
+      <tr><td>Local</td><td>同进程回环</td><td>单机复用网络代码</td></tr>
+      <tr><td>Composite</td><td>多 transport 聚合</td><td><b>跨平台联机</b>（Web+Steam+EOS 同服）</td></tr>
+      <tr><td>Steam（Addon）</td><td>Steamworks.NET</td><td>P2P</td></tr>
+      <tr><td>UTP（Addon）</td><td>Unity Transport Package</td><td></td></tr>
+      <tr><td>Nakama（Addon）</td><td>中继/匹配</td><td></td></tr>
+      <tr><td>Purr Transport</td><td>官方免费中继</td><td>6 区域；<b>默认地址仅限开发，生产需自建</b></td></tr>
+      <tr><td>EOS（免费包）</td><td>PlayEveryWare EOS 插件</td><td>Epic P2P，见 §12</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>通道模型 5 种</b>：ReliableOrdered（默认）/ ReliableUnordered / ReliableSequenced / UnreliableSequenced / Unreliable。<code>FragmentationLayer</code>（790 行）提供不可靠通道分片重组。</p>
+  <div class="co warn"><span class="ico">⚠️</span><div><b>官方警告</b>：分片是兜底而非大消息方案——必须完整到达的大数据应走可靠通道或 <code>SyncBigData</code>；<code>UnreliableSequenced</code> 上的 MTU 覆盖会被忽略（编译期警告）。</div></div>
+</section>
+
+<!-- ================= 10 性能基准 ================= -->
+<section id="sec-bench">
+  <h2><span class="no">10</span>性能基准 <em>NetLimiter 实测 · 1 server + 1 client · 20 tick/s</em></h2>
+  <div class="sec-line"></div>
+
+  <h3>RPC 基准（每 tick 100 RPC）</h3>
+  <div class="bars">
+    <div class="bar-row me"><span>PurrNet 1.5.0</span><div class="bar-track"><div class="bar-fill me" style="width:26%"></div></div><span class="bar-val">12.357 KB/s</span></div>
+    <div class="bar-row"><span>FishNet 4.5.6R Pro</span><div class="bar-track"><div class="bar-fill" style="width:51%"></div></div><span class="bar-val">24.303 KB/s</span></div>
+    <div class="bar-row"><span>Mirror 93.0.1</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">47.867 KB/s</span></div>
+    <div class="bar-row"><span>NetCode 2.2.0</span><div class="bar-track"><div class="bar-fill" style="width:99%"></div></div><span class="bar-val">47.187 KB/s</span></div>
+  </div>
+  <p>vs 竞品：<b>FishNet -49.15%</b>、<b>Mirror -74.18%</b>、<b>NetCode -73.81%</b>。</p>
+
+  <h3>NetworkTransform 基准（100 个 NT）</h3>
+  <div class="bars">
+    <div class="bar-row me"><span>PurrNet 1.8.1</span><div class="bar-track"><div class="bar-fill me" style="width:29%"></div></div><span class="bar-val">11.598 KB/s</span></div>
+    <div class="bar-row"><span>FishNet</span><div class="bar-track"><div class="bar-fill" style="width:56%"></div></div><span class="bar-val">22.676 KB/s</span></div>
+    <div class="bar-row"><span>Mirror</span><div class="bar-track"><div class="bar-fill" style="width:75%"></div></div><span class="bar-val">30.356 KB/s</span></div>
+    <div class="bar-row"><span>NetCode</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">40.434 KB/s</span></div>
+  </div>
+  <p>vs 竞品：<b>FishNet -49.00%</b>、<b>Mirror -61.43%</b>、<b>NetCode -72.56%</b>。</p>
+  <div class="co tip"><span class="ico">💡</span><div>官方声明：以上结果<b>尚未做主动性能优化</b>，后续只会更好。全部测试总平均：vs FishNet -49%、vs Mirror -67.8%、vs NetCode -72.56%。</div></div>
+</section>
+
+<!-- ================= 11 PurrDiction ================= -->
+<section id="sec-purrdiction">
+  <h2><span class="no">11</span>PurrDiction 客户端预测 <em>免费独立包 · v1.3.4-beta.3</em></h2>
+  <div class="sec-line"></div>
+  <p><b>规模</b>：144 .cs / ~25,867 行，MIT。依赖 PurrNet ≥1.20（asmdef versionDefines 门控特性），含定点数数学库（SoftFloat）。</p>
+
+  <h3>双层心智模型</h3>
+  <p><b>Simulation</b>（tick 率，存输入/状态历史可回滚重放）+ <b>View</b>（每渲染帧，平滑展示不参与逻辑）。服务器始终权威。</p>
+
+  <h3>架构与执行流</h3>
+  <ul>
+    <li><b>PredictionManager</b>（3,419 行，继承 NetworkIdentity，按场景单例）：接管 <code>Physics.simulationMode = Script</code>，核心循环挂 <code>tickModule.onPreTick/onPostTick</code>。每场景必须添加一个；<b>不要用 FixedUpdate 驱动物理</b>，PredictionManager 在 tick 内推进物理。</li>
+    <li><b>服务端</b>：PreTick 顺序 = 输入准备（缺失按配置外推复用上次输入）→ SaveState → SimulateTick → 物理通道 → LateSimulate → 写帧/发帧。</li>
+    <li><b>客户端</b>：PostTick 处理收到的验证帧 → Rollback（delta 帧）→ 重放至本地预测头（含输入饥饿跳帧、MinLead/TargetLead/AbsoluteMaxLead 自适应时钟钳制）。</li>
+    <li><b>PredictedIdentity</b>：所有预测物体基类（纯 MonoBehaviour），抽象 <code>SimulateTick/Rollback/UpdateRollbackInterpolationState</code>，状态经环形缓冲 <code>History&lt;T&gt;</code> 存档。</li>
+    <li><b>DeterministicIdentity&lt;STATE&gt;</b>：sfloat 定点状态 + tick 加盐哈希检测分歧，DesyncPolicy = Ignore/Report/Resync/Correct。</li>
+  </ul>
+
+  <h3>网络模型（先进设计）</h3>
+  <ul>
+    <li>输入/帧走<b>不可靠通道</b>；客户端上传冗余窗口（自适应 4~32 tick），相邻 tick 比特级去重（未变输入仅 1 bit），每 20ms 重发当前窗口。</li>
+    <li>服务器帧 = 对客户端已验证 baseline 的 <b>delta</b> + 每个 identity 最新输入；<b>丢帧不重传</b>——下一帧自带缺失 tick 真实输入重模拟，<span class="hl">"丢包代价是重放而非往返"</span>。</li>
+    <li><b>重度丢包自动降级</b>：监测 ack baseline 推进低于半 tick 率时切"可靠全量帧、每 ack 往返一帧"，恢复后自动回 delta 流。</li>
+    <li>确定性身份例外：输入走保证送达的 transcript（32 tick 窗口）。</li>
+  </ul>
+
+  <h3>预测策略（只影响客户端，服务器永远全模拟）</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>策略</th><th>行为</th><th>适用</th></tr></thead>
+    <tbody>
+      <tr><td>FullPrediction</td><td>本地超前模拟+回滚重放</td><td>本地玩家、关键物理</td></tr>
+      <tr><td>ServerRelay</td><td>只跑已验证 tick（刚体变 kinematic）</td><td>远端角色、服务器机关</td></tr>
+      <tr><td>SoftCorrection</td><td>不回滚，持续模拟向验证态收敛</td><td>碎片、布娃娃</td></tr>
+      <tr><td>PredictedIfOwned</td><td>本地=Full，远程=Relay</td><td>玩家 pawn</td></tr>
+      <tr><td>PredictedIfOwnedWithSoftFallback</td><td>本地=Full，远程=Soft</td><td>远程副本继续模拟并平滑收敛</td></tr>
+    </tbody>
+  </table></div>
+  <div class="co warn"><span class="ico">⚠️</span><div>SoftCorrection 仅 PredictedTransform/Rigidbody(2D)/Projectile3D 支持，不支持者自动（无报错）按 ServerRelay 行为；policy 切换最安全的时机是<b>所有权/阶段边界</b>。</div></div>
+
+  <h3>安全模型与纪律</h3>
+  <ul>
+    <li>客户端只能<b>提议输入</b>，不能声明位置/血量/命中；命中由服务器模拟推导；模拟回放中禁止直接发 RPC/发奖励（用 <code>PredictedEvent</code> 或 <code>isVerifiedView</code> 过滤）。</li>
+    <li><b>STATE 纪律</b>：所有影响未来 tick 的可变值（含冷却/计数器/随机状态）必须进 STATE；时间/随机用 <code>PredictedTime/PredictedRandom</code>，禁用 <code>Time.deltaTime/UnityEngine.Random</code>。</li>
+    <li>输入处理钩子：<code>GetFinalInput</code>（每 tick）、<code>UpdateInput</code>（每 Unity 帧，缓存边沿如 <code>jump |= GetKeyDown</code>）、<code>SanitizeInput</code>（钳制）、<code>ModifyExtrapolatedInput</code>（外推时剥离一次性输入，防丢包重放）。</li>
+    <li>内置组件：PredictedTransform（视觉子节点分离）、PredictedRigidbody 2D/3D（包装 API + 预测感知事件）、PredictedProjectile3D、PredictedIdentitySpawner（标记 <code>[PredictionUnsafe]</code>）、PredictedParent。</li>
+  </ul>
+  <div class="co danger"><span class="ico">🚫</span><div><b>测试要求</b>：以远程客户端而非 host 测试——延迟/抖动/丢包、所有权转移、回滚中 spawn、池复用、不同帧率 tick 率、大纠正与传送、迟到加入。官方自标 Workflow: <b>Hard</b>，需严格遵守 STATE/确定性纪律。</div></div>
+</section>
+
+<!-- ================= 12 免费生态包 ================= -->
+<section id="sec-eco">
+  <h2><span class="no">12</span>免费生态包</h2>
+  <div class="sec-line"></div>
+  <div class="tbl"><table>
+    <thead><tr><th>包</th><th>性质</th><th>规模</th><th>费用</th></tr></thead>
+    <tbody>
+      <tr><td><b>PurrDiction</b> v1.3.4-beta.3</td><td>CSP 客户端预测</td><td>144 cs / ~25,867 行</td><td><span class="chip g">免费 MIT</span></td></tr>
+      <tr><td><b>PurrServices</b> v1.1.2</td><td>官方后端客户端 SDK</td><td>23 cs / ~4,593 行</td><td><span class="chip g">免费</span>（生产需关联项目）</td></tr>
+      <tr><td><b>PurrLobby</b></td><td>大厅/匹配前端整包</td><td>UI+场景</td><td><span class="chip g">免费</span></td></tr>
+      <tr><td><b>EOS Transport</b> v1.0.1-beta.7</td><td>Epic P2P 传输</td><td>4 cs / ~1,336 行</td><td><span class="chip g">免费 MIT</span></td></tr>
+      <tr><td><b>PurrConversion</b> v1.0.0-beta.1</td><td>迁移转换工具</td><td>11 cs / ~1,679 行</td><td><span class="chip g">免费</span>（仅 FishNet）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>PurrServices（官方托管后端 SDK）</h3>
+  <p>纯客户端 SDK（服务端是官方 SaaS，默认 <code>https://purrnet.dev</code>）：</p>
+  <ul>
+    <li><b>AuthService</b>：设备匿名登录（system-uuid）/ 用户名密码，sessionToken 持久化。</li>
+    <li><b>LobbyService</b>：REST 全套（Create/List/Join/JoinByCode/QuickJoin/Leave/Destroy/Kick + 元数据 PATCH）。</li>
+    <li><b>LobbyConnection</b>：WebSocket 增量事件流（player_joined/chat/kicked 等）+ 指数退避重连。</li>
+    <li>版本隔离：<code>X-Purr-Lobby-Compatibility = Application.version</code>，不同版本互不可见。</li>
+    <li>双 profile（editor/production scope）；<b>未关联项目自动落入免费开发层（不用于生产）</b>。</li>
+  </ul>
+
+  <h3>PurrLobby（免费前端整包）</h3>
+  <p>独立包，装入 <code>Assets/PurrLobby</code>。<b>GameOrchestrator 四槽位</b>（Session/Lobby/Matchmaking/GameAllocator ScriptableObject）可混搭，内置三套 provider 预设：PurrNet Services（依赖 PurrServices，游戏流量走 PurrTransport 中继以 lobby id 为房间名）、Steam（Steamworks.NET）、Nakama（WebSocket 中继，<b>只适合回合制</b>）。更新会覆盖目录，自定义应复制到包外。</p>
+
+  <h3>EOS Transport</h3>
+  <ul>
+    <li>依赖 PlayEveryWare EOS 插件（<code>com.playeveryware.eos</code>），<code>versionDefines</code> 条件编译——插件缺失时空壳。</li>
+    <li><code>EOSTransport : GenericTransport, ITransport</code>；<code>EOSServer</code> 用 EOS P2P 接口 + 三通知注册；<code>EOSPeer</code> 自实现 ping/pong RTT、心跳、分片。</li>
+    <li>工程细节扎实：包队列 4MB/2MB（对抗 EOS 默认 64KB 瞬时 LimitExceeded）、32MB 托管溢出队列背压（注释记载野外 1.8GB 缓冲 GC 死亡螺旋教训）、host loopback 短路（StartClient 进程内投递不过 EOS）。</li>
+    <li>使用：挂 NetworkManager、双方约定 socketName、客户端设主机 ProductUserId。</li>
+  </ul>
+
+  <h3>PurrConversion（迁移工具）</h3>
+  <ul>
+    <li><b>目前仅内置 FishNet 转换器</b>（Mirror/NetCode 未支持），架构开放可自写。</li>
+    <li>三层转换：Roslyn 代码管线（Namespace→Type→Property→Member→Attribute→MethodCall 固定顺序）+ Prefab 组件替换 + 场景 NetworkManager 迁移。</li>
+    <li>映射示例：<code>Tugboat→UDPTransport</code>、<code>NetworkObject→NetworkIdentity</code>、<code>NetworkConnection→PlayerID</code>；精妙处：<code>OnStartServer/OnStartClient</code> 方法体自动合并为 <code>OnSpawned(bool asServer)</code>（server 版包 <code>if(asServer)</code>、client 版包 <code>else</code>）。</li>
+    <li>全部改动写入 <code>ConversionChangelog.txt</code>；<b>转换前务必备份</b>。</li>
+  </ul>
+
+  <div class="co tip"><span class="ico">💡</span><div><b>独立开发者免费上线方案</b>：PurrNet + PurrDiction + EOS/Steam + PurrLobby(Steam provider) = 完全免费、不依赖官方服务器的完整上线链路；愿意依赖官方 SaaS 则用 PurrServices/PurrLobby 的 PurrNet provider 换取零运维。</div></div>
+</section>
+
+<!-- ================= 13 Plug n' Play ================= -->
+<section id="sec-components">
+  <h2><span class="no">13</span>Plug n' Play 组件</h2>
+  <div class="sec-line"></div>
+  <div class="grid">
+    <div class="card"><h4>NetworkTransform + Adaptive Sync</h4><p>默认开启、零渲染延迟：接收方可精确重建时跳过发送；内置直线/曲线/匀角速度策略，最大 0.3s 强制刷新；自定义策略继承 <code>NetworkTransformSyncStrategy</code>（<b>两端配置必须一致</b>）。</p></div>
+    <div class="card"><h4>NetworkRigidbody</h4><p>弹簧-阻尼跟随；<code>TeleportTo</code> 清速度清缓冲；<code>SetSoftParent</code> 软父级（不改 Unity 层级）；大世界用 <code>INetworkRigidbodyPositionTransform</code>（double3 绝对帧）。</p></div>
+    <div class="card"><h4>NetworkAnimator</h4><p>自动同步参数；<b>Trigger 必须走</b> <code>_netAnimator.SetTrigger("Punch")</code>（直接调 Animator 不同步）。</p></div>
+    <div class="card"><h4>NetworkBones</h4><p>骨骼 TRS 量化（0.01m/0.5°/0.05）+ MTU 分批；spawn 后列表锁定。适合布娃娃/IK/jiggle。</p></div>
+    <div class="card"><h4>NetworkReflection</h4><p>任意组件字段（含 Unity 自带组件）Inspector 勾选自动同步。</p></div>
+    <div class="card"><h4>NetworkStateMachine</h4><p>StateNode 挂场景子物体，<code>machine.Next(data)</code> 条件转移自动同步；运行时动态增删状态自动同步。</p></div>
+    <div class="card"><h4>NetworkAudioSource</h4><p>脏标记位掩码，volume 变更仅 6 字节；运行时换 clip <b>必须注册进 NetworkAssets</b>（否则远端解析为 null）。</p></div>
+    <div class="card"><h4>Collider Rollback（延迟补偿）</h4><p>不物理移动 collider 而是"弯曲射线"求解命中，避免意外物理事件。</p></div>
+  </div>
+<pre><code><span class="c">// Collider Rollback 服务端命中判定示例</span>
+[ServerRpc(requireOwnership: <span class="s">false</span>)]
+<span class="k">private void</span> Shoot(<span class="k">double</span> preciseTick, Ray ray) {
+    <span class="k">if</span> (rollbackModule.Raycast(preciseTick, ray, <span class="k">out var</span> hit)) { <span class="c">/* 伤害 */</span> }
+}
+<span class="c">// 客户端 rollbackTick 来自 networkManager.tickModule.rollbackTick</span></code></pre>
+</section>
+
+<!-- ================= 14 工具链与托管 ================= -->
+<section id="sec-tools">
+  <h2><span class="no">14</span>工具链与托管</h2>
+  <div class="sec-line"></div>
+  <ul>
+    <li><b>Code Stripping</b>：客户端构建自动剥除服务器代码（<code>[ServerOnly(StripCodeModeOverride)]</code>，Project Settings → Multiplayer）。</li>
+    <li><b>Bandwidth Profiler</b>（Tools/PurrNet/Analysis）：实时流量图、逐 RPC 参数检查、丢失分片统计。</li>
+    <li><b>延迟模拟</b>：内置 UDP 模拟（release 需 <code>SIMULATE_NETWORK</code> 宏）；全进程推荐 Clumsy。</li>
+    <li><b>托管</b>：Edgegap（Addon 一键装 + Docker）/ Gameye（纯容器 + REST API，容器内固定端口）。</li>
+    <li><b>集成</b>：UniTask（<code>UNITASK_PURRNET_SUPPORT</code>）、Dissonance 语音、Cozy Weather。</li>
+    <li><b>迁移要点</b>（FishNet → PurrNet）：RPC 特性名完全相同；最大差异是 NetworkObject → 每 NetworkBehaviour 皆是 Identity；Spawn 简化为 Instantiate + GiveOwnership。</li>
+  </ul>
+</section>
+
+<!-- ================= 15 常见坑与术语 ================= -->
+<section id="sec-pitfalls">
+  <h2><span class="no">15</span>常见坑 Top 5 与术语表</h2>
+  <div class="sec-line"></div>
+  <div class="pitfalls">
+    <div class="pit"><div><b>NetworkModule 禁止动态化</b>不能放 List/动态创建、不能 spawn 后替换模块实例（会破坏网络）；嵌套必须成树，循环依赖编译报错。</div></div>
+    <div class="pit"><div><b>Host 双次回调</b>host 模式下一切带 <code>asServer</code> 的回调会执行两次（server 侧 + client 侧各一次）。</div></div>
+    <div class="pit"><div><b>Animator Trigger 不同步</b>必须走 <code>NetworkAnimator.SetTrigger</code>，直接调 Animator 组件不会同步。</div></div>
+    <div class="pit"><div><b>Adaptive Sync 策略不一致</b>自定义 <code>NetworkTransformSyncStrategy</code> 必须两端配置一致且为纯函数确定性。</div></div>
+    <div class="pit"><div><b>Purr Transport 默认中继禁止生产使用</b>默认地址仅限开发，生产需自建中继或用 EOS/Steam。</div></div>
+  </div>
+
+  <h3>术语表（中英对照）</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>术语</th><th>解释</th></tr></thead>
+    <tbody>
+      <tr><td>Host（主机）</td><td>同机同时跑 server + client；一切带 <code>asServer</code> 的回调在 host 上执行两次</td></tr>
+      <tr><td>Server Auth (Safe)</td><td>服务器持有真相，强制防作弊路径（同 Mirror/FishNet 默认）</td></tr>
+      <tr><td>Everyone (Unsafe)</td><td>人人可执行；适合 Co-op/开发期；经 Network Rules 切换</td></tr>
+      <tr><td>Owner Auth</td><td>所有者控制；无 owner 时 server 接管为 controller；适合移动/相机/个人设置，不适合计分/血量等关键值</td></tr>
+      <tr><td>Controller</td><td>owner 存在时 = owner，否则 = server</td></tr>
+      <tr><td>PlayerID</td><td>玩家标识 struct；Cookie 系统断线重连保持同 ID 与元数据</td></tr>
+      <tr><td>Channels</td><td>5 种：ReliableOrdered（默认）/ ReliableUnordered / ReliableSequenced / UnreliableSequenced / Unreliable</td></tr>
+      <tr><td>MTU</td><td>单包上限；超限走 Fragment / UpgradeToReliable / Drop 策略</td></tr>
+      <tr><td>Early Access</td><td>暂限付费成员的功能阶段，未来免费开放</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ================= 16 综合评估 ================= -->
+<section id="sec-eval">
+  <h2><span class="no">16</span>综合评估</h2>
+  <div class="sec-line"></div>
+  <h3>优势</h3>
+  <ol>
+    <li><b>真免费无套路</b>：MIT、无 CCU/收入分成，核心功能全部免费。</li>
+    <li><b>带宽效率领先</b>：两大基准均大幅低于 FishNet/Mirror/NetCode。</li>
+    <li><b>开发体验好</b>：Instantiate/Destroy 原生 API、无烘焙、权限外置可后期收紧、泛型/静态/awaitable RPC 现代 API。</li>
+    <li><b>技术底子扎实</b>：全量编译期织入零反射、bit 级序列化 + 多层 delta 压缩、PurrDiction 的"丢包重放代替重传"网络模型设计先进。</li>
+    <li><b>生态完整</b>：免费部分可覆盖原型→上线全链路（核心+预测+EOS/Steam P2P+大厅匹配+FishNet 迁移）。</li>
+    <li><b>迭代极活跃</b>：核心 492 个 release。</li>
+  </ol>
+  <h3>风险 / 注意</h3>
+  <ol>
+    <li><b>仍处 beta</b>（1.23.0-beta.24），dev 分支常有 breaking change；release 分支较稳。</li>
+    <li><b>PurrDiction 学习曲线陡峭</b>（官方自标 Workflow: Hard），需严格遵守 STATE/确定性纪律。</li>
+    <li>社区规模（656 star / 3k Discord）小于 Mirror/FishNet，遇坑主要靠 Discord 官方支持。</li>
+    <li>PurrServices 免费层仅限开发；PurrTransport 中继生产需自建或付费。</li>
+    <li>转换工具仅支持 FishNet（从 Mirror/NetCode 迁移需手动）。</li>
+  </ol>
+  <h3>与竞品对比</h3>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>PurrNet</th><th>FishNet</th><th>Mirror</th><th>NetCode</th></tr></thead>
+    <tbody>
+      <tr><td>费用</td><td><b>免费 MIT</b></td><td>免费核心+付费 Pro</td><td>免费 MIT</td><td>免费</td></tr>
+      <tr><td>权威模型</td><td><b>Rules 外置可切换</b></td><td>Server 为主</td><td>Server 为主</td><td>Server 为主</td></tr>
+      <tr><td>客户端预测</td><td>PurrDiction（免费独立包）</td><td>内置（Pro 更强）</td><td>无内置（需 CSP 插件）</td><td>内置</td></tr>
+      <tr><td>烘焙</td><td><b>无</b></td><td>无</td><td>场景 ID 需注意</td><td>有（生成器）</td></tr>
+      <tr><td>API 风格</td><td>Instantiate 原生+织入</td><td>NetworkObject.Spawn</td><td>NetworkServer.Spawn</td><td>RPC/NetworkObject</td></tr>
+      <tr><td>带宽</td><td><b>最优</b></td><td>次之</td><td>较高</td><td>较高</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ================= 17 TEngine 集成建议 ================= -->
+<section id="sec-tengine">
+  <h2><span class="no">17</span>对 TEngine 集成的初步建议</h2>
+  <div class="sec-line"></div>
+  <ol>
+    <li><b>安装</b>：Package Manager Git URL <code>https://github.com/PurrNet/PurrNet.git?path=/Assets/PurrNet#release</code>（或 OpenUPM <code>dev.purrnet.purrnet</code>）。建议用 <b>release</b> 分支而非 dev。</li>
+    <li><b>起步</b>：场景挂 NetworkManager + UDPTransport，Rules 先用 <code>Unsafe</code> 预设快速跑通，上线前切 <code>ServerStrict</code>。</li>
+    <li><b>与 TEngine 流程结合点</b>：Instantiate/Destroy 原生语义与 TEngine 对象池需确认兼容（PurrNet 自带池化开关，<code>OnPoolReset</code> 还原 SyncType）；SceneModule 服务器权威加载与 TEngine 场景流程（Procedure）需要对齐；GameMode 层可用 NetworkStateMachine/NetworkRules 表达权限。</li>
+    <li><b>客户端预测</b>：动作类玩法建议 PurrDiction，但注意其接管 <code>Physics.simulationMode</code> 与 tick 驱动方式，需验证与 TEngine 的 Update/FixedUpdate 流程不冲突。</li>
+    <li><b>验证顺序建议</b>：先跑 Examples（Top Down Shooter 最全）→ 最小集成 Demo（Template 场景）→ 最后引入 PurrDiction。</li>
+  </ol>
+</section>
+
+<footer>
+  <div><b>PurrNet 研究学习笔记</b> · 基于四份研究报告自动整理 · 2026-09-04</div>
+  <div style="margin-top:8px">
+    <a href="https://github.com/PurrNet/PurrNet">GitHub 仓库</a>
+    <a href="https://purrnet.dev/docs">官方文档</a>
+    <a href="https://purrnet.dev/packages">官方 Packages</a>
+    <a href="../UnityProject/conversation-summaries/code-research/INDEX.md">研究索引 INDEX.md</a>
+  </div>
+</footer>
+
+</div></main>
+
+<button id="toTop" aria-label="返回顶部">↑</button>
+
+<script>
+(function(){
+  var docEl=document.documentElement;
+  function setTheme(t){
+    if(t==='dark'){docEl.setAttribute('data-theme','dark');}
+    else{docEl.removeAttribute('data-theme');}
+    try{localStorage.setItem('purrnet-study-theme',t);}catch(e){}
+  }
+  try{var saved=localStorage.getItem('purrnet-study-theme');if(saved)setTheme(saved);}catch(e){}
+  function toggleTheme(){setTheme(docEl.getAttribute('data-theme')==='dark'?'light':'dark');}
+  document.getElementById('themeBtn').addEventListener('click',toggleTheme);
+  document.getElementById('themeBtn2').addEventListener('click',toggleTheme);
+
+  // 目录检索
+  document.getElementById('navSearch').addEventListener('input',function(){
+    var q=this.value.trim().toLowerCase();
+    document.querySelectorAll('#nav a').forEach(function(a){
+      a.style.display=(!q||a.textContent.toLowerCase().indexOf(q)>-1)?'':'none';
+    });
+    document.querySelectorAll('#nav .grp').forEach(function(g){
+      var any=false,el=g.nextElementSibling;
+      while(el&&el.tagName==='A'){if(el.style.display!=='none'){any=true;break;}el=el.nextElementSibling;}
+      g.style.display=any?'':'none';
+    });
+  });
+
+  // 滚动定位高亮
+  var links=Array.prototype.slice.call(document.querySelectorAll('.nav-link'));
+  var map={};links.forEach(function(l){map[l.getAttribute('href').slice(1)]=l;});
+  var current=null;
+  function spy(){
+    var pos=window.scrollY+120,best=null;
+    document.querySelectorAll('section[id]').forEach(function(s){
+      if(s.offsetTop<=pos){best=s.id;}
+    });
+    if(best!==current){
+      current=best;
+      links.forEach(function(l){l.classList.remove('active');});
+      if(current&&map[current]){map[current].classList.add('active');}
+    }
+  }
+
+  // 进度条 + 返回顶部
+  var prog=document.getElementById('progress'),toTop=document.getElementById('toTop');
+  function onScroll(){
+    var h=docEl.scrollHeight-window.innerHeight;
+    prog.style.width=(h>0?(window.scrollY/h*100):0)+'%';
+    toTop.classList.toggle('show',window.scrollY>600);
+    spy();
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});
+  onScroll();
+  toTop.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+
+  // 移动端菜单
+  var menuBtn=document.getElementById('menuBtn'),backdrop=document.getElementById('backdrop');
+  function closeNav(){document.body.classList.remove('nav-open');}
+  menuBtn.addEventListener('click',function(){document.body.classList.toggle('nav-open');});
+  backdrop.addEventListener('click',closeNav);
+  links.forEach(function(l){l.addEventListener('click',closeNav);});
+})();
+</script>
+</body>
+</html>
