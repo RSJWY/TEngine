@@ -1,5 +1,19 @@
 # 代码研究索引
 
+## 2026-09-04
+- [PurrNet 深度研究报告](./2026-09-04-purrnet-深度研究报告.md)（总报告，下有 01~03 三份分报告）
+  - 关键词：PurrNet、服务器权威、MIT免费、Mono.Cecil编译期织入、Instantiate即网络生成、无NetworkObject、组件级所有权、NetworkRules权限外置、Unsafe/ServerStrict、带宽基准胜FishNet/Mirror/NetCode、PurrDiction客户端预测、回滚+定点数、泛型/静态/awaitable RPC、TEngine集成建议
+  - 结论：PurrNet 是 MIT 免费服务器权威网络库，编译期织入零反射+权限外置配置+性能优异，设计兼取 Mirror 易用与 FishNet 性能。
+- [PurrNet 源码架构详细报告](./2026-09-04-purrnet-01-源码架构详细报告.md)
+  - 关键词：PurrNet.Runtime/Codegen/Editor三程序集、ILPostProcessor、Mono.Cecil 1.11.4、核心类与数据流、代码生成Codegen、序列化系统、RPC系统、SyncType系统、Authority/Ownership模型、Transports、487文件约95300行、v1.23.0-beta.24
+  - 结论：核心分 Runtime/Codegen/Editor 三 asmdef，Codegen 经 Mono.Cecil 编译期织入 RPC/序列化/模块注册，运行时热路径零反射。
+- [PurrNet 官方文档详细报告](./2026-09-04-purrnet-02-官方文档详细报告.md)
+  - 关键词：官方文档约90篇、NetLimiter实测基准、NetworkManager、NetworkRules权限、NetworkIdentity/Spawning、NetworkModules、Broadcast/Scene/Addressables、ColliderRollback延迟补偿、BitPacker、CodeStripping、BandwidthProfiler、Transports一览、PurrDiction、PlugNPlay组件、术语表中英对照
+  - 结论：系统梳理官方文档全貌——权限模型、RPC/SyncType 用法、延迟补偿与工具链，PurrDiction 预测框架为重点章节。
+- [PurrNet 免费生态包详细报告](./2026-09-04-purrnet-03-免费生态包详细报告.md)
+  - 关键词：PurrDiction客户端预测、PurrServices后端SDK、PurrNetEOSTransport、PurrConversion迁移工具、PurrLobby、CSP回滚重模拟、SoftFloat定点数、预测物理2D/3D、IL织入依赖、versionDefines特性门控、与核心版本深度绑定
+  - 结论：四个免费生态包源码级分析——PurrDiction 体量最大且与核心版本强绑定，EOS Transport/转换工具可用，生态全景免费为主。
+
 ## 2026-08-29
 - [UIRawImage 扩展可行性研究](./2026-08-29-uirawimage-expansion-feasibility-research.md)
   - 关键词：UIRawImage、RawImage、IMeshModifier、ModifyMesh、Graphic.UpdateGeometry、uvRect替代GetOuterUV、GetPixelAdjustedRect、圆角RoundedCorners、不规则图形Mask、RayCrossing、镜像Mirror仅Simple、RawImageEditor、UIImageDrawEditor复用、菜单GameObject/UI
