@@ -251,18 +251,19 @@ namespace GameLogic
             {
                 if (token.IsCancellationRequested) return;
 
-                if (!TryResolveAddress(item, out var address, out var resolvePackage))
-                {
-                    Log.Warning($"[DynamicSceneSpawner] 跳过无引用项（parent={item.Parent?.name ?? "null"}）");
-                    continue;
-                }
-
                 try
                 {
                     GameObject go = null;
 
                     if (useYooAsset)
                     {
+                        // 仅在 YooAsset 模式下解析地址（未初始化时 GetPackage 会抛异常）
+                        if (!TryResolveAddress(item, out var address, out var resolvePackage))
+                        {
+                            Log.Warning($"[DynamicSceneSpawner] 跳过无引用项（parent={item.Parent?.name ?? "null"}）");
+                            continue;
+                        }
+
                         go = await GameModule.Resource.LoadGameObjectAsync(
                             address, parent: item.Parent, cancellationToken: token, packageName: resolvePackage);
                     }
@@ -285,7 +286,7 @@ namespace GameLogic
                 }
                 catch (System.Exception e)
                 {
-                    Log.Error($"[DynamicSceneSpawner] 加载 \"{address}\" 失败: {e.Message}");
+                    Log.Error($"[DynamicSceneSpawner] 加载 \"{GetItemLabel(item)}\" 失败: {e.Message}");
                 }
 
                 // 分批削峰
@@ -304,6 +305,16 @@ namespace GameLogic
 
             Log.Info($"[DynamicSceneSpawner] {GetType().Name}: 加载完成，成功 {successCount}/{items.Count}");
             CompleteSpawn();
+        }
+
+        /// <summary>
+        /// 加载项的日志标签：location 优先，其次 GUID。
+        /// </summary>
+        private static string GetItemLabel(in SpawnItem item)
+        {
+            if (!string.IsNullOrEmpty(item.Location)) return item.Location;
+            var guid = item.PrefabRef?.AssetGUID;
+            return !string.IsNullOrEmpty(guid) ? guid : "(无引用)";
         }
 
         /// <summary>
@@ -352,10 +363,7 @@ namespace GameLogic
 #if UNITY_EDITOR
             if (item.EditorPrefab == null)
             {
-                var label = !string.IsNullOrEmpty(item.Location)
-                    ? item.Location
-                    : item.PrefabRef?.AssetGUID ?? "(无引用)";
-                Log.Warning($"[DynamicSceneSpawner] 测试模式下 \"{label}\" 无 EditorPrefab 引用，跳过。");
+                Log.Warning($"[DynamicSceneSpawner] 测试模式下 \"{GetItemLabel(item)}\" 无 EditorPrefab 引用，跳过。");
                 return null;
             }
 
@@ -364,7 +372,7 @@ namespace GameLogic
             go.name = item.EditorPrefab.name; // 去掉 (Clone) 后缀
             return go;
 #else
-            Log.Error($"[DynamicSceneSpawner] 非编辑器环境下不支持测试启动回退，\"{item.Location ?? item.PrefabRef?.AssetGUID}\" 加载失败。");
+            Log.Error($"[DynamicSceneSpawner] 非编辑器环境下不支持测试启动回退，\"{GetItemLabel(item)}\" 加载失败。");
             return null;
 #endif
         }
@@ -373,9 +381,14 @@ namespace GameLogic
         {
             _isSpawnCompleted = true;
 
-            // 发送完成事件（携带当前场景类型，供监听方校验）
-            GameEvent.Get<IGameSceneEvent>().OnDynamicSpawnComplete(
-                GameModule.GameScene.CurrentSceneType ?? SceneType.MainScene);
+            // 发送完成事件（携带当前场景类型，供监听方校验）。
+            // 测试启动（直接打开测试场景）时事件接口未注册，Get 返回 null，跳过发送。
+            var sceneEvent = GameEvent.Get<IGameSceneEvent>();
+            if (sceneEvent != null)
+            {
+                sceneEvent.OnDynamicSpawnComplete(
+                    GameModule.GameScene.CurrentSceneType ?? SceneType.MainScene);
+            }
 
             // 子类钩子
             OnAllSpawned();
