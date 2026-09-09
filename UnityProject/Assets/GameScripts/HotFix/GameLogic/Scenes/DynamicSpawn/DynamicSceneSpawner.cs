@@ -4,6 +4,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using TEngine;
 using UnityEngine;
+using YooAsset;
 
 /// <summary>
 /// DynamicSceneSpawner
@@ -19,7 +20,10 @@ namespace GameLogic
     /// </summary>
     public struct SpawnItem
     {
-        /// <summary>YooAsset 资源地址。</summary>
+        /// <summary>预制体弱引用（GUID 寻址，优先于 <see cref="Location"/>）。</summary>
+        public AssetReferenceGameObject PrefabRef;
+
+        /// <summary>YooAsset 资源地址（<see cref="PrefabRef"/> 未设置时使用，支持运行时动态构造）。</summary>
         public string Location;
 
         /// <summary>父节点（占位节点），为 null 时放在场景根。</summary>
@@ -247,9 +251,9 @@ namespace GameLogic
             {
                 if (token.IsCancellationRequested) return;
 
-                if (string.IsNullOrEmpty(item.Location))
+                if (!TryResolveAddress(item, out var address, out var resolvePackage))
                 {
-                    Log.Warning($"[DynamicSceneSpawner] 跳过空 location 项（parent={item.Parent?.name ?? "null"}）");
+                    Log.Warning($"[DynamicSceneSpawner] 跳过无引用项（parent={item.Parent?.name ?? "null"}）");
                     continue;
                 }
 
@@ -260,7 +264,7 @@ namespace GameLogic
                     if (useYooAsset)
                     {
                         go = await GameModule.Resource.LoadGameObjectAsync(
-                            item.Location, parent: item.Parent, cancellationToken: token);
+                            address, parent: item.Parent, cancellationToken: token, packageName: resolvePackage);
                     }
                     else
                     {
@@ -281,7 +285,7 @@ namespace GameLogic
                 }
                 catch (System.Exception e)
                 {
-                    Log.Error($"[DynamicSceneSpawner] 加载 \"{item.Location}\" 失败: {e.Message}");
+                    Log.Error($"[DynamicSceneSpawner] 加载 \"{address}\" 失败: {e.Message}");
                 }
 
                 // 分批削峰
@@ -303,6 +307,44 @@ namespace GameLogic
         }
 
         /// <summary>
+        /// 解析加载项的最终资源地址与包裹名：<see cref="SpawnItem.PrefabRef"/>（GUID 弱引用）优先，
+        /// GUID 未设置或在包裹中无效时回落 <see cref="SpawnItem.Location"/> 并打警告。
+        /// </summary>
+        /// <param name="resolvePackage">目标包裹名；空字符串表示 TEngine 默认包裹。</param>
+        /// <returns>解析成功返回 true。</returns>
+        private static bool TryResolveAddress(in SpawnItem item, out string address, out string resolvePackage)
+        {
+            address = null;
+            resolvePackage = "";
+
+            var reference = item.PrefabRef;
+            if (reference != null && !string.IsNullOrEmpty(reference.AssetGUID))
+            {
+                var package = YooAssets.GetPackage(reference.PackageName);
+                var assetInfo = package != null
+                    ? package.GetAssetInfoByGuid(reference.AssetGUID, typeof(GameObject))
+                    : null;
+
+                if (assetInfo != null && assetInfo.IsValid)
+                {
+                    address = assetInfo.Address;
+                    resolvePackage = reference.PackageName;
+                    return true;
+                }
+
+                Log.Warning($"[DynamicSceneSpawner] GUID \"{reference.AssetGUID}\" 在包裹 \"{reference.PackageName}\" 中无效，尝试回落 location。");
+            }
+
+            if (!string.IsNullOrEmpty(item.Location))
+            {
+                address = item.Location;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 测试启动回退：从编辑器下的 prefabReference 直接实例化。
         /// </summary>
         private GameObject InstantiateFromEditorRef(SpawnItem item)
@@ -310,7 +352,10 @@ namespace GameLogic
 #if UNITY_EDITOR
             if (item.EditorPrefab == null)
             {
-                Log.Warning($"[DynamicSceneSpawner] 测试模式下 \"{item.Location}\" 无 EditorPrefab 引用，跳过。");
+                var label = !string.IsNullOrEmpty(item.Location)
+                    ? item.Location
+                    : item.PrefabRef?.AssetGUID ?? "(无引用)";
+                Log.Warning($"[DynamicSceneSpawner] 测试模式下 \"{label}\" 无 EditorPrefab 引用，跳过。");
                 return null;
             }
 
@@ -319,7 +364,7 @@ namespace GameLogic
             go.name = item.EditorPrefab.name; // 去掉 (Clone) 后缀
             return go;
 #else
-            Log.Error($"[DynamicSceneSpawner] 非编辑器环境下不支持测试启动回退，\"{item.Location}\" 加载失败。");
+            Log.Error($"[DynamicSceneSpawner] 非编辑器环境下不支持测试启动回退，\"{item.Location ?? item.PrefabRef?.AssetGUID}\" 加载失败。");
             return null;
 #endif
         }
@@ -371,14 +416,16 @@ namespace GameLogic
 
             foreach (var point in points)
             {
-                if (string.IsNullOrEmpty(point.location))
+                bool hasGuidRef = point.PrefabRef != null && !string.IsNullOrEmpty(point.PrefabRef.AssetGUID);
+                if (!hasGuidRef && string.IsNullOrEmpty(point.location))
                 {
-                    Log.Warning($"[DynamicSceneSpawner] 占位节点 \"{point.name}\" 的 location 为空，已跳过。");
+                    Log.Warning($"[DynamicSceneSpawner] 占位节点 \"{point.name}\" 未设置预制体引用且 location 为空，已跳过。");
                     continue;
                 }
 
                 var item = new SpawnItem
                 {
+                    PrefabRef = point.PrefabRef,
                     Location = point.location,
                     Parent = point.transform,
                     AlignMode = point.alignMode,
@@ -387,6 +434,7 @@ namespace GameLogic
 
 #if UNITY_EDITOR
                 point.MigrateLegacyReferenceIfNeeded();
+                point.MigrateToAssetReferenceIfNeeded();
                 item.EditorPrefab = point.EditorPrefab;
 #endif
 

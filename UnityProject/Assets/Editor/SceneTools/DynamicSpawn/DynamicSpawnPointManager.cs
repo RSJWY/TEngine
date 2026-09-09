@@ -29,7 +29,11 @@ public class DynamicSpawnPointManager : OdinEditorWindow
         [ReadOnly, LabelText("节点名")]
         public string Name;
 
-        [TableColumnWidth(160, Resizable = true)]
+        [TableColumnWidth(140, Resizable = true)]
+        [ReadOnly, LabelText("预制体")]
+        public string PrefabName;
+
+        [TableColumnWidth(120, Resizable = true)]
         [LabelText("Location")]
         public string Location;
 
@@ -150,17 +154,21 @@ public class DynamicSpawnPointManager : OdinEditorWindow
 
         foreach (var point in allPoints)
         {
-            // 顺手迁移历史遗留的 PPtr 引用，标记场景为脏（保存后即解开 Bundle 依赖）
-            if (point.MigrateLegacyReferenceIfNeeded())
+            // 顺手迁移历史遗留引用：PPtr → 旧 GUID 字段 → 弱引用，标记场景为脏（保存后生效）
+            bool migrated = point.MigrateLegacyReferenceIfNeeded();
+            migrated |= point.MigrateToAssetReferenceIfNeeded();
+            if (migrated)
             {
                 EditorUtility.SetDirty(point);
             }
 
+            var prefab = point.EditorPrefab;
             var entry = new SpawnPointEntry
             {
                 Component = point,
                 GameObject = point.gameObject,
                 Name = point.gameObject.name,
+                PrefabName = prefab != null ? prefab.name : "—",
                 Location = point.location ?? "",
                 AlignMode = point.alignMode,
                 HasPreview = point.previewInstance != null,
@@ -176,7 +184,8 @@ public class DynamicSpawnPointManager : OdinEditorWindow
             {
                 var filter = searchFilter.ToLower();
                 if (!entry.Name.ToLower().Contains(filter) &&
-                    !entry.Location.ToLower().Contains(filter))
+                    !entry.Location.ToLower().Contains(filter) &&
+                    !entry.PrefabName.ToLower().Contains(filter))
                     continue;
             }
 
@@ -193,6 +202,24 @@ public class DynamicSpawnPointManager : OdinEditorWindow
 
     private void ValidateEntry(SpawnPointEntry entry)
     {
+        if (entry.Component == null)
+        {
+            entry.Status = "空";
+            entry.HasError = true;
+            return;
+        }
+
+        // GUID 弱引用优先：能解析到资源即有效
+        var guid = entry.Component.PrefabRef?.AssetGUID;
+        if (!string.IsNullOrEmpty(guid))
+        {
+            bool guidValid = !string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(guid));
+            entry.Status = guidValid ? "OK" : "GUID失效";
+            entry.HasError = !guidValid;
+            return;
+        }
+
+        // 回落 location 校验
         if (string.IsNullOrEmpty(entry.Location))
         {
             entry.Status = "空";
@@ -266,8 +293,8 @@ public class DynamicSpawnPointManager : OdinEditorWindow
     }
 
     [TitleGroup("筛选与操作")]
-    [InfoBox("若历史场景里仍有 prefabReference 直接引用（导致打包依赖预制体），点此把它们迁移成 GUID 字符串并保存，依赖即被解开。", InfoMessageType.Warning)]
-    [Button("迁移并清理旧引用（解开打包依赖）", ButtonSizes.Medium)]
+    [InfoBox("若历史场景里仍有旧引用数据（prefabReference PPtr / prefabGuid 字符串），点此把它们迁移进 prefabRef 弱引用并保存。PPtr 迁移后打包依赖即被解开。", InfoMessageType.Warning)]
+    [Button("迁移历史引用并保存（解开打包依赖）", ButtonSizes.Medium)]
     [GUIColor(1f, 0.7f, 0.3f)]
     public void MigrateAndSaveAllScenes()
     {
@@ -277,7 +304,9 @@ public class DynamicSpawnPointManager : OdinEditorWindow
         var allPoints = GameObject.FindObjectsOfType<GameLogic.DynamicSpawnPoint>(true);
         foreach (var point in allPoints)
         {
-            if (point.MigrateLegacyReferenceIfNeeded())
+            bool pointMigrated = point.MigrateLegacyReferenceIfNeeded();
+            pointMigrated |= point.MigrateToAssetReferenceIfNeeded();
+            if (pointMigrated)
             {
                 EditorUtility.SetDirty(point);
                 if (point.gameObject.scene.IsValid())
@@ -294,11 +323,11 @@ public class DynamicSpawnPointManager : OdinEditorWindow
                 UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
             }
             RefreshList();
-            Debug.Log($"[SpawnPointManager] 已迁移并保存 {migrated} 个占位点（{dirtyScenes.Count} 个场景），prefabReference 依赖已解开。");
+            Debug.Log($"[SpawnPointManager] 已迁移并保存 {migrated} 个占位点（{dirtyScenes.Count} 个场景），历史引用已统一进 prefabRef 弱引用。");
         }
         else
         {
-            Debug.Log("[SpawnPointManager] 未发现遗留的 prefabReference 引用，无需迁移。");
+            Debug.Log("[SpawnPointManager] 未发现遗留引用，无需迁移。");
         }
     }
 
@@ -350,9 +379,15 @@ public class DynamicSpawnPointManager : OdinEditorWindow
         int count = 0;
         foreach (var entry in entries)
         {
-            if (entry.Component == null || string.IsNullOrEmpty(entry.Location)) continue;
+            if (entry.Component == null) continue;
 
-            var expectedName = $"[Spawn] {entry.Location}";
+            // 命名来源：预制体名（GUID 弱引用）优先，其次 location
+            var baseName = entry.Component.EditorPrefab != null
+                ? entry.Component.EditorPrefab.name
+                : entry.Location;
+            if (string.IsNullOrEmpty(baseName)) continue;
+
+            var expectedName = $"[Spawn] {baseName}";
             if (entry.GameObject.name != expectedName)
             {
                 Undo.RecordObject(entry.GameObject, "批量重命名 SpawnPoint 节点");
@@ -449,9 +484,8 @@ public class DynamicSpawnPointManager : OdinEditorWindow
         go.transform.localRotation = Quaternion.identity;
         go.transform.localScale = Vector3.one;
 
-        // 添加组件
+        // 添加组件（GUID 弱引用即可定位，无需再写 location）
         var point = Undo.AddComponent<GameLogic.DynamicSpawnPoint>(go);
-        point.location = prefabName;
         point.EditorPrefab = prefabToAdd;
 
         Selection.activeGameObject = go;
@@ -516,9 +550,8 @@ public class DynamicSpawnPointManager : OdinEditorWindow
                 placeholder.transform.localScale = worldScale;
             }
 
-            // 添加组件
+            // 添加组件（GUID 弱引用即可定位，无需再写 location）
             var point = Undo.AddComponent<GameLogic.DynamicSpawnPoint>(placeholder);
-            point.location = prefabName;
 
             // 尝试找到原始预制体资源引用
             if (prefabSource != null)
@@ -672,7 +705,23 @@ public class DynamicSpawnPointManager : OdinEditorWindow
 
             var pos = point.transform.position;
             var size = gizmoIconSize * HandleUtility.GetHandleSize(pos) * 0.15f;
-            bool hasError = string.IsNullOrEmpty(point.location) || !IsPrefabLocationValid(point.location);
+
+            // 有效性：GUID 弱引用优先，其次 location
+            var guid = point.PrefabRef?.AssetGUID;
+            string label;
+            bool hasError;
+            if (!string.IsNullOrEmpty(guid))
+            {
+                var assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                hasError = string.IsNullOrEmpty(assetPath);
+                label = hasError ? "(GUID失效)" : System.IO.Path.GetFileNameWithoutExtension(assetPath);
+            }
+            else
+            {
+                hasError = string.IsNullOrEmpty(point.location) || !IsPrefabLocationValid(point.location);
+                label = !string.IsNullOrEmpty(point.location) ? point.location : "(空)";
+            }
+
             bool isSelected = Selection.activeGameObject == point.gameObject;
 
             // 颜色：异常红色、选中黄色、正常绿色
@@ -698,7 +747,6 @@ public class DynamicSpawnPointManager : OdinEditorWindow
                 fontSize = 9
             };
 
-            var label = !string.IsNullOrEmpty(point.location) ? point.location : "(空)";
             Handles.Label(pos + Vector3.up * size * 2f, label, labelStyle);
 
             // 可点击选中

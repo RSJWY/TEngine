@@ -95,7 +95,7 @@ public class DynamicSceneSpawnerInspector : Editor
 
         EditorGUILayout.LabelField("编辑器调试（不参与打包）", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "一键放置：收集本 Spawner 的所有加载项，从工程内按文件名查找预制体并实例化预览。\n" +
+            "一键放置：收集本 Spawner 的所有加载项，按 GUID 弱引用（或 location 文件名）查找预制体并实例化预览。\n" +
             "预览实例标记为 HideFlags.DontSave，不会保存到场景文件，运行/切场景前请先卸载。",
             MessageType.Info);
 
@@ -162,25 +162,31 @@ public class DynamicSceneSpawnerInspector : Editor
 
         foreach (var item in items)
         {
-            if (string.IsNullOrEmpty(item.Location)) continue;
-
-            if (!_prefabPathCache.TryGetValue(item.Location, out var path))
-            {
-                Debug.LogWarning($"[DynamicSceneSpawner] 找不到预制体: \"{item.Location}\"");
-                missing++;
-                continue;
-            }
-
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            // 预制体解析：GUID 弱引用优先（item.EditorPrefab 由占位点的 prefabRef 解析），
+            // 回落按 location 文件名查找（代码列表法构造的加载项）
+            GameObject prefab = item.EditorPrefab;
             if (prefab == null)
             {
-                missing++;
-                continue;
+                if (string.IsNullOrEmpty(item.Location)) continue;
+
+                if (!_prefabPathCache.TryGetValue(item.Location, out var path))
+                {
+                    Debug.LogWarning($"[DynamicSceneSpawner] 找不到预制体: \"{item.Location}\"");
+                    missing++;
+                    continue;
+                }
+
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (prefab == null)
+                {
+                    missing++;
+                    continue;
+                }
             }
 
             var parent = item.Parent != null ? item.Parent : _target.transform;
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
-            instance.name = $"[Preview] {item.Location}";
+            instance.name = $"[Preview] {prefab.name}";
 
             if (item.AlignMode == SpawnAlignMode.AlignToPlaceholder)
             {
@@ -339,7 +345,9 @@ public class DynamicSceneSpawnerInspector : Editor
                     }
                 }
                 var icon = hasLoadedChild ? "<color=#80FF80>●</color>" : "<color=#FF6666>○</color>";
-                var loc = !string.IsNullOrEmpty(point.location) ? point.location : "(空)";
+                var prefab = point.EditorPrefab;
+                var loc = prefab != null ? prefab.name
+                    : !string.IsNullOrEmpty(point.location) ? point.location : "(空)";
                 EditorGUILayout.LabelField($"{icon} {point.name}  →  {loc}", richStyle);
             }
             EditorGUI.indentLevel--;

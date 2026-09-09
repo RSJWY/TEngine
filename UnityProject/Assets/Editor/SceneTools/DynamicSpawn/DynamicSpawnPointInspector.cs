@@ -13,6 +13,7 @@ public class DynamicSpawnPointInspector : Editor
     private DynamicSpawnPoint _target;
     private Editor _prefabPreviewEditor;
 
+    private SerializedProperty _prefabRefProp;
     private SerializedProperty _locationProp;
     private SerializedProperty _alignModeProp;
     private SerializedProperty _registerKeyProp;
@@ -20,14 +21,20 @@ public class DynamicSpawnPointInspector : Editor
     private void OnEnable()
     {
         _target = (DynamicSpawnPoint)target;
+        _prefabRefProp = serializedObject.FindProperty("prefabRef");
         _locationProp = serializedObject.FindProperty("location");
         _alignModeProp = serializedObject.FindProperty("alignMode");
         _registerKeyProp = serializedObject.FindProperty("registerKey");
 
-        // 迁移历史遗留的 PPtr 引用（prefabReference → prefabGuid），解开 Bundle 依赖
-        if (_target != null && _target.MigrateLegacyReferenceIfNeeded())
+        // 迁移历史遗留引用：PPtr（prefabReference）→ 旧 GUID 字段（prefabGuid）→ 弱引用（prefabRef）
+        if (_target != null)
         {
-            EditorUtility.SetDirty(_target);
+            bool migrated = _target.MigrateLegacyReferenceIfNeeded();
+            migrated |= _target.MigrateToAssetReferenceIfNeeded();
+            if (migrated)
+            {
+                EditorUtility.SetDirty(_target);
+            }
         }
 
         // 重连预览实例：NonSerialized 字段在 Inspector 失焦/重编译后会丢失引用，
@@ -67,45 +74,38 @@ public class DynamicSpawnPointInspector : Editor
     {
         serializedObject.Update();
 
-        // === 运行时字段 ===
-        EditorGUILayout.LabelField("运行时配置", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(_locationProp, new GUIContent("Location", "YooAsset 资源地址（文件名，不含路径和扩展名）"));
-        EditorGUILayout.PropertyField(_alignModeProp, new GUIContent("对齐模式"));
-        EditorGUILayout.PropertyField(_registerKeyProp, new GUIContent("注册键", "可选唯一标识键，用于运行时注册表查找"));
+        // === 弱引用（主通道） ===
+        EditorGUILayout.LabelField("预制体引用", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox(
+            "预制体以 GUID 弱引用保存（非对象引用），不会序列化为 PPtr，" +
+            "场景与预制体之间不产生任何 Bundle 依赖；运行时按 GUID 寻址，预制体改名/移动目录不受影响。",
+            MessageType.Info);
+
+        EditorGUI.BeginChangeCheck();
+        EditorGUILayout.PropertyField(_prefabRefProp, new GUIContent("Prefab Ref", "拖入预制体（仅存 GUID，不产生依赖）；运行时优先按 GUID 加载"));
+        if (EditorGUI.EndChangeCheck())
+        {
+            serializedObject.ApplyModifiedProperties();
+
+            // 自动填充 registerKey（为空时）
+            var prefab = _target.EditorPrefab;
+            if (prefab != null && string.IsNullOrEmpty(_target.registerKey))
+            {
+                Undo.RecordObject(_target, "Auto Fill RegisterKey");
+                _target.registerKey = prefab.name;
+                EditorUtility.SetDirty(_target);
+            }
+        }
 
         EditorGUILayout.Space(10);
         DrawSeparator();
         EditorGUILayout.Space(4);
 
-        // === 编辑器辅助区域 ===
-        EditorGUILayout.LabelField("编辑器辅助（不参与打包）", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "预制体引用以 GUID 字符串形式保存（非对象引用），不会序列化为 PPtr，" +
-            "因此场景与预制体之间不产生任何 Bundle 依赖。",
-            MessageType.Info);
-
-        EditorGUI.BeginChangeCheck();
-        var newPrefab = (GameObject)EditorGUILayout.ObjectField(
-            new GUIContent("预制体引用", "拖入预制体以便快速填充 location / registerKey 和放置预览（仅存 GUID，不产生依赖）"),
-            _target.EditorPrefab, typeof(GameObject), false);
-        if (EditorGUI.EndChangeCheck())
-        {
-            Undo.RecordObject(_target, "Set Prefab Reference");
-            _target.EditorPrefab = newPrefab;
-            // 自动填充 location 和 registerKey
-            if (newPrefab != null)
-            {
-                if (string.IsNullOrEmpty(_target.location))
-                {
-                    _target.location = newPrefab.name;
-                }
-                if (string.IsNullOrEmpty(_target.registerKey))
-                {
-                    _target.registerKey = newPrefab.name;
-                }
-            }
-            EditorUtility.SetDirty(_target);
-        }
+        // === 运行时字段 ===
+        EditorGUILayout.LabelField("运行时配置", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(_locationProp, new GUIContent("Location", "可选。YooAsset 资源地址（文件名）；仅在代码列表法/配置表驱动等动态寻址场景使用，静态摆点用上面的弱引用即可"));
+        EditorGUILayout.PropertyField(_alignModeProp, new GUIContent("对齐模式"));
+        EditorGUILayout.PropertyField(_registerKeyProp, new GUIContent("注册键", "可选唯一标识键，用于运行时注册表查找"));
 
         EditorGUILayout.Space(6);
 
@@ -158,33 +158,24 @@ public class DynamicSpawnPointInspector : Editor
 
         EditorGUILayout.BeginHorizontal();
         {
-            // 填充 location
-            EditorGUI.BeginDisabledGroup(!hasPrefabRef);
-            if (GUILayout.Button(new GUIContent("填充 Location", "从预制体名称填充 location 字段"), GUILayout.Height(20)))
-            {
-                Undo.RecordObject(_target, "Fill Location");
-                _target.location = _target.EditorPrefab.name;
-                EditorUtility.SetDirty(_target);
-            }
-            EditorGUI.EndDisabledGroup();
-
-            // 填充注册键
-            bool canFillKey = !string.IsNullOrEmpty(_target.location);
+            // 填充注册键（来源：预制体名，其次 location）
+            string baseName = _target.EditorPrefab != null ? _target.EditorPrefab.name : _target.location;
+            bool canFillKey = !string.IsNullOrEmpty(baseName);
             EditorGUI.BeginDisabledGroup(!canFillKey);
-            if (GUILayout.Button(new GUIContent("填充注册键", "将 registerKey 设为当前 location 值"), GUILayout.Height(20)))
+            if (GUILayout.Button(new GUIContent("填充注册键", "将 registerKey 设为预制体名（无引用时用 location）"), GUILayout.Height(20)))
             {
                 Undo.RecordObject(_target, "Fill RegisterKey");
-                _target.registerKey = _target.location;
+                _target.registerKey = baseName;
                 EditorUtility.SetDirty(_target);
             }
             EditorGUI.EndDisabledGroup();
 
-            // 对齐节点名
-            EditorGUI.BeginDisabledGroup(string.IsNullOrEmpty(_target.location));
-            if (GUILayout.Button(new GUIContent("对齐节点名", "将 GameObject 名称设为 [Spawn] {location}"), GUILayout.Height(20)))
+            // 对齐节点名（来源：预制体名，其次 location）
+            EditorGUI.BeginDisabledGroup(string.IsNullOrEmpty(baseName));
+            if (GUILayout.Button(new GUIContent("对齐节点名", "将 GameObject 名称设为 [Spawn] {预制体名}"), GUILayout.Height(20)))
             {
                 Undo.RecordObject(_target.gameObject, "Rename SpawnPoint");
-                _target.gameObject.name = $"[Spawn] {_target.location}";
+                _target.gameObject.name = $"[Spawn] {baseName}";
                 EditorUtility.SetDirty(_target.gameObject);
             }
             EditorGUI.EndDisabledGroup();
@@ -251,14 +242,6 @@ public class DynamicSpawnPointInspector : Editor
         SetHideFlagsRecursive(instance, HideFlags.DontSave);
 
         _target.previewInstance = instance;
-
-        // 自动填充 location（如果为空）
-        if (string.IsNullOrEmpty(_target.location))
-        {
-            Undo.RecordObject(_target, "Auto Fill Location on Place");
-            _target.location = prefab.name;
-            EditorUtility.SetDirty(_target);
-        }
 
         SceneView.RepaintAll();
         Debug.Log($"[DynamicSpawnPoint] 已放置预览: {instance.name}");
