@@ -134,7 +134,7 @@ float progress = GameModule.GameScene.DisplayProgress;
 - `SwitchUI` 只展示 `DisplayProgress`，不拥有加载状态机。
 - 加载终结顺序为：完成回调 -> 关闭加载页 -> `OnSceneReady`。
 - 阶段 1 超时使用"停滞 60 秒 + 绝对 180 秒"双门槛。
-- 通用动态加载场景优先使用 `SpawnPointSceneSpawner`。
+- 通用动态加载场景优先使用 `SpawnPointSceneSpawner`；占位点拖预制体到 `Prefab Ref`（GUID 弱引用），`location` 仅作回落与代码列表法通道。
 
 详细说明见 [scene-system.md](../../../../../Books/Fork/scene-system.md)。
 

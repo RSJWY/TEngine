@@ -2,6 +2,11 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-09-10
+
+- DynamicSpawn 接入 YooAsset 资源弱引用：`DynamicSpawnPoint` 新增 `prefabRef`（包裹名 + GUID）作为主引用通道，运行时 GUID 优先、`location` 保留为回落与代码列表法通道；预制体改名/移动目录不再断引用。旧引用（PPtr/`prefabGuid`）自动迁移进 `prefabRef`，`DefaultPackage` 收集器开启 `IncludeAssetGUID`。详见 [scene-system.md](scene-system.md)。
+- 修复 DynamicSpawn 测试启动回归：地址解析挪入 YooAsset 分支（未初始化时 `GetPackage` 会抛异常），编辑器回退按 GUID 经 `AssetDatabase` 实例化；`CompleteSpawn` 对未注册的 `IGameSceneEvent` 判空。详见 [scene-system.md](scene-system.md)。
+
 ## 2026-08-30
 
 - 资源清单加密接入：`RuntimePackageEntry` 新增 `ManifestEncrypted` 开关，固定 ChaCha20 算法 + 独立密钥（`ManifestChaCha20KeyConfig`），构建端注入 `IManifestEncryptor`/`IManifestDecryptor`（含 Catalog 生成），运行时四个 FileSystem 分支按配置注入 `IManifestDecryptor`。详见 [resource-build.md](resource-build.md)。

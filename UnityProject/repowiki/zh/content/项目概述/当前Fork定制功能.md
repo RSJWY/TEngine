@@ -115,6 +115,8 @@ Android、iOS、MacOS 和 WebGL Player 仍使用 `Output/Player/{平台}/`。Ass
 
 场景枚举使用 `TEngine/场景枚举配置` 维护，通过 GUID 跟踪场景并生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
 
+场景内动态装饰物使用 DynamicSpawn 占位点加载：占位点序列化 `prefabRef` 弱引用（包裹名 + GUID），运行时 GUID 优先寻址，`location` 字符串保留为回落与代码动态寻址通道；`DefaultPackage` 收集器需开启 `Include Asset GUID`。
+
 ## 详细改动文档
 
 | 主题 | 文档 |

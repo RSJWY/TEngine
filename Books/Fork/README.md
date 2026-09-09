@@ -19,7 +19,7 @@
 | 运行时配置 | RuntimeConfig、DeployConfig、TOML/JSON 轻量配置 | [runtime-config.md](runtime-config.md) |
 | 热更新 | CodePackage、归档二进制加载、版本确认、AOT 元数据 | [hot-update.md](hot-update.md) |
 | 资源打包 | 按包构建、ArchiveFile 管线、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
-| 场景系统 | DynamicSpawn 通用化、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
+| 场景系统 | DynamicSpawn 通用化与 GUID 弱引用寻址、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、运行时静态密钥初始化、多态 DLL 热更产物 | [obfuscation.md](obfuscation.md) |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](runtime-tools.md) |

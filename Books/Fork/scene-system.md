@@ -27,7 +27,7 @@
 
 1. 在场景中新建 `DynamicSpawnRoot`。
 2. 给 `DynamicSpawnRoot` 挂 `SpawnPointSceneSpawner`。
-3. 在其子节点挂 `DynamicSpawnPoint` 并填写 `location`。
+3. 在其子节点挂 `DynamicSpawnPoint` 并把预制体拖入 `Prefab Ref`。
 4. 如需业务初始化，复制 `ExampleSceneGameManager` 为自己的 `XxxManager`。
 5. 在 `DynamicSpawnPoint.registerKey` 填写 key 后，通过 `GetSpawnedObject("你的key")` 获取加载出的对象。
 
@@ -59,6 +59,66 @@ dotnet build GameLogic.csproj --no-restore
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-06-27-dynamic-spawn-generalization-summary.md`
+
+## DynamicSpawn 接入资源弱引用（GUID 寻址）
+
+### 背景
+
+`DynamicSpawnPoint` 原以 `location` 字符串（预制体文件名）作为运行时寻址依据，编辑器侧另有 `prefabGuid` 字段仅用于预览和测试启动回退。这个"半弱引用"方案有两个运行时风险：
+
+- 预制体改名后 `location` 变陈旧，运行时加载失败（AddressRule 为 `AddressByFileName`）。
+- 不同目录下同名预制体按文件名寻址会冲突。
+
+YooAsset 3.0 扩展示例提供了 `AssetReference`（序列化"包裹名 + GUID"，非对象引用，不产生 Bundle 依赖），与本 fork 编辑器侧已有的 GUID 方案同构，将其引入并贯通到运行时。
+
+### 改动摘要
+
+- 引入 `AssetReference` / `AssetReferenceGameObject`（`GameLogic` 命名空间，源自 YooAsset Extension Sample）与配套 `AssetReferenceDrawer`（包裹名 + 拖拽框 + 只读 GUID）。
+- `DynamicSpawnPoint` 新增 `prefabRef` 弱引用字段作为主引用通道；`location` 保留为回落与代码列表法通道；`prefabGuid` 降级为纯迁移中转字段。
+- 运行时解析规则：`prefabRef` GUID 有效 → `GetAssetInfoByGuid` 解析出地址走原有 `LoadGameObjectAsync`（保留分批削峰、取消、引用计数）；GUID 无效 → 警告并回落 `location`；两者皆空 → 跳过。
+- 迁移链自动化：PPtr（`prefabReference`）→ 旧 GUID（`prefabGuid`）→ 弱引用（`prefabRef`），Inspector/管理器面板打开时自动迁移，"迁移历史引用并保存"按钮一键落盘。
+- `DynamicSpawnPointManager` 校验改为 GUID 优先，新增只读"预制体"列，快速添加/一键转换不再写 `location`；"填充 Location"按钮退役。
+- YooAsset 收集器 `DefaultPackage` 开启 `IncludeAssetGUID`（清单记录 GUID 映射是 `GetAssetInfoByGuid` 的前提）。
+- 修复测试启动（编辑器直接打开场景）回归：地址解析挪入 YooAsset 分支，避免未初始化时 `YooAssets.GetPackage` 抛异常；编辑器回退直接按 GUID 经 `AssetDatabase` 实例化，纯 GUID 点可用。
+- 修复 `CompleteSpawn` 在测试启动时 NRE：`IGameSceneEvent` 未注册时 `GameEvent.Get` 返回 null，发送完成事件前判空。
+
+保持不变：
+
+- 分批削峰、`SpawnAlignMode` 对齐、注册表、`SpawnInitMode` 触发时机、完成事件、`SpawnPointSceneSpawner` 子类。
+- `location` 字符串通道长期保留：代码列表法/配置表驱动等运行时动态构造地址的场景只能用它。
+- 释放语义不变：仍由 TEngine 引用计数 + 场景卸载托管，未引入 `AssetReference` 自带的 `ReleaseAsset` 生命周期。
+
+### 使用方式
+
+摆点流程不变：占位节点挂 `DynamicSpawnPoint`，把预制体拖入 `Prefab Ref` 框即可，无需再填 `location`。预制体改名/移动目录不影响引用。
+
+### 注意事项
+
+- `DefaultPackage` 必须开启 `Include Asset GUID`（收集器窗口或 `AssetBundleCollectorConfig.xml`），否则运行时 GUID 解析无效并回落 `location`；真机/离线图需重新构建资源包后生效。
+- 收集器开启该开关前，已迁移的 GUID 点会打一条"GUID 无效，回落 location"警告——这是兜底机制正常工作，配置生效后消失。
+- `AssetReference.LoadAssetAsync`/`ReleaseAsset` 生命周期仅供单独使用弱引用字段的场景（如组件直引单张贴图）；Spawner 内部不调用它们。
+
+### 关键文件
+
+- `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/AssetReference/AssetReference.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/AssetReference/AssetReferenceGameObject.cs`
+- `Assets/Editor/SceneTools/DynamicSpawn/AssetReferenceDrawer.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/DynamicSpawnPoint.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/DynamicSceneSpawner.cs`
+- `Assets/AssetBundleCollectorConfig.xml`（`IncludeAssetGUID`）
+
+### 验证记录
+
+```powershell
+dotnet build GameLogic.csproj --no-restore
+dotnet build Assembly-CSharp-Editor.csproj --no-restore
+```
+
+结果：0 错误。Unity 编辑器实测：正常流程 GUID 寻址加载通过；测试启动（脱离 YooAsset）直接实例化通过；MainScene 迁移后 `prefabGuid` 清空、GUID 统一入 `prefabRef`。
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-09-10-dynamic-spawn-asset-reference-summary.md`
 
 ## 场景加载进度拆分到 GameSceneModule
 

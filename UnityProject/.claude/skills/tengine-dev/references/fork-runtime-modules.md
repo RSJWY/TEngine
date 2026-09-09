@@ -117,7 +117,7 @@ float progress = GameModule.GameScene.DisplayProgress;
 - 加载流程终结顺序固定为：回调 -> 关闭加载页 -> `OnSceneReady`。
 - `suspendLoad=true` 时不要 `await LoadSceneAsync` 等待 `IsDone`；激活前 `IsDone` 不会完成。使用 progress callback 驱动并在合适阶段 `UnSuspend`。
 - 阶段 1 超时采用进度停滞 60 秒 + 绝对 180 秒双门槛，不要恢复固定 5 秒超时。
-- 通用动态加载场景优先挂 `SpawnPointSceneSpawner`；只有额外收集规则或完成钩子时才派生专属 Spawner。
+- 通用动态加载场景优先挂 `SpawnPointSceneSpawner`；只有额外收集规则或完成钩子时才派生专属 Spawner。占位点引用预制体用 `prefabRef`（GUID 弱引用，改名/移动不断），`location` 仅作回落与代码列表法通道；需 `DefaultPackage` 收集器开启 `Include Asset GUID`。
 
 ## ScreenModule
 
