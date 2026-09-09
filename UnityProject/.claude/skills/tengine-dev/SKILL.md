@@ -1,6 +1,6 @@
 ---
 name: tengine-dev
-description: TEngine Unity fork 开发指导。用于 TEngine、UIWindow/UIWidget、GameEvent、GameModule、资源加载、YooAsset 3、HybridCLR、CodePackage、ArchiveFileBuildPipeline、Obfuz、运行时配置、场景流程、ScreenModule、GameObjectPool、AnimModule、FrameAnim、DataBinding、客户端存档、打包发布和相关 Editor 工具开发。项目默认不使用 Luban，只有用户明确要求配置表时才读取 Luban 规范。
+description: TEngine Unity fork 开发指导。用于 TEngine、UIWindow/UIWidget、GameEvent、GameModule、资源加载、YooAsset 3、HybridCLR、CodePackage、ArchiveFileBuildPipeline、Obfuz、运行时配置、场景流程、ScreenModule、GameObjectPool、AnimModule、DataBinding、客户端存档、打包发布和相关 Editor 工具开发。项目默认不使用 Luban，只有用户明确要求配置表时才读取 Luban 规范。
 ---
 
 # TEngine Fork 开发指导
@@ -34,7 +34,7 @@ description: TEngine Unity fork 开发指导。用于 TEngine、UIWindow/UIWidge
 | 资源加载与释放 | [resource-api.md](references/resource-api.md) | [resource-patterns.md](references/resource-patterns.md)、[fork-resource-hotupdate.md](references/fork-resource-hotupdate.md) |
 | HybridCLR、CodePackage、AOT、Obfuz | [fork-resource-hotupdate.md](references/fork-resource-hotupdate.md) | [hotfix-workflow.md](references/hotfix-workflow.md) |
 | 模块 API、运行时配置、对象池、动画、场景、窗口 | [fork-runtime-modules.md](references/fork-runtime-modules.md) | [modules.md](references/modules.md) |
-| DataBinding、存档、帧动画、UI 扩展、Utility | [fork-gameplay-ui.md](references/fork-gameplay-ui.md) | [ui-patterns.md](references/ui-patterns.md) |
+| DataBinding、存档、UI 扩展、Utility | [fork-gameplay-ui.md](references/fork-gameplay-ui.md) | [ui-patterns.md](references/ui-patterns.md) |
 | 构建窗口、发布整理、Inno Setup、场景枚举、调试工具 | [fork-editor-workflows.md](references/fork-editor-workflows.md) | [fork-resource-hotupdate.md](references/fork-resource-hotupdate.md) |
 | FSM、Procedure | [fsm-patterns.md](references/fsm-patterns.md) | [hotfix-workflow.md](references/hotfix-workflow.md) |
 | 项目结构与程序集 | [architecture.md](references/architecture.md) | [fork-runtime-modules.md](references/fork-runtime-modules.md) |

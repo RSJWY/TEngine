@@ -4,7 +4,6 @@
 
 - [DataBinding](#databinding)
 - [ClientSaveData 与 DataCenter](#clientsavedata-与-datacenter)
-- [FrameAnimModule](#frameanimmodule)
 - [UGUI 扩展组件](#ugui-扩展组件)
 - [Utility 扩展](#utility-扩展)
 - [事件批量清理](#事件批量清理)
@@ -83,29 +82,6 @@ await ClientSaveDataMgr.Instance.SaveAllClientDataAsync();
 - 首次加载空存储不会自动落盘，业务修改后必须显式保存。
 - 应用退出、切后台或定时节点由业务调用批量保存。
 - `DataCenterSys` 是玩家运行时数据中枢，不要用存档对象替代当前会话状态。
-
-## FrameAnimModule
-
-序列帧动画位于 HotFix，提供三种代理：
-
-```csharp
-FrameAnimatorAgent       // SpriteRenderer
-UIFrameAnimatorAgent     // UGUI Image
-UIFrameRawAnimatorAgent  // UGUI RawImage
-```
-
-```csharp
-var agent = UIFrameAnimatorAgent.Create();
-await agent.Init(config);
-agent.BindDisplayRender(image);
-agent.SwitchAnim(UIFrameAnimState.Idle);
-agent.StartAnim();
-```
-
-- `FrameAnimConfig` 由调用方构造，不依赖 Luban `ModelConfig`。
-- `FrameSpritePool.Gen.cs` 是手写映射。新增 `FrameAnimName` 时同步补字段和 `GetSprites` case。
-- RawImage 版只适合每帧独立 PNG；SpriteAtlas 中多帧共享 Texture 时会显示整张图集。
-- Agent 来自 `MemoryPool`，按类提供的生命周期 API 创建和回收，不直接 `new`。
 
 ## UGUI 扩展组件
 

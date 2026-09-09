@@ -1,6 +1,6 @@
 # Fork 业务数据与 UI
 
-本文汇总当前 fork 的 DataBinding、客户端存档、序列帧动画、UGUI 扩展和相关工具。迁移背景与关键文件见 [Fork 定制改动总览](../../../../../Books/Fork/README.md)。
+本文汇总当前 fork 的 DataBinding、客户端存档、UGUI 扩展和相关工具。迁移背景与关键文件见 [Fork 定制改动总览](../../../../../Books/Fork/README.md)。
 
 ## DataBinding
 
@@ -83,31 +83,6 @@ await ClientSaveDataMgr.Instance.SaveAllClientDataAsync();
 - `DataCenterSys` 管理当前会话数据，不要用存档对象代替运行时状态。
 
 详细说明见 [save-data.md](../../../../../Books/Fork/save-data.md)。
-
-## FrameAnimModule
-
-序列帧动画提供三种代理：
-
-```csharp
-FrameAnimatorAgent       // SpriteRenderer
-UIFrameAnimatorAgent     // UGUI Image
-UIFrameRawAnimatorAgent  // UGUI RawImage
-```
-
-```csharp
-var agent = UIFrameAnimatorAgent.Create();
-await agent.Init(config);
-agent.BindDisplayRender(image);
-agent.SwitchAnim(UIFrameAnimState.Idle);
-agent.StartAnim();
-```
-
-- `FrameAnimConfig` 由业务构造，不依赖 Luban `ModelConfig`。
-- `FrameSpritePool.Gen.cs` 是手写映射，新增动画名时需要同步更新。
-- RawImage 版本适合每帧独立纹理，不适合共享 Texture 的 SpriteAtlas 多帧。
-- Agent 来自内存池，必须按类型提供的生命周期 API 回收。
-
-详细说明见 [frame-anim.md](../../../../../Books/Fork/frame-anim.md)。
 
 ## UGUI 扩展组件
 
