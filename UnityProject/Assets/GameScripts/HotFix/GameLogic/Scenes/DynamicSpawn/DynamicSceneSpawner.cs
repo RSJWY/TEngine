@@ -446,8 +446,6 @@ namespace GameLogic
                 };
 
 #if UNITY_EDITOR
-                point.MigrateLegacyReferenceIfNeeded();
-                point.MigrateToAssetReferenceIfNeeded();
                 item.EditorPrefab = point.EditorPrefab;
 #endif
 

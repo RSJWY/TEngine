@@ -26,17 +26,6 @@ public class DynamicSpawnPointInspector : Editor
         _alignModeProp = serializedObject.FindProperty("alignMode");
         _registerKeyProp = serializedObject.FindProperty("registerKey");
 
-        // 迁移历史遗留引用：PPtr（prefabReference）→ 旧 GUID 字段（prefabGuid）→ 弱引用（prefabRef）
-        if (_target != null)
-        {
-            bool migrated = _target.MigrateLegacyReferenceIfNeeded();
-            migrated |= _target.MigrateToAssetReferenceIfNeeded();
-            if (migrated)
-            {
-                EditorUtility.SetDirty(_target);
-            }
-        }
-
         // 重连预览实例：NonSerialized 字段在 Inspector 失焦/重编译后会丢失引用，
         // 但实际 GameObject 仍存在于子节点中，通过命名模式恢复。
         TryReconnectPreviewInstance();

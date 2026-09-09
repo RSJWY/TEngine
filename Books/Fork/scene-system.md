@@ -74,9 +74,9 @@ YooAsset 3.0 扩展示例提供了 `AssetReference`（序列化"包裹名 + GUID
 ### 改动摘要
 
 - 引入 `AssetReference` / `AssetReferenceGameObject`（`GameLogic` 命名空间，源自 YooAsset Extension Sample）与配套 `AssetReferenceDrawer`（包裹名 + 拖拽框 + 只读 GUID）。
-- `DynamicSpawnPoint` 新增 `prefabRef` 弱引用字段作为主引用通道；`location` 保留为回落与代码列表法通道；`prefabGuid` 降级为纯迁移中转字段。
+- `DynamicSpawnPoint` 新增 `prefabRef` 弱引用字段作为主引用通道；`location` 保留为回落与代码列表法通道。旧字段（`prefabReference` PPtr、`prefabGuid` 字符串）与迁移代码在存量数据（MainScene）迁移完成后已删除，数据模型只余 `prefabRef` + `location` 双通道。
 - 运行时解析规则：`prefabRef` GUID 有效 → `GetAssetInfoByGuid` 解析出地址走原有 `LoadGameObjectAsync`（保留分批削峰、取消、引用计数）；GUID 无效 → 警告并回落 `location`；两者皆空 → 跳过。
-- 迁移链自动化：PPtr（`prefabReference`）→ 旧 GUID（`prefabGuid`）→ 弱引用（`prefabRef`），Inspector/管理器面板打开时自动迁移，"迁移历史引用并保存"按钮一键落盘。
+- 迁移链（PPtr → GUID 字符串 → 弱引用）已在存量数据迁移完成后随旧字段一并移除，管理器面板的"迁移历史引用并保存"按钮同步删除。
 - `DynamicSpawnPointManager` 校验改为 GUID 优先，新增只读"预制体"列，快速添加/一键转换不再写 `location`；"填充 Location"按钮退役。
 - YooAsset 收集器 `DefaultPackage` 开启 `IncludeAssetGUID`（清单记录 GUID 映射是 `GetAssetInfoByGuid` 的前提）。
 - 修复测试启动（编辑器直接打开场景）回归：地址解析挪入 YooAsset 分支，避免未初始化时 `YooAssets.GetPackage` 抛异常；编辑器回退直接按 GUID 经 `AssetDatabase` 实例化，纯 GUID 点可用。

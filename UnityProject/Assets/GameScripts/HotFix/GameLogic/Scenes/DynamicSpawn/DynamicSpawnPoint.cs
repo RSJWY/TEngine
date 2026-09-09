@@ -76,34 +76,13 @@ namespace GameLogic
 
 #if UNITY_EDITOR
         /// <summary>
-        /// 旧版编辑器辅助字段：预制体资源 GUID（字符串）。
-        /// 已废弃——新数据统一存到 <see cref="prefabRef"/>，本字段仅用于迁移存量场景，
-        /// 由 <see cref="MigrateToAssetReferenceIfNeeded"/> 搬空后保持为空。切勿直接读写。
-        /// </summary>
-        [HideInInspector]
-        [SerializeField]
-        private string prefabGuid;
-
-        /// <summary>
-        /// 旧版直接引用字段（已废弃，仅用于迁移）。
-        /// 历史场景里已经把 GameObject PPtr 序列化进了 .unity 文件——正是这个 PPtr
-        /// 导致打包时场景对预制体产生 Bundle 依赖。<see cref="MigrateLegacyReferenceIfNeeded"/>
-        /// 会把它转成 <see cref="prefabGuid"/> 并清空，从而解开依赖。
-        /// 字段名必须保持 <c>prefabReference</c> 才能匹配旧序列化数据，切勿赋值。
-        /// </summary>
-        [HideInInspector]
-        [SerializeField]
-        private GameObject prefabReference;
-
-        /// <summary>
         /// 编辑器辅助：当前放置的预览实例（不序列化）。
         /// </summary>
         [System.NonSerialized]
         public GameObject previewInstance;
 
         /// <summary>
-        /// 编辑器辅助属性：基于 <see cref="prefabRef"/> 的 GUID 解析/写回预制体引用
-        /// （未迁移的旧数据回落 <see cref="prefabGuid"/>）。
+        /// 编辑器辅助属性：基于 <see cref="prefabRef"/> 的 GUID 解析/写回预制体引用。
         /// get 时按 GUID 现查现加载资源；set 时把资源转成 GUID 存储。
         /// 全程<b>不在序列化数据中保留任何 GameObject 引用</b>，因此不产生 Bundle 依赖。
         /// </summary>
@@ -111,9 +90,7 @@ namespace GameLogic
         {
             get
             {
-                var guid = prefabRef != null && !string.IsNullOrEmpty(prefabRef.AssetGUID)
-                    ? prefabRef.AssetGUID
-                    : prefabGuid;
+                var guid = prefabRef?.AssetGUID;
                 if (string.IsNullOrEmpty(guid)) return null;
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 return string.IsNullOrEmpty(path)
@@ -123,7 +100,6 @@ namespace GameLogic
             set
             {
                 if (prefabRef == null) prefabRef = new AssetReferenceGameObject();
-                prefabGuid = string.Empty;
 
                 if (value == null)
                 {
@@ -135,50 +111,6 @@ namespace GameLogic
                     ? string.Empty
                     : AssetDatabase.AssetPathToGUID(path));
             }
-        }
-
-        /// <summary>
-        /// 把旧版 <see cref="prefabGuid"/> 字段迁移进 <see cref="prefabRef"/> 弱引用。
-        /// 调用方在返回 true 时需对组件 <c>SetDirty</c> 并保存场景。
-        /// </summary>
-        /// <returns>发生迁移返回 true。</returns>
-        public bool MigrateToAssetReferenceIfNeeded()
-        {
-            if (string.IsNullOrEmpty(prefabGuid)) return false;
-
-            if (prefabRef == null) prefabRef = new AssetReferenceGameObject();
-            if (string.IsNullOrEmpty(prefabRef.AssetGUID))
-            {
-                prefabRef.EditorSetAssetGUID(prefabGuid);
-            }
-
-            prefabGuid = string.Empty; // 单一数据源：GUID 统一由 prefabRef 持有
-            return true;
-        }
-
-        /// <summary>
-        /// 把历史遗留的 <see cref="prefabReference"/>（GameObject PPtr）迁移为 GUID 字符串，
-        /// 并清空 PPtr 引用——这是真正"解开" Bundle 依赖的关键一步。
-        /// 迁移目标为 <see cref="prefabRef"/> 弱引用（经由 <see cref="prefabGuid"/> 中转）。
-        /// 调用方在返回 true 时需对组件 <c>SetDirty</c> 并保存场景，磁盘上的 PPtr 才会消失。
-        /// </summary>
-        /// <returns>发生迁移返回 true。</returns>
-        public bool MigrateLegacyReferenceIfNeeded()
-        {
-            if (prefabReference == null) return false;
-
-            // 仅在尚无 GUID 时用旧引用回填，避免覆盖已有新数据
-            if (string.IsNullOrEmpty(prefabGuid) && (prefabRef == null || string.IsNullOrEmpty(prefabRef.AssetGUID)))
-            {
-                var path = AssetDatabase.GetAssetPath(prefabReference);
-                prefabGuid = string.IsNullOrEmpty(path)
-                    ? string.Empty
-                    : AssetDatabase.AssetPathToGUID(path);
-            }
-
-            prefabReference = null; // 断开 PPtr —— 消除场景对预制体的 Bundle 依赖
-            MigrateToAssetReferenceIfNeeded(); // 顺带搬进 prefabRef
-            return true;
         }
 
         [ContextMenu("从预制体引用对齐节点名")]

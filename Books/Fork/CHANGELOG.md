@@ -6,6 +6,7 @@
 
 - DynamicSpawn 接入 YooAsset 资源弱引用：`DynamicSpawnPoint` 新增 `prefabRef`（包裹名 + GUID）作为主引用通道，运行时 GUID 优先、`location` 保留为回落与代码列表法通道；预制体改名/移动目录不再断引用。旧引用（PPtr/`prefabGuid`）自动迁移进 `prefabRef`，`DefaultPackage` 收集器开启 `IncludeAssetGUID`。详见 [scene-system.md](scene-system.md)。
 - 修复 DynamicSpawn 测试启动回归：地址解析挪入 YooAsset 分支（未初始化时 `GetPackage` 会抛异常），编辑器回退按 GUID 经 `AssetDatabase` 实例化；`CompleteSpawn` 对未注册的 `IGameSceneEvent` 判空。详见 [scene-system.md](scene-system.md)。
+- DynamicSpawn 清理废弃引用数据：删除 `prefabReference`（旧 PPtr）、`prefabGuid`（迁移中转）字段及全部迁移代码（含管理器"迁移历史引用并保存"按钮）；存量 MainScene 数据此前已迁入 `prefabRef`，数据模型收敛为 `prefabRef` + `location` 双通道。详见 [scene-system.md](scene-system.md)。
 
 ## 2026-08-30
 

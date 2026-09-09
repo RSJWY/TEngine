@@ -154,14 +154,6 @@ public class DynamicSpawnPointManager : OdinEditorWindow
 
         foreach (var point in allPoints)
         {
-            // 顺手迁移历史遗留引用：PPtr → 旧 GUID 字段 → 弱引用，标记场景为脏（保存后生效）
-            bool migrated = point.MigrateLegacyReferenceIfNeeded();
-            migrated |= point.MigrateToAssetReferenceIfNeeded();
-            if (migrated)
-            {
-                EditorUtility.SetDirty(point);
-            }
-
             var prefab = point.EditorPrefab;
             var entry = new SpawnPointEntry
             {
@@ -290,45 +282,6 @@ public class DynamicSpawnPointManager : OdinEditorWindow
     {
         RefreshPrefabCache();
         RefreshList();
-    }
-
-    [TitleGroup("筛选与操作")]
-    [InfoBox("若历史场景里仍有旧引用数据（prefabReference PPtr / prefabGuid 字符串），点此把它们迁移进 prefabRef 弱引用并保存。PPtr 迁移后打包依赖即被解开。", InfoMessageType.Warning)]
-    [Button("迁移历史引用并保存（解开打包依赖）", ButtonSizes.Medium)]
-    [GUIColor(1f, 0.7f, 0.3f)]
-    public void MigrateAndSaveAllScenes()
-    {
-        int migrated = 0;
-        var dirtyScenes = new HashSet<Scene>();
-
-        var allPoints = GameObject.FindObjectsOfType<GameLogic.DynamicSpawnPoint>(true);
-        foreach (var point in allPoints)
-        {
-            bool pointMigrated = point.MigrateLegacyReferenceIfNeeded();
-            pointMigrated |= point.MigrateToAssetReferenceIfNeeded();
-            if (pointMigrated)
-            {
-                EditorUtility.SetDirty(point);
-                if (point.gameObject.scene.IsValid())
-                    dirtyScenes.Add(point.gameObject.scene);
-                migrated++;
-            }
-        }
-
-        if (migrated > 0)
-        {
-            foreach (var scene in dirtyScenes)
-            {
-                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
-                UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
-            }
-            RefreshList();
-            Debug.Log($"[SpawnPointManager] 已迁移并保存 {migrated} 个占位点（{dirtyScenes.Count} 个场景），历史引用已统一进 prefabRef 弱引用。");
-        }
-        else
-        {
-            Debug.Log("[SpawnPointManager] 未发现遗留引用，无需迁移。");
-        }
     }
 
     [TitleGroup("筛选与操作")]
