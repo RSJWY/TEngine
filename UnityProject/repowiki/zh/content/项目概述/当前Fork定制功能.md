@@ -55,6 +55,10 @@ GameModule.Resource.UnloadAsset(raw);
 
 非 Archive 管线继续兼容 `TextAsset.bytes`。这项分流只属于热更新二进制加载链路，普通业务资源仍使用 `IResourceModule` 的类型化 API。
 
+### 桌面多开缓存隔离
+
+桌面平台多进程同时运行时，通过命令行参数 `--yoo-instance <id>` 为每个进程隔离 YooAsset 缓存：`ResourceModule.InstanceId` 非空时，沙盒下载缓存与内置解包目录落到 `{DefaultCacheRoot}/instance-{id}/{PackageName}/`。不传参时目录结构与默认行为完全一致。仅在 `UNITY_STANDALONE || UNITY_EDITOR` 下生效，无跨进程文件锁，相同实例标识仍会冲突。
+
 ### HybridCLR 与 Obfuz
 
 - 构建前同步 `AOTMetadataManifest`，缺少补充元数据程序集时中断构建。
@@ -133,3 +137,4 @@ Android、iOS、MacOS 和 WebGL Player 仍使用 `Output/Player/{平台}/`。Ass
 | UI 扩展 | [ui-expansion.md](../../../../../Books/Fork/ui-expansion.md) |
 | GameObject 对象池 | [game-object-pool.md](../../../../../Books/Fork/game-object-pool.md) |
 | 动画模块 | [anim-module.md](../../../../../Books/Fork/anim-module.md) |
+| 桌面多开 | [desktop-multi-instance.md](../../../../../Books/Fork/desktop-multi-instance.md) |

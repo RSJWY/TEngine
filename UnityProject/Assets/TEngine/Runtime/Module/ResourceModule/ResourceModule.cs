@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
@@ -27,6 +27,11 @@ namespace TEngine
         public EPlayMode PlayMode { get; set; } = EPlayMode.OfflinePlayMode;
 
         public EncryptionType EncryptionType { get; set; } = EncryptionType.None;
+
+        /// <summary>
+        /// 桌面多开实例标识。为空串时不隔离（默认行为）；非空时沙盒缓存与内置解包目录隔离到 instance-{InstanceId} 目录下。
+        /// </summary>
+        public string InstanceId { get; set; } = string.Empty;
 
         /// <summary>
         /// 设置异步系统参数，每帧执行消耗的最大时间切片（单位：毫秒）
@@ -182,11 +187,16 @@ namespace TEngine
             BundleCrypto bundleCrypto = BundleCrypto.Create(GetEncryptionType(packageName));
             bool manifestEncrypted = GetManifestEncrypted(packageName);
 
+            // 桌面多开：实例标识非空时，沙盒缓存与内置解包可写数据隔离到 instance-{InstanceId}/{packageName}。
+            string isolatedRoot = string.IsNullOrEmpty(InstanceId)
+                ? null
+                : $"{CacheRootHelper.GetDefaultCacheRoot()}/instance-{InstanceId}/{packageName}";
+
             // 单机运行模式
             if (playMode == EPlayMode.OfflinePlayMode)
             {
                 var createParameters = new OfflinePlayModeOptions();
-                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted);
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted, isolatedRoot);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
@@ -199,8 +209,8 @@ namespace TEngine
                 Log.Info($"HostPlay 资源包远端目录：{packageName} => {defaultHostServer}");
                 IRemoteService remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
                 var createParameters = new HostPlayModeOptions();
-                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted);
-                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted);
+                createParameters.BuiltinFileSystemParameters = CreateBuiltinFileSystemParameters(bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted, isolatedRoot);
+                createParameters.CacheFileSystemParameters = CreateSandboxFileSystemParameters(remoteServices, bundleCrypto?.Local, bundleCrypto?.Archive, manifestEncrypted, isolatedRoot);
                 createParameters.AutoUnloadBundleWhenUnused = AutoUnloadBundleWhenUnused;
                 initializationOperation = package.InitializePackageAsync(createParameters);
             }
@@ -263,18 +273,22 @@ namespace TEngine
             return initializationOperation;
         }
 
-        private FileSystemParameters CreateBuiltinFileSystemParameters(IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor, bool manifestEncrypted)
+        private FileSystemParameters CreateBuiltinFileSystemParameters(IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor, bool manifestEncrypted, string isolatedRoot)
         {
             var parameters = FileSystemParameters.CreateDefaultBuiltinFileSystemParameters();
+            if (!string.IsNullOrEmpty(isolatedRoot))
+                parameters.AddParameter(EFileSystemParameter.UnpackFileSystemRoot, isolatedRoot);
             AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
             AddManifestDecryptor(parameters, manifestEncrypted);
             AddWebRequestCreator(parameters);
             return parameters;
         }
 
-        private FileSystemParameters CreateSandboxFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor, bool manifestEncrypted)
+        private FileSystemParameters CreateSandboxFileSystemParameters(IRemoteService remoteService, IBundleDecryptor decryptor, IBundleDecryptor archiveDecryptor, bool manifestEncrypted, string isolatedRoot)
         {
-            var parameters = FileSystemParameters.CreateDefaultSandboxFileSystemParameters(remoteService);
+            var parameters = string.IsNullOrEmpty(isolatedRoot)
+                ? FileSystemParameters.CreateDefaultSandboxFileSystemParameters(remoteService)
+                : FileSystemParameters.CreateDefaultSandboxFileSystemParameters(remoteService, isolatedRoot);
             AddBundleDecryptor(parameters, decryptor, archiveDecryptor);
             AddManifestDecryptor(parameters, manifestEncrypted);
             AddWebRequestCreator(parameters);

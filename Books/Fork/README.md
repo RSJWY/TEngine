@@ -30,6 +30,7 @@
 | 帧动画模块 | 序列帧动画（场景版+UI版+RawImage版），手写替代 SourceGenerator | [frame-anim.md](frame-anim.md) |
 | GameObject 对象池 | 基于 YooAsset location 的异步实例化池，预热/回收/自动销毁 | [game-object-pool.md](game-object-pool.md) |
 | 动画模块 | 基于 PlayableGraph 的代码驱动 3D 动画图，多层级混合/权重过渡 | [anim-module.md](anim-module.md) |
+| 桌面多开 | YooAsset 多实例缓存隔离，命令行 `--yoo-instance` 驱动 | [desktop-multi-instance.md](desktop-multi-instance.md) |
 
 ## 最近重点
 
