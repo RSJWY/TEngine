@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Cysharp.Threading.Tasks;
 using UnityEngine.SceneManagement;
 
@@ -54,6 +54,14 @@ namespace TEngine
         /// <param name="location">场景资源定位地址。</param>
         /// <returns>是否操作成功。</returns>
         public bool UnSuspend(string location);
+
+        /// <summary>
+        /// 查询场景加载（含激活）是否真正完成。
+        /// </summary>
+        /// <param name="location">场景资源定位地址。</param>
+        /// <returns>句柄有效且 <c>IsDone</c> 为 true 时返回 true；
+        /// suspendLoad 加载的场景在 <see cref="UnSuspend"/> 之后、激活与首帧整合完成前一直返回 false。</returns>
+        public bool IsSceneLoadDone(string location);
 
         /// <summary>
         /// 是否为主场景。

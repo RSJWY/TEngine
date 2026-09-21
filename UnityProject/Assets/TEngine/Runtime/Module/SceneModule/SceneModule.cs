@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using UnityEngine.SceneManagement;
@@ -268,6 +268,22 @@ namespace TEngine
 
             Log.Warning($"IsMainScene invalid location:{location}");
             return false;
+        }
+
+        /// <summary>
+        /// 查询场景加载（含激活）是否真正完成。
+        /// </summary>
+        /// <param name="location">场景资源定位地址。</param>
+        /// <returns>句柄有效且 IsDone 为 true 时返回 true；suspendLoad 的场景在 UnSuspend 之后、激活完成前一直返回 false。</returns>
+        public bool IsSceneLoadDone(string location)
+        {
+            if (_currentMainSceneName.Equals(location))
+            {
+                return _currentMainScene is { IsDone: true };
+            }
+
+            _subScenes.TryGetValue(location, out SceneHandle subScene);
+            return subScene is { IsDone: true };
         }
 
         /// <summary>
