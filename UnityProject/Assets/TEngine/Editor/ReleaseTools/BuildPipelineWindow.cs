@@ -247,6 +247,15 @@ namespace TEngine
 
         [TabGroup("Pages", "高级")]
         [FoldoutGroup("Pages/高级/高级设置")]
+        [LabelText("资源路径校验")]
+        [ToggleLeft]
+        [Tooltip("构建时检测资源及依赖路径中的 Unicode 格式控制字符（如零宽空格、双向控制符），命中即终止构建并输出问题路径。")]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _enableAssetPathValidation = true;
+
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("使用资源依赖数据库")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
@@ -1099,6 +1108,7 @@ namespace TEngine
             _minimalPackage = setting.MinimalPackage;
             _retainTags = setting.RetainTags;
             _enableSharePackRule = setting.EnableSharePackRule;
+            _enableAssetPathValidation = setting.EnableAssetPathValidation;
             _useAssetDependencyDB = setting.UseAssetDependencyDB;
             _clearBuildCache = setting.ClearBuildCache;
             _verifyBuildingResult = setting.VerifyBuildingResult;
@@ -1208,6 +1218,7 @@ namespace TEngine
             setting.MinimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
             setting.RetainTags = EditorPrefs.GetString("TEngine_BP_RetainTags", string.Empty);
             setting.EnableSharePackRule = EditorPrefs.GetBool("TEngine_BP_EnableSharePack", true);
+            setting.EnableAssetPathValidation = EditorPrefs.GetBool("TEngine_BP_EnableAssetPathValidation", true);
             setting.UseAssetDependencyDB = EditorPrefs.GetBool("TEngine_BP_UseDepDB", true);
             setting.ClearBuildCache = EditorPrefs.GetBool("TEngine_BP_ClearCache", false);
             setting.VerifyBuildingResult = EditorPrefs.GetBool("TEngine_BP_VerifyResult", true);
@@ -1237,6 +1248,7 @@ namespace TEngine
             EditorPrefs.DeleteKey("TEngine_BP_MinimalPackage");
             EditorPrefs.DeleteKey("TEngine_BP_RetainTags");
             EditorPrefs.DeleteKey("TEngine_BP_EnableSharePack");
+            EditorPrefs.DeleteKey("TEngine_BP_EnableAssetPathValidation");
             EditorPrefs.DeleteKey("TEngine_BP_UseDepDB");
             EditorPrefs.DeleteKey("TEngine_BP_ClearCache");
             EditorPrefs.DeleteKey("TEngine_BP_VerifyResult");
@@ -1309,6 +1321,7 @@ namespace TEngine
             _setting.MinimalPackage = _minimalPackage;
             _setting.RetainTags = _retainTags;
             _setting.EnableSharePackRule = _enableSharePackRule;
+            _setting.EnableAssetPathValidation = _enableAssetPathValidation;
             _setting.UseAssetDependencyDB = _useAssetDependencyDB;
             _setting.ClearBuildCache = _clearBuildCache;
             _setting.VerifyBuildingResult = _verifyBuildingResult;
@@ -1685,6 +1698,7 @@ namespace TEngine
             _minimalPackage = config.MinimalPackage;
             _retainTags = config.RetainTags;
             _enableSharePackRule = config.EnableSharePackRule;
+            _enableAssetPathValidation = config.EnableAssetPathValidation;
             _useAssetDependencyDB = config.UseAssetDependencyDB;
             _clearBuildCache = config.ClearBuildCache;
             _verifyBuildingResult = config.VerifyBuildingResult;
@@ -1721,6 +1735,7 @@ namespace TEngine
                 MinimalPackage = _minimalPackage,
                 RetainTags = _retainTags,
                 EnableSharePackRule = _enableSharePackRule,
+                EnableAssetPathValidation = _enableAssetPathValidation,
                 UseAssetDependencyDB = _useAssetDependencyDB,
                 ClearBuildCache = _clearBuildCache,
                 VerifyBuildingResult = _verifyBuildingResult,

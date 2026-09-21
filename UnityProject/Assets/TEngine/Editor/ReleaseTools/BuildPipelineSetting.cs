@@ -37,6 +37,7 @@ namespace TEngine
 
         // 高级设置
         public bool EnableSharePackRule = true;
+        public bool EnableAssetPathValidation = true;
         public bool UseAssetDependencyDB = true;
         public bool ClearBuildCache;
         public bool VerifyBuildingResult = true;
@@ -81,6 +82,7 @@ namespace TEngine
             MinimalPackage = config.MinimalPackage;
             RetainTags = config.RetainTags;
             EnableSharePackRule = config.EnableSharePackRule;
+            EnableAssetPathValidation = config.EnableAssetPathValidation;
             UseAssetDependencyDB = config.UseAssetDependencyDB;
             ClearBuildCache = config.ClearBuildCache;
             VerifyBuildingResult = config.VerifyBuildingResult;

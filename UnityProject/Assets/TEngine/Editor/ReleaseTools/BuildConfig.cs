@@ -26,6 +26,7 @@ namespace TEngine
 
         // 高级设置
         public bool EnableSharePackRule = true;
+        public bool EnableAssetPathValidation = true;
         public bool UseAssetDependencyDB = true;
         public bool ClearBuildCache;
         public bool VerifyBuildingResult = true;

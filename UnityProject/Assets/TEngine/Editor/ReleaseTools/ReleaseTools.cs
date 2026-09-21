@@ -274,6 +274,7 @@ namespace TEngine
             buildParameters.PackageNote = JsonUtility.ToJson(new PackageMetadata { mode = Settings.UpdateSetting.BuildMode });
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
             buildParameters.EnableSharePackRule = config.EnableSharePackRule;
+            buildParameters.EnableAssetPathValidation = config.EnableAssetPathValidation;
             buildParameters.FileNameStyle = config.FileNameStyle;
             buildParameters.BundledCopyOption = GetBundledFileCopyOption(config.BuildinFileCopyOption, appendBuildinFiles);
             buildParameters.BundledCopyParams = string.Empty;
