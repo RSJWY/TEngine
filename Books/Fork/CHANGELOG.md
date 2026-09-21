@@ -4,6 +4,7 @@
 
 ## 2026-09-21
 
+- 同步上游 Alex-Rachel/TEngine `main`（`0d75fcb7..482a441e`）：① 事件模块新增 `GameEvent.HasEventListener`（PR #288，int/string × 0~6 泛型参数 + Delegate 重载，检查指定委托是否已注册）；② 生成器入口 `EventCenter` 改名 `GameEventHelper`（PR #290，与本 fork 文档既有叫法一致），重编 `GameEventAnalyzer.dll`/`SourceGenerator.dll`；③ `SetSprite`/`SetSubSprite` 增加地址判空提前返回。合并冲突仅 `EventInterfaceGenerator.cs`（本地为整文件换行符翻转，无逻辑差异），取上游版本；fork 自有的 `RemoveAllListeners` 与上游 `HasEventListener` 自动合并共存。主 wiki 已补充 `HasEventListener`/`RemoveAllListeners` API 与 SetSprite 判空说明。
 - 修复大场景切换时加载页（SwitchSceneUI）提前关闭：阶段 2 收尾原为纯固定时长驱动，`UnSuspend` 仅解除挂起、激活与首帧渲染仍异步，大场景激活超过约 2.5s 遮盖窗口即露黑屏/残影。现关闭条件改为「动画走满 + 场景真实激活完成（新增 `ISceneModule.IsSceneLoadDone`）+ 激活后 2 帧 + 100% 停留」，带 30s 绝对超时兜底；`_skipMode` 同样走激活等待，仅跳过动画与停留。详见 [scene-system.md](scene-system.md)。（GitHub Issue #5）
 
 ## 2026-09-10
