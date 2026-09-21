@@ -76,6 +76,28 @@ GameEvent.RemoveEventListener(string eventType, Action handler);
 GameEvent.RemoveEventListener(string eventType, Delegate handler);  // Delegate 重载
 ```
 
+#### HasEventListener（检查监听是否存在）
+
+返回 `bool`，传入的委托必须与注册时是同一个（委托相等性）。常用于防止重复注册。
+
+```csharp
+// int 版本：支持 0~6 个泛型参数 + Delegate 重载
+bool GameEvent.HasEventListener(int eventType, Action handler);
+// ... 最多 HasEventListener<T1,T2,T3,T4,T5,T6>
+bool GameEvent.HasEventListener(int eventType, Delegate handler);
+
+// string 版本：支持 0~5 个泛型参数 + Delegate 重载
+bool GameEvent.HasEventListener(string eventType, Action handler);
+```
+
+```csharp
+// 典型用法：防重复注册
+if (!GameEvent.HasEventListener(GameEventDef.OnGoldChanged, OnGoldChanged))
+{
+    GameEvent.AddEventListener(GameEventDef.OnGoldChanged, OnGoldChanged);
+}
+```
+
 #### Get（接口事件获取）
 
 ```csharp
