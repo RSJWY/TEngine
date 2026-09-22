@@ -19,7 +19,7 @@ GameModule.Anim            // IAnimModule
 用于部署配置、工具配置和小型业务配置，不替代 Luban 配置表。
 
 - 配置目录：`Assets/StreamingAssets/Configs/`。
-- 默认清单：`config_manifest.toml`，兼容 `config_manifest.json`。
+- 默认清单：`config_manifest.toml`（强制 TOML，不再兼容 JSON 清单）。
 - 支持 TOML/JSON 混用、子目录配置名、原始文本缓存和强类型对象缓存。
 - `IsLoaded` 表示一次加载流程完成；单个配置失败仍可能为 `true`。
 - 清单缺失或解析失败会抛异常；单个配置缺失、重复或格式不支持只记录并跳过。

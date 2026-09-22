@@ -16,13 +16,13 @@ TOML 作为默认人工编辑格式，适合部署地址、调试开关、多屏
 - 对外接口从 `IJsonConfigModule` 改为 `IRuntimeConfigModule`。
 - 热更层统一通过 `GameModule.Config` 访问运行时配置模块。
 - 从 `StreamingAssets/Configs` 读取配置。
-- 默认按 `config_manifest.toml` 清单声明需要加载的配置文件。
-- 清单读取保留 `config_manifest.json` 回退，便于旧包过渡。
+- 默认按 `config_manifest.toml` 清单声明需要加载的配置文件；清单强制 TOML，不再兼容 `config_manifest.json` 回退。
+- 配置读取支持覆盖链：`persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`，清单本身也走覆盖链。
 - 支持 `.toml` 与 `.json` 混用，按文件扩展名选择 `Utility.Toml` 或 `Utility.Json` 反序列化。
 - 支持统一加载并缓存原始配置文本。
 - 支持强类型 `Get<T>` / `TryGet<T>`。
 - 支持原始文本 `GetText` / `TryGetText`。
-- 支持 `Contains`、`Clear`、`ReloadAsync`。
+- 支持 `Contains`、`GetConfigNames`、`Clear`、`ReloadAsync`。
 - 单个配置条目失败（重名、扩展名不支持、文件读取失败）只记录错误并跳过，不中断其余配置加载；仅清单缺失或解析失败、取消令牌触发时抛异常。
 - 扩展名格式校验在读文件之前完成。
 - `IsLoaded` 语义为"一次加载流程完成"（含个别失败项），失败项通过 `TryGet` 返回 `false` 兜底。

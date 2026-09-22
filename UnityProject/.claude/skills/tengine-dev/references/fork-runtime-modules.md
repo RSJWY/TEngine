@@ -18,12 +18,15 @@ GameModule.Anim            // IAnimModule
 
 用于部署配置、工具配置和小型业务配置，不替代 Luban 配置表。
 
-- 配置目录：`Assets/StreamingAssets/Configs/`。
-- 默认清单：`config_manifest.toml`，兼容 `config_manifest.json`。
+- 配置目录与覆盖链：`persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs/`，同名文件 persistent 层优先。
+- 默认清单：`config_manifest.toml`（强制 TOML，不再兼容 JSON 清单）；清单本身也走覆盖链。
 - 支持 TOML/JSON 混用、子目录配置名、原始文本缓存和强类型对象缓存。
 - `IsLoaded` 表示一次加载流程完成；单个配置失败仍可能为 `true`。
 - 清单缺失或解析失败会抛异常；单个配置缺失、重复或格式不支持只记录并跳过。
 - 消费方优先使用 `TryGet` / `TryGetText` 并提供默认值。
+- `GetConfigNames()` 返回已加载配置名列表，用于排查清单漏写。
+- 对象缓存类型不匹配时（如同名配置跨不兼容类型）会自动清缓存回源重解析，不会永久失败。
+- 非线程安全，仅主线程调用；`ReloadAsync` 配合 persistent 覆盖层可实现真机配置热更新/GM 覆盖。
 
 ```csharp
 await GameModule.Config.LoadAllAsync(ct);

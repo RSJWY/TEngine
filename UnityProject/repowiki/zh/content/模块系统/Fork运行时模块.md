@@ -34,7 +34,7 @@ await GameModule.Config.ReloadAsync("sub/Foo", cancellationToken);
 规则：
 
 - 配置目录为 `Assets/StreamingAssets/Configs/`。
-- 默认清单为 `config_manifest.toml`，兼容 `config_manifest.json`。
+- 默认清单为 `config_manifest.toml`（强制 TOML，不再兼容 JSON 清单）。
 - TOML 和 JSON 可以混用，配置名支持 `sub/Foo` 形式的子目录。
 - `IsLoaded` 表示完成过一次加载流程；单个配置失败时仍可能为 `true`。
 - 清单失败会抛异常；单个配置缺失、重复或格式错误只记录并跳过。
