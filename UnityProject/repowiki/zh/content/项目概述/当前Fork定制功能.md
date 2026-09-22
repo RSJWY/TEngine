@@ -112,10 +112,14 @@ Releases/
 ├── Bundles/
 ├── Windows/{setup.iss, setup.generated.iss, build/, setup/}
 ├── Linux/build/
+├── Android/build/
+├── IOS/build/
+├── MacOS/build/
+├── WebGL/build/
 └── Publish/{平台}/{包名}/
 ```
 
-Android、iOS、MacOS 和 WebGL Player 仍使用 `Output/Player/{平台}/`。AssetBundle 或 Player 构建失败时，安装包阶段必须停止，不能复用旧产物。
+所有平台 Player 产物统一归到 `Releases/{平台}/build/`。Player 输出路径使用项目根相对路径（`./` 前缀），由构建链路在使用处转为绝对路径；旧的 `Output/Player/` 路径会自动迁移。AssetBundle 或 Player 构建失败时，安装包阶段必须停止，不能复用旧产物。
 
 场景枚举使用 `TEngine/场景枚举配置` 维护，通过 GUID 跟踪场景并生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
 

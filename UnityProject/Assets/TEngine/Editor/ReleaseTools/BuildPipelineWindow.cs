@@ -1154,14 +1154,22 @@ namespace TEngine
             }
 
             // Player 旧目录前缀迁移：./Build/ 与 ./Output/Player/ 都视为旧默认，重置为当前默认路径
-            var legacyPlayerBase = NormalizePath(Application.dataPath + "/../Build/");
-            var legacyPlayerBaseV2 = NormalizePath(Application.dataPath + "/../Output/Player/");
-            if (!string.IsNullOrEmpty(_playerOutputPath) &&
-                (NormalizePath(_playerOutputPath).StartsWith(legacyPlayerBase, StringComparison.OrdinalIgnoreCase) ||
-                 NormalizePath(_playerOutputPath).StartsWith(legacyPlayerBaseV2, StringComparison.OrdinalIgnoreCase)))
+            // 兼容绝对路径（历史序列化）与项目相对路径（新版默认）两种形式
+            var legacyPlayerBaseAbs = NormalizePath(Application.dataPath + "/../Build/");
+            var legacyPlayerBaseV2Abs = NormalizePath(Application.dataPath + "/../Output/Player/");
+            var legacyPlayerBaseRel = NormalizePath("./Build/");
+            var legacyPlayerBaseV2Rel = NormalizePath("./Output/Player/");
+            if (!string.IsNullOrEmpty(_playerOutputPath))
             {
-                _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
-                migratedLegacyPaths = true;
+                var normalizedPlayer = NormalizePath(_playerOutputPath) + "/";
+                if (normalizedPlayer.StartsWith(legacyPlayerBaseAbs, StringComparison.OrdinalIgnoreCase) ||
+                    normalizedPlayer.StartsWith(legacyPlayerBaseV2Abs, StringComparison.OrdinalIgnoreCase) ||
+                    normalizedPlayer.StartsWith(legacyPlayerBaseRel + "/", StringComparison.OrdinalIgnoreCase) ||
+                    normalizedPlayer.StartsWith(legacyPlayerBaseV2Rel + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+                    migratedLegacyPaths = true;
+                }
             }
 
             // 迁移旧的硬编码可执行文件名到 PlayerSettings.productName，保留用户自定义的目录
@@ -1909,7 +1917,7 @@ namespace TEngine
 
         private void ChoosePlayerOutputPath()
         {
-            string directory = Path.GetDirectoryName(_playerOutputPath);
+            string directory = Path.GetDirectoryName(ToAbsolutePath(_playerOutputPath));
             if (string.IsNullOrWhiteSpace(directory))
             {
                 directory = Application.dataPath;
@@ -1926,7 +1934,7 @@ namespace TEngine
                 return;
             }
 
-            _playerOutputPath = selected;
+            _playerOutputPath = ToProjectRelativePath(selected);
             OnSettingsChanged();
         }
 

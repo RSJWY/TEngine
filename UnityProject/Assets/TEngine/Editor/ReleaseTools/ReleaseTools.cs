@@ -750,6 +750,12 @@ namespace TEngine
             EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
             AssetDatabase.Refresh();
 
+            // 统一将项目根相对路径（./ 前缀）或非根路径转为绝对路径，BuildPipeline.BuildPlayer 需要绝对路径
+            if (!string.IsNullOrWhiteSpace(locationPathName) && !Path.IsPathRooted(locationPathName))
+            {
+                locationPathName = Path.GetFullPath(Path.Combine(Application.dataPath, "..", locationPathName));
+            }
+
             BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
             {
                 scenes = EditorBuildSettings.scenes.Select(scene => scene.path).ToArray(),

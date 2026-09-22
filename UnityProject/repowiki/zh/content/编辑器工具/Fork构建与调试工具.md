@@ -34,13 +34,17 @@ Releases/
 │   ├── build/
 │   └── setup/
 ├── Linux/build/
+├── Android/build/
+├── IOS/build/
+├── MacOS/build/
+├── WebGL/build/
 └── Publish/{平台}/{包名}/
 ```
 
 - AssetBundle 默认输出到 `Releases/Bundles/`。
 - 发布整理默认输出到 `Releases/Publish/`。
-- Windows/Linux Player 输出到 `Releases/{平台}/build/`。
-- Android/iOS/MacOS/WebGL Player 保持 `Output/Player/{平台}/`。
+- 所有平台 Player 统一输出到 `Releases/{平台}/build/`，使用项目根相对路径（`./` 前缀）。
+- 旧的 `Output/Player/{平台}/` 路径会在打开窗口时自动迁移到 `Releases/{平台}/build/`。
 - 发布目录使用运行时平台名，例如 `Windows64`，不是 Unity 的 `StandaloneWindows64`。
 
 ## Inno Setup
