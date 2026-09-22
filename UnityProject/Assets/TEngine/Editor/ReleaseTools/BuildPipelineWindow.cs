@@ -288,6 +288,15 @@ namespace TEngine
 
         [TabGroup("Pages", "高级")]
         [FoldoutGroup("Pages/高级/高级设置")]
+        [LabelText("在构建输出目录生成 Catalog")]
+        [Tooltip("开启后，构建完成时在 AB 输出目录额外生成 BuiltinCatalog.bytes/json，直接复制该目录即可用于 OfflinePlayMode 加载。")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _generateCatalogInOutput = false;
+
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("文件名风格")]
         [ValueDropdown(nameof(FileNameStyleOptions))]
         [OnValueChanged(nameof(OnSettingsChanged))]
@@ -1133,6 +1142,7 @@ namespace TEngine
             _verifyBuildingResult = setting.VerifyBuildingResult;
             _buildinFileCopyOption = setting.BuildinFileCopyOption;
             _fileNameStyle = setting.FileNameStyle;
+            _generateCatalogInOutput = setting.GenerateCatalogInOutput;
             _buildHotFixDll = setting.BuildHotFixDll;
             _buildPlayer = setting.BuildPlayer;
 
@@ -1354,6 +1364,7 @@ namespace TEngine
             _setting.VerifyBuildingResult = _verifyBuildingResult;
             _setting.BuildinFileCopyOption = _buildinFileCopyOption;
             _setting.FileNameStyle = _fileNameStyle;
+            _setting.GenerateCatalogInOutput = _generateCatalogInOutput;
             _setting.BuildHotFixDll = _buildHotFixDll;
             _setting.BuildPlayer = _buildPlayer;
             _setting.PlayerPlatform = _playerPlatform;
@@ -1731,6 +1742,7 @@ namespace TEngine
             _verifyBuildingResult = config.VerifyBuildingResult;
             _buildinFileCopyOption = config.BuildinFileCopyOption;
             _fileNameStyle = config.FileNameStyle;
+            _generateCatalogInOutput = config.GenerateCatalogInOutput;
             _buildHotFixDll = config.BuildHotFixDll;
             _buildPlayer = config.BuildPlayer;
             _playerPlatform = config.PlayerPlatform;
@@ -1768,6 +1780,7 @@ namespace TEngine
                 VerifyBuildingResult = _verifyBuildingResult,
                 BuildinFileCopyOption = _buildinFileCopyOption,
                 FileNameStyle = _fileNameStyle,
+                GenerateCatalogInOutput = _generateCatalogInOutput,
                 BuildHotFixDll = _buildHotFixDll,
                 BuildPlayer = _buildPlayer,
                 PlayerPlatform = _playerPlatform,

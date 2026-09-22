@@ -32,6 +32,7 @@ namespace TEngine
         public bool VerifyBuildingResult = true;
         public EBundledCopyOption BuildinFileCopyOption = EBundledCopyOption.ClearAndCopyAll;
         public EFileNameStyle FileNameStyle = EFileNameStyle.BundleName_HashName;
+        public bool GenerateCatalogInOutput = false;
 
         // 热更DLL设置
         public bool BuildHotFixDll = true;

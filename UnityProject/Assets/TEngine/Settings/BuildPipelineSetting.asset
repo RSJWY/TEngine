@@ -30,6 +30,7 @@ MonoBehaviour:
   VerifyBuildingResult: 1
   BuildinFileCopyOption: 1
   FileNameStyle: 2
+  GenerateCatalogInOutput: 0
   BuildHotFixDll: 1
   BuildPlayer: 1
   PlayerPlatform: 19

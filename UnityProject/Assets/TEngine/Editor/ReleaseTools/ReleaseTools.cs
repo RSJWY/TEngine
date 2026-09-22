@@ -289,7 +289,15 @@ namespace TEngine
             buildParameters.ClearBuildCacheFiles = config.ClearBuildCache;
             buildParameters.UseAssetDependencyDB = config.UseAssetDependencyDB;
 
-            return pipeline.Run(buildParameters, true);
+            var buildResult = pipeline.Run(buildParameters, true);
+
+            if (buildResult.Success && config.GenerateCatalogInOutput)
+            {
+                var decryptor = runtimePackage.ManifestEncrypted ? new ManifestChaCha20Decryptor() : null;
+                CatalogOutputHelper.GenerateCatalog(decryptor, runtimePackage.PackageName, buildResult.OutputPackageDirectory);
+            }
+
+            return buildResult;
         }
 
         /// <summary>
