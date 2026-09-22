@@ -575,15 +575,16 @@ namespace TEngine
         [SerializeField]
         private List<FlowStepView> _flowSteps = new List<FlowStepView>();
 
-        [TitleGroup("操作")]
+        [PropertySpace(8)]
+        [TitleGroup("构建")]
         [LabelText("构建资源包")]
         [ValueDropdown(nameof(GetBuildPackageSelectionOptions))]
         [OnValueChanged(nameof(OnBuildPackageSelectionChanged))]
         [SerializeField]
         private string _selectedBuildPackageName = AllBuildPackagesDisplayName;
 
-        [TitleGroup("操作")]
-        [ButtonGroup("操作/MainBuild")]
+        [TitleGroup("构建")]
+        [ButtonGroup("构建/MainBuild")]
         [Button("构建 AssetBundle", ButtonSizes.Large)]
         [GUIColor(0.45f, 0.75f, 1f)]
         private void BuildAssetBundleButton()
@@ -592,7 +593,7 @@ namespace TEngine
             ExecuteBuild(false, GetSelectedBuildPackageName());
         }
 
-        [ButtonGroup("操作/MainBuild")]
+        [ButtonGroup("构建/MainBuild")]
         [Button("一键构建 (AB + Player)", ButtonSizes.Large)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         private void FullBuildButton()
@@ -603,7 +604,7 @@ namespace TEngine
         }
 
         // 安装包构建已与 Player 解耦,这里单独触发;仅 Windows 且勾选「构建安装包」时可用
-        [ButtonGroup("操作/MainBuild")]
+        [ButtonGroup("构建/MainBuild")]
         [Button("一键构建安装包", ButtonSizes.Medium)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         [EnableIf(nameof(IsInstallerEnabled))]
@@ -616,7 +617,7 @@ namespace TEngine
             if (config.PlayerPlatform != BuildTarget.StandaloneWindows64 ||
                 !actualPlayerPath.Equals(expectedPlayerPath, StringComparison.OrdinalIgnoreCase))
             {
-                AddLog($"[中断] 一键构建安装包要求 Windows Player 输出到：{expectedPlayerPath}\n当前输出：{actualPlayerPath}\n可点击 Player 输出路径旁的“规范化路径”后再试。");
+                AddLog($"[中断] 一键构建安装包要求 Windows Player 输出到：{expectedPlayerPath}\n当前输出：{actualPlayerPath}\n可点击 Player 输出路径旁的\"规范化路径\"后再试。");
                 Repaint();
                 return;
             }
@@ -631,8 +632,8 @@ namespace TEngine
             ExecuteInstallerBuild(clearLogs: false);
         }
 
-        [TitleGroup("操作")]
-        [ButtonGroup("操作/MoreActions")]
+        [TitleGroup("构建")]
+        [ButtonGroup("构建/SubActions")]
         [Button("构建 Player", ButtonSizes.Large)]
         private void BuildPlayerButton()
         {
@@ -640,7 +641,7 @@ namespace TEngine
             ExecuteBuildPlayerOnly();
         }
 
-        [ButtonGroup("操作/MoreActions")]
+        [ButtonGroup("构建/SubActions")]
         [Button("仅执行发布整理", ButtonSizes.Large)]
         [EnableIf(nameof(IsPublishCopyEnabled))]
         private void PublishOnlyButton()
@@ -649,7 +650,24 @@ namespace TEngine
             ExecutePublishOnly();
         }
 
-        [ButtonGroup("操作/MoreActions")]
+        [PropertySpace(8)]
+        [TitleGroup("打开目录")]
+        [ButtonGroup("打开目录/Dirs")]
+        [Button("打开AB输出目录", ButtonSizes.Large)]
+        private void OpenOutputRootButton()
+        {
+            OpenOutputRoot();
+        }
+
+        [ButtonGroup("打开目录/Dirs")]
+        [Button("打开Player输出目录", ButtonSizes.Large)]
+        [ShowIf(nameof(_buildPlayer))]
+        private void OpenPlayerOutputPathButton()
+        {
+            OpenPlayerOutputPath();
+        }
+
+        [ButtonGroup("打开目录/Dirs")]
         [Button("打开发布目录", ButtonSizes.Large)]
         [EnableIf(nameof(IsPublishCopyEnabled))]
         private void OpenPublishRootButton()
@@ -657,37 +675,39 @@ namespace TEngine
             OpenPublishRoot();
         }
 
-        [TitleGroup("操作")]
-        [ButtonGroup("操作/HotFix")]
+        [PropertySpace(8)]
+        [TitleGroup("热更DLL")]
+        [ButtonGroup("热更DLL/Actions")]
         [Button("编译并拷贝热更DLL", ButtonSizes.Large)]
         private void BuildHotFixDllFromOperations()
         {
             BuildHotFixDllNow();
         }
 
-        [ButtonGroup("操作/HotFix")]
+        [ButtonGroup("热更DLL/Actions")]
         [Button("同步 AOT 元数据清单", ButtonSizes.Large)]
         private void SyncAOTMetadataManifestFromOperations()
         {
             SyncAOTMetadataManifestNow();
         }
 
-        [ButtonGroup("操作/HotFix")]
+        [ButtonGroup("热更DLL/Actions")]
         [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Large)]
         private void CopyAOTAssembliesFromOperations()
         {
             CopyAOTAssembliesNow();
         }
 
-        [TitleGroup("操作")]
-        [ButtonGroup("操作/Settings")]
+        [PropertySpace(8)]
+        [TitleGroup("设置")]
+        [ButtonGroup("设置/Actions")]
         [Button("刷新设置", ButtonSizes.Large)]
         private void RefreshSettingsButton()
         {
             LoadSettings();
         }
 
-        [ButtonGroup("操作/Settings")]
+        [ButtonGroup("设置/Actions")]
         [Button("重置默认", ButtonSizes.Large)]
         private void ResetDefaultSettingsButton()
         {
@@ -697,9 +717,9 @@ namespace TEngine
             AddLog("已重置打包工具默认配置");
         }
 
-        [TitleGroup("操作")]
-        [FoldoutGroup("操作/构建日志", Expanded = false)]
-        [HorizontalGroup("操作/构建日志/Actions")]
+        [PropertySpace(8)]
+        [FoldoutGroup("构建日志", Expanded = false)]
+        [HorizontalGroup("构建日志/Actions")]
         [Button("清空日志", ButtonSizes.Small)]
         [PropertyOrder(100)]
         [EnableIf(nameof(HasBuildLogs))]
@@ -708,8 +728,7 @@ namespace TEngine
             _buildLogs.Clear();
         }
 
-        [TitleGroup("操作")]
-        [FoldoutGroup("操作/构建日志", Expanded = false)]
+        [FoldoutGroup("构建日志", Expanded = false)]
         [ShowInInspector]
         [ReadOnly]
         [HideLabel]
@@ -1913,6 +1932,18 @@ namespace TEngine
         private void OpenPublishRoot()
         {
             EditorUtility.RevealInFinder(ReleaseTools.GetPublishOutputRoot(CreateConfig()));
+        }
+
+        private void OpenPlayerOutputPath()
+        {
+            var dir = Path.GetDirectoryName(ToAbsolutePath(_playerOutputPath));
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            {
+                Debug.LogWarning($"[BuildPipeline] Player 输出目录不存在：{dir}");
+                return;
+            }
+
+            EditorUtility.RevealInFinder(dir);
         }
 
         private void ChoosePlayerOutputPath()
