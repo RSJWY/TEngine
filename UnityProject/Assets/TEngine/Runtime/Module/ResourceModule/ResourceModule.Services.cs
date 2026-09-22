@@ -152,9 +152,9 @@ namespace TEngine
     {
         public BundleEncryptResult Encrypt(BundleEncryptArgs args)
         {
-            var key = XorKeyConfig.Instance.key;
+            var key = BundleXorKeyConfig.Instance.key;
             if (CryptoUtils.IsEmpty(key))
-                throw new InvalidOperationException("[Xor] key is empty. Missing XorKeyConfig asset in Resources/EncryptConfigs?");
+                throw new InvalidOperationException("[Xor] key is empty. Missing BundleXorKeyConfig asset in Resources/EncryptConfigs?");
             var data = File.ReadAllBytes(args.FilePath);
             for (int i = 0; i < data.Length; i++)
                 data[i] ^= key[i % key.Length];
@@ -165,7 +165,7 @@ namespace TEngine
     public sealed class XorStreamDecryption : IBundleStreamDecryptor
     {
         public Stream CreateDecryptionStream(BundleDecryptArgs args)
-            => new XorStream(XorKeyConfig.Instance.key, args.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            => new XorStream(BundleXorKeyConfig.Instance.key, args.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
 
         public int GetBufferSize(BundleDecryptArgs args) => 2048;
     }
@@ -174,7 +174,7 @@ namespace TEngine
     {
         public byte[] GetDecryptedData(BundleDecryptArgs args)
         {
-            var key = XorKeyConfig.Instance.key;
+            var key = BundleXorKeyConfig.Instance.key;
             // 注意：args.FileData 可能是下载请求内部持有的缓冲（Web 场景），
             // 原地异或会污染原始缓冲，导致重试/并发场景二次解密时还原成密文。
             // 因此始终分配新数组，不动输入数据。
@@ -194,7 +194,7 @@ namespace TEngine
     {
         public BundleEncryptResult Encrypt(BundleEncryptArgs args)
         {
-            var config = ChaCha20KeyConfig.Instance;
+            var config = BundleChaCha20KeyConfig.Instance;
             return new BundleEncryptResult(true,
                 ChaCha20Util.Encrypt(File.ReadAllBytes(args.FilePath), config.key, config.nonce));
         }
@@ -204,7 +204,7 @@ namespace TEngine
     {
         public Stream CreateDecryptionStream(BundleDecryptArgs args)
         {
-            var config = ChaCha20KeyConfig.Instance;
+            var config = BundleChaCha20KeyConfig.Instance;
             return new ChaCha20Stream(config.key, config.nonce, args.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
 
@@ -215,7 +215,7 @@ namespace TEngine
     {
         public byte[] GetDecryptedData(BundleDecryptArgs args)
         {
-            var config = ChaCha20KeyConfig.Instance;
+            var config = BundleChaCha20KeyConfig.Instance;
             var data = args.FileData ?? File.ReadAllBytes(args.FilePath);
             return ChaCha20Util.Decrypt(data, config.key, config.nonce);
         }

@@ -4,10 +4,11 @@ using Sirenix.OdinInspector;
 namespace TEngine
 {
     /// <summary>
-    /// ChaCha20 加密密钥配置：32 字节 key + 12 字节 nonce。
+    /// Bundle 加密用 ChaCha20 密钥配置：32 字节 key + 12 字节 nonce。
+    /// 与 <see cref="ManifestChaCha20KeyConfig"/>（清单用）独立存放，避免从清单解密链路逆向到 Bundle 密钥。
     /// </summary>
-    [CreateAssetMenu(menuName = "TEngine/加密密钥/ChaCha20", fileName = "ChaCha20KeyConfig")]
-    public class ChaCha20KeyConfig : CryptoKeyConfig<ChaCha20KeyConfig>
+    [CreateAssetMenu(menuName = "TEngine/加密密钥/Bundle ChaCha20", fileName = "BundleChaCha20KeyConfig")]
+    public class BundleChaCha20KeyConfig : CryptoKeyConfig<BundleChaCha20KeyConfig>
     {
         [SerializeField, HideInInspector]
         private byte[] _key;

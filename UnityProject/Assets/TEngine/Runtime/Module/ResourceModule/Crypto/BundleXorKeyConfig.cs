@@ -5,10 +5,10 @@ using Sirenix.OdinInspector;
 namespace TEngine
 {
     /// <summary>
-    /// XOR 加密密钥配置：随机 16~128 字节 key，按文件位置取模使用。
+    /// Bundle 加密用 XOR 密钥配置：随机 16~128 字节 key，按文件位置取模使用。
     /// </summary>
-    [CreateAssetMenu(menuName = "TEngine/加密密钥/Xor", fileName = "ChaCha20KeyConfig")]
-    public class XorKeyConfig : CryptoKeyConfig<XorKeyConfig>
+    [CreateAssetMenu(menuName = "TEngine/加密密钥/Bundle Xor", fileName = "BundleXorKeyConfig")]
+    public class BundleXorKeyConfig : CryptoKeyConfig<BundleXorKeyConfig>
     {
         [SerializeField, HideInInspector]
         private byte[] _key;

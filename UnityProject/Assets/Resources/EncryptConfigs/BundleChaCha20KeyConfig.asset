@@ -9,7 +9,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5dfc381df12784cdf8b3ba41b299fa3c, type: 3}
-  m_Name: XorKeyConfig
+  m_Script: {fileID: 11500000, guid: ed48d7201e39fcc061a953e323b179b8, type: 3}
+  m_Name: BundleChaCha20KeyConfig
   m_EditorClassIdentifier: 
-  _key: 2a3b61ae54f1914401eab5e5ca2cce081b0c778b4a3ab7232679411fe16cfb93d2d66b0bf554aec885d02810fdbe93519f62171d1e2312aacd97255f6e27eca6952ef0caa4c6c0f8b34ab7
+  _key: 52b2611fd20f9763a5df1e65a08d6af771a40aacc1ff4d8bc184a1b9f3504054
+  _nonce: 7a9a5d0f68ae89989fe9c2e9

@@ -6,7 +6,7 @@ namespace TEngine
 {
     /// <summary>
     /// 资源清单专用 ChaCha20 密钥配置：32 字节 key + 12 字节 nonce。
-    /// 与 <see cref="ChaCha20KeyConfig"/>（Bundle 用）独立存放，避免从清单解密链路逆向到 Bundle 密钥。
+    /// 与 <see cref="BundleChaCha20KeyConfig"/>（Bundle 用）独立存放，避免从清单解密链路逆向到 Bundle 密钥。
     /// </summary>
     [CreateAssetMenu(menuName = "TEngine/加密密钥/Manifest ChaCha20", fileName = "ManifestChaCha20KeyConfig")]
     public class ManifestChaCha20KeyConfig : CryptoKeyConfig<ManifestChaCha20KeyConfig>
