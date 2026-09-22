@@ -2226,6 +2226,11 @@ namespace TEngine
             public EncryptionType EncryptionType = EncryptionType.None;
 
             [TableColumnWidth(70)]
+            [LabelText("清单加密")]
+            [ToggleLeft]
+            public bool ManifestEncrypted = false;
+
+            [TableColumnWidth(70)]
             [LabelText("初始化")]
             [ToggleLeft]
             public bool InitOnStartup = true;
@@ -2268,6 +2273,7 @@ namespace TEngine
                     VersionKey = string.IsNullOrWhiteSpace(VersionKey) ? GetDefaultVersionKey(packageName) : VersionKey.Trim(),
                     BuildPipeline = buildPipeline,
                     EncryptionType = EncryptionType,
+                    ManifestEncrypted = ManifestEncrypted,
                 };
             }
 
@@ -2296,6 +2302,7 @@ namespace TEngine
                     VersionKey = string.IsNullOrWhiteSpace(entry.VersionKey) ? GetDefaultVersionKey(packageName) : entry.VersionKey.Trim(),
                     BuildPipeline = buildPipeline,
                     EncryptionType = entry.EncryptionType,
+                    ManifestEncrypted = entry.ManifestEncrypted,
                 };
             }
         }
