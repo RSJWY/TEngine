@@ -18,10 +18,14 @@
 规则：
 
 - 每个包独立选择构建管线、加密、初始化、manifest 更新、下载和版本保存策略。
+- 资源包表格可按包勾选「清单加密」（`ManifestEncrypted`），与构建端清单 ChaCha20 加密注入联动。
 - `BuiltinBuildPipeline` 只用于旧序列化数据兼容，新配置不要选择。
 - 程序集包默认使用 `ArchiveFileBuildPipeline + ChaCha20`。
+- 「高级」页提供「在构建输出目录生成 Catalog」开关：开启后构建完成时在 AB 输出目录额外生成 `BuiltinCatalog.bytes/json`，整目录复制即可用于 `OfflinePlayMode`（依赖 YooAsset 3.0.6+ 友元程序集）。
 - 包配置表格采用延迟保存；关闭窗口、显式保存或开始构建前会落盘。
 - AssetBundle 或 Player 构建失败必须中断后续安装包阶段。
+
+操作区按「构建 / 打开目录 / 热更DLL / 设置 / 构建日志」分区组织；「打开目录」提供 AB 输出、Player 输出与发布目录直达按钮。
 
 ## 构建产物
 

@@ -33,11 +33,14 @@ await GameModule.Config.ReloadAsync("sub/Foo", cancellationToken);
 
 规则：
 
-- 配置目录为 `Assets/StreamingAssets/Configs/`。
+- 配置读取走覆盖链：`persistentDataPath/Configs` 覆盖 `Assets/StreamingAssets/Configs/`，清单本身也走覆盖链。
 - 默认清单为 `config_manifest.toml`（强制 TOML，不再兼容 JSON 清单）。
 - TOML 和 JSON 可以混用，配置名支持 `sub/Foo` 形式的子目录。
+- TOML DTO 必须使用公有属性而非字段：Tomlyn 不映射公有字段，会静默得到默认值。
 - `IsLoaded` 表示完成过一次加载流程；单个配置失败时仍可能为 `true`。
 - 清单失败会抛异常；单个配置缺失、重复或格式错误只记录并跳过。
+- `TryGet<T>` 缓存类型不兼容时自动回源重析；`GetConfigNames()` 返回已加载配置名列表。
+- 模块非线程安全，仅支持主线程调用。
 - 消费方优先使用 `TryGet` 和 `TryGetText`，并准备默认值。
 
 详细说明见 [runtime-config.md](../../../../../Books/Fork/runtime-config.md)。
@@ -149,8 +152,9 @@ GameModule.Screen.ApplyScreen(0);
 GameModule.Screen.SetTopmost(1, true);
 ```
 
-- 其他平台调用为安全空实现并记录警告。
-- 配置由 `RuntimeConfigModule` 加载 `ScreenConfig.toml` 或 `.json` 后注入。
+- 其他平台调用为安全空实现并记录警告（仅 Windows Standalone 打包后实际生效，Editor 下整体 no-op）。
+- 配置由 `RuntimeConfigModule` 加载 `ScreenConfig.toml` 后注入；配置顶层 `Enabled = false` 可整体禁用所有布局 API。
+- 副屏句柄配对优先按显示器几何匹配（配置目标点落区判定），几何不可用回退枚举顺序配对。
 - 应用布局前会切换到窗口模式，全屏会覆盖位置和尺寸。
 - 多屏句柄映射必须在 Windows 真机验证。
 

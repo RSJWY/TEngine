@@ -74,8 +74,12 @@ DebuggerActiveWindow = "OnlyOpenWhenDevelopment"
 - `ProcedureLaunch` 会捕获运行时配置加载异常，并回退 `UpdateSetting` / Inspector 默认值继续启动。
 - 单个配置文件的 TOML/JSON 语法错误通常在 `TryGet<T>()` 解析时暴露；解析失败会记录 warning 并返回 `false`。
 - 少填字段通常使用 DTO 字段默认值或初始化值。
+- **TOML DTO 必须使用属性而非公有字段**：Tomlyn 反序列化不映射公有字段，字段会静默得到默认值/空列表，不报错（2026-09-22 已把 `DeployConfig`、`ScreenConfig`、`ScreenSetting`、`RuntimeConfigManifest` 全部转为属性）。
 - 字段名拼错通常等价于未填写该字段，需要调用方或后续校验逻辑兜底。
 - 类型写错会导致解析失败，调用方应按 `TryGet<T>() == false` 处理 fallback。
+- `TryGet<T>` 对象缓存命中但类型不兼容时，移除旧缓存并回源重新解析（2026-09-22 加固），避免同配置名跨不兼容类型永久失败。
+- 模块非线程安全，仅支持主线程调用。
+- `ReloadAsync` 对不在文件映射中的配置名按 `配置名.toml` 推断文件名，并按覆盖链重新读取。
 
 ### 关键文件
 

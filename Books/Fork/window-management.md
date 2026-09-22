@@ -95,6 +95,8 @@ Borderless = false
 
 注意 TOML 语法：`Enabled` 是顶层标量，必须写在第一个 `[[Screens]]` 之前。
 
+DTO（`ScreenConfig`/`ScreenSetting`）全部使用公有属性而非字段：Tomlyn 反序列化不映射公有字段，字段会静默得到空列表导致配置丢失（2026-09-22 修复）。
+
 ### 配置字段
 
 | 字段 | 含义 |

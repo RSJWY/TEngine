@@ -4,7 +4,13 @@
 
 ## 2026-09-22
 
-- `ScreenModule` 降侵入改造：① `WindowsScreenNative` 真实实现收紧为 `#if UNITY_STANDALONE_WIN && !UNITY_EDITOR`，Editor 下整体 no-op，不再误操作编辑器窗口；② `ScreenConfig` 新增顶层 `Enabled` 总开关，`false` 时所有布局 API 短路；③ 副屏句柄配对新增显示器几何匹配（`MonitorFromWindow` + `GetMonitorInfo`，按配置目标点落区判定），几何不可用回退枚举顺序配对；④ 顺手把过时的 `Display.Activate(int,int,int)` 换成 `RefreshRate` 重载。`EnsureWindowedMode` 无条件切窗口化的行为按需求保留。详见 [window-management.md](window-management.md)。
+- `RuntimeConfigModule` 覆盖链与缓存加固，清单强制 TOML：① 配置读取支持 `persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`，清单本身也走覆盖链；② 清单强制 `config_manifest.toml`，移除 `config_manifest.json` 回退；③ `TryGet<T>` 对象缓存命中但类型不兼容时移除旧缓存并回源重析，不再同配置名跨类型永久失败；④ 新增 `GetConfigNames()`。详见 [runtime-config.md](runtime-config.md)。
+- 加密密钥配置按用途重命名：Bundle 用密钥类/资产加 `Bundle` 前缀（`ChaCha20KeyConfig` → `BundleChaCha20KeyConfig`、`XorKeyConfig` → `BundleXorKeyConfig`），与清单用 `ManifestChaCha20KeyConfig` 命名对齐。详见 [resource-build.md](resource-build.md)。
+- `ScreenModule` 降侵入与 TOML DTO 字段转属性修复配置丢失：① `WindowsScreenNative` 真实实现收紧为 `#if UNITY_STANDALONE_WIN && !UNITY_EDITOR`，Editor 下整体 no-op，不再误操作编辑器窗口；② `ScreenConfig` 新增顶层 `Enabled` 总开关，`false` 时所有布局 API 短路；③ 副屏句柄配对新增显示器几何匹配（`MonitorFromWindow` + `GetMonitorInfo`，按配置目标点落区判定），几何不可用回退枚举顺序配对；④ `ScreenConfig`/`ScreenSetting`/`DeployConfig`/`RuntimeConfigManifest` 的公有字段全部转为属性——Tomlyn 反序列化不映射公有字段，字段会静默得到空列表/默认值导致配置丢失。详见 [window-management.md](window-management.md)。
+- Player 输出路径统一为项目根相对路径并归一到 `Releases/`：所有平台（含 Android/iOS/MacOS/WebGL）默认输出 `Releases/{平台}/build/`，路径统一 `./` 前缀，由构建链路在使用处转绝对路径；旧 `Output/Player/` 路径自动迁移。详见 [resource-build.md](resource-build.md)。
+- 打包工具操作区分区重构：原「操作」大分组拆为「构建 / 打开目录 / 热更DLL / 设置 / 构建日志」五个分区，新增「打开 AB 输出目录」「打开 Player 输出目录」按钮。详见 [resource-build.md](resource-build.md)。
+- 打包窗口资源包表格补充「清单加密」列：`RuntimePackageEntry.ManifestEncrypted` 可在窗口内直接勾选，与构建端清单加密注入联动。详见 [resource-build.md](resource-build.md)。
+- 构建输出目录生成 `BuiltinCatalog`：新增 `CatalogOutputHelper`（`YooAsset.Custom.Editor` 友元程序集），打包窗口「高级」页新增开关，开启后构建完成时在 AB 输出目录额外生成 `BuiltinCatalog.bytes/json`，直接复制该目录即可用于 `OfflinePlayMode` 加载。详见 [resource-build.md](resource-build.md)。
 
 ## 2026-09-21
 

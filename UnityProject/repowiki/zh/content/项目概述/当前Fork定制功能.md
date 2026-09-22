@@ -14,7 +14,8 @@
 | 资源系统 | YooAsset 3.x 原生 API，不启用 `YOOASSET_LEGACY_API` |
 | 热更新包 | 热更程序集位于独立程序集包，默认配置名为 `CodePackage`，实际名称通过 `UpdateSetting.GetAssemblyPackageName()` 获取 |
 | 代码包构建 | 默认使用 `ArchiveFileBuildPipeline` 与 `EncryptionType.ChaCha20` |
-| 轻量配置 | 使用 `GameModule.Config` 加载 TOML/JSON；项目默认不使用 Luban |
+| 清单加密 | 按包开关 `ManifestEncrypted`（ChaCha20），密钥与 Bundle 用密钥（`BundleChaCha20KeyConfig`）相互独立 |
+| 轻量配置 | 使用 `GameModule.Config` 加载 TOML/JSON，支持 `persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`；项目默认不使用 Luban |
 | 模块访问 | 热更业务通过 `GameModule.XXX` 访问模块 |
 | 构建工具 | 使用 `Build/打包工具窗口`，运行时包配置与构建配置共用 `UpdateSetting.RuntimePackages` |
 
@@ -55,6 +56,12 @@ GameModule.Resource.UnloadAsset(raw);
 
 非 Archive 管线继续兼容 `TextAsset.bytes`。这项分流只属于热更新二进制加载链路，普通业务资源仍使用 `IResourceModule` 的类型化 API。
 
+### 资源清单加密与 BuiltinCatalog
+
+- 资源清单默认明文二进制，可在 `UpdateSetting.RuntimePackages` 按包勾选 `ManifestEncrypted` 启用 ChaCha20 加密（构建端与运行时自动注入加密器/解密器，密钥资产 `ManifestChaCha20KeyConfig` 与 Bundle 用密钥独立）。Editor 模拟模式不生效。
+- 打包窗口「高级」页「在构建输出目录生成 Catalog」开启后，构建完成时在 AB 输出目录额外生成 `BuiltinCatalog.bytes/json`，整目录复制即可用于 `OfflinePlayMode` 离线加载。
+- 修改任何加密密钥后必须重新构建资源，旧加密包与缓存不能混用。
+
 ### 桌面多开缓存隔离
 
 桌面平台多进程同时运行时，通过命令行参数 `--yoo-instance <id>` 为每个进程隔离 YooAsset 缓存：`ResourceModule.InstanceId` 非空时，沙盒下载缓存与内置解包目录落到 `{DefaultCacheRoot}/instance-{id}/{PackageName}/`。不传参时目录结构与默认行为完全一致。仅在 `UNITY_STANDALONE || UNITY_EDITOR` 下生效，无跨进程文件锁，相同实例标识仍会冲突。
@@ -73,7 +80,7 @@ GameModule.Resource.UnloadAsset(raw);
 | --- | --- | --- |
 | `GameModule.Config` | TOML/JSON 轻量运行时配置 | 单项失败可跳过；消费方优先使用 `TryGet` |
 | `GameModule.GameScene` | 业务场景切换与展示进度 | UI 只展示 `DisplayProgress`，不控制状态机 |
-| `GameModule.Screen` | Windows 多显示器窗口布局 | 仅 Windows Standalone 生效 |
+| `GameModule.Screen` | Windows 多显示器窗口布局 | 仅 Windows Standalone 打包后生效，Editor 下 no-op；配置 `Enabled=false` 可整体禁用 |
 | `GameModule.GameObjectPool` | 基于 YooAsset location 的 GameObject 实例池 | 与逻辑对象 `ObjectPoolModule` 不同 |
 | `GameModule.Anim` | 基于 PlayableGraph 的代码驱动 3D 动画 | 创建后必须显式销毁 `IAnimPlayable` |
 
