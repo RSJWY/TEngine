@@ -1,5 +1,9 @@
 # Windows Standalone 多显示器窗口布局配置。
 # 坐标使用桌面像素坐标系。DisplayIndex 0 表示 Unity 主显示器。
+# Enabled = false 可整体禁用窗口布局（单屏或不需要窗口控制时使用，模块所有布局 API 变为空操作）。
+
+# 总开关。
+Enabled = true
 
 # 主显示器窗口。
 [[Screens]]

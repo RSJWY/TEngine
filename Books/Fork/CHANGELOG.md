@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-09-22
+
+- `ScreenModule` 降侵入改造：① `WindowsScreenNative` 真实实现收紧为 `#if UNITY_STANDALONE_WIN && !UNITY_EDITOR`，Editor 下整体 no-op，不再误操作编辑器窗口；② `ScreenConfig` 新增顶层 `Enabled` 总开关，`false` 时所有布局 API 短路；③ 副屏句柄配对新增显示器几何匹配（`MonitorFromWindow` + `GetMonitorInfo`，按配置目标点落区判定），几何不可用回退枚举顺序配对；④ 顺手把过时的 `Display.Activate(int,int,int)` 换成 `RefreshRate` 重载。`EnsureWindowedMode` 无条件切窗口化的行为按需求保留。详见 [window-management.md](window-management.md)。
+
 ## 2026-09-21
 
 - 同步上游 Alex-Rachel/TEngine `main`（`0d75fcb7..482a441e`）：① 事件模块新增 `GameEvent.HasEventListener`（PR #288，int/string × 0~6 泛型参数 + Delegate 重载，检查指定委托是否已注册）；② 生成器入口 `EventCenter` 改名 `GameEventHelper`（PR #290，与本 fork 文档既有叫法一致），重编 `GameEventAnalyzer.dll`/`SourceGenerator.dll`；③ `SetSprite`/`SetSubSprite` 增加地址判空提前返回。合并冲突仅 `EventInterfaceGenerator.cs`（本地为整文件换行符翻转，无逻辑差异），取上游版本；fork 自有的 `RemoveAllListeners` 与上游 `HasEventListener` 自动合并共存。主 wiki 已补充 `HasEventListener`/`RemoveAllListeners` API 与 SetSprite 判空说明。

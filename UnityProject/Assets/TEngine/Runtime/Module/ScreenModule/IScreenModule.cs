@@ -3,7 +3,8 @@ namespace TEngine
     /// <summary>
     /// 窗口布局控制模块接口（多屏支持）。
     /// <para>位于 AOT 程序集 TEngine.Runtime，热更层通过 GameModule.Screen 访问。</para>
-    /// <para>仅 Windows Standalone 平台实际生效；其他平台调用仅输出警告，不执行任何操作。</para>
+    /// <para>仅 Windows Standalone 打包后实际生效；Editor 及其他平台调用仅输出警告，不执行任何操作。</para>
+    /// <para>配置 ScreenConfig 顶层 Enabled=false 时所有布局 API 均被禁用。</para>
     /// </summary>
     public interface IScreenModule
     {

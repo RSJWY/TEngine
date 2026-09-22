@@ -9,7 +9,8 @@ namespace TEngine
     /// 窗口布局控制模块（多屏支持）。
     /// <para>位于 AOT 程序集 TEngine.Runtime，所有原生互操作在 IL2CPP/AOT 下编译，不进入 HybridCLR 解释域。</para>
     /// <para>基于 TEngine <see cref="Module"/> 生命周期，通过 <c>GameModule.Screen</c> 访问。</para>
-    /// <para>仅 Windows Standalone / Editor 平台实际生效；其他平台调用仅输出警告，不执行任何窗口操作。</para>
+    /// <para>仅 Windows Standalone 打包后实际生效；Editor 及其他平台调用仅输出警告，不执行任何窗口操作。</para>
+    /// <para>配置顶层 <c>Enabled=false</c> 可整体禁用（见 <see cref="ScreenConfig.Enabled"/>）。</para>
     /// </summary>
     public sealed class ScreenModule : Module, IScreenModule
     {
@@ -62,7 +63,7 @@ namespace TEngine
             if (config != null && config.Screens != null && config.Screens.Count > 0)
             {
                 _config = config;
-                Log.Info($"[ScreenModule] 已注入外部配置，屏幕数={_config.Screens.Count}。");
+                Log.Info($"[ScreenModule] 已注入外部配置，屏幕数={_config.Screens.Count}，Enabled={_config.Enabled}。");
             }
             else
             {
@@ -76,9 +77,8 @@ namespace TEngine
         /// </summary>
         public void ApplyAll()
         {
-            if (!IsSupported)
+            if (!EnsureEnabled())
             {
-                WarnUnsupported();
                 return;
             }
 
@@ -90,15 +90,9 @@ namespace TEngine
         /// </summary>
         public void ApplyScreen(int displayIndex)
         {
-            if (!IsSupported)
+            if (!EnsureEnabled())
             {
-                WarnUnsupported();
                 return;
-            }
-
-            if (_config == null)
-            {
-                LoadConfig();
             }
 
             ScreenSetting setting = FindSetting(displayIndex);
@@ -122,9 +116,8 @@ namespace TEngine
         /// </summary>
         public void SetTopmost(int displayIndex, bool topmost)
         {
-            if (!IsSupported)
+            if (!EnsureEnabled())
             {
-                WarnUnsupported();
                 return;
             }
 
@@ -278,8 +271,7 @@ namespace TEngine
                 Display display = Display.displays[setting.DisplayIndex];
                 if (!display.active)
                 {
-                    // Unity 2021.3：Activate(width, height, refreshRate) 重载，refreshRate 为 int
-                    display.Activate(setting.Width, setting.Height, 60);
+                    display.Activate(setting.Width, setting.Height, new RefreshRate { numerator = 60, denominator = 1 });
                     Log.Info($"[ScreenModule] 已激活 Display={setting.DisplayIndex}（{setting.Width}x{setting.Height}@60）。");
                 }
                 else
@@ -291,8 +283,8 @@ namespace TEngine
 
         /// <summary>
         /// 发现 Unity 窗口句柄并建立 DisplayIndex 映射。
-        /// <para>主窗口（DisplayIndex=0）= 当前激活窗口；副屏窗口按发现顺序分配给已激活的副屏配置。</para>
-        /// <para>多副屏场景该映射依赖窗口发现顺序，可能需打包后实测校正。</para>
+        /// <para>主窗口（DisplayIndex=0）= 当前激活窗口；副屏窗口优先按显示器几何配对（见 <see cref="AssignSecondaryHandles"/>），
+        /// 几何信息不可用时回退为枚举顺序配对。</para>
         /// </summary>
         private void RefreshHandles()
         {
@@ -331,10 +323,7 @@ namespace TEngine
             }
             secondaryIndices.Sort();
 
-            for (int i = 0; i < secondaryIndices.Count && i < windows.Count; i++)
-            {
-                _displayHandles[secondaryIndices[i]] = windows[i];
-            }
+            AssignSecondaryHandles(secondaryIndices, windows);
 
             // 输出最终映射
             foreach (KeyValuePair<int, IntPtr> kv in _displayHandles)
@@ -342,9 +331,99 @@ namespace TEngine
                 Log.Info($"[ScreenModule]   映射 Display={kv.Key} -> hWnd={kv.Value}。");
             }
 
-            if (secondaryIndices.Count > windows.Count)
+            int unassigned = 0;
+            foreach (int displayIndex in secondaryIndices)
             {
-                Log.Warning($"[ScreenModule] 副屏配置数({secondaryIndices.Count}) 多于剩余窗口数({windows.Count})，部分副屏未分配到窗口。");
+                if (!_displayHandles.ContainsKey(displayIndex))
+                {
+                    unassigned++;
+                }
+            }
+
+            if (unassigned > 0)
+            {
+                Log.Warning($"[ScreenModule] {unassigned} 个副屏未分配到窗口（候选窗口 {windows.Count} 个）。");
+            }
+        }
+
+        /// <summary>
+        /// 为副屏 DisplayIndex 分配窗口句柄。
+        /// <para>优先按显示器几何配对：查询每个候选窗口所在显示器矩形，与配置的 X/Y 所在显示器匹配则配对；
+        /// 几何查询失败或无匹配时回退为按枚举顺序配对。</para>
+        /// </summary>
+        /// <param name="secondaryIndices">已激活的副屏 DisplayIndex（升序）。</param>
+        /// <param name="windows">主窗口之外剩余的候选窗口句柄。</param>
+        private void AssignSecondaryHandles(List<int> secondaryIndices, List<IntPtr> windows)
+        {
+            if (secondaryIndices.Count == 0 || windows.Count == 0)
+            {
+                return;
+            }
+
+            // 计算每个副屏配置的目标显示器原点（配置 X/Y 即窗口摆放位置，其所在显示器以包含该点的矩形判定）
+            // 对每个候选窗口查询其当前所在显示器原点，若与某副屏配置的目标显示器原点一致则配对。
+            List<IntPtr> remaining = new List<IntPtr>(windows);
+            bool anyGeometryMatch = false;
+
+            foreach (int displayIndex in secondaryIndices)
+            {
+                if (_displayHandles.ContainsKey(displayIndex))
+                {
+                    continue;
+                }
+
+                ScreenSetting setting = FindSetting(displayIndex);
+                if (setting == null)
+                {
+                    continue;
+                }
+
+                for (int i = remaining.Count - 1; i >= 0; i--)
+                {
+                    IntPtr hWnd = remaining[i];
+                    if (!WindowsScreenNative.TryGetMonitorRect(hWnd, out int mx, out int my, out int mw, out int mh))
+                    {
+                        continue;
+                    }
+
+                    // 配置的目标点（X,Y）落在该窗口当前所在显示器矩形内 => 几何匹配
+                    bool pointInside = setting.X >= mx && setting.X < mx + mw && setting.Y >= my && setting.Y < my + mh;
+                    if (!pointInside)
+                    {
+                        continue;
+                    }
+
+                    _displayHandles[displayIndex] = hWnd;
+                    remaining.RemoveAt(i);
+                    anyGeometryMatch = true;
+                    Log.Info($"[ScreenModule] 几何配对：Display={displayIndex} -> hWnd={hWnd}（目标点({setting.X},{setting.Y}) 位于显示器({mx},{my},{mw}x{mh})）。");
+                    break;
+                }
+            }
+
+            if (anyGeometryMatch)
+            {
+                // 几何已配对部分；剩余副屏若无几何匹配窗口，用剩余窗口按顺序补齐
+                foreach (int displayIndex in secondaryIndices)
+                {
+                    if (_displayHandles.ContainsKey(displayIndex) || remaining.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    _displayHandles[displayIndex] = remaining[0];
+                    remaining.RemoveAt(0);
+                    Log.Warning($"[ScreenModule] Display={displayIndex} 无几何匹配窗口，按剩余顺序配对。");
+                }
+
+                return;
+            }
+
+            // 完全无几何信息（查询全部失败）：回退为按枚举顺序配对
+            Log.Warning("[ScreenModule] 显示器几何查询无有效结果，回退为按枚举顺序配对副屏窗口。");
+            for (int i = 0; i < secondaryIndices.Count && i < windows.Count; i++)
+            {
+                _displayHandles[secondaryIndices[i]] = windows[i];
             }
         }
 
@@ -403,11 +482,37 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 非 Windows 平台统一警告。
+        /// 统一前置检查：平台支持且配置开关打开才允许执行布局操作。
+        /// <para>配置未加载时先按需加载（Enabled=false 时直接短路）。</para>
+        /// </summary>
+        private bool EnsureEnabled()
+        {
+            if (!IsSupported)
+            {
+                WarnUnsupported();
+                return false;
+            }
+
+            if (_config == null)
+            {
+                LoadConfig();
+            }
+
+            if (!_config.Enabled)
+            {
+                Log.Info("[ScreenModule] 配置 Enabled=false，窗口布局已被禁用，调用被忽略。");
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 非支持平台统一警告。
         /// </summary>
         private static void WarnUnsupported()
         {
-            Log.Warning("[ScreenModule] 当前平台不支持窗口布局控制，调用被忽略（仅 Windows Standalone 生效）。");
+            Log.Warning("[ScreenModule] 当前平台不支持窗口布局控制，调用被忽略（仅 Windows Standalone 打包后生效）。");
         }
     }
 }
