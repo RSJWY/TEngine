@@ -129,6 +129,14 @@ public class GameModule
     public static IAnimModule Anim => _anim ??= Get<IAnimModule>();
 
     private static IAnimModule _anim;
+
+    /// <summary>
+    /// 获取自定义异步操作模块。
+    /// <para>把业务自定义的异步流程（GameAsyncOperation 子类）交给调度器分帧驱动，不依赖 YooAsset。</para>
+    /// </summary>
+    public static IAsyncOperationModule AsyncOperation => _asyncOperation ??= Get<IAsyncOperationModule>();
+
+    private static IAsyncOperationModule _asyncOperation;
     #endregion
     
     
@@ -166,5 +174,6 @@ public class GameModule
         _gameScene = null;
         _gameObjectPool = null;
         _anim = null;
+        _asyncOperation = null;
     }
 }
