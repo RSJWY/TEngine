@@ -11,7 +11,7 @@ namespace TEngine
     /// </summary>
     public class BuildModeWindow : OdinEditorWindow
     {
-        [MenuItem("TEngine/Build/构建模式窗口", false, 50)]
+        [MenuItem("Build/构建模式窗口", false, 50)]
         private static void OpenWindow()
         {
             var window = GetWindow<BuildModeWindow>("构建模式");

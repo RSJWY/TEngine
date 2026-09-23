@@ -25,7 +25,7 @@ namespace TEngine
     /// </summary>
     public class ObfuzConfigWindow : OdinEditorWindow
     {
-        private const string MenuPath = "TEngine/Build/混淆配置窗口";
+        private const string MenuPath = "Build/混淆配置窗口";
         private const double SaveDelaySeconds = 0.6;
 
         private static Color OkColor => new Color(0.45f, 0.85f, 0.45f);
