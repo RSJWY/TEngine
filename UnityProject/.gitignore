@@ -124,8 +124,8 @@ yoo/
 /Releases/Publish/
 /Releases/Windows/setup.generated.iss
 
-#本地 Claude 权限配置
-.claude/settings.local.json
+#本地 Codex/CLI 权限配置
+.codex/settings.local.json
 
 # Local workflow evidence, approvals, and Python caches
 /.codex/runs/

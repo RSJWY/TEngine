@@ -11,14 +11,6 @@
 - Unity 版本取 `ProjectSettings/ProjectVersion.txt`；Pipeline 能力以本项目注册命令及包内 `Documentation~` 为准。
 - `.codex/skills` 是技能唯一源。不要复制到第二套目录，也不要假设所有 Codex 客户端都会自动发现此目录。
 
-## 工具调用规范（防止并行 JSON 拼接错误）
-
-- **每个工具调用必须是独立的 tool_use block**，严禁将多个工具调用的 JSON 参数拼接成单一字符串。
-- 并行调用多个工具时，在一个 message 中输出多个独立的 `<tool_use>` 块，每个块各含一个完整的 JSON 对象。
-- 单个 `<tool_use>` 块内只允许一个工具 + 一组参数，禁止塞入多个 `{"filePath": "..."}` 对象。
-- 如果不确定并行是否安全，改为串行：一次一个工具调用，等返回后再发下一个。
-- 同类型、同参数结构的并行调用（如多个 Read）尤其容易出错，优先考虑串行或限制在 2 个以内。
-
 ## AI 协助开发声明
 
 **前提：由你提交代码时触发。**
@@ -68,3 +60,38 @@ C# / 资源变更交付需同时取得 .NET 与相关 Unity 验证证据。纯�
 Editor 断开、忙、多实例或选中零用例时，必需验证返回阻塞/失败，不能降级声称验收通过。
 
 Pipeline 描述文件含鉴权信息，禁止读出到日志、提交或分享。不得连接本机其他工程代替本项目验证。
+
+
+
+## 会话总结索引规则
+
+1. `conversation-summaries/` 是会话总结的唯一存储目录；新增总结统一放这里，文件名建议 `YYYY-MM-DD-<主题>-summary.md`。
+2. `conversation-summaries/INDEX.md` 是会话总结的唯一索引文件。禁止创建 `INDEX-YYYY-MM-DD.md`、`YYYY-MM-DD-INDEX.md` 或其他按日期拆分的索引文件。
+3. 每次新增会话总结时，必须同步更新 `INDEX.md`：按日期倒序在顶部追加条目（同日内新条目排在前）。
+4. 索引条目只包含：文档相对链接、5~12 个关键词（以模块名/类名/功能点为主）、一句话结论（不超过 40 字）；详细内容保留在总结文档中。
+5. 需要回顾历史实现时，先查 `INDEX.md` 按关键词定位，再按需打开对应总结文档，不要全文通读整个目录。
+6. 代码研究类文档不属于会话总结，仍存放于 `conversation-summaries/code-research/` 并维护其独立索引，规范见下方「会话研究索引规则」。
+上级目录是整个我fork的项目的根目录，readme也在这里；当前目录为unity项目目录。
+一般情况下，新功能不需要开分支，除非特大变动，也必须经过用户同意才行！
+
+如果添加了新的 fork 定制功能，经用户同意后，在上级目录（git 仓库根目录）按分层文档规则更新说明：README.md 的「🛠️ 本 Fork 的定制改动」只维护简短概览；Books/Fork-定制改动说明.md 只作为兼容索引入口；详细说明写入Books/Fork/ 下对应专题文档，并同步更新 Books/Fork/CHANGELOG.md；具体写法遵循 .claude/skills/fork-docs/SKILL.md 或 .codex/skills/fork-docs/SKILL.md（根据你属于哪个cli工具claude还是codex，两个skill是一样的）。
+
+commit提交时，以中文为主，英文为辅。如果用户让你写总结，则记得同时推送到远端。
+用户让你存储记忆时，是存储在项目级的记忆里，跟随仓库走。
+重点：**当前项目未使用Luban，除非用户主动使用，否则不考虑和Luban沾边！**
+
+
+本项目有时会在svn下使用，此时就不要死磕git相关功能。
+
+如果用户让你研究了某一项内容，一定要详细研究相关代码，必要时可使用联网搜索，并请及时记录研究结果到 `conversation-summaries/code-research/` 目录下，并做好简洁的关键词索引记录。
+
+## 会话研究索引规则
+
+1. `conversation-summaries/code-research/` 是代码研究文档的唯一目录，不得创建 `code-researc` 等近似或拼写错误的并行目录。
+2. `conversation-summaries/code-research/INDEX.md` 是代码研究的唯一索引文件。禁止创建 `INDEX-YYYY-MM-DD.md`、`YYYY-MM-DD-INDEX.md` 或其他按日期拆分的索引文件。
+3. 新增研究文档时，必须先检查并更新现有 `INDEX.md`，按日期倒序追加条目；不得因当天新增研究而创建新的索引文件。
+4. 索引只记录文档链接、关键词和一句话结论，详细内容保留在对应研究文档中。
+
+## 核心原则（编码红线）
+1. **Editor脚本**：editor代码尽量不要在热更代码中使用（除非万不得已，主要是防止热更代码引用editor程序导致的打包问题，但你要考虑这个因素后再使用！），所有editor下的窗口，优先考虑使用odinx插件提供的功能！
+2. **Editor下自定义热更脚本的Inspector**：能通过在"Assets/Editor"下对热更脚本自定义 Inspector，就自定义，但是注意目录要规范，不要混在一块！
