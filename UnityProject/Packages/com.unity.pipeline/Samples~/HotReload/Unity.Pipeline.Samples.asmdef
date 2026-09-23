@@ -1,16 +1,1 @@
-{
-    "name": "Unity.Pipeline.Samples",
-    "rootNamespace": "Unity.Pipeline.Samples.HotReload",
-    "references": [
-        "Unity.Pipeline"
-    ],
-    "includePlatforms": [],
-    "excludePlatforms": [],
-    "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
-    "autoReferenced": true,
-    "defineConstraints": [],
-    "versionDefines": [],
-    "noEngineReferences": false
-}
+{    "name": "Unity.Pipeline.Samples",    "rootNamespace": "Unity.Pipeline.Samples.HotReload",    "references": [        "Unity.Pipeline"    ],    "includePlatforms": [],    "excludePlatforms": [],    "allowUnsafeCode": false,    "overrideReferences": false,    "precompiledReferences": [],    "autoReferenced": true,    "defineConstraints": [],    "versionDefines": [],    "noEngineReferences": false}
