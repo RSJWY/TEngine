@@ -1,5 +1,5 @@
 using System;
-using System.Collections;
+using Cysharp.Threading.Tasks;
 using Launcher;
 using TEngine;
 using UnityEngine;
@@ -33,7 +33,7 @@ namespace Procedure
             _handledLocalPackageVersionNotice = false;
             _needDownloadCheck = false;
             LauncherMgr.ShowUI<LoadUpdateUI>("初始化资源中...");
-            Utility.Unity.StartCoroutine(InitResources(procedureOwner));
+            InitResources(procedureOwner).Forget();
         }
 
         private void ChangeToCreateDownloaderState(ProcedureOwner procedureOwner)
@@ -83,7 +83,7 @@ namespace Procedure
             ChangeToPreloadState(procedureOwner);
         }
 
-        private IEnumerator InitResources(ProcedureOwner procedureOwner)
+        private async UniTaskVoid InitResources(ProcedureOwner procedureOwner)
         {
             var runtimePackages = GetRuntimePackages();
             var updatablePlayMode = IsUpdatablePlayMode();
@@ -102,7 +102,7 @@ namespace Procedure
 
                 var savedVersion = updatablePlayMode ? GetLocalPackageVersion(runtimePackage) : string.Empty;
                 var versionOperation = _resourceModule.RequestPackageVersionAsync(customPackageName: runtimePackage.PackageName);
-                yield return versionOperation;
+                await versionOperation;
                 if (versionOperation.Status != EOperationStatus.Succeeded)
                 {
                     if (updatablePlayMode && !string.IsNullOrEmpty(savedVersion))
@@ -110,12 +110,12 @@ namespace Procedure
                         Log.Warning($"请求资源包版本失败，回退使用本地版本记录：{runtimePackage.PackageName}，本地版本：{savedVersion}，错误：{versionOperation.Error}");
                         var localManifestOperation = _resourceModule.UpdatePackageManifestAsync(savedVersion,
                             customPackageName: runtimePackage.PackageName);
-                        yield return localManifestOperation;
+                        await localManifestOperation;
                         if (localManifestOperation.Status != EOperationStatus.Succeeded)
                         {
                             OnInitResourcesError(procedureOwner, runtimePackage.PackageName,
                                 $"本地版本清单恢复失败：{localManifestOperation.Error}");
-                            yield break;
+                            return;
                         }
 
                         SavePackageVersionData(procedureOwner, runtimePackage, savedVersion);
@@ -126,7 +126,7 @@ namespace Procedure
                     }
 
                     OnInitResourcesError(procedureOwner, runtimePackage.PackageName, versionOperation.Error);
-                    yield break;
+                    return;
                 }
 
                 var packageVersion = versionOperation.PackageVersion;
@@ -135,17 +135,17 @@ namespace Procedure
                     if (string.IsNullOrEmpty(packageVersion))
                     {
                         OnInitResourcesError(procedureOwner, runtimePackage.PackageName, "资源包版本为空，无法更新资源清单。");
-                        yield break;
+                        return;
                     }
 
                     Log.Info($"资源包本地版本：{runtimePackage.PackageName} => {packageVersion}");
                     var localManifestOperation = _resourceModule.UpdatePackageManifestAsync(packageVersion,
                         customPackageName: runtimePackage.PackageName);
-                    yield return localManifestOperation;
+                    await localManifestOperation;
                     if (localManifestOperation.Status != EOperationStatus.Succeeded)
                     {
                         OnInitResourcesError(procedureOwner, runtimePackage.PackageName, localManifestOperation.Error);
-                        yield break;
+                        return;
                     }
 
                     SavePackageVersionData(procedureOwner, runtimePackage, packageVersion);
@@ -160,7 +160,7 @@ namespace Procedure
                 if (versionChanged)
                 {
                     bool useRemoteVersion = true;
-                    yield return ConfirmPackageVersion(runtimePackage, savedVersion, packageVersion, value => { useRemoteVersion = value; });
+                    await ConfirmPackageVersion(runtimePackage, savedVersion, packageVersion, value => { useRemoteVersion = value; });
                     selectedVersion = useRemoteVersion ? packageVersion : savedVersion;
                     _needDownloadCheck = true;
 
@@ -175,15 +175,15 @@ namespace Procedure
                 if (string.IsNullOrEmpty(selectedVersion))
                 {
                     OnInitResourcesError(procedureOwner, runtimePackage.PackageName, "资源包版本为空，无法更新资源清单。");
-                    yield break;
+                    return;
                 }
 
                 var manifestOperation = _resourceModule.UpdatePackageManifestAsync(selectedVersion, customPackageName: runtimePackage.PackageName);
-                yield return manifestOperation;
+                await manifestOperation;
                 if (manifestOperation.Status != EOperationStatus.Succeeded)
                 {
                     OnInitResourcesError(procedureOwner, runtimePackage.PackageName, manifestOperation.Error);
-                    yield break;
+                    return;
                 }
 
                 SavePackageVersionData(procedureOwner, runtimePackage, selectedVersion);
@@ -204,7 +204,7 @@ namespace Procedure
                             string errorMessage = $"资源模式不匹配！\n\n包名：{runtimePackage.PackageName}\nExe 模式：{exeBuildMode}\n资源包模式：{metadata.mode}\n\n请使用匹配的资源包，或重新构建 Exe。";
                             Log.Error(errorMessage);
                             LauncherMgr.ShowMessageBox(errorMessage, Application.Quit);
-                            yield break;
+                            return;
                         }
                     }
                     catch (Exception e)
@@ -219,7 +219,7 @@ namespace Procedure
         }
 
 
-        private IEnumerator ConfirmPackageVersion(RuntimePackageEntry runtimePackage, string localVersion, string remoteVersion, Action<bool> onConfirm)
+        private async UniTask ConfirmPackageVersion(RuntimePackageEntry runtimePackage, string localVersion, string remoteVersion, Action<bool> onConfirm)
         {
             bool handled = false;
             bool useRemoteVersion = true;
@@ -255,7 +255,7 @@ namespace Procedure
                     autoConfirmDelay: VersionConfirmAutoDelaySeconds);
             }
 
-            yield return new WaitUntil(() => handled);
+            await UniTask.WaitUntil(() => handled);
             onConfirm(useRemoteVersion);
         }
 
@@ -303,7 +303,7 @@ namespace Procedure
             _handledLocalPackageVersionNotice = false;
             _needDownloadCheck = false;
             procedureOwner.RemoveData(ConfirmedVersionUpdateKey);
-            Utility.Unity.StartCoroutine(InitResources(procedureOwner));
+            InitResources(procedureOwner).Forget();
         }
 
         private void HandleLocalPackageVersionFallback(ProcedureOwner procedureOwner)
