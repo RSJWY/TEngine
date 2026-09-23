@@ -18,6 +18,7 @@ namespace GameLogic
 
 		private UIBindComponent m_bindComponent;
 		private TextMeshProUGUI m_tmp_progressText = null!;
+		private TextMeshProUGUI m_tmp_progressValue = null!;
 		private Image m_img_progress = null!;
 
 		protected override void ScriptGenerator()
@@ -29,7 +30,8 @@ namespace GameLogic
 				return;
 			}
 			m_tmp_progressText = m_bindComponent.GetComponent<TextMeshProUGUI>(0);
-			m_img_progress = m_bindComponent.GetComponent<Image>(1);
+			m_tmp_progressValue = m_bindComponent.GetComponent<TextMeshProUGUI>(1);
+			m_img_progress = m_bindComponent.GetComponent<Image>(2);
 		}
 
 		#endregion

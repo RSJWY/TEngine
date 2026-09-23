@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1095714adeac0974e9fa8b465476779a, type: 3}
+  m_Name: SceneLoadTipsConfig
+  m_EditorClassIdentifier: 
+  phaseEntries:
+  - Threshold: 0.1
+    Text: "\u6B63\u5728\u51C6\u5907\u573A\u666F\u2026"
+  - Threshold: 0.9
+    Text: "\u6B63\u5728\u52A0\u8F7D\u573A\u666F\u8D44\u6E90\u2026"
+  - Threshold: 1
+    Text: "\u5373\u5C06\u8FDB\u5165\u573A\u666F\u2026"
+  tips:
+  - "\u6309\u4E0B <size=80%><color=#FFD700>Esc</color></size> \u53EF\u4EE5\u6253\u5F00\u8C03\u8BD5\u9762\u677F"
+  - "\u573A\u666F\u4E2D\u7684\u52A8\u6001\u7269\u4F53\u4F1A\u5728\u52A0\u8F7D\u5B8C\u6210\u540E\u81EA\u52A8\u751F\u6210"
+  - "\u52A0\u8F7D\u8FDB\u5EA6\u91C7\u7528\u4E09\u6BB5\u5F0F\u5E73\u6ED1\u52A8\u753B\uFF0C\u907F\u514D\u8DF3\u53D8"
+  - "\u5982\u679C\u52A0\u8F7D\u5361\u987F\uFF0C\u8BF7\u8010\u5FC3\u7B49\u5F85\uFF0C\u7CFB\u7EDF\u4F1A\u81EA\u52A8\u8D85\u65F6\u5151\u5E95"

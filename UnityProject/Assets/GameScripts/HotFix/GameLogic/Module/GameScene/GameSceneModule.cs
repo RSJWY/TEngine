@@ -12,7 +12,6 @@ namespace GameLogic
 
     /// <summary>
     /// 场景数据与跳转模块。
-    /// </summary>
     /// <remarks>
     /// 职责：① 把 <see cref="SceneType"/> 映射成场景资源地址；② 提供统一的场景跳转入口，
     /// 经 <see cref="GameModule.UI"/> 直接打开 <see cref="SwitchUI"/> 加载页（场景切换不再走 UIJump，
@@ -81,6 +80,71 @@ namespace GameLogic
         /// </summary>
         public string CurrentSceneName => CurrentSceneType.HasValue ? GetSceneName(CurrentSceneType.Value) : string.Empty;
 
+        // ===== 加载页文案配置（SceneLoadTipsConfig） =====
+
+        /// <summary>SO 资源地址（YooAsset location，文件名 = SceneLoadTipsConfig）。</summary>
+        private const string TipsConfigAssetLocation = "SceneLoadTipsConfig";
+
+        /// <summary>SO 配置缓存（首次访问时通过 ResourceModule 同步加载）。</summary>
+        private SceneLoadTipsConfig _tipsConfig;
+
+        /// <summary>
+        /// 懒加载并缓存 <see cref="SceneLoadTipsConfig"/>；加载失败静默返回 null。
+        /// </summary>
+        /// <remarks>仅在加载会话首次调用，避免空闲期空转。</remarks>
+        private SceneLoadTipsConfig GetTipsConfig()
+        {
+            if (_tipsConfig != null)
+            {
+                return _tipsConfig;
+            }
+
+            try
+            {
+                _tipsConfig = GameModule.Resource.LoadAsset<SceneLoadTipsConfig>(TipsConfigAssetLocation);
+            }
+            catch (Exception e)
+            {
+                Log.Error($"[GameScene] {TipsConfigAssetLocation} 加载失败：{e.Message}");
+                _tipsConfig = null;
+            }
+
+            return _tipsConfig;
+        }
+
+        /// <summary>
+        /// 当前加载阶段富文本：按 <see cref="DisplayProgress"/> 查 <see cref="SceneLoadTipsConfig"/> 返回。
+        /// </summary>
+        /// <remarks>未加载 SO 或表为空返回空串；非加载会话期间返回最后一次终值。</remarks>
+        public string DisplayPhaseText
+        {
+            get
+            {
+                var cfg = _isActive ? GetTipsConfig() : _tipsConfig;
+                if (cfg == null)
+                {
+                    return string.Empty;
+                }
+
+                return cfg.GetPhaseText(_displayProgress);
+            }
+        }
+
+        /// <summary>
+        /// 从 <see cref="SceneLoadTipsConfig.Tips"/> 随机取一条小贴士。
+        /// </summary>
+        /// <returns>小贴士文本；配置为空返回空串。</returns>
+        public string GetRandomTip()
+        {
+            var cfg = _isActive ? GetTipsConfig() : _tipsConfig;
+            if (cfg == null || cfg.Tips.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            return cfg.Tips[UnityEngine.Random.Range(0, cfg.Tips.Count)];
+        }
+
         public override void OnInit()
         {
             _jumpControl = GameModule.UIJumpControl;
@@ -91,6 +155,7 @@ namespace GameLogic
             // 模块关闭：停止进度驱动，清理引用。不触发业务完成回调（避免在关闭流程中执行 CloseAll/JumpToMain 等副作用）。
             _isActive = false;
             _jumpControl = null;
+            _tipsConfig = null;
             PreviousSceneType = null;
             CurrentSceneType = null;
         }
