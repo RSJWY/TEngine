@@ -26,16 +26,7 @@ namespace TEngine.Editor.Inspector
             EPlayMode.WebPlayMode
         };
 
-        private static readonly string[] m_encryptionNames = new string[]
-        {
-            "无加密",
-            "文件偏移加密",
-            "文件流加密",
-            "ChaCha20加密",
-        };
-
         private SerializedProperty m_playMode;
-        private SerializedProperty m_encryptionType;
         private SerializedProperty m_updatableWhilePlaying;
         private SerializedProperty m_milliseconds;
         private SerializedProperty m_autoUnloadBundleWhenUnused;
@@ -49,7 +40,6 @@ namespace TEngine.Editor.Inspector
         private SerializedProperty m_failedTryAgain;
         private SerializedProperty m_downloadingMaxNum;
         private int m_playModeIndex;
-        private int m_encryptionNameIndex;
 
         // UI状态
         private Vector2 m_scrollPosition;
@@ -159,24 +149,7 @@ namespace TEngine.Editor.Inspector
 
                     EditorGUILayout.Space(5);
 
-                    // 资源加密模式
-                    EditorGUILayout.LabelField("资源加密模式", EditorStyles.boldLabel);
-                    if (EditorApplication.isPlaying && IsPrefabInHierarchy(t.gameObject))
-                    {
-                        EditorGUILayout.EnumPopup("当前加密", t.EncryptionType);
-                    }
-                    else
-                    {
-                        int selectedIndex = EditorGUILayout.Popup("加密方式", m_encryptionNameIndex, m_encryptionNames);
-                        if (selectedIndex != m_encryptionNameIndex)
-                        {
-                            m_encryptionNameIndex = selectedIndex;
-                            m_encryptionType.enumValueIndex = selectedIndex;
-                        }
-                    }
-
-                    EditorGUILayout.Space(5);
-                    EditorGUILayout.HelpBox($"默认包名：{GetDefaultPackageName()}\n资源包列表已改为由 UpdateSetting.RuntimePackages 统一管理。", MessageType.Info);
+                    EditorGUILayout.HelpBox($"默认包名：{GetDefaultPackageName()}\n资源包列表已改为由 UpdateSetting.RuntimePackages 统一管理。\n加密方式请在各资源包配置中单独设置。", MessageType.Info);
 
                     EditorGUILayout.Space(3);
                     EditorGUILayout.HelpBox(GetPlayModeDescription(m_playModeIndex), MessageType.Info);
@@ -352,6 +325,15 @@ namespace TEngine.Editor.Inspector
                         {
                             m_updatableWhilePlaying.boolValue = updatableWhilePlaying;
                         }
+                    }
+
+                    if (m_updatableWhilePlaying.boolValue)
+                    {
+                        EditorGUILayout.HelpBox("已开启边玩边下：启动时跳过批量下载，玩家直接进入游戏，运行时按需从远端拉取资源。首次访问未下载资源时会有网络等待。", MessageType.Info);
+                    }
+                    else
+                    {
+                        EditorGUILayout.HelpBox("已关闭边玩边下：启动时需下载全部资源后才进入游戏。WebGL 模式下不受此选项影响，始终为边玩边下。", MessageType.Info);
                     }
 
                     EditorGUILayout.Space(5);
@@ -590,7 +572,6 @@ namespace TEngine.Editor.Inspector
         private void OnEnable()
         {
             m_playMode = serializedObject.FindProperty("playMode");
-            m_encryptionType = serializedObject.FindProperty("encryptionType");
             m_updatableWhilePlaying = serializedObject.FindProperty("updatableWhilePlaying");
             m_milliseconds = serializedObject.FindProperty("milliseconds");
             m_autoUnloadBundleWhenUnused = serializedObject.FindProperty("autoUnloadBundleWhenUnused");
@@ -618,7 +599,6 @@ namespace TEngine.Editor.Inspector
             m_playModeIndex = Array.IndexOf(m_playModes, (EPlayMode)m_playMode.intValue);
             if (m_playModeIndex < 0)
                 m_playModeIndex = 0;
-            m_encryptionNameIndex = m_encryptionType.enumValueIndex > 0 ? m_encryptionType.enumValueIndex : 0;
         }
     }
 }

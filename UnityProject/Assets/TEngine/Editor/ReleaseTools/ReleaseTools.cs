@@ -842,39 +842,6 @@ namespace TEngine
             return BundleCrypto.Create(encryptionType)?.Encryptor;
         }
 
-        /// <summary>
-        /// 根据 ResourceModuleDriver 的 encryptionType 获取对应的加密服务（旧版兼容）
-        /// </summary>
-        private static IBundleEncryptor GetEncryptionFromResourceModuleDriver()
-        {
-            var guids = AssetDatabase.FindAssets("t:Prefab GameEntry");
-            if (guids.Length == 0)
-            {
-                Debug.LogWarning("[BuildInternal] Failed to find GameEntry.prefab");
-                return null;
-            }
-
-            var gameEntryPath = AssetDatabase.GUIDToAssetPath(guids[0]);
-            var gameEntryPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(gameEntryPath);
-            if (gameEntryPrefab == null)
-            {
-                Debug.LogWarning("[BuildInternal] Failed to load GameEntry.prefab");
-                return null;
-            }
-
-            var resourceModuleDriver = gameEntryPrefab.GetComponentInChildren<ResourceModuleDriver>();
-            if (resourceModuleDriver == null)
-            {
-                Debug.LogWarning("[BuildInternal] ResourceModuleDriver not found in GameEntry.prefab");
-                return null;
-            }
-
-            var encryptionType = resourceModuleDriver.EncryptionType;
-            Debug.Log($"[BuildInternal] Use EncryptionType from ResourceModuleDriver: {encryptionType}");
-
-            return GetEncryptionFromType(encryptionType);
-        }
-
         private static string GetBuildPackageVersion()
         {
             int totalMinutes = DateTime.Now.Hour * 60 + DateTime.Now.Minute;

@@ -32,11 +32,6 @@ namespace TEngine
         string InstanceId { get; set; }
 
         /// <summary>
-        /// 资源加密方式。
-        /// </summary>
-        EncryptionType EncryptionType { get; set; }
-
-        /// <summary>
         /// 是否边玩边下载。
         /// </summary>
         bool UpdatableWhilePlaying { get; set; }

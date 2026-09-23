@@ -26,8 +26,6 @@ namespace TEngine
         /// </summary>
         public EPlayMode PlayMode { get; set; } = EPlayMode.OfflinePlayMode;
 
-        public EncryptionType EncryptionType { get; set; } = EncryptionType.None;
-
         /// <summary>
         /// 桌面多开实例标识。为空串时不隔离（默认行为）；非空时沙盒缓存与内置解包目录隔离到 instance-{InstanceId} 目录下。
         /// </summary>
@@ -354,7 +352,7 @@ namespace TEngine
         private EncryptionType GetEncryptionType(string packageName)
         {
             var runtimePackage = Settings.UpdateSetting != null ? Settings.UpdateSetting.GetRuntimePackage(packageName) : null;
-            return runtimePackage != null ? runtimePackage.EncryptionType : EncryptionType;
+            return runtimePackage != null ? runtimePackage.EncryptionType : EncryptionType.None;
         }
 
         /// <summary>
