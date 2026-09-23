@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <root Version="1">
   <Common ShowPackageView="true" ShowEditorAlias="true" UniqueBundleName="true" />
-  <Package PackageName="DefaultPackage" PackageDesc="" AutoAddressable="true" SupportExtensionless="true" LocationToLower="false" IncludeAssetGUID="false" AutoCollectShaders="true" IgnoreRuleName="NormalIgnoreRule">
+  <Package PackageName="DefaultPackage" PackageDesc="" AutoAddressable="true" SupportExtensionless="true" LocationToLower="false" IncludeAssetGUID="true" AutoCollectShaders="true" IgnoreRuleName="NormalIgnoreRule">
     <Group GroupActiveRule="EnableGroup" GroupName="Actor" GroupDesc="" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/Actor" CollectGUID="9c67ce0c9edfd4e4aa1006ee39846d66" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>
@@ -21,7 +21,10 @@
       <Collector CollectPath="Assets/AssetRaw/Materials" CollectGUID="228b1547e7065d546ad0bf215fd6a276" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>
     <Group GroupActiveRule="EnableGroup" GroupName="Scenes" GroupDesc="" AssetTags="">
-      <Collector CollectPath="Assets/AssetRaw/Scenes" CollectGUID="cace6ee6539f661419b5e5f8ae1c0146" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackSceneFile" FilterRule="CollectAll" UserData="" AssetTags="" />
+      <Collector CollectPath="Assets/AssetRaw/Scenes" CollectGUID="cace6ee6539f661419b5e5f8ae1c0146" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackSceneFile" FilterRule="CollectScene" UserData="" AssetTags="" />
+    </Group>
+    <Group GroupActiveRule="EnableGroup" GroupName="SceneBakeData" GroupDesc="收集场景烘焙数据" AssetTags="">
+      <Collector CollectPath="Assets/AssetRaw/Scenes" CollectGUID="cace6ee6539f661419b5e5f8ae1c0146" CollectType="StaticAssetCollector" AddressRule="AddressDisable" PackRule="PackTopDirectory" FilterRule="FilterExcludeScene" UserData="" AssetTags="" />
     </Group>
     <Group GroupActiveRule="EnableGroup" GroupName="UI" GroupDesc="" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/UI" CollectGUID="27e87d83814156648b58f380b834e046" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackSeparately" FilterRule="CollectAll" UserData="" AssetTags="" />
@@ -30,23 +33,26 @@
       <Collector CollectPath="Assets/AssetRaw/UIRaw/Atlas" CollectGUID="6d11fa91acc253840a648b58f23db139" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
       <Collector CollectPath="Assets/AssetRaw/UIRaw/Raw" CollectGUID="6bc134b912ac6bb4399ea1bec4c11636" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>
-    <Group GroupActiveRule="EnableGroup" GroupName="Reference" GroupDesc="" AssetTags="">
+    <Group GroupActiveRule="EnableGroup" GroupName="Reference" GroupDesc="引用数据，不主动加载" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/Reference/ReferenceActor" CollectGUID="760f3ac60d126ae4c8c0a1b237b8988d" CollectType="StaticAssetCollector" AddressRule="AddressDisable" PackRule="PackTopDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
       <Collector CollectPath="Assets/AssetRaw/Reference/ReferenceMaterials" CollectGUID="df2c3211b1b157047bbf3bf75acfb336" CollectType="StaticAssetCollector" AddressRule="AddressDisable" PackRule="PackTopDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>
   </Package>
   <Package PackageName="CodePackage" PackageDesc="" AutoAddressable="true" SupportExtensionless="true" LocationToLower="false" IncludeAssetGUID="false" AutoCollectShaders="false" IgnoreRuleName="RawFileIgnoreRule">
-    <Group GroupActiveRule="EnableGroup" GroupName="AOT" GroupDesc="" AssetTags="">
+    <Group GroupActiveRule="EnableGroup" GroupName="AOT" GroupDesc="补充元数据" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/DLL/AOT" CollectGUID="daad56d8c5d0f2f4680a7320e3203182" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectBytesOnly" UserData="" AssetTags="" />
     </Group>
-    <Group GroupActiveRule="EnableGroup" GroupName="HotDll" GroupDesc="" AssetTags="">
+    <Group GroupActiveRule="EnableGroup" GroupName="HotDll" GroupDesc="热更代码" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/DLL/HotDll" CollectGUID="7ced23d46eb69044bb8c10765c763d4d" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectBytesOnly" UserData="" AssetTags="" />
     </Group>
-    <Group GroupActiveRule="EnableGroup" GroupName="PDB" GroupDesc="" AssetTags="">
+    <Group GroupActiveRule="EnableGroup" GroupName="PDB" GroupDesc="调试行号" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/DLL/PDB" CollectGUID="129fef731ed71b942bd87c51f17c560e" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectBytesOnly" UserData="" AssetTags="" />
     </Group>
-    <Group GroupActiveRule="EnableGroup" GroupName="obfuz" GroupDesc="" AssetTags="">
+    <Group GroupActiveRule="EnableGroup" GroupName="obfuz" GroupDesc="混淆key" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/DLL/Obfuz" CollectGUID="7d5d2c636bdd6b442a46d61d4bf4482d" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackGroup" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>
+  </Package>
+  <Package PackageName="RawFilePackage" PackageDesc="" AutoAddressable="true" SupportExtensionless="true" LocationToLower="false" IncludeAssetGUID="false" AutoCollectShaders="false" IgnoreRuleName="RawFileIgnoreRule">
+    <Group GroupActiveRule="EnableGroup" GroupName="Default Group" GroupDesc="" AssetTags="" />
   </Package>
 </root>

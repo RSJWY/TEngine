@@ -250,9 +250,9 @@ MonoBehaviour:
     EnableAddressable: 1
     SupportExtensionless: 1
     LocationToLower: 0
-    IncludeAssetGUID: 1
-    AutoCollectShaders: 1
-    IgnoreRuleName: NormalIgnoreRule
+    IncludeAssetGUID: 0
+    AutoCollectShaders: 0
+    IgnoreRuleName: RawFileIgnoreRule
     Groups:
     - GroupName: Default Group
       GroupDesc: 
