@@ -4,6 +4,7 @@
 
 ## 2026-09-23
 
+- `Debugger` 新增组合快捷键切换 Debug UI：`_toggleHotkey`（默认 `BackQuote`）+ `_toggleModifierKeys`（默认 `{ LeftShift }`），修饰键全按住时按主键即切换 `ShowFullWindow`；暴露 `ToggleHotkey`/`ToggleModifierKeys` 公共属性，Inspector 可配。详见 [debugger.md](debugger.md)。
 - `ScreenModule` 新增动态摆窗 API：`SetLayout` / `BringToFront` / `SetTitle`，不依赖 `ScreenConfig` 直接以参数下发单窗布局，仍走平台守卫与句柄缓存；同步修正 `IScreenModule.IsSupported` 注释，去掉 Editor 被排除的误导描述。详见 [window-management.md](window-management.md)。
 
 ## 2026-09-22

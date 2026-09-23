@@ -49,6 +49,12 @@ namespace TEngine
         private bool _showFullWindow = false;
 
         [SerializeField]
+        private KeyCode _toggleHotkey = KeyCode.BackQuote;
+
+        [SerializeField]
+        private KeyCode[] _toggleModifierKeys = { KeyCode.LeftShift };
+
+        [SerializeField]
         private ConsoleWindow _consoleWindow = new ConsoleWindow();
 
         private SystemInformationWindow _systemInformationWindow = new SystemInformationWindow();
@@ -138,6 +144,25 @@ namespace TEngine
         {
             get => _windowScale;
             set => _windowScale = value;
+        }
+
+        /// <summary>
+        /// 获取或设置切换 Debug UI 的快捷键。
+        /// </summary>
+        public KeyCode ToggleHotkey
+        {
+            get => _toggleHotkey;
+            set => _toggleHotkey = value;
+        }
+
+        /// <summary>
+        /// 获取或设置切换 Debug UI 的修饰键集合。全部按下时才触发。
+        /// 设为空数组或 null 表示无修饰键。
+        /// </summary>
+        public KeyCode[] ToggleModifierKeys
+        {
+            get => _toggleModifierKeys;
+            set => _toggleModifierKeys = value;
         }
 
         private GameObject _eventSystem;
@@ -249,6 +274,27 @@ namespace TEngine
         private void Update()
         {
             _fpsCounter.Update(Time.deltaTime, Time.unscaledDeltaTime);
+
+            if (_debuggerModule != null && _debuggerModule.ActiveWindow && _toggleHotkey != KeyCode.None)
+            {
+                bool modifiersOk = true;
+                if (_toggleModifierKeys != null)
+                {
+                    foreach (var key in _toggleModifierKeys)
+                    {
+                        if (!Input.GetKey(key))
+                        {
+                            modifiersOk = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (modifiersOk && Input.GetKeyDown(_toggleHotkey))
+                {
+                    ShowFullWindow = !ShowFullWindow;
+                }
+            }
         }
 
         private void OnGUI()
