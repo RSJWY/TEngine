@@ -60,7 +60,7 @@ MonoBehaviour:
     UpdateManifestOnStartup: 1
     DownloadOnDemand: 1
     SaveVersion: 1
-    VersionKey: CODE_VERSION
+    VersionKey: RAWFILE_VERSION
     BuildPipeline: 3
     EncryptionType: 0
     ManifestEncrypted: 1
