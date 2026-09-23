@@ -30,6 +30,7 @@
 | 动画模块 | 基于 PlayableGraph 的代码驱动 3D 动画图，多层级混合/权重过渡 | [anim-module.md](Fork/anim-module.md) |
 | 桌面多开 | YooAsset 多实例缓存隔离，命令行 `--yoo-instance` 驱动 | [desktop-multi-instance.md](Fork/desktop-multi-instance.md) |
 | 调试器 | `Debugger` 组合快捷键切换 Debug UI | [debugger.md](Fork/debugger.md) |
+| 自定义异步操作 | 模块级 `AsyncOperationModule`，不依赖 YooAsset 的自定义异步操作体系，支持协程/UniTask/abort-on-cancel | [async-operation.md](Fork/async-operation.md) |
 
 ## 维护规则
 

@@ -4,6 +4,7 @@
 
 ## 2026-09-23
 
+- 新增模块级自定义异步操作 `AsyncOperationModule`：借鉴 YooAsset 3.0.6 `CustomAsyncOperation` 体系，做成 TEngine 框架自有模块，不依赖 YooAsset 运行时。`GameAsyncOperation` 基类提供状态机/`Completed` 事件/优先级/进度/子任务树/协程/awaiter/同步等待；调度器双队列+时间切片预算；多调度器管理；abort-on-cancel 重载（`StartOperation(op, token)` 取消即中止操作，注明独占要求）；UniTask 完整支持（`ToUniTask`/`WithCancellation`/进度上报/池化零分配）；`AsyncOperationMonitor` 编辑器可视化监控组件（`#if UNITY_EDITOR` 打包剥离）。详见 [async-operation.md](async-operation.md)。
 - `Debugger` 新增组合快捷键切换 Debug UI：`_toggleHotkey`（默认 `BackQuote`）+ `_toggleModifierKeys`（默认 `{ LeftShift }`），修饰键全按住时按主键即切换 `ShowFullWindow`；暴露 `ToggleHotkey`/`ToggleModifierKeys` 公共属性，Inspector 可配。详见 [debugger.md](debugger.md)。
 - `ScreenModule` 新增动态摆窗 API：`SetLayout` / `BringToFront` / `SetTitle`，不依赖 `ScreenConfig` 直接以参数下发单窗布局，仍走平台守卫与句柄缓存；同步修正 `IScreenModule.IsSupported` 注释，去掉 Editor 被排除的误导描述。详见 [window-management.md](window-management.md)。
 

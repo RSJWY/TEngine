@@ -32,9 +32,11 @@
 | 动画模块 | 基于 PlayableGraph 的代码驱动 3D 动画图，多层级混合/权重过渡 | [anim-module.md](anim-module.md) |
 | 桌面多开 | YooAsset 多实例缓存隔离，命令行 `--yoo-instance` 驱动 | [desktop-multi-instance.md](desktop-multi-instance.md) |
 | 调试器 | `Debugger` 组合快捷键切换 Debug UI | [debugger.md](debugger.md) |
+| 自定义异步操作 | 模块级 `AsyncOperationModule`，不依赖 YooAsset 的自定义异步操作体系，支持协程/UniTask/abort-on-cancel | [async-operation.md](async-operation.md) |
 
 ## 最近重点
 
+- 新增模块级自定义异步操作 `AsyncOperationModule`：借鉴 YooAsset 3.0.6 `CustomAsyncOperation` 体系抽成 TEngine 框架自有模块，不依赖 YooAsset 运行时。`GameAsyncOperation` 基类提供状态机/`Completed` 事件/优先级/进度/子任务树/协程/awaiter/同步等待；`OperationScheduler` 双队列+时间切片预算；多调度器管理绑定业务域生命周期；abort-on-cancel 重载（`StartOperation(op, token)` 取消即中止操作，注明独占要求）；UniTask 完整支持（`ToUniTask`/`WithCancellation`/进度上报/池化零分配）；`AsyncOperationMonitor` 编辑器可视化监控组件（`#if UNITY_EDITOR` 打包剥离）；热更 `GameModule` 新增 `AsyncOperation` 访问器。
 - `CodePackage` 接入 YooAsset 3.0.5 `ArchiveFileBuildPipeline`：构建类型改为 `ArchiveBundle`，编辑器模拟使用 `VirtualArchiveBundle`；运行时文件系统注册归档内存解密器，DLL/PDB/AOT 元数据和 Obfuz 动态密钥按归档语义读取 `RawFileObject`；修复 ChaCha20 变换与密钥配置 Player 编译问题。上游 TEngine 支持 YooAsset 3.x 后继续收敛资源模块和二进制加载抽象。
 - 热更构建链路接入 Obfuz 多态 DLL：`CopyAOTHotUpdateDlls` 在混淆后按 `polymorphicDllSettings.enable` 调 `GeneratePolymorphicDll` 转多态格式再拷 `.bytes`，产物目录 `Obfuz/{target}/PolymorphicHotUpdateAssemblies/`；运行时加载零改动，补充元数据暂维持标准格式（`disableLoadStandardDll: 0` 混用合法）。
 - 迁移 DGame `AnimModule` 到 `TEngine/Runtime/Module/AnimModule/`（框架层）：基于 PlayableGraph 的代码驱动 3D 动画图，封装 Unity 底层 Playable API（`AnimationClipPlayable`/`AnimationMixerPlayable`/`AnimationLayerMixerPlayable`），支持多层级混合/权重过渡/动态增删动画片段/手动驱动；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`），`Module.OnCreate/OnDestroy→OnInit/Shutdown`，`DGameException→Exception`，`DLogger→Log`，私有字段 `_小驼峰`；靠 `ModuleSystem` 反射约定自动注册；热更 `GameModule` 新增 `Anim` 访问器。
