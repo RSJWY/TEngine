@@ -126,3 +126,9 @@ yoo/
 
 #本地 Claude 权限配置
 .claude/settings.local.json
+
+# Local workflow evidence, approvals, and Python caches
+/.codex/runs/
+/.codex/.venv/
+/.codex/**/__pycache__/
+/.codex/**/*.pyc
