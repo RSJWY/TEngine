@@ -1,6 +1,6 @@
 using System;
 
-namespace GameLogic
+namespace TEngine
 {
     /// <summary>
     /// 标记一个普通数据类型需要生成数据绑定器。

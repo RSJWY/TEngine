@@ -11,7 +11,7 @@
 
 ## DataBinding
 
-DataBinding 是纯数据变化通知，不依赖 `UIWindow`、`UIWidget` 或 `GameEvent`，适合高频状态同步。
+DataBinding 是纯数据变化通知，不依赖 `UIWindow`、`UIWidget` 或 `GameEvent`，适合高频状态同步。位于 `TEngine.Runtime`（`Assets/TEngine/Runtime/Core/DataBinding/`），命名空间 `TEngine`，非热更代码也可使用。
 
 ```csharp
 [DataBindingModel]
@@ -47,7 +47,7 @@ _scope.Dispose();
 - 高频字段可直接 `SetDirty`，最后统一 `Flush()`。
 - `[DataBindSignal]` 只支持 bool，只在 `false -> true` 时发一次。
 - 格式化文本和跨字段组合留在订阅方，不写入 Binder。
-- 生成文件位于 `Assets/GameScripts/HotFix/GameLogic/Generated/DataBinding/`，不要手改。
+- 生成文件位于 `Assets/GameScripts/HotFix/GameLogic/Generated/DataBinding/`，不要手改。生成的 Binder 引用 `global::TEngine.DataBindingSignal/Property/Comparison`。
 
 ## ClientSaveData 与 DataCenter
 

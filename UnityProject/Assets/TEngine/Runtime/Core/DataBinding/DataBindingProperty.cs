@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace GameLogic
+namespace TEngine
 {
     /// <summary>
     /// 数据绑定属性的非泛型接口，用于统一 Flush 脏数据。

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace GameLogic
+namespace TEngine
 {
     /// <summary>
     /// 数据绑定生成代码使用的相等比较工具。

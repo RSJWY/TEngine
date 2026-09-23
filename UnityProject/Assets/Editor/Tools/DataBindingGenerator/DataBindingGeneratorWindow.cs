@@ -2,12 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Sirenix.OdinInspector;
-using Sirenix.OdinInspector.Editor;
 using UnityEditor;
 using UnityEngine;
 
-namespace GameLogic.Editor.Tools.DataBinding
+namespace TEngine.Editor.Tools.DataBinding
 {
     /// <summary>
     /// 自定义数据绑定生成器面板。
@@ -15,7 +13,7 @@ namespace GameLogic.Editor.Tools.DataBinding
     /// <remarks>
     /// 该面板只管理 DataBinding 生成流程，不处理 UI 绑定。
     /// </remarks>
-    public sealed class DataBindingGeneratorWindow : OdinEditorWindow
+    public sealed class DataBindingGeneratorWindow : EditorWindow
     {
         private const string MenuPath = "Tools/数据绑定/生成器面板";
         private const float ModelListMinWidth = 1120f;
@@ -25,34 +23,19 @@ namespace GameLogic.Editor.Tools.DataBinding
         private const float ModelListRowHeight = 44f;
         private const float ModelActionButtonHeight = 22f;
 
-        private Vector2 _modelListScroll;
-
         [SerializeField]
-        [BoxGroup("设置")]
-        [LabelText("输出目录")]
-        [FolderPath]
-        [DelayedProperty]
-        [InlineButton(nameof(ResetOutputDirectory), "默认")]
-        [InlineButton(nameof(CreateOutputDirectory), "创建")]
-        [InlineButton(nameof(OpenOutputDirectory), "打开")]
-        [OnValueChanged(nameof(RefreshModels))]
+        [HideInInspector]
         private string _outputDirectory = DataBindingGenerator.DefaultOutputDirectory;
 
         [SerializeField]
-        [BoxGroup("状态")]
-        [ReadOnly]
-        [LabelText("最近结果")]
+        [HideInInspector]
         private string _lastResult = "尚未生成。";
-
-        [ShowInInspector]
-        [BoxGroup("状态")]
-        [ReadOnly]
-        [LabelText("模型数量")]
-        private int ModelCount => _models.Count;
 
         [SerializeField]
         [HideInInspector]
         private List<ModelEntry> _models = new List<ModelEntry>();
+
+        private Vector2 _modelListScroll;
 
         [MenuItem(MenuPath)]
         public static void Open()
@@ -63,13 +46,13 @@ namespace GameLogic.Editor.Tools.DataBinding
             window.Show();
         }
 
-        protected override void OnEnable()
+        private void OnEnable()
         {
-            base.OnEnable();
+            titleContent = new GUIContent("数据绑定生成器");
             RefreshModels();
         }
 
-        protected override void OnImGUI()
+        private void OnGUI()
         {
             DrawHeader();
             DrawModelList();
@@ -133,9 +116,6 @@ namespace GameLogic.Editor.Tools.DataBinding
             EditorGUILayout.EndVertical();
         }
 
-        [Button("生成全部", ButtonSizes.Large)]
-        [GUIColor(0.35f, 0.75f, 0.35f)]
-        [PropertyOrder(-10)]
         private void GenerateAll()
         {
             CreateOutputDirectory();
@@ -144,8 +124,6 @@ namespace GameLogic.Editor.Tools.DataBinding
             RefreshModels();
         }
 
-        [Button("刷新模型列表", ButtonSizes.Medium)]
-        [PropertyOrder(-9)]
         private void RefreshModels()
         {
             try
@@ -161,9 +139,6 @@ namespace GameLogic.Editor.Tools.DataBinding
             }
         }
 
-        [Button("清理生成文件", ButtonSizes.Medium)]
-        [GUIColor(0.9f, 0.65f, 0.25f)]
-        [PropertyOrder(-8)]
         private void CleanGeneratedFiles()
         {
             bool confirmed = EditorUtility.DisplayDialog(
@@ -282,7 +257,7 @@ namespace GameLogic.Editor.Tools.DataBinding
             }
         }
 
-        private static void DrawModelTableRow(Rect rowRect, ModelEntry entry, int index, GUIStyle cellStyle)
+        private void DrawModelTableRow(Rect rowRect, ModelEntry entry, int index, GUIStyle cellStyle)
         {
             Color rowColor = index % 2 == 0
                 ? new Color(1f, 1f, 1f, 0.035f)
@@ -330,7 +305,7 @@ namespace GameLogic.Editor.Tools.DataBinding
                     new GUIContent(values[i], values[i]),
                     style);
 
-                EditorGUI.DrawRect(new Rect(cellRect.xMax - 1f, cellRect.y + 4f, 1f, cellRect.height - 8f), new Color(0f, 0f, 0f, 0.12f));
+                EditorGUI.DrawRect(new Rect(cellRect.xMax - 1f, cellRect.y + 4f, 1f, rowRect.height - 8f), new Color(0f, 0f, 0f, 0.12f));
                 x += widths[i];
             }
         }
@@ -342,7 +317,7 @@ namespace GameLogic.Editor.Tools.DataBinding
             return new Rect(actionX, rowRect.y, 262f, rowRect.height);
         }
 
-        private static void DrawModelActions(Rect rect, ModelEntry entry)
+        private void DrawModelActions(Rect rect, ModelEntry entry)
         {
             const float regenerateWidth = 78f;
             const float cleanWidth = 48f;
@@ -386,47 +361,26 @@ namespace GameLogic.Editor.Tools.DataBinding
         [Serializable]
         private sealed class ModelEntry
         {
-            [TableColumnWidth(220, Resizable = true)]
-            [ReadOnly]
-            [LabelText("模型类型")]
             public string ModelType;
-
-            [TableColumnWidth(240, Resizable = true)]
-            [ReadOnly]
-            [DisplayAsString(false)]
-            [LabelText("定义源")]
             public string SourceFile;
-
-            [TableColumnWidth(170, Resizable = true)]
-            [ReadOnly]
-            [LabelText("绑定器类型")]
             public string BinderType;
-
-            [TableColumnWidth(70)]
-            [ReadOnly]
-            [LabelText("成员数")]
             public int MemberCount;
-
-            [TableColumnWidth(65)]
-            [ReadOnly]
-            [LabelText("信号数")]
             public int SignalCount;
-
-            [TableColumnWidth(80)]
-            [ReadOnly]
-            [LabelText("容差数")]
             public int ToleranceCount;
-
-            [TableColumnWidth(80)]
-            [ReadOnly]
-            [LabelText("状态")]
             public string Status;
 
-            [HideInInspector]
+            [NonSerialized]
             public bool GeneratedFileExists;
 
-            [TableColumnWidth(80)]
-            [Button("重新生成", ButtonSizes.Small)]
+            [NonSerialized]
+            public string OutputPath;
+
+            [NonSerialized]
+            public string OutputDirectory;
+
+            [NonSerialized]
+            private DataBindingGeneratorWindow _owner;
+
             public void Regenerate()
             {
                 DataBindingGenerator.GenerateModelResult result = DataBindingGenerator.GenerateOne(ModelType, OutputDirectory);
@@ -451,9 +405,6 @@ namespace GameLogic.Editor.Tools.DataBinding
                 }
             }
 
-            [TableColumnWidth(55)]
-            [Button("清理", ButtonSizes.Small)]
-            [EnableIf(nameof(GeneratedFileExists))]
             public void CleanGeneratedFile()
             {
                 bool deleted = DataBindingGenerator.CleanGeneratedFile(OutputPath);
@@ -472,8 +423,6 @@ namespace GameLogic.Editor.Tools.DataBinding
                 }
             }
 
-            [TableColumnWidth(55)]
-            [Button("定位", ButtonSizes.Small)]
             public void Ping()
             {
                 UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(OutputPath);
@@ -496,9 +445,6 @@ namespace GameLogic.Editor.Tools.DataBinding
                 }
             }
 
-            [TableColumnWidth(70)]
-            [Button("定位源", ButtonSizes.Small)]
-            [EnableIf(nameof(HasSourceFile))]
             public void PingSource()
             {
                 if (string.IsNullOrEmpty(SourceFile))
@@ -513,17 +459,6 @@ namespace GameLogic.Editor.Tools.DataBinding
                     Selection.activeObject = asset;
                 }
             }
-
-            private bool HasSourceFile => !string.IsNullOrEmpty(SourceFile);
-
-            [HideInInspector]
-            public string OutputPath;
-
-            [HideInInspector]
-            public string OutputDirectory;
-
-            [NonSerialized]
-            private DataBindingGeneratorWindow _owner;
 
             public static ModelEntry From(DataBindingGenerator.ModelInfo info, string outputDirectory, DataBindingGeneratorWindow owner)
             {

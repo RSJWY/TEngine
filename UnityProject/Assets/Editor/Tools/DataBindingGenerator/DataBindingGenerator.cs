@@ -11,7 +11,7 @@ using UnityEditor;
 using UnityEditor.Compilation;
 using UnityEngine;
 
-namespace GameLogic.Editor.Tools.DataBinding
+namespace TEngine.Editor.Tools.DataBinding
 {
     /// <summary>
     /// 自定义数据绑定代码生成器。
@@ -331,11 +331,11 @@ namespace GameLogic.Editor.Tools.DataBinding
             {
                 if (member.IsSignal)
                 {
-                    builder.AppendLine($"{indent}    public global::GameLogic.DataBindingSignal {EscapeIdentifier(member.Name)} {{ get; }} = new global::GameLogic.DataBindingSignal();");
+                    builder.AppendLine($"{indent}    public global::TEngine.DataBindingSignal {EscapeIdentifier(member.Name)} {{ get; }} = new global::TEngine.DataBindingSignal();");
                 }
                 else
                 {
-                    builder.AppendLine($"{indent}    public global::GameLogic.DataBindingProperty<{GetTypeName(member.BindingType)}> {EscapeIdentifier(member.Name)} {{ get; }} = new global::GameLogic.DataBindingProperty<{GetTypeName(member.BindingType)}>();");
+                    builder.AppendLine($"{indent}    public global::TEngine.DataBindingProperty<{GetTypeName(member.BindingType)}> {EscapeIdentifier(member.Name)} {{ get; }} = new global::TEngine.DataBindingProperty<{GetTypeName(member.BindingType)}>();");
                 }
             }
 
@@ -432,7 +432,7 @@ namespace GameLogic.Editor.Tools.DataBinding
             if (member.Tolerance.HasValue)
             {
                 string tolerance = member.Tolerance.Value.ToString("R", CultureInfo.InvariantCulture);
-                builder.AppendLine($"{indent}        {memberName}.SetDirty({valueExpression}, (oldValue, newValue) => global::GameLogic.DataBindingComparison.AreEqual(oldValue, newValue, {tolerance}f));");
+                builder.AppendLine($"{indent}        {memberName}.SetDirty({valueExpression}, (oldValue, newValue) => global::TEngine.DataBindingComparison.AreEqual(oldValue, newValue, {tolerance}f));");
             }
             else
             {

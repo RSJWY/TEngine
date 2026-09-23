@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace GameLogic
+namespace TEngine
 {
     /// <summary>
     /// 自定义数据绑定信号。

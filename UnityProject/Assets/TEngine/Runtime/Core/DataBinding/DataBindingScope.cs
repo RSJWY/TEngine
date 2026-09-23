@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace GameLogic
+namespace TEngine
 {
     /// <summary>
     /// 数据绑定订阅作用域。
