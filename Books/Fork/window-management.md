@@ -18,6 +18,10 @@ Windows Standalone 下控制 Unity 多屏窗口的：
 - 大小
 - 强制置顶（`HWND_TOPMOST`）
 - 无边框模式（去除 `WS_CAPTION | WS_THICKFRAME`）
+- 提到前台（`SetForegroundWindow`）
+- 设置窗口标题（`SetWindowText`）
+
+其中位置/大小/置顶/无边框既可由 `ScreenConfig` 批量驱动（`ApplyAll` / `ApplyScreen`），也可通过 `SetLayout` / `BringToFront` / `SetTitle` 以参数直接单次下发，不依赖配置。
 
 ### 设计要点
 
@@ -64,7 +68,14 @@ GameModule.Screen.ApplyAll();
 GameModule.Screen.ApplyScreen(0);
 GameModule.Screen.SetTopmost(1, true);
 bool ok = GameModule.Screen.IsSupported;
+
+// 不依赖 ScreenConfig 的动态摆窗 API：
+GameModule.Screen.SetLayout(1, 1920, 0, 1280, 720, topmost: true, borderless: true);
+GameModule.Screen.BringToFront(1);
+GameModule.Screen.SetTitle(1, "副屏");
 ```
+
+`SetLayout` / `BringToFront` / `SetTitle` 不读取或修改 `ScreenConfig`，直接以参数下发到 `WindowsScreenNative`，适合运行时动态调整单窗布局。三者仍走 `EnsureEnabled` 平台守卫与句柄缓存（缺失时 `RefreshHandles`），行为与 `ApplyScreen` / `SetTopmost` 一致。
 
 ### 配置示例
 

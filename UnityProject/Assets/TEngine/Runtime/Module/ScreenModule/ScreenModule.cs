@@ -143,6 +143,106 @@ namespace TEngine
         }
 
         /// <summary>
+        /// 直接以参数设置指定 Display 窗口的布局（不依赖 ScreenConfig）。
+        /// </summary>
+        public void SetLayout(int displayIndex, int x, int y, int width, int height, bool topmost, bool borderless)
+        {
+            if (!EnsureEnabled())
+            {
+                return;
+            }
+
+            if (_config == null)
+            {
+                LoadConfig();
+            }
+
+            if (!TryGetHandle(displayIndex, out IntPtr hWnd))
+            {
+                RefreshHandles();
+                _displayHandles.TryGetValue(displayIndex, out hWnd);
+            }
+
+            if (hWnd == IntPtr.Zero)
+            {
+                Log.Warning($"[ScreenModule] 未找到 DisplayIndex={displayIndex} 的窗口句柄，无法设置布局。");
+                return;
+            }
+
+            bool ok = WindowsScreenNative.SetWindowLayout(hWnd, x, y, width, height, topmost, borderless);
+            if (ok)
+            {
+                Log.Info($"[ScreenModule] SetLayout：Display={displayIndex}, hWnd={hWnd}, Rect=({x},{y},{width}x{height}), Topmost={topmost}, Borderless={borderless}。");
+            }
+            else
+            {
+                Log.Warning($"[ScreenModule] SetLayout 失败：Display={displayIndex}, hWnd={hWnd}。");
+            }
+        }
+
+        /// <summary>
+        /// 将指定 Display 窗口提到前台。
+        /// </summary>
+        public void BringToFront(int displayIndex)
+        {
+            if (!EnsureEnabled())
+            {
+                return;
+            }
+
+            if (_config == null)
+            {
+                LoadConfig();
+            }
+
+            if (!TryGetHandle(displayIndex, out IntPtr hWnd))
+            {
+                RefreshHandles();
+                _displayHandles.TryGetValue(displayIndex, out hWnd);
+            }
+
+            if (hWnd == IntPtr.Zero)
+            {
+                Log.Warning($"[ScreenModule] 未找到 DisplayIndex={displayIndex} 的窗口句柄，无法提到前台。");
+                return;
+            }
+
+            bool ok = WindowsScreenNative.BringToFront(hWnd);
+            Log.Info($"[ScreenModule] BringToFront：Display={displayIndex}, hWnd={hWnd}, 结果={ok}。");
+        }
+
+        /// <summary>
+        /// 设置指定 Display 窗口的标题。
+        /// </summary>
+        public void SetTitle(int displayIndex, string title)
+        {
+            if (!EnsureEnabled())
+            {
+                return;
+            }
+
+            if (_config == null)
+            {
+                LoadConfig();
+            }
+
+            if (!TryGetHandle(displayIndex, out IntPtr hWnd))
+            {
+                RefreshHandles();
+                _displayHandles.TryGetValue(displayIndex, out hWnd);
+            }
+
+            if (hWnd == IntPtr.Zero)
+            {
+                Log.Warning($"[ScreenModule] 未找到 DisplayIndex={displayIndex} 的窗口句柄，无法设置标题。");
+                return;
+            }
+
+            bool ok = WindowsScreenNative.SetTitle(hWnd, title);
+            Log.Info($"[ScreenModule] SetTitle：Display={displayIndex}, hWnd={hWnd}, title=\"{title}\", 结果={ok}。");
+        }
+
+        /// <summary>
         /// 读取配置；未配置或为空时构造主显示器默认配置并输出警告。
         /// </summary>
         private void LoadConfig()

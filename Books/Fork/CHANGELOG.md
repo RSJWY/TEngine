@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-09-23
+
+- `ScreenModule` 新增动态摆窗 API：`SetLayout` / `BringToFront` / `SetTitle`，不依赖 `ScreenConfig` 直接以参数下发单窗布局，仍走平台守卫与句柄缓存；同步修正 `IScreenModule.IsSupported` 注释，去掉 Editor 被排除的误导描述。详见 [window-management.md](window-management.md)。
+
 ## 2026-09-22
 
 - `RuntimeConfigModule` 覆盖链与缓存加固，清单强制 TOML：① 配置读取支持 `persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`，清单本身也走覆盖链；② 清单强制 `config_manifest.toml`，移除 `config_manifest.json` 回退；③ `TryGet<T>` 对象缓存命中但类型不兼容时移除旧缓存并回源重析，不再同配置名跨类型永久失败；④ 新增 `GetConfigNames()`。详见 [runtime-config.md](runtime-config.md)。
