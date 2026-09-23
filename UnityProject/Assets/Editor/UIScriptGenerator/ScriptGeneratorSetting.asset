@@ -94,3 +94,18 @@ MonoBehaviour:
   - uiElementRegex: m_tmp
     componentName: 19
     isUIWidget: 0
+  - uiElementRegex: m_uiBtn
+    componentName: 25
+    isUIWidget: 0
+  - uiElementRegex: m_uiText
+    componentName: 26
+    isUIWidget: 0
+  - uiElementRegex: m_uiTmp
+    componentName: 27
+    isUIWidget: 0
+  - uiElementRegex: m_uiImg
+    componentName: 28
+    isUIWidget: 0
+  - uiElementRegex: m_uiRimg
+    componentName: 29
+    isUIWidget: 0

@@ -92,6 +92,11 @@ namespace TEngine.Editor.UI
             new ScriptGenerateRuler("m_tmpDropdown", UIComponentName.TMP_Dropdown),
             new ScriptGenerateRuler("m_tmp",UIComponentName.TextMeshProUGUI),
 #endif
+            new ScriptGenerateRuler("m_uiBtn", UIComponentName.UIButton),
+            new ScriptGenerateRuler("m_uiText", UIComponentName.UIText),
+            new ScriptGenerateRuler("m_uiTmp", UIComponentName.UITMPText),
+            new ScriptGenerateRuler("m_uiImg", UIComponentName.UIImage),
+            new ScriptGenerateRuler("m_uiRimg", UIComponentName.UIRawImage),
         };
 
         public List<ScriptGenerateRuler> ScriptGenerateRule => scriptGenerateRule;
