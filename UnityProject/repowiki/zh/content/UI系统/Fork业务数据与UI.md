@@ -91,6 +91,8 @@ await ClientSaveDataMgr.Instance.SaveAllClientDataAsync();
 | `UIButton` | 点击保护、缩放、长按、双击、点击音效 |
 | `UIImage` | 圆角、遮罩、镜像 |
 | `UIText` | 描边、渐变、阴影、字间距、顶点色、环形排布 |
+| `UITMPText` | TMP 文本的描边、渐变、阴影、环形排布等扩展 |
+| `UIRawImage` | 圆角、遮罩、镜像 |
 | `RichTextItem` | 图标、动画表情、超链接 |
 
 Utility 组件包括 `EmptyGraph`、`NestedScrollRect`、`CircleLayoutGroup`、`UIEffectSortingOrder`、`UIDragListener`、`UIExtension` 和 `UIImageEffect`。
@@ -101,6 +103,20 @@ Utility 组件包括 `EmptyGraph`、`NestedScrollRect`、`CircleLayoutGroup`、`
 - `UIText` 描边依赖 YooAsset location `UGUIPro_UIText`。
 - `SuperScrollView` 未迁移，不要生成 `LoopListView2` 或 `LoopGridView` 依赖。
 - Inspector 脚本放在 `Assets/Editor/UIModuleExpansion/`。
+
+### UI 脚本生成器集成
+
+TEngine 原生 UI 脚本生成器（`Assets/Editor/UIScriptGenerator/`）已为本 fork 的 5 个自研组件登记识别规则，`GenerateUIComponentScript` 能按节点名前缀自动把它们绑定进 `UIBindComponent`，无需手写 `GetComponent`。
+
+| 前缀 | 生成组件 | 对应原生规则（并存，不替换） |
+| --- | --- | --- |
+| `m_uiBtn` | `UIButton` | `m_btn` → `Button` |
+| `m_uiText` | `UIText` | `m_text` → `Text` |
+| `m_uiTmp` | `UITMPText` | `m_tmp` → `TextMeshProUGUI` |
+| `m_uiImg` | `UIImage` | `m_img` → `Image` |
+| `m_uiRimg` | `UIRawImage` | `m_rimg` → `RawImage` |
+
+两套规则并存，由 Prefab 节点名决定走哪套：存量 `m_btn`/`m_text` 等原生前缀继续生成原生 UGUI 组件；新 UI 按 fork 红线"UI 优先使用 fork 组件"用 `m_ui*` 前缀即可走自研组件。改动点在 `UIComponentName` 枚举、`GetComponentTypeFromEnumName` switch、`ScriptGeneratorSetting.cs` 默认规则表与已序列化的 `ScriptGeneratorSetting.asset`。
 
 详细说明见 [ui-expansion.md](../../../../../Books/Fork/ui-expansion.md)。
 
