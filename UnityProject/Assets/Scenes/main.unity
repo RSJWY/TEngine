@@ -299,6 +299,26 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 7696541953913300371, guid: e38c712e7904fdf42bd0458b769718dd, type: 3}
+      propertyPath: skin
+      value: 
+      objectReference: {fileID: 11400000, guid: b38f904eb09e4bd48a46a63750942109, type: 2}
+    - target: {fileID: 7696541953913300371, guid: e38c712e7904fdf42bd0458b769718dd, type: 3}
+      propertyPath: _toggleHotkey
+      value: 286
+      objectReference: {fileID: 0}
+    - target: {fileID: 7696541953913300371, guid: e38c712e7904fdf42bd0458b769718dd, type: 3}
+      propertyPath: _showFullWindow
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7696541953913300371, guid: e38c712e7904fdf42bd0458b769718dd, type: 3}
+      propertyPath: _toggleModifierKeys.Array.size
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 7696541953913300371, guid: e38c712e7904fdf42bd0458b769718dd, type: 3}
+      propertyPath: _toggleModifierKeys.Array.data[1]
+      value: 306
+      objectReference: {fileID: 0}
     - target: {fileID: 7696541955235861477, guid: e38c712e7904fdf42bd0458b769718dd, type: 3}
       propertyPath: playMode
       value: 1
