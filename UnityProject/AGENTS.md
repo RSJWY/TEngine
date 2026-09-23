@@ -3,6 +3,7 @@
 > **本目录即项目根目录。** 上级仓库目录在实际使用中会被删除、不做保留，仓库级公共说明仅作为 Wiki 参考。
 > AI 工具在本目录下工作时，是在**为实际项目编写业务代码**，而非修改 TEngine 框架本身。
 > 框架级的改动（TEngine.Runtime、TEngine.Editor、内置模块实现）除非用户明确声明"改框架"，否则一律视为业务侧消费框架，不主动修改框架源码。
+> 当前如果是修改框架，则同步查看仓库根目录的`AGENTS.md`了解这个fork框架的一些内容
 
 ## 工程事实
 
@@ -93,5 +94,33 @@ commit提交时，以中文为主，英文为辅。如果用户让你写总结�
 4. 索引只记录文档链接、关键词和一句话结论，详细内容保留在对应研究文档中。
 
 ## 核心原则（编码红线）
-1. **Editor脚本**：editor代码尽量不要在热更代码中使用（除非万不得已，主要是防止热更代码引用editor程序导致的打包问题，但你要考虑这个因素后再使用！），所有editor下的窗口，优先考虑使用odinx插件提供的功能！
-2. **Editor下自定义热更脚本的Inspector**：能通过在"Assets/Editor"下对热更脚本自定义 Inspector，就自定义，但是注意目录要规范，不要混在一块！
+
+### 一、通用编码红线
+
+1. **异步优先**：IO 操作用 `UniTask`，禁止同步加载/Coroutine；取消语义要明确，失败分支要处理，资源归属要清晰
+2. **模块访问**：通过 `GameModule.XXX` 访问，而非 `ModuleSystem.GetModule<T>()`；不要绕过模块门面直接反射或 new 内部类型
+3. **资源必须释放**：`LoadAssetAsync` 对应 `UnloadAsset`，GameObject 用 `LoadGameObjectAsync`；Sprite 优先 `SetSprite`；加载与释放必须配对，避免野引用
+4. **热更边界**：`GameScripts/Main` 不热更，`GameScripts/HotFix/` 全部热更；以 asmdef 验证边界，不虚构程序集
+5. **事件解耦**：模块间用 `GameEvent`，UI 内部用 `AddUIEvent`；监听必须在销毁时注销，隐藏不等于销毁
+6. **Editor 脚本**：editor 代码尽量不要在热更代码中使用（防止热更代码引用 editor 程序集导致打包失败），所有 editor 下窗口优先使用 Odin 插件功能
+7. **Editor 下自定义热更脚本的 Inspector**：能通过在 `Assets/Editor` 下对热更脚本自定义 Inspector 就自定义，但目录要规范，不要混在一块
+8. **配置不补丁生成产物**：修改配置加载器、生成类时追溯 `Configs/GameConfig` 中模板，不直接修补生成产物
+9. **不主动改框架**：框架级改动（TEngine.Runtime、TEngine.Editor、内置模块实现）除非用户明确声明"改框架"，否则一律视为业务侧消费框架，不主动修改框架源码
+
+### 二、Fork 定制模块红线
+
+10. **YooAsset 3 无兼容层**：本 fork 已完成 YooAsset 3.0.5 无兼容层迁移，禁止回退到旧版 API 或引入兼容层；资源加载走 `ArchiveFileBuildPipeline` 与加密归档加载，不要混用上游的 `Imp_` 前缀实现
+11. **热更独立 CodePackage**：本 fork 的 HybridCLR 热更使用独立 `CodePackage`、归档二进制加载与 AOT 元数据清单，不要引入上游的 `HybridCLRBridge` 旧流程；版本确认流程必须走本 fork 的 `VersionConfirm` 链路
+12. **Obfuz 混淆独占**：代码混淆统一走 Obfuz（dnlib 冲突已解决），不要引入其它混淆方案；多态 DLL 热更产物必须与本地包同步脚本保持一致，不要手改产物
+13. **RuntimeConfig 与 DeployConfig**：运行时配置询问用户是否可以走 `RuntimeConfigModule` + `DeployConfig`（TOML/JSON 轻量配置）
+14. **DataBinding 纯数据**：本 fork 的 DataBinding 是纯数据运行时 + 生成器 + Odin 面板，不要引入上游的 GameObject 绑定变体；绑定路径以生成器为准，不手写
+15. **TimerModule 链表化**：计时器统一走 `TimerModule`（链表化、坏帧安全、限定循环次数），不要自造 `Invoke`/`InvokeRepeating` 替代；逻辑计时用 `GameTickWatcher`（`RuntimeTools` 程序集）
+16. **GameObject 对象池基于 location**：对象池基于 YooAsset location 的异步实例化池（预热/回收/自动销毁），不要用 `Instantiate`/`Destroy` 绕过池
+17. **除非用户要求，否则3D 动画图默认不走 PlayableGraph**：3D 动画图基于 PlayableGraph 代码驱动（多层级混合/权重过渡），不要用 Animator Controller 覆盖；帧动画走本 fork 的序列帧模块（场景版/UI版/RawImage版），不要用 SourceGenerator
+18. **桌面多开走 `--yoo-instance`**：桌面多开通过命令行 `--yoo-instance` 驱动 YooAsset 多实例缓存隔离，不要在业务代码里手动 `new YooAssetsDriver` 造实例（尤其是作为`专用服务器`使用时）
+19. **自定义异步操作走 `AsyncOperationModule`**：模块级自定义异步操作走 `AsyncOperationModule`（支持协程/UniTask/abort-on-cancel），不依赖 YooAsset 的异步操作体系，不要混用，（**如果必须采用异步封装时再用这个**）
+20. **存档与数据中心**：存档统一走 `ClientSaveDataMgr`，玩家数据中枢走 `DataCenterSys`，不要自造存档格式或绕过数据中心直接读写文件
+21. **窗口布局走 `ScreenModule`**：Windows Standalone 多显示器窗口布局控制走 `ScreenModule`，不要用 `Screen.SetResolution` 或原生 `Screen` API 替代
+22. **事件批量移除**：`GameEvent.RemoveAllListeners` 支持按事件 ID 批量移除监听，优先使用批量接口，不要逐个 RemoveListener
+23. **日志走 TouchSocket 桥接**：日志统一走 TouchSocket 日志桥接 + Unity 日志落盘 + LogViewer，不要用 `Debug.Log` 直接做业务日志输出
+24. **询问用户是否可以使用UI 组件扩展优先用 fork 组件**：UI 优先使用 `UIButton`/`UIImage`/`UIText`/`RichTextItem` + `ListPool`，不要用原生 UGUI 组件替代已封装组件
