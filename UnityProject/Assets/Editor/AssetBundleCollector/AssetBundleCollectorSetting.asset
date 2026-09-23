@@ -254,8 +254,16 @@ MonoBehaviour:
     AutoCollectShaders: 0
     IgnoreRuleName: RawFileIgnoreRule
     Groups:
-    - GroupName: Default Group
+    - GroupName: Test
       GroupDesc: 
       AssetTags: 
       ActiveRuleName: EnableGroup
-      Collectors: []
+      Collectors:
+      - CollectPath: Assets/AssetRaw/RawFile/Test
+        CollectorGUID: efbaf2f0272a01c47a0f6cef4a3fb617
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
+        FilterRuleName: CollectAll
+        AssetTags: 
+        UserData: 
