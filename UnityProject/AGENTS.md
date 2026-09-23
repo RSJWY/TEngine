@@ -123,4 +123,4 @@ commit提交时，以中文为主，英文为辅。如果用户让你写总结�
 21. **窗口布局走 `ScreenModule`**：Windows Standalone 多显示器窗口布局控制走 `ScreenModule`，不要用 `Screen.SetResolution` 或原生 `Screen` API 替代
 22. **事件批量移除**：`GameEvent.RemoveAllListeners` 支持按事件 ID 批量移除监听，优先使用批量接口，不要逐个 RemoveListener
 23. **日志走 TouchSocket 桥接**：日志统一走 TouchSocket 日志桥接 + Unity 日志落盘 + LogViewer，不要用 `Debug.Log` 直接做业务日志输出
-24. **询问用户是否可以使用UI 组件扩展优先用 fork 组件**：UI 优先使用 `UIButton`/`UIImage`/`UIText`/`RichTextItem` + `ListPool`，不要用原生 UGUI 组件替代已封装组件
+24. **询问用户是否可以使用UI 组件扩展优先用 fork 组件**：UI 优先使用 `UIButton`、`UIText`、`UITMPText`、`UIImage`、`UIRawImage`，不要用原生 UGUI 组件替代已封装组件
