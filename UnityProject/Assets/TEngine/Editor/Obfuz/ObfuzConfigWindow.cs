@@ -300,6 +300,7 @@ namespace TEngine
                 list.Add(name, name);
             }
 #endif
+            list.Add("TEngine.CryptoKeys", "TEngine.CryptoKeys");
             return list;
         }
 
