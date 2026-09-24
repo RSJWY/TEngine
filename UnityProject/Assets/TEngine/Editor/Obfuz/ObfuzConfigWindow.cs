@@ -1401,15 +1401,19 @@ namespace TEngine
 
         [TabGroup("Pages", "高级")]
         [BoxGroup("Pages/高级/多态 DLL")]
-        [ShowInInspector, ReadOnly]
+        [ShowInInspector, ReadOnly, HideLabel, DisplayAsString]
         [InfoBox(
             "多态加载支持未注入！开启多态 DLL 后必须先执行「HybridCLR/ObfuzExtension/GenerateAll」向 libil2cpp 注入多态加载代码，否则运行时 Assembly.Load 会 BadImageFormatException。",
             InfoMessageType.Error,
             VisibleIf = nameof(ShouldWarnPolymorphicNotInjected))]
         [InfoBox(
-            "多态 DLL 已关闭但 libil2cpp 仍含多态注入代码。建议执行「HybridCLR/Generate/All」重新生成无多态的 MethodBridge/AOTGenericReference，再重新打 Player，避免 native binary 残留无用多态代码。",
+            "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。点击「执行 HybridCLR/Generate/All」将移除多态注入产物并重新生成 MethodBridge/AOTGenericReference，之后需重新打 Player。",
             InfoMessageType.Warning,
             VisibleIf = nameof(ShouldWarnPolymorphicInjectedButDisabled))]
+        private string PolymorphicInjectionHint => string.Empty;
+
+        [TabGroup("Pages", "高级")]
+        [BoxGroup("Pages/高级/多态 DLL")]
         [GUIColor(0.9f, 0.4f, 0.35f)]
         [Button("执行 GenerateAll", ButtonSizes.Medium)]
         [EnableIf(nameof(ShouldWarnPolymorphicNotInjected))]
@@ -1431,6 +1435,7 @@ namespace TEngine
         private void ExecuteHybridCLRGenerateAll()
         {
 #if ENABLE_HYBRIDCLR
+            BuildDLLCommand.CleanupPolymorphicInjection();
             HybridCLR.Editor.Commands.PrebuildCommand.GenerateAll();
             AssetDatabase.Refresh();
 #else
@@ -1440,33 +1445,16 @@ namespace TEngine
 
         private bool ShouldWarnPolymorphicNotInjected()
         {
-            if (!S.polymorphicDllSettings.enable)
+            if (!BuildDLLCommand.IsObfuzActive || !S.polymorphicDllSettings.enable)
                 return false;
-            return !IsPolymorphicInjected();
+            return !BuildDLLCommand.IsPolymorphicInjected;
         }
 
         private bool ShouldWarnPolymorphicInjectedButDisabled()
         {
-            if (S.polymorphicDllSettings.enable)
+            if (BuildDLLCommand.IsObfuzActive && S.polymorphicDllSettings.enable)
                 return false;
-            return IsPolymorphicInjected();
-        }
-
-        private static bool IsPolymorphicInjected()
-        {
-#if ENABLE_HYBRIDCLR
-            try
-            {
-                string marker = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
-                return File.Exists(marker);
-            }
-            catch
-            {
-                return false;
-            }
-#else
-            return false;
-#endif
+            return BuildDLLCommand.IsPolymorphicInjected;
         }
 
         [TabGroup("Pages", "高级")]

@@ -108,7 +108,7 @@ public static class BuildDLLCommand
     public static bool IsObfuzActive =>
         ScriptingDefineSymbols.HasScriptingDefineSymbol(EditorUserBuildSettings.selectedBuildTargetGroup, EnableObfuzScriptingDefineSymbol);
 
-    /// <summary>切换 Obfuz 混淆（全平台 define + ObfuzSettings.enable 同步）。</summary>
+    /// <summary>切换 Obfuz 混淆（全平台 define + ObfuzSettings.enable 同步并落盘）。</summary>
     public static void SetObfuz(bool enable)
     {
         if (enable)
@@ -124,6 +124,7 @@ public static class BuildDLLCommand
             ObfuzSettings.Instance.buildPipelineSettings.enable = false;
             Debug.Log("[BuildMode] 已关闭 Obfuz 混淆");
         }
+        ObfuzSettings.Save();
     }
 #endif
 
@@ -169,6 +170,86 @@ public static class BuildDLLCommand
     /// </summary>
     [MenuItem("Obfuz/Define Symbols/Enable Obfuz", false, 31)]
     public static void EnableObfuz() => SetObfuz(true);
+    #endregion
+
+    #region Obfuz/多态注入清理
+    /// <summary>libil2cpp 中多态注入标记文件（存在即视为已注入）。</summary>
+    public static string PolymorphicInjectionMarkerFile =>
+        $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
+
+    /// <summary>libil2cpp 当前是否已注入多态加载支持。</summary>
+    public static bool IsPolymorphicInjected =>
+        File.Exists(PolymorphicInjectionMarkerFile);
+
+    /// <summary>
+    /// 清理 libil2cpp 中的多态注入产物：删除 Polymorphic 系列文件并将 Image.cpp 注入区还原为标准加载逻辑。
+    /// HybridCLR/Generate/All 本身不会移除这些文件，必须显式清理。
+    /// </summary>
+    public static void CleanupPolymorphicInjection()
+    {
+        string metadataDir = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata";
+        string[] polymorphicFiles =
+        {
+            $"{metadataDir}/PolymorphicRawImage.cpp",
+            $"{metadataDir}/PolymorphicRawImage.h",
+            $"{metadataDir}/PolymorphicDatas.h",
+            $"{metadataDir}/PolymorphicDefs.h",
+        };
+        bool removed = false;
+        foreach (string file in polymorphicFiles)
+        {
+            if (File.Exists(file))
+            {
+                File.Delete(file);
+                removed = true;
+            }
+        }
+
+        string imageCpp = $"{metadataDir}/Image.cpp";
+        if (File.Exists(imageCpp))
+        {
+            string content = File.ReadAllText(imageCpp);
+            string cleaned = RestoreRegion(content, "INCLUDE_RAW_IMAGE_HEADERS", "\t\t");
+            cleaned = RestoreRegion(cleaned, "INIT_RAW_IMAGE",
+                "\t\t\t_rawImage = new RawImage();\n\t\t\treturn LoadImageErrorCode::OK;");
+            if (cleaned != content)
+            {
+                File.WriteAllText(imageCpp, cleaned);
+                removed = true;
+            }
+        }
+
+        if (removed)
+        {
+            Debug.Log("[Obfuz] 已清理 libil2cpp 多态注入产物，重新打 Player 前请先执行 HybridCLR/Generate/All。");
+        }
+    }
+
+    /// <summary>将 FileRegionReplace 风格的注入区还原为指定默认内容，region 标记行保留。</summary>
+    private static string RestoreRegion(string content, string region, string defaultBody)
+    {
+        string startMark = $"//!!!{{{{{region}";
+        string endMark = $"//!!!}}}}{region}";
+        int startIndex = content.IndexOf(startMark, StringComparison.Ordinal);
+        int endIndex = content.IndexOf(endMark, StringComparison.Ordinal);
+        if (startIndex == -1 || endIndex == -1 || endIndex <= startIndex)
+        {
+            return content;
+        }
+        int bodyStart = content.IndexOf('\n', startIndex);
+        int bodyEnd = content.LastIndexOf('\n', endIndex);
+        if (bodyStart == -1 || bodyEnd == -1 || bodyEnd < bodyStart)
+        {
+            return content;
+        }
+        string current = content.Substring(bodyStart, bodyEnd - bodyStart);
+        string replacement = "\n" + defaultBody + "\n";
+        if (current == replacement)
+        {
+            return content;
+        }
+        return content.Substring(0, bodyStart) + replacement + content.Substring(bodyEnd);
+    }
     #endregion
 #endif
 
@@ -245,23 +326,34 @@ public static class BuildDLLCommand
     [MenuItem("HybridCLR/Build/BuildAssets And CopyTo AssemblyTextAssetPath")]
     public static void BuildAndCopyDlls()
     {
+        BuildAndCopyDlls(EditorUserBuildSettings.activeBuildTarget);
+    }
+
+    public static void BuildAndCopyDlls(BuildTarget target)
+    {
 #if ENABLE_HYBRIDCLR
+        ActivateBuildTarget(target);
+
         SyncAOTMetadataManifest();
-        BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
         bool developmentBuild = Settings.UpdateSetting.WillGeneratePdb;
         CompileDllCommand.CompileDll(target, developmentBuild);
         CopyAOTHotUpdateDlls(target);
 #endif
     }
 
-    public static void BuildAndCopyDlls(BuildTarget target)
+    public static void ActivateBuildTarget(BuildTarget target)
     {
-#if ENABLE_HYBRIDCLR
-        SyncAOTMetadataManifest();
-        bool developmentBuild = Settings.UpdateSetting.WillGeneratePdb;
-        CompileDllCommand.CompileDll(target, developmentBuild);
-        CopyAOTHotUpdateDlls(target);
-#endif
+        if (EditorUserBuildSettings.activeBuildTarget == target)
+        {
+            return;
+        }
+
+        var group = BuildPipeline.GetBuildTargetGroup(target);
+        if (!EditorUserBuildSettings.SwitchActiveBuildTarget(group, target) ||
+            EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            throw new InvalidOperationException($"无法切换 Unity 目标平台到 {target}，热更 DLL 构建已取消。");
+        }
     }
 
     public static void CopyAOTHotUpdateDlls(BuildTarget target)

@@ -317,7 +317,7 @@ namespace TEngine
         [Button("编译并拷贝热更DLL", ButtonSizes.Medium)]
         private void BuildHotFixDllNow()
         {
-            BuildDLLCommand.BuildAndCopyDlls();
+            BuildDLLCommand.BuildAndCopyDlls(_buildTarget);
         }
 
         [TabGroup("Pages", "高级")]
@@ -333,7 +333,7 @@ namespace TEngine
         [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Medium)]
         private void CopyAOTAssembliesNow()
         {
-            BuildDLLCommand.CopyAOTAssembliesToAssetPath();
+            BuildDLLCommand.CopyAOTAssembliesToAssetPath(_buildTarget);
         }
 
         [TabGroup("Pages", "发布与Player")]
@@ -710,14 +710,6 @@ namespace TEngine
         [PropertySpace(8)]
 #if OBFUZ_INSTALLED
         [TitleGroup("Obfuz")]
-        [InfoBox(
-            "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先执行「GenerateAll」向 libil2cpp 注入多态加载代码，否则运行时热更 DLL 加载会 BadImageFormatException。",
-            InfoMessageType.Error,
-            VisibleIf = nameof(IsPolymorphicNotInjected))]
-        [InfoBox(
-            "多态 DLL 已关闭但 libil2cpp 仍含多态注入代码。\n建议执行「HybridCLR/Generate/All」重新生成无多态的 MethodBridge/AOTGenericReference，再重新打 Player。",
-            InfoMessageType.Warning,
-            VisibleIf = nameof(IsPolymorphicInjectedButDisabled))]
         [ButtonGroup("Obfuz/Actions")]
         [GUIColor(0.9f, 0.4f, 0.35f)]
         [EnableIf(nameof(IsPolymorphicNotInjected))]
@@ -739,6 +731,7 @@ namespace TEngine
         private void ExecuteHybridCLRGenerateAll()
         {
 #if ENABLE_HYBRIDCLR
+            BuildDLLCommand.CleanupPolymorphicInjection();
             HybridCLR.Editor.Commands.PrebuildCommand.GenerateAll();
             AssetDatabase.Refresh();
 #else
@@ -748,13 +741,13 @@ namespace TEngine
 
         private bool IsPolymorphicNotInjected()
         {
-#if ENABLE_HYBRIDCLR
+#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
             try
             {
-                if (!Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
+                if (!BuildDLLCommand.IsObfuzActive ||
+                    !Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
                     return false;
-                string marker = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
-                return !File.Exists(marker);
+                return !BuildDLLCommand.IsPolymorphicInjected;
             }
             catch
             {
@@ -767,13 +760,13 @@ namespace TEngine
 
         private bool IsPolymorphicInjectedButDisabled()
         {
-#if ENABLE_HYBRIDCLR
+#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
             try
             {
-                if (Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
+                if (BuildDLLCommand.IsObfuzActive &&
+                    Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
                     return false;
-                string marker = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
-                return File.Exists(marker);
+                return BuildDLLCommand.IsPolymorphicInjected;
             }
             catch
             {
@@ -782,6 +775,20 @@ namespace TEngine
 #else
             return false;
 #endif
+        }
+
+        /// <summary>Obfuz 区提示文本；非空时在 OnImGUI 中以 HelpBox 绘制（高度自适应，不被单元格裁剪）。</summary>
+        private string PolymorphicInjectionHint()
+        {
+            if (IsPolymorphicNotInjected())
+            {
+                return "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先执行「GenerateAll」向 libil2cpp 注入多态加载代码，否则运行时热更 DLL 加载会 BadImageFormatException。";
+            }
+            if (IsPolymorphicInjectedButDisabled())
+            {
+                return "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。\n点击「执行 HybridCLR/Generate/All（清理多态注入）」将移除多态注入产物并重新生成 MethodBridge/AOTGenericReference，之后需重新打 Player。";
+            }
+            return null;
         }
 #endif
 
@@ -857,6 +864,16 @@ namespace TEngine
             GUILayout.EndHorizontal();
 
             SirenixEditorGUI.DrawThickHorizontalSeparator();
+
+#if OBFUZ_INSTALLED
+            string polymorphicHint = PolymorphicInjectionHint();
+            if (!string.IsNullOrEmpty(polymorphicHint))
+            {
+                bool isError = IsPolymorphicNotInjected();
+                EditorGUILayout.HelpBox(polymorphicHint, isError ? MessageType.Error : MessageType.Warning);
+            }
+#endif
+
             base.OnImGUI();
         }
 
