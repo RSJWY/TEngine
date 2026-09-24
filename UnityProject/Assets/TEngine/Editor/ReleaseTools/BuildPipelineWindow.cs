@@ -584,6 +584,49 @@ namespace TEngine
         [SerializeField]
         private List<FlowStepView> _flowSteps = new List<FlowStepView>();
 
+#if OBFUZ_INSTALLED
+        [TitleGroup("构建")]
+        [InfoBox(
+            "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先执行菜单「HybridCLR/ObfuzExtension/GenerateAll」，否则运行时热更 DLL 加载会 BadImageFormatException。",
+            InfoMessageType.Error,
+            VisibleIf = nameof(IsPolymorphicNotInjected))]
+        [ShowInInspector, HideLabel, ReadOnly]
+        private string PolymorphicInjectionWarning => IsPolymorphicNotInjected() ? "" : null;
+
+        [TitleGroup("构建")]
+        [GUIColor(0.9f, 0.4f, 0.35f)]
+        [EnableIf(nameof(IsPolymorphicNotInjected))]
+        [Button("执行 GenerateAll（注入多态加载支持）", ButtonSizes.Medium)]
+        private void ExecutePolymorphicGenerateAll()
+        {
+#if ENABLE_HYBRIDCLR
+            Obfuz4HybridCLR.PrebuildCommandExt.GenerateAll();
+            AssetDatabase.Refresh();
+#else
+            EditorUtility.DisplayDialog("无法执行", "需要启用 HybridCLR 宏（ENABLE_HYBRIDCLR）。", "确定");
+#endif
+        }
+
+        private bool IsPolymorphicNotInjected()
+        {
+#if ENABLE_HYBRIDCLR
+            try
+            {
+                if (!Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
+                    return false;
+                string marker = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
+                return !File.Exists(marker);
+            }
+            catch
+            {
+                return false;
+            }
+#else
+            return false;
+#endif
+        }
+#endif
+
         [PropertySpace(8)]
         [TitleGroup("构建")]
         [LabelText("构建资源包")]

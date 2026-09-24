@@ -1385,7 +1385,7 @@ namespace TEngine
 
         [TabGroup("Pages", "高级")]
         [BoxGroup("Pages/高级/多态 DLL")]
-        [InfoBox("依赖 HybridCLR 8.4.0+ 自定义 DLL 结构；密钥与主包结构强绑定，主包发布后不可变更。开启后执行“HybridCLR/ObfuzExtension/GenerateAll”以实现注入修改支持多态加载", InfoMessageType.None)]
+        [InfoBox("依赖 HybridCLR 8.4.0+ 自定义 DLL 结构；密钥与主包结构强绑定，主包发布后不可变更。", InfoMessageType.None)]
         [LabelText("启用多态 DLL"), ToggleLeft]
         [OnValueChanged(nameof(MarkDirty))]
         [ShowInInspector]
@@ -1397,6 +1397,49 @@ namespace TEngine
                 S.polymorphicDllSettings.enable = value;
                 MarkDirty();
             }
+        }
+
+        [TabGroup("Pages", "高级")]
+        [BoxGroup("Pages/高级/多态 DLL")]
+        [ShowInInspector, ReadOnly]
+        [InfoBox(
+            "多态加载支持未注入！开启多态 DLL 后必须先执行「HybridCLR/ObfuzExtension/GenerateAll」向 libil2cpp 注入多态加载代码，否则运行时 Assembly.Load 会 BadImageFormatException。",
+            InfoMessageType.Error,
+            VisibleIf = nameof(ShouldWarnPolymorphicNotInjected))]
+        [GUIColor(0.9f, 0.4f, 0.35f)]
+        [Button("执行 GenerateAll", ButtonSizes.Medium)]
+        private void ExecutePolymorphicGenerateAll()
+        {
+#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
+            Obfuz4HybridCLR.PrebuildCommandExt.GenerateAll();
+            AssetDatabase.Refresh();
+#else
+            EditorUtility.DisplayDialog("无法执行", "需要启用 HybridCLR 和 Obfuz 宏（ENABLE_HYBRIDCLR + ENABLE_OBFUZ）。", "确定");
+#endif
+        }
+
+        private bool ShouldWarnPolymorphicNotInjected()
+        {
+            if (!S.polymorphicDllSettings.enable)
+                return false;
+            return !IsPolymorphicInjected();
+        }
+
+        private static bool IsPolymorphicInjected()
+        {
+#if ENABLE_HYBRIDCLR
+            try
+            {
+                string marker = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
+                return File.Exists(marker);
+            }
+            catch
+            {
+                return false;
+            }
+#else
+            return false;
+#endif
         }
 
         [TabGroup("Pages", "高级")]
