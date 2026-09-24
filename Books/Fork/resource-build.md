@@ -419,7 +419,7 @@ Bundle 用密钥原名 `ChaCha20KeyConfig` / `XorKeyConfig`，与清单用 `Mani
 
 ### 改动摘要
 
-- `ChaCha20KeyConfig` → `BundleChaCha20KeyConfig`、`XorKeyConfig` → `BundleXorKeyConfig`，密钥资产同步重命名（`Resources/EncryptConfigs/Bundle*.asset`）。
+- `ChaCha20KeyConfig` → `BundleChaCha20KeyConfig`、`XorKeyConfig` → `BundleXorKeyConfig`，密钥资产同步重命名。
 - `ResourceModule.Services` 等引用处同步更新；密钥内容不变，已生成密钥的工程重命名后无需重新打包。
 
 ### 关键文件
@@ -427,6 +427,52 @@ Bundle 用密钥原名 `ChaCha20KeyConfig` / `XorKeyConfig`，与清单用 `Mani
 - `Assets/TEngine/Runtime/Module/ResourceModule/Crypto/BundleChaCha20KeyConfig.cs`
 - `Assets/TEngine/Runtime/Module/ResourceModule/Crypto/BundleXorKeyConfig.cs`
 - `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.Services.cs`
+
+## 加密密钥从 Resources 搬到代码常量（KeyStore）
+
+### 背景
+
+密钥原以 ScriptableObject `.asset` 存放在 `Resources/EncryptConfigs/`，打包后明文进入 `resources.assets`，任何 ResourceBrowser 工具可直接提取。Obfuz 混淆的是 DLL 代码，对资源文件中的明文密钥无保护效果。
+
+### 改动摘要
+
+- 新增运行时程序集 `TEngine.CryptoKeys`（`Assets/TEngine/CryptoKeys/`），内含 `KeyStore` 静态类，密钥以 `public static readonly byte[]` 代码常量存储，编入 DLL 后可被 Obfuz `FieldEncrypt` 加密。
+- 密钥配置类（`CryptoKeyConfig<T>` 基类 + `BundleChaCha20KeyConfig` / `BundleXorKeyConfig` / `ManifestChaCha20KeyConfig`）从 `TEngine.Runtime` 搬到 Editor only 程序集 `TEngine.CryptoKeys.Editor`（`Assets/TEngine/Editor/CryptoKeys/`），`.asset` 文件搬到 `Assets/TEngine/Editor/CryptoKeys/EncryptConfigs/`。
+- `Resources/EncryptConfigs/` 目录删除，密钥不再随 `Resources` 打入运行时包。
+- `ResourceModule.Services.cs` 和 `ResourceModule.ManifestCrypto.cs` 中所有 `XxxKeyConfig.Instance.key` 改为 `KeyStore.XxxKey`，不再引用任何 ScriptableObject 密钥类。
+- `CryptoUtils` 精简为运行时校验工具（`ValidateKey` / `IsEmpty`），`GenerateRandomBytes` 和 `ResourceConfigFolder` 移到 Editor 基类。
+- `TEngine.Runtime.asmdef` 追加引用 `TEngine.CryptoKeys`。
+
+### 使用方式
+
+1. 菜单 `Build/加密密钥配置` 打开面板，编辑或重新生成密钥。
+2. 切到「烘焙」页，点「烘焙密钥到代码」，将 `.asset` 中的密钥值写入 `KeyStore.cs`。
+3. 重新打包资源（使新密钥生效于 Bundle/Manifest）。
+4. 构建玩家（Obfuz 在构建时加密 DLL 中的密钥字段）。
+
+烘焙面板会对比 Asset 与 Code 中的密钥值，显示「已烘焙」「全零」「不一致」状态。
+
+### 注意事项
+
+- **修改密钥后必须重新烘焙并重新打包资源**，否则运行时解密用的密钥与 Bundle/Manifest 加密端不一致。
+- `KeyStore` 中全零占位符是初始状态，烘焙前运行时会因 `CryptoUtils.ValidateKey` 校验失败而抛异常。
+- Obfuz 配置：`assembliesToObfuscate` 需追加 `TEngine.CryptoKeys`，`FieldEncrypt` Pass 需开启，可在 `fieldEncryptSettings.ruleFiles` 中加 XML 规则只加密 `KeyStore` 类的字段。
+- `.asset` 文件仅在 Editor 下使用，不会打入运行时包（Editor only 程序集 + 非 Resources 路径）。
+
+### 关键文件
+
+- `Assets/TEngine/CryptoKeys/TEngine.CryptoKeys.asmdef`
+- `Assets/TEngine/CryptoKeys/KeyStore.cs`
+- `Assets/TEngine/Editor/CryptoKeys/TEngine.CryptoKeys.Editor.asmdef`
+- `Assets/TEngine/Editor/CryptoKeys/CryptoKeyConfig.cs`
+- `Assets/TEngine/Editor/CryptoKeys/BundleChaCha20KeyConfig.cs`
+- `Assets/TEngine/Editor/CryptoKeys/BundleXorKeyConfig.cs`
+- `Assets/TEngine/Editor/CryptoKeys/ManifestChaCha20KeyConfig.cs`
+- `Assets/TEngine/Editor/CryptoKeys/CryptoKeyConfigWindow.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.Services.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.ManifestCrypto.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/Crypto/CryptoUtils.cs`
+- `Assets/TEngine/Runtime/TEngine.Runtime.asmdef`
 
 ## 构建输出目录生成 BuiltinCatalog
 

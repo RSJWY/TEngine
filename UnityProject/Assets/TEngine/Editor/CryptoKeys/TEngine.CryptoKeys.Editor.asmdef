@@ -1,0 +1,19 @@
+{
+    "name": "TEngine.CryptoKeys.Editor",
+    "rootNamespace": "TEngine",
+    "references": [
+        "GUID:ec766410ecba4ae45bbbd7dfa635b247",
+        "GUID:24c092aee38482f4e80715eaa8148782"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -9,8 +9,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ed48d7201e39fcc061a953e323b179b8, type: 3}
-  m_Name: BundleChaCha20KeyConfig
+  m_Script: {fileID: 11500000, guid: 7693982e0f39ddf47949d859b1f0f3b1, type: 3}
+  m_Name: ManifestChaCha20KeyConfig
   m_EditorClassIdentifier: 
-  _key: 52b2611fd20f9763a5df1e65a08d6af771a40aacc1ff4d8bc184a1b9f3504054
-  _nonce: 7a9a5d0f68ae89989fe9c2e9
+  _key: 4678d2d75cb57e010d9676109cb9579e7e417f7f6aa92dd3fdbec80dfc34c8f2
+  _nonce: f97bc413f6ad4c6ffae07440

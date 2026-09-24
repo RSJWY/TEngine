@@ -4,6 +4,7 @@
 
 ## 2026-09-24
 
+- 加密密钥从 Resources 搬到代码常量：新增运行时程序集 `TEngine.CryptoKeys`（`KeyStore` 静态类以 `public static readonly byte[]` 存储密钥），密钥配置类搬到 Editor only 程序集 `TEngine.CryptoKeys.Editor`，`Resources/EncryptConfigs/` 删除不再入包；新增 `Build/加密密钥配置` 面板管理密钥编辑与烘焙到代码。详见 [resource-build.md](resource-build.md)。
 - 新增第三方 UI 效果插件文档：研究并记录已集成的 `com.coffee.ui-effect@5.11.7`（材质级 8 大类视觉效果：色调/颜色/采样/过渡/阴影/渐变/边缘/细节）与 `com.coffee.softmask-for-ugui@3.6.5`（RenderTexture 软遮罩）的能力、协作机制和使用方式。两者通过 shader 内嵌 `SOFTMASKABLE` 代码块和 ProjectSettings 双向 shader 映射实现协作。详见 [third-party-plugins.md](third-party-plugins.md)。
 - 存档系统序列化引擎从 Newtonsoft.Json 切换为 Nino 二进制序列化器（`com.jasonxudeveloper.nino` 3.9.17）：`BaseClientSaveData` 内部序列化/反序列化改用 `NinoSerializer`/`NinoDeserializer`，存储模式 `JsonFile` 重命名为 `BinaryFile`（`.json`→`.bin`），首次加载自动迁移旧版 JSON 存档并删除旧文件；`SaveDataVersion` / `SettingParams` 等 private setter 改为 internal setter 以兼容 Nino generator，存档类加 `partial` 修饰符。新增 `Utility.Nino`（TEngine.Runtime）封装 `Serialize<T>`/`Deserialize<T>`/`DeserializeIntoClass<T>`/文件 IO/Base64/旧版 JSON 迁移辅助方法。详见 [save-data.md](save-data.md)。
 

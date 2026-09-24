@@ -6,6 +6,7 @@ namespace TEngine
 {
     /// <summary>
     /// Bundle 加密用 XOR 密钥配置：随机 16~128 字节 key，按文件位置取模使用。
+    /// <remarks>Editor only：密钥值通过烘焙脚本写入 <see cref="KeyStore"/>。</remarks>
     /// </summary>
     [CreateAssetMenu(menuName = "TEngine/加密密钥/Bundle Xor", fileName = "BundleXorKeyConfig")]
     public class BundleXorKeyConfig : CryptoKeyConfig<BundleXorKeyConfig>
@@ -17,7 +18,7 @@ namespace TEngine
         public byte[] key => _key;
 
         [ShowInInspector, LabelText("密钥（Hex）")]
-        [InfoBox("XOR 密钥为 16~128 字节随机数据，按文件位置取模使用。修改后需重新打包全部资源。", InfoMessageType.None)]
+        [InfoBox("XOR 密钥为 16~128 字节随机数据，按文件位置取模使用。修改后需重新打包全部资源并烘焙密钥到代码。", InfoMessageType.None)]
         public string KeyHex
         {
             get => ToHex(_key);
@@ -27,17 +28,15 @@ namespace TEngine
         [Button("重新生成密钥")]
         public override void RegenerateKey()
         {
-            _key = CryptoUtils.GenerateRandomBytes(Random.Range(16, 129));
-#if UNITY_EDITOR
+            _key = GenerateRandomBytes(Random.Range(16, 129));
             MarkDirty();
-#endif
         }
 
         protected override void EnsureKey()
         {
-            if (CryptoUtils.IsEmpty(_key))
+            if (IsEmpty(_key))
             {
-                _key = CryptoUtils.GenerateRandomBytes(32);
+                _key = GenerateRandomBytes(32);
             }
         }
     }

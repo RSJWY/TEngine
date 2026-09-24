@@ -1,14 +1,16 @@
 using UnityEngine;
+
 using Sirenix.OdinInspector;
 
 namespace TEngine
 {
     /// <summary>
-    /// Bundle 加密用 ChaCha20 密钥配置：32 字节 key + 12 字节 nonce。
-    /// 与 <see cref="ManifestChaCha20KeyConfig"/>（清单用）独立存放，避免从清单解密链路逆向到 Bundle 密钥。
+    /// 资源清单专用 ChaCha20 密钥配置：32 字节 key + 12 字节 nonce。
+    /// 与 <see cref="BundleChaCha20KeyConfig"/>（Bundle 用）独立存放，避免从清单解密链路逆向到 Bundle 密钥。
+    /// <remarks>Editor only：密钥值通过烘焙脚本写入 <see cref="KeyStore"/>。</remarks>
     /// </summary>
-    [CreateAssetMenu(menuName = "TEngine/加密密钥/Bundle ChaCha20", fileName = "BundleChaCha20KeyConfig")]
-    public class BundleChaCha20KeyConfig : CryptoKeyConfig<BundleChaCha20KeyConfig>
+    [CreateAssetMenu(menuName = "TEngine/加密密钥/Manifest ChaCha20", fileName = "ManifestChaCha20KeyConfig")]
+    public class ManifestChaCha20KeyConfig : CryptoKeyConfig<ManifestChaCha20KeyConfig>
     {
         [SerializeField, HideInInspector]
         private byte[] _key;
@@ -23,7 +25,7 @@ namespace TEngine
         public byte[] nonce => _nonce;
 
         [ShowInInspector, LabelText("密钥（Hex，32 字节）")]
-        [InfoBox("ChaCha20 需要 32 字节 key + 12 字节 nonce。修改后需重新打包全部资源。", InfoMessageType.None)]
+        [InfoBox("清单 ChaCha20 需要 32 字节 key + 12 字节 nonce。修改后需重新打包全部资源并烘焙密钥到代码。", InfoMessageType.None)]
         public string KeyHex
         {
             get => ToHex(_key);
@@ -40,22 +42,20 @@ namespace TEngine
         [Button("重新生成密钥")]
         public override void RegenerateKey()
         {
-            _key = CryptoUtils.GenerateRandomBytes(ChaCha20Util.KeyLength);
-            _nonce = CryptoUtils.GenerateRandomBytes(ChaCha20Util.NonceLength);
-#if UNITY_EDITOR
+            _key = GenerateRandomBytes(ChaCha20Util.KeyLength);
+            _nonce = GenerateRandomBytes(ChaCha20Util.NonceLength);
             MarkDirty();
-#endif
         }
 
         protected override void EnsureKey()
         {
-            if (_key == null || _key.Length != ChaCha20Util.KeyLength || CryptoUtils.IsEmpty(_key))
+            if (_key == null || _key.Length != ChaCha20Util.KeyLength || IsEmpty(_key))
             {
-                _key = CryptoUtils.GenerateRandomBytes(ChaCha20Util.KeyLength);
+                _key = GenerateRandomBytes(ChaCha20Util.KeyLength);
             }
-            if (_nonce == null || _nonce.Length != ChaCha20Util.NonceLength || CryptoUtils.IsEmpty(_nonce))
+            if (_nonce == null || _nonce.Length != ChaCha20Util.NonceLength || IsEmpty(_nonce))
             {
-                _nonce = CryptoUtils.GenerateRandomBytes(ChaCha20Util.NonceLength);
+                _nonce = GenerateRandomBytes(ChaCha20Util.NonceLength);
             }
         }
     }

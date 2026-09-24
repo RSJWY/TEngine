@@ -14,7 +14,7 @@
 | 资源系统 | YooAsset 3.x 原生 API，不启用 `YOOASSET_LEGACY_API` |
 | 热更新包 | 热更程序集位于独立程序集包，默认配置名为 `CodePackage`，实际名称通过 `UpdateSetting.GetAssemblyPackageName()` 获取 |
 | 代码包构建 | 默认使用 `ArchiveFileBuildPipeline` 与 `EncryptionType.ChaCha20` |
-| 清单加密 | 按包开关 `ManifestEncrypted`（ChaCha20），密钥与 Bundle 用密钥（`BundleChaCha20KeyConfig`）相互独立 |
+| 清单加密 | 按包开关 `ManifestEncrypted`（ChaCha20），密钥与 Bundle 用密钥相互独立；密钥以代码常量存储于 `KeyStore`（`TEngine.CryptoKeys` 程序集），不再随 Resources 打入运行时包 |
 | 轻量配置 | 使用 `GameModule.Config` 加载 TOML/JSON，支持 `persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`；项目默认不使用 Luban |
 | 模块访问 | 热更业务通过 `GameModule.XXX` 访问模块 |
 | 构建工具 | 使用 `Build/打包工具窗口`，运行时包配置与构建配置共用 `UpdateSetting.RuntimePackages` |
@@ -58,9 +58,10 @@ GameModule.Resource.UnloadAsset(raw);
 
 ### 资源清单加密与 BuiltinCatalog
 
-- 资源清单默认明文二进制，可在 `UpdateSetting.RuntimePackages` 按包勾选 `ManifestEncrypted` 启用 ChaCha20 加密（构建端与运行时自动注入加密器/解密器，密钥资产 `ManifestChaCha20KeyConfig` 与 Bundle 用密钥独立）。Editor 模拟模式不生效。
+- 资源清单默认明文二进制，可在 `UpdateSetting.RuntimePackages` 按包勾选 `ManifestEncrypted` 启用 ChaCha20 加密（构建端与运行时自动注入加密器/解密器，密钥与 Bundle 用密钥独立）。Editor 模拟模式不生效。
+- 加密密钥以代码常量存储于 `KeyStore`（`TEngine.CryptoKeys` 程序集），不再以 `.asset` 形式放在 `Resources` 下；Editor 下通过 `Build/加密密钥配置` 面板管理密钥并烘焙到代码，配合 Obfuz `FieldEncrypt` 保护。
 - 打包窗口「高级」页「在构建输出目录生成 Catalog」开启后，构建完成时在 AB 输出目录额外生成 `BuiltinCatalog.bytes/json`，整目录复制即可用于 `OfflinePlayMode` 离线加载。
-- 修改任何加密密钥后必须重新构建资源，旧加密包与缓存不能混用。
+- 修改任何加密密钥后必须烘焙到代码并重新构建资源，旧加密包与缓存不能混用。
 
 ### 桌面多开缓存隔离
 
