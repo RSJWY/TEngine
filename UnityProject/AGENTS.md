@@ -23,7 +23,8 @@
 
 ## AI 协助开发声明
 
-**前提：由你提交代码时触发。**
+### 仓库commit提交时追加模型信息
+**前提：由你提交代码时触发。** 
 凡使用了 AI 辅助生成或修改的代码，必须在 **commit 信息结尾**（以及对应 **PR 描述**中）按以下格式注明所使用的工具环境和模型：
 ```
 assisted-by：{agent_name}：{model}
@@ -50,6 +51,16 @@ assisted-by：opencode：Zhipu/GLM-5.3[Max]"
 - **除非用户主动要求**，不直接编辑 Scene/Prefab YAML、GUID 或 `.meta` 来替代资源数据库操作；新增源文件的 `.meta` 由 Unity 生成。
 - **除非用户主动要求**，UI部分不要通过代码运行时修改美化，这样不便于微调UI的prefab；UI必须落盘为prefab，便于用户修改（可以通过创建UI生成脚本来生成UI结构），UI要保证符合Tengine规范
 - 对于Game
+
+## 已集成的第三方 UI 效果插件参考
+
+项目中已集成 Coffee 的两个 UGUI 视觉效果插件，业务侧可直接使用（不强制，但推荐优先于自造方案）：
+
+- **UIEffect**（`com.coffee.ui-effect@5.11.7`）：挂在任意 `Graphic` 上，通过材质级 shader 注入实现色调（灰度/复古/负片）、颜色（Multiply/Additive/HSV/发光）、采样（模糊/像素化/RGB错位）、过渡（溶解/燃烧/闪光）、阴影（描边/倒影）、渐变（水平/垂直/径向）、边缘（描边/流光）、细节叠加等 8 大类视觉效果。配套 `UIEffectTweener`（动画驱动）、`UIEffectPreset`（预设复用）、`UIEffectReplica`（批量副本）。
+- **UISoftMask**（`com.coffee.softmask-for-ugui@3.6.5`）：替代原生 `Mask`，提供 RenderTexture 软边缘遮罩（支持羽化/渐隐/抗锯齿/嵌套）。配套 `MaskingShape`（加减法形状/打洞）、`AlphaHitTestTarget`（精确点击）。
+- 两者通过 shader 内嵌 `SOFTMASKABLE` 代码块和 ProjectSettings 双向映射实现协作，可在软遮罩区域内正常使用 UIEffect 效果。
+- 详见 `repowiki/zh/content/UI系统/第三方UI效果插件.md` 和 `Books/Fork/third-party-plugins.md`，深度研究见 `conversation-summaries/code-research/2026-09-24-uieffect-uisoftmask-research.md`。
+- 注意：项目中另有自研的 `UIEffectSortingOrder`（`GameLogic/Module/UIModule/Expansion/Utility/`），名字相似但功能完全不同（特效排序同步 Canvas sortingOrder），不要混淆。
 
 ## 验证选择
 
@@ -130,7 +141,6 @@ commit提交时，以中文为主，英文为辅。如果用户让你写总结�
 21. **窗口布局走 `ScreenModule`**：Windows Standalone 多显示器窗口布局控制走 `ScreenModule`，不要用 `Screen.SetResolution` 或原生 `Screen` API 替代
 22. **事件批量移除**：`GameEvent.RemoveAllListeners` 支持按事件 ID 批量移除监听，优先使用批量接口，不要逐个 RemoveListener
 23. **日志走 TouchSocket 桥接**：日志统一走 TouchSocket 日志桥接 + Unity 日志落盘 + LogViewer，不要用 `Debug.Log` 直接做业务日志输出
-24. **询问用户是否可以使用UI 组件扩展优先用 fork 组件**：UI 优先使用 `UIButton`、`UIText`、`UITMPText`、`UIImage`、`UIRawImage`，不要用原生 UGUI 组件替代已封装组件
 
 ## 资源加载与释放规则：
 通过 TEngine 封装的 API 加载资源时必须遵守引用计数配对：

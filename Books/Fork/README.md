@@ -33,6 +33,7 @@
 | 桌面多开 | YooAsset 多实例缓存隔离，命令行 `--yoo-instance` 驱动 | [desktop-multi-instance.md](desktop-multi-instance.md) |
 | 调试器 | `Debugger` 组合快捷键切换 Debug UI | [debugger.md](debugger.md) |
 | 自定义异步操作 | 模块级 `AsyncOperationModule`，不依赖 YooAsset 的自定义异步操作体系，支持协程/UniTask/abort-on-cancel | [async-operation.md](async-operation.md) |
+| 第三方 UI 效果插件 | UIEffect（材质级 8 大类视觉效果）+ UISoftMask（RenderTexture 软遮罩），两者 shader 协作 | [third-party-plugins.md](third-party-plugins.md) |
 
 ## 最近重点
 

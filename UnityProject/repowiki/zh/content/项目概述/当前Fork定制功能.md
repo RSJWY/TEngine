@@ -92,6 +92,7 @@ GameModule.Resource.UnloadAsset(raw);
 - `ClientSaveDataMgr`：支持 PlayerPrefs/BinaryFile（Nino 二进制）、版本升级、坏档备份和异步保存。旧版 JSON 存档首次加载自动迁移到 Nino 二进制。
 - `DataCenterSys`：管理当前玩家会话数据，不应由持久化存档对象替代。
 - UGUI 扩展：`UIButton`、`UIImage`、`UIText`、`RichTextItem` 及常用布局、拖拽和效果组件。
+- 第三方 UI 效果插件：已集成 `com.coffee.ui-effect`（材质级 8 大类视觉效果）和 `com.coffee.softmask-for-ugui`（RenderTexture 软遮罩），详见 [第三方UI效果插件](../UI系统/第三方UI效果插件.md) 和 [Books/Fork/third-party-plugins.md](../../../../../Books/Fork/third-party-plugins.md)。
 - `Utility.Unity`：补充组件、子节点、Layer、EventTrigger、射线、材质和分辨率等工具。
 - `Utility.Json.FromJsonOverwrite`：支持覆盖已有对象。
 - `GameEvent.RemoveAllListeners`：支持按事件 ID 批量清理监听。
@@ -149,3 +150,4 @@ Releases/
 | GameObject 对象池 | [game-object-pool.md](../../../../../Books/Fork/game-object-pool.md) |
 | 动画模块 | [anim-module.md](../../../../../Books/Fork/anim-module.md) |
 | 桌面多开 | [desktop-multi-instance.md](../../../../../Books/Fork/desktop-multi-instance.md) |
+| 第三方 UI 效果插件 | [third-party-plugins.md](../../../../../Books/Fork/third-party-plugins.md) |
