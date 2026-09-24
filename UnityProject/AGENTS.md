@@ -43,6 +43,7 @@ assisted-by：opencode：Zhipu/GLM-5.3[Max]"
 ## 编码边界
 
 - 业务模块通过 `GameModule` 访问；框架启动层按其现有模块初始化方式工作。
+- 新增需要混淆类型名的热更业务模块（继承 `TEngine.Module`）时，必须在热更入口首次获取前通过 `ModuleSystem.RegisterModule<T>(module)` 显式注册，并按 `OnInit` 的依赖顺序排列；增删模块时同步更新注册清单。显式注册仅用于启动初始化，业务访问仍走 `GameModule`，不要依赖 `IXxx` → `Xxx` 按名自动查找。
 - 业务异步使用 UniTask，明确取消、失败和资源归属。不要把框架现存的同步 API 当作不存在。
 - Sprite 优先使用 `SetSprite`；实例化资源使用 `LoadGameObjectAsync`；普通 Asset 加载与释放配对。
 - `Assets/GameScripts/GameEntry.cs`、`Procedure` 和 `Assets/Launcher` 属于主包；热更业务位于 `Assets/GameScripts/HotFix`。以 asmdef 验证边界，不虚构 `GameScripts/Main`。

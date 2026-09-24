@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-09-24
+- [Obfuz 启用后业务模块发现失败](./2026-09-24-obfuz-module-discovery-failure.md)
+  - 关键词：Obfuz、GameLogic、ModuleSystem、RegisterModule、GameSceneModule、IGameSceneModule、UIJumpControl、IUIJumpControl、Type.GetType
+  - 结论：两组业务模块名被独立混淆，改为按依赖顺序显式注册以保留类型名混淆。
 - [UIEffect 与 UISoftMask 插件研究报告](./2026-09-24-uieffect-uisoftmask-research.md)
   - 关键词：Coffee.UIEffect、Coffee.UISoftMask、UIEffectBase、UIEffectContext、UIEffectTweener、UIEffectPreset、UIEffectReplica、MaterialRepository、GraphicProxy、TmpProxy、SoftMask、SoftMaskable、MaskingShape、AlphaHitTestTarget、SoftMask.cginc、SOFTMASKABLE keyword、shader_feature_local_fragment、ToneFilter、ColorFilter、SamplingFilter、TransitionFilter、ShadowMode、GradationMode、DetailFilter、EdgeMode、RenderTexture降采样、脏标记传播、MaskingMethod.Subtract、Hidden/UI/Default (UIEffect)、Hidden/UI/Default (SoftMaskable)、shader双向注册、ProjectSettings映射
   - 结论：UIEffect 通过材质级 shader 注入实现 8 大类视觉效果，UISoftMask 通过 RenderTexture 软遮罩替代原生 Mask 硬边 stencil，两者通过 shader 内嵌 SOFTMASKABLE 代码块和 ProjectSettings 双向 shader 映射实现协作。
