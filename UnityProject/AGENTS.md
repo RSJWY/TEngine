@@ -50,7 +50,7 @@ assisted-by：opencode：Zhipu/GLM-5.3[Max]"
 - 修改配置加载器、生成类时追溯 `Configs/GameConfig` 中模板；不直接修补生成产物。
 - **除非用户主动要求**，不直接编辑 Scene/Prefab YAML、GUID 或 `.meta` 来替代资源数据库操作；新增源文件的 `.meta` 由 Unity 生成。
 - **除非用户主动要求**，UI部分不要通过代码运行时修改美化，这样不便于微调UI的prefab；UI必须落盘为prefab，便于用户修改（可以通过创建UI生成脚本来生成UI结构），UI要保证符合Tengine规范
-- 对于Game
+- 修改代码时始终以磁盘当前文件为准，先读取再修改；只做必要的最小修改，不删除、覆盖或重构无关代码，并检查 Diff 确保用户已有修改不丢失。
 
 ## 已集成的第三方 UI 效果插件
 
