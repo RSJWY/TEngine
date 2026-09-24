@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<obfuz>
+  <assembly name="GameLogic">
+    <type name="*" inherit="TEngine.Module">
+      <method name="OnInit" obName="false" />
+      <method name="Shutdown" obName="false" />
+    </type>
+  </assembly>
+</obfuz>

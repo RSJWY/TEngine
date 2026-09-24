@@ -6,6 +6,7 @@ using Sirenix.OdinInspector;
 using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine;
 #if OBFUZ_INSTALLED
 using ObfuzGarbageCodeType = Obfuz.Settings.GarbageCodeType;
@@ -47,6 +48,7 @@ namespace TEngine
 
         protected override void OnImGUI()
         {
+            bool refreshed = false;
             GUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 GUILayout.Label("配置存储于 ProjectSettings/Obfuz.asset，修改后自动保存", EditorStyles.miniLabel);
@@ -55,6 +57,11 @@ namespace TEngine
                 {
                     FlushSave();
                 }
+                if (GUILayout.Button(new GUIContent("刷新配置", EditorGUIUtility.IconContent("Refresh").image,
+                        "从 ProjectSettings/Obfuz.asset 重新读取配置"), EditorStyles.toolbarButton, GUILayout.Width(90)))
+                {
+                    refreshed = RefreshSettings();
+                }
                 if (GUILayout.Button("官方设置页", EditorStyles.toolbarButton, GUILayout.Width(80)))
                 {
                     FlushSave();
@@ -62,6 +69,10 @@ namespace TEngine
                 }
             }
             GUILayout.EndHorizontal();
+            if (refreshed)
+            {
+                GUIUtility.ExitGUI();
+            }
 
             SirenixEditorGUI.DrawThickHorizontalSeparator();
             base.OnImGUI();
@@ -1510,6 +1521,54 @@ namespace TEngine
 
         private bool _saveQueued;
         private double _nextSaveTime;
+
+        private bool RefreshSettings()
+        {
+            const string settingsPath = "ProjectSettings/Obfuz.asset";
+            if (!File.Exists(settingsPath))
+            {
+                EditorUtility.DisplayDialog("刷新混淆配置", $"配置文件不存在：{settingsPath}", "知道了");
+                return false;
+            }
+
+            if (_saveQueued && !EditorUtility.DisplayDialog("刷新混淆配置",
+                    "当前窗口有未保存的修改。刷新将丢弃这些修改并读取磁盘上的配置。", "丢弃并刷新", "取消"))
+            {
+                return false;
+            }
+
+            EditorApplication.update -= FlushSaveWhenReady;
+            _saveQueued = false;
+
+            ObfuzSettingsAsset loaded = null;
+            try
+            {
+                loaded = InternalEditorUtility.LoadSerializedFileAndForget(settingsPath)
+                    .OfType<ObfuzSettingsAsset>().FirstOrDefault();
+                if (!loaded)
+                {
+                    EditorUtility.DisplayDialog("刷新混淆配置", "配置文件无效，未刷新当前设置。", "知道了");
+                    return false;
+                }
+
+                EditorUtility.CopySerialized(loaded, S);
+                Repaint();
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                EditorUtility.DisplayDialog("刷新混淆配置", "读取配置失败，请查看 Console。", "知道了");
+                return false;
+            }
+            finally
+            {
+                if (loaded)
+                {
+                    DestroyImmediate(loaded);
+                }
+            }
+        }
 
         private void MarkDirty()
         {
