@@ -221,7 +221,7 @@ public static class BuildDLLCommand
 
         if (removed)
         {
-            Debug.Log("[Obfuz] 已清理 libil2cpp 多态注入产物，重新打 Player 前请先执行 HybridCLR/Generate/All。");
+            Debug.Log("[Obfuz] 已清理 libil2cpp 多态注入产物，重新打 Player 前需按当前混淆状态执行 GenerateAll。");
         }
     }
 
@@ -338,6 +338,45 @@ public static class BuildDLLCommand
         bool developmentBuild = Settings.UpdateSetting.WillGeneratePdb;
         CompileDllCommand.CompileDll(target, developmentBuild);
         CopyAOTHotUpdateDlls(target);
+#endif
+    }
+
+    public static void GenerateAllForTarget(BuildTarget target, bool cleanupPolymorphicInjection = false)
+    {
+#if ENABLE_HYBRIDCLR
+        if (EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            throw new InvalidOperationException($"快速构建目标平台 {target} 与编辑器当前平台 {EditorUserBuildSettings.activeBuildTarget} 不一致，请先手动对齐平台再执行 GenerateAll。");
+        }
+
+#if OBFUZ_INSTALLED
+        bool obfuzEnabled = IsObfuzActive;
+        if (ObfuzSettings.Instance.buildPipelineSettings.enable != obfuzEnabled)
+        {
+            throw new InvalidOperationException("ENABLE_OBFUZ 与 Obfuz Player 构建混淆开关不一致，请先统一设置再执行 GenerateAll。");
+        }
+        if (cleanupPolymorphicInjection)
+        {
+            if (obfuzEnabled && ObfuzSettings.Instance.polymorphicDllSettings.enable)
+            {
+                throw new InvalidOperationException("多态 DLL 仍已启用，请先关闭多态再清理注入代码。");
+            }
+            CleanupPolymorphicInjection();
+        }
+        if (obfuzEnabled)
+        {
+            PrebuildCommandExt.GenerateAll();
+            return;
+        }
+#else
+        if (cleanupPolymorphicInjection)
+        {
+            throw new InvalidOperationException("未安装 Obfuz，无法清理多态注入代码。");
+        }
+#endif
+        PrebuildCommand.GenerateAll();
+#else
+        throw new InvalidOperationException("需要启用 ENABLE_HYBRIDCLR 后才能执行 GenerateAll。");
 #endif
     }
 

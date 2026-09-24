@@ -1403,44 +1403,24 @@ namespace TEngine
         [BoxGroup("Pages/高级/多态 DLL")]
         [ShowInInspector, ReadOnly, HideLabel, DisplayAsString]
         [InfoBox(
-            "多态加载支持未注入！开启多态 DLL 后必须先执行「HybridCLR/ObfuzExtension/GenerateAll」向 libil2cpp 注入多态加载代码，否则运行时 Assembly.Load 会 BadImageFormatException。",
+            "多态加载支持未注入！请在「TEngine 打包工具 → 热更DLL」执行 GenerateAll，再构建 Player，否则运行时 Assembly.Load 会 BadImageFormatException。",
             InfoMessageType.Error,
             VisibleIf = nameof(ShouldWarnPolymorphicNotInjected))]
         [InfoBox(
-            "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。点击「执行 HybridCLR/Generate/All」将移除多态注入产物并重新生成 MethodBridge/AOTGenericReference，之后需重新打 Player。",
+            "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。点击「清理多态注入并重新生成」，之后需重新打 Player。",
             InfoMessageType.Warning,
             VisibleIf = nameof(ShouldWarnPolymorphicInjectedButDisabled))]
         private string PolymorphicInjectionHint => string.Empty;
 
         [TabGroup("Pages", "高级")]
         [BoxGroup("Pages/高级/多态 DLL")]
-        [GUIColor(0.9f, 0.4f, 0.35f)]
-        [Button("执行 GenerateAll", ButtonSizes.Medium)]
-        [EnableIf(nameof(ShouldWarnPolymorphicNotInjected))]
-        private void ExecutePolymorphicGenerateAll()
-        {
-#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
-            Obfuz4HybridCLR.PrebuildCommandExt.GenerateAll();
-            AssetDatabase.Refresh();
-#else
-            EditorUtility.DisplayDialog("无法执行", "需要启用 HybridCLR 和 Obfuz 宏（ENABLE_HYBRIDCLR + ENABLE_OBFUZ）。", "确定");
-#endif
-        }
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/多态 DLL")]
         [GUIColor(0.95f, 0.7f, 0.25f)]
-        [Button("执行 HybridCLR/Generate/All", ButtonSizes.Medium)]
+        [Button("清理多态注入并重新生成", ButtonSizes.Medium)]
         [EnableIf(nameof(ShouldWarnPolymorphicInjectedButDisabled))]
-        private void ExecuteHybridCLRGenerateAll()
+        private void CleanupPolymorphicAndGenerateAll()
         {
-#if ENABLE_HYBRIDCLR
-            BuildDLLCommand.CleanupPolymorphicInjection();
-            HybridCLR.Editor.Commands.PrebuildCommand.GenerateAll();
-            AssetDatabase.Refresh();
-#else
-            EditorUtility.DisplayDialog("无法执行", "需要启用 HybridCLR 宏（ENABLE_HYBRIDCLR）。", "确定");
-#endif
+            FlushSave();
+            BuildDLLCommand.GenerateAllForTarget(EditorUserBuildSettings.activeBuildTarget, cleanupPolymorphicInjection: true);
         }
 
         private bool ShouldWarnPolymorphicNotInjected()

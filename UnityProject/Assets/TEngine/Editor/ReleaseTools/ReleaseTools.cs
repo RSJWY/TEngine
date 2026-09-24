@@ -126,6 +126,17 @@ namespace TEngine
                 return false;
             }
 
+            if (config.BuildHotFixDll && runtimePackages.Any(runtimePackage => IsAssemblyPackage(runtimePackage.PackageName)))
+            {
+                if ((buildPlayer || config.BuildPlayer) && config.PlayerPlatform != config.BuildTarget)
+                {
+                    Debug.LogError($"[BuildWithConfig] Player 平台 {config.PlayerPlatform} 与代码资源包平台 {config.BuildTarget} 不一致。");
+                    return false;
+                }
+
+                BuildDLLCommand.ActivateBuildTarget(config.BuildTarget);
+            }
+
             AssetDatabase.Refresh();
 
             YooAsset.Editor.BuildResult firstBuildResult = null;
@@ -135,7 +146,7 @@ namespace TEngine
                 if (config.BuildHotFixDll && !hotFixDllBuilt && IsAssemblyPackage(runtimePackage.PackageName))
                 {
                     Debug.Log($"[BuildWithConfig] 构建 {runtimePackage.PackageName} 前同步AOT元数据清单并编译热更DLL...");
-                    BuildDLLCommand.BuildAndCopyDlls();
+                    BuildDLLCommand.BuildAndCopyDlls(config.BuildTarget);
                     AssetDatabase.Refresh();
                     hotFixDllBuilt = true;
                 }

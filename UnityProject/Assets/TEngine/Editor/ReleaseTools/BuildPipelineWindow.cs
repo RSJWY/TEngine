@@ -707,36 +707,23 @@ namespace TEngine
             CopyAOTAssembliesNow();
         }
 
+        [ButtonGroup("热更DLL/Generate")]
+        [Button("GenerateAll（构建首包时使用）", ButtonSizes.Large)]
+        private void GenerateAllFromOperations()
+        {
+            BuildDLLCommand.GenerateAllForTarget(_buildTarget);
+        }
+
         [PropertySpace(8)]
 #if OBFUZ_INSTALLED
         [TitleGroup("Obfuz")]
         [ButtonGroup("Obfuz/Actions")]
-        [GUIColor(0.9f, 0.4f, 0.35f)]
-        [EnableIf(nameof(IsPolymorphicNotInjected))]
-        [Button("执行 GenerateAll（注入多态加载支持）", ButtonSizes.Large)]
-        private void ExecutePolymorphicGenerateAll()
-        {
-#if ENABLE_HYBRIDCLR
-            Obfuz4HybridCLR.PrebuildCommandExt.GenerateAll();
-            AssetDatabase.Refresh();
-#else
-            EditorUtility.DisplayDialog("无法执行", "需要启用 HybridCLR 宏（ENABLE_HYBRIDCLR）。", "确定");
-#endif
-        }
-
-        [ButtonGroup("Obfuz/Actions")]
         [GUIColor(0.95f, 0.7f, 0.25f)]
         [EnableIf(nameof(IsPolymorphicInjectedButDisabled))]
-        [Button("执行 HybridCLR/Generate/All（清理多态注入）", ButtonSizes.Large)]
-        private void ExecuteHybridCLRGenerateAll()
+        [Button("清理多态注入并重新生成", ButtonSizes.Large)]
+        private void CleanupPolymorphicAndGenerateAll()
         {
-#if ENABLE_HYBRIDCLR
-            BuildDLLCommand.CleanupPolymorphicInjection();
-            HybridCLR.Editor.Commands.PrebuildCommand.GenerateAll();
-            AssetDatabase.Refresh();
-#else
-            EditorUtility.DisplayDialog("无法执行", "需要启用 HybridCLR 宏（ENABLE_HYBRIDCLR）。", "确定");
-#endif
+            BuildDLLCommand.GenerateAllForTarget(_buildTarget, cleanupPolymorphicInjection: true);
         }
 
         private bool IsPolymorphicNotInjected()
@@ -782,11 +769,11 @@ namespace TEngine
         {
             if (IsPolymorphicNotInjected())
             {
-                return "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先执行「GenerateAll」向 libil2cpp 注入多态加载代码，否则运行时热更 DLL 加载会 BadImageFormatException。";
+                return "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先在「热更DLL」执行 GenerateAll，否则运行时热更 DLL 加载会 BadImageFormatException。";
             }
             if (IsPolymorphicInjectedButDisabled())
             {
-                return "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。\n点击「执行 HybridCLR/Generate/All（清理多态注入）」将移除多态注入产物并重新生成 MethodBridge/AOTGenericReference，之后需重新打 Player。";
+                return "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。\n点击「清理多态注入并重新生成」后，再重新打 Player。";
             }
             return null;
         }

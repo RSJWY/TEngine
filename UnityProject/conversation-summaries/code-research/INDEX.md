@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-09-24
+- [TEngine 打包工具 Obfuz 与 AOT 元数据审查](./2026-09-24-obfuz-packaging-aot-audit.md)
+  - 关键词：Obfuz、BuildAndCopyDlls、CodePackage、HotDll、AOTMetadataManifest、PolymorphicDll、BuildTarget、ENABLE_OBFUZ、LoadMetadataForAOTAssembly、GenerateAll、SessionState、程序集重载、YooAsset BuildParameters、AssembliesPostIl2CppStrip、ObfuscationProcess
+  - 结论：Obfuz 与 HybridCLR 共用平台裁剪 AOT 目录；打包工具已增加手动 GenerateAll 入口，按混淆状态分流，清理多态注入后亦按状态再生成，待 Unity 验证。
 - [Obfuz 启用后业务模块发现失败](./2026-09-24-obfuz-module-discovery-failure.md)
   - 关键词：Obfuz、GameLogic、ModuleSystem、RegisterModule、GameSceneModule、IGameSceneModule、UIJumpControl、IUIJumpControl、Type.GetType
   - 结论：两组业务模块名被独立混淆，改为按依赖顺序显式注册以保留类型名混淆。
