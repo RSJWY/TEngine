@@ -585,8 +585,8 @@ namespace TEngine
         private List<FlowStepView> _flowSteps = new List<FlowStepView>();
 
 #if OBFUZ_INSTALLED
-        [TitleGroup("构建")]
-        [BoxGroup("构建/多态DLL注入", ShowLabel = false)]
+        [TabGroup("Pages", "多态DLL")]
+        [BoxGroup("Pages/多态DLL/状态", ShowLabel = false)]
         [InfoBox(
             "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先执行「GenerateAll」向 libil2cpp 注入多态加载代码，否则运行时热更 DLL 加载会 BadImageFormatException。",
             InfoMessageType.Error,
@@ -595,7 +595,8 @@ namespace TEngine
             "多态 DLL 已关闭但 libil2cpp 仍含多态注入代码。\n建议执行「HybridCLR/Generate/All」重新生成无多态的 MethodBridge/AOTGenericReference，再重新打 Player。",
             InfoMessageType.Warning,
             VisibleIf = nameof(IsPolymorphicInjectedButDisabled))]
-        [HorizontalGroup("构建/多态DLL注入/Buttons", 0.5f)]
+
+        [HorizontalGroup("Pages/多态DLL/状态/Buttons", 0.5f)]
         [GUIColor(0.9f, 0.4f, 0.35f)]
         [EnableIf(nameof(IsPolymorphicNotInjected))]
         [Button("执行 GenerateAll（注入多态加载支持）", ButtonSizes.Medium)]
@@ -609,7 +610,7 @@ namespace TEngine
 #endif
         }
 
-        [HorizontalGroup("构建/多态DLL注入/Buttons", 0.5f)]
+        [HorizontalGroup("Pages/多态DLL/状态/Buttons", 0.5f)]
         [GUIColor(0.95f, 0.7f, 0.25f)]
         [EnableIf(nameof(IsPolymorphicInjectedButDisabled))]
         [Button("执行 HybridCLR/Generate/All（清理多态注入）", ButtonSizes.Medium)]
