@@ -30,7 +30,7 @@ MonoBehaviour:
     additionalAssemblySearchPaths: []
     obfuscateObfuzRuntime: 1
   obfuscationPassSettings:
-    enabledPasses: 1051907
+    enabledPasses: 3149059
     ruleFiles: []
   secretSettings:
     defaultStaticSecretKey: Code Philosophy-Static
