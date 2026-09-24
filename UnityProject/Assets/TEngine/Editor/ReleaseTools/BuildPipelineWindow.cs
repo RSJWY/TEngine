@@ -590,8 +590,12 @@ namespace TEngine
             "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先执行菜单「HybridCLR/ObfuzExtension/GenerateAll」，否则运行时热更 DLL 加载会 BadImageFormatException。",
             InfoMessageType.Error,
             VisibleIf = nameof(IsPolymorphicNotInjected))]
+        [InfoBox(
+            "多态 DLL 已关闭但 libil2cpp 仍含多态注入代码。\n建议执行菜单「HybridCLR/Generate/All」重新生成无多态的 MethodBridge/AOTGenericReference，再重新打 Player。",
+            InfoMessageType.Warning,
+            VisibleIf = nameof(IsPolymorphicInjectedButDisabled))]
         [ShowInInspector, HideLabel, ReadOnly]
-        private string PolymorphicInjectionWarning => IsPolymorphicNotInjected() ? "" : null;
+        private string PolymorphicInjectionWarning => (IsPolymorphicNotInjected() || IsPolymorphicInjectedButDisabled()) ? "" : null;
 
         [TitleGroup("构建")]
         [GUIColor(0.9f, 0.4f, 0.35f)]
@@ -607,6 +611,20 @@ namespace TEngine
 #endif
         }
 
+        [TitleGroup("构建")]
+        [GUIColor(0.95f, 0.7f, 0.25f)]
+        [EnableIf(nameof(IsPolymorphicInjectedButDisabled))]
+        [Button("执行 HybridCLR/Generate/All（清理多态注入）", ButtonSizes.Medium)]
+        private void ExecuteHybridCLRGenerateAll()
+        {
+#if ENABLE_HYBRIDCLR
+            HybridCLR.Editor.Commands.PrebuildCommand.GenerateAll();
+            AssetDatabase.Refresh();
+#else
+            EditorUtility.DisplayDialog("无法执行", "需要启用 HybridCLR 宏（ENABLE_HYBRIDCLR）。", "确定");
+#endif
+        }
+
         private bool IsPolymorphicNotInjected()
         {
 #if ENABLE_HYBRIDCLR
@@ -616,6 +634,25 @@ namespace TEngine
                     return false;
                 string marker = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
                 return !File.Exists(marker);
+            }
+            catch
+            {
+                return false;
+            }
+#else
+            return false;
+#endif
+        }
+
+        private bool IsPolymorphicInjectedButDisabled()
+        {
+#if ENABLE_HYBRIDCLR
+            try
+            {
+                if (Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
+                    return false;
+                string marker = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
+                return File.Exists(marker);
             }
             catch
             {

@@ -1406,8 +1406,13 @@ namespace TEngine
             "多态加载支持未注入！开启多态 DLL 后必须先执行「HybridCLR/ObfuzExtension/GenerateAll」向 libil2cpp 注入多态加载代码，否则运行时 Assembly.Load 会 BadImageFormatException。",
             InfoMessageType.Error,
             VisibleIf = nameof(ShouldWarnPolymorphicNotInjected))]
+        [InfoBox(
+            "多态 DLL 已关闭但 libil2cpp 仍含多态注入代码。建议执行「HybridCLR/Generate/All」重新生成无多态的 MethodBridge/AOTGenericReference，再重新打 Player，避免 native binary 残留无用多态代码。",
+            InfoMessageType.Warning,
+            VisibleIf = nameof(ShouldWarnPolymorphicInjectedButDisabled))]
         [GUIColor(0.9f, 0.4f, 0.35f)]
         [Button("执行 GenerateAll", ButtonSizes.Medium)]
+        [EnableIf(nameof(ShouldWarnPolymorphicNotInjected))]
         private void ExecutePolymorphicGenerateAll()
         {
 #if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
@@ -1418,11 +1423,33 @@ namespace TEngine
 #endif
         }
 
+        [TabGroup("Pages", "高级")]
+        [BoxGroup("Pages/高级/多态 DLL")]
+        [GUIColor(0.95f, 0.7f, 0.25f)]
+        [Button("执行 HybridCLR/Generate/All", ButtonSizes.Medium)]
+        [EnableIf(nameof(ShouldWarnPolymorphicInjectedButDisabled))]
+        private void ExecuteHybridCLRGenerateAll()
+        {
+#if ENABLE_HYBRIDCLR
+            HybridCLR.Editor.Commands.PrebuildCommand.GenerateAll();
+            AssetDatabase.Refresh();
+#else
+            EditorUtility.DisplayDialog("无法执行", "需要启用 HybridCLR 宏（ENABLE_HYBRIDCLR）。", "确定");
+#endif
+        }
+
         private bool ShouldWarnPolymorphicNotInjected()
         {
             if (!S.polymorphicDllSettings.enable)
                 return false;
             return !IsPolymorphicInjected();
+        }
+
+        private bool ShouldWarnPolymorphicInjectedButDisabled()
+        {
+            if (S.polymorphicDllSettings.enable)
+                return false;
+            return IsPolymorphicInjected();
         }
 
         private static bool IsPolymorphicInjected()
