@@ -59,6 +59,12 @@ assisted-by：opencode：Zhipu/GLM-5.3[Max]"
 - 两者 shader 内嵌协作，软遮罩内可正常用 UIEffect 效果。详见 `repowiki/zh/content/UI系统/第三方UI效果插件.md`。
 - 注意：自研 `UIEffectSortingOrder`（`GameLogic/Module/UIModule/Expansion/Utility/`）名字相似但功能不同（Canvas sortingOrder 同步），不要混淆。
 
+## Fork UI 组件扩展
+
+- UI 优先使用 fork 扩展组件：`UIButton`、`UIText`、`UITMPText`、`UIImage`、`UIRawImage`，替代原生 `Button`/`Text`/`TextMeshProUGUI`/`Image`/`RawImage`。
+- 脚本生成器已集成上述五项（`UIComponentName` 枚举 25–29，前缀 `m_uiBtn`/`m_uiText`/`m_uiTmp`/`m_uiImg`/`m_uiRimg`）。
+- 详见 `repowiki/zh/content/UI系统/UI脚本生成器.md` 和 `Books/Fork/ui-expansion.md`。
+
 ## 验证选择
 
 ```powershell
