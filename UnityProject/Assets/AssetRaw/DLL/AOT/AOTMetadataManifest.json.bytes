@@ -1,8 +1,12 @@
 {
     "AOTMetaAssemblies": [
         "DOTween.dll",
+        "Nino.Core.dll",
+        "Obfuz.Runtime.dll",
         "RuntimeTools.dll",
         "System.Core.dll",
+        "System.Runtime.CompilerServices.Unsafe.dll",
+        "System.dll",
         "TEngine.Runtime.dll",
         "UniTask.dll",
         "UnityEngine.CoreModule.dll",

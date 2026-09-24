@@ -80,7 +80,7 @@ PlayerSettings:
   androidPredictiveBackSupport: 1
   defaultIsNativeResolution: 1
   macRetinaSupport: 1
-  runInBackground: 0
+  runInBackground: 1
   captureSingleScreen: 0
   muteOtherAudioSources: 0
   Prepare IOS For Recording: 0
@@ -142,7 +142,9 @@ PlayerSettings:
   visionOSBundleVersion: 1.0
   tvOSBundleVersion: 1.0
   bundleVersion: 1.0
-  preloadedAssets: []
+  preloadedAssets:
+  - {fileID: 11400000, guid: bfc795e257481004da0474ada1356379, type: 2}
+  - {fileID: 11400000, guid: 076dd648a40222e45b5a93845d2f4a7c, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -793,7 +795,7 @@ PlayerSettings:
   webGLMemoryGeometricGrowthCap: 96
   webGLPowerPreference: 2
   scriptingDefineSymbols:
-    Android: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ENABLE_RELEASE;DOTWEEN
+    Android: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ENABLE_RELEASE;DOTWEEN;ENABLE_OBFUZ
     EmbeddedLinux: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;DOTWEEN
     GameCoreScarlett: DOTWEEN
     GameCoreXboxOne: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;DOTWEEN
@@ -804,12 +806,12 @@ PlayerSettings:
     PS5: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;DOTWEEN
     QNX: TextMeshPro;DOTWEEN
     Stadia: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;DOTWEEN
-    Standalone: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3;ENABLE_RELEASE;DOTWEEN
+    Standalone: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3;ENABLE_RELEASE;DOTWEEN;ENABLE_OBFUZ
     VisionOS: TextMeshPro;DOTWEEN
-    WebGL: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;ENABLE_LOG;ENABLE_HYBRIDCLR;ENABLE_RELEASE;DOTWEEN
-    Windows Store Apps: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;ENABLE_LOG;ENABLE_HYBRIDCLR;ENABLE_RELEASE;DOTWEEN
+    WebGL: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;ENABLE_LOG;ENABLE_HYBRIDCLR;ENABLE_RELEASE;DOTWEEN;ENABLE_OBFUZ
+    Windows Store Apps: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;ENABLE_LOG;ENABLE_HYBRIDCLR;ENABLE_RELEASE;DOTWEEN;ENABLE_OBFUZ
     XboxOne: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;DOTWEEN
-    iPhone: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ENABLE_RELEASE;DOTWEEN
+    iPhone: ENABLE_LOG;TextMeshPro;ENABLE_HYBRIDCLR;ENABLE_RELEASE;DOTWEEN;ENABLE_OBFUZ
     tvOS: UNITY_POST_PROCESSING_STACK_V2;TextMeshPro;DOTWEEN
   additionalCompilerArguments: {}
   platformArchitecture: {}
