@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-09-24
+- [UIEffect 与 UISoftMask 插件研究报告](./2026-09-24-uieffect-uisoftmask-research.md)
+  - 关键词：Coffee.UIEffect、Coffee.UISoftMask、UIEffectBase、UIEffectContext、UIEffectTweener、UIEffectPreset、UIEffectReplica、MaterialRepository、GraphicProxy、TmpProxy、SoftMask、SoftMaskable、MaskingShape、AlphaHitTestTarget、SoftMask.cginc、SOFTMASKABLE keyword、shader_feature_local_fragment、ToneFilter、ColorFilter、SamplingFilter、TransitionFilter、ShadowMode、GradationMode、DetailFilter、EdgeMode、RenderTexture降采样、脏标记传播、MaskingMethod.Subtract、Hidden/UI/Default (UIEffect)、Hidden/UI/Default (SoftMaskable)、shader双向注册、ProjectSettings映射
+  - 结论：UIEffect 通过材质级 shader 注入实现 8 大类视觉效果，UISoftMask 通过 RenderTexture 软遮罩替代原生 Mask 硬边 stencil，两者通过 shader 内嵌 SOFTMASKABLE 代码块和 ProjectSettings 双向 shader 映射实现协作。
+
 ## 2026-08-29
 - [UIRawImage 扩展可行性研究](./2026-08-29-uirawimage-expansion-feasibility-research.md)
   - 关键词：UIRawImage、RawImage、IMeshModifier、ModifyMesh、Graphic.UpdateGeometry、uvRect替代GetOuterUV、GetPixelAdjustedRect、圆角RoundedCorners、不规则图形Mask、RayCrossing、镜像Mirror仅Simple、RawImageEditor、UIImageDrawEditor复用、菜单GameObject/UI
