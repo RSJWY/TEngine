@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
 using Cysharp.Threading.Tasks;
 using UnityEngine.SceneManagement;
 using SceneHandle = YooAsset.SceneHandle;
@@ -46,6 +48,37 @@ namespace TEngine
             _subScenes.Clear();
             _handlingScene.Clear();
             _currentMainSceneName = string.Empty;
+        }
+
+        /// <summary>
+        /// 切换场景前检查Yooasset加载的资产是否存在未释放的引用泄露
+        /// </summary>
+        /// <param name="sceneName"></param>
+        [Conditional("DEBUG")]
+        private void LogUnreleasedAssets(string sceneName)
+        {
+            var objectPoolModule = ModuleSystem.GetModule<IObjectPoolModule>();
+            if (objectPoolModule == null)
+                return;
+
+            var pools = objectPoolModule.GetAllObjectPools(true);
+            var sb = new StringBuilder();
+            foreach (var pool in pools)
+            {
+                var infos = pool.GetAllObjectInfos();
+                foreach (var info in infos)
+                {
+                    if (info.SpawnCount > 0)
+                    {
+                        sb.AppendLine($"- [{pool.Name}] {info.Name} | 引用计数: {info.SpawnCount}");
+                    }
+                }
+            }
+
+            if (sb.Length > 0)
+            {
+                Log.Warning($"切换主场景 [{sceneName}] 前检测到未释放资源：\n{sb}");
+            }
         }
 
         /// <summary>
@@ -121,6 +154,7 @@ namespace TEngine
 #if UNITY_EDITOR&&EditorFixedMaterialShader
                 Utility.MaterialHelper.WaitGetRootGameObjects(_currentMainScene).Forget();
 #endif
+                LogUnreleasedAssets(_currentMainSceneName);
                 ModuleSystem.GetModule<IResourceModule>().ForceUnloadUnusedAssets(gcCollect);
 
                 _handlingScene.Remove(location);
@@ -197,6 +231,7 @@ namespace TEngine
 #if UNITY_EDITOR&&EditorFixedMaterialShader
                 Utility.MaterialHelper.WaitGetRootGameObjects(_currentMainScene).Forget();
 #endif
+                LogUnreleasedAssets(_currentMainSceneName);
                 ModuleSystem.GetModule<IResourceModule>().ForceUnloadUnusedAssets(gcCollect);
             }
         }
