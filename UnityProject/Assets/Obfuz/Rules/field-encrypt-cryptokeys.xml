@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<obfuz>
+  <assembly name="TEngine.CryptoKeys">
+    <type name="TEngine.KeyStore">
+      <field name="*" obfuscate="true"/>
+    </type>
+  </assembly>
+</obfuz>
