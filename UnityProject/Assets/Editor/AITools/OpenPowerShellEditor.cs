@@ -1,5 +1,6 @@
 using UnityEditor;
 using System.Diagnostics;
+using System.IO;
 
 public class OpenPowerShellEditor
 {
@@ -9,7 +10,8 @@ public class OpenPowerShellEditor
     {
         ProcessStartInfo startInfo = new ProcessStartInfo
         {
-            FileName = "pwsh.exe",
+            // 优先 PowerShell 7（pwsh.exe），未安装时回退 Windows 自带的 powershell.exe
+            FileName = ResolvePowerShellPath(),
             // 通过 ShellExecute 的 Verb 触发 UAC 提权
             Verb = "runas",
             UseShellExecute = true,
@@ -17,5 +19,20 @@ public class OpenPowerShellEditor
             Arguments = $"-NoExit -Command \"Set-Location -LiteralPath '{UnityEngine.Application.dataPath}/..'\""
         };
         Process.Start(startInfo);
+    }
+
+    private static string ResolvePowerShellPath()
+    {
+        string[] pwshCandidates =
+        {
+            @"C:\Program Files\PowerShell\7\pwsh.exe",
+            @"C:\Program Files\PowerShell\6\pwsh.exe",
+        };
+        foreach (string candidate in pwshCandidates)
+        {
+            if (File.Exists(candidate))
+                return candidate;
+        }
+        return "powershell.exe";
     }
 }
