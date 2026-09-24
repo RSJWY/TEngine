@@ -52,15 +52,12 @@ assisted-by：opencode：Zhipu/GLM-5.3[Max]"
 - **除非用户主动要求**，UI部分不要通过代码运行时修改美化，这样不便于微调UI的prefab；UI必须落盘为prefab，便于用户修改（可以通过创建UI生成脚本来生成UI结构），UI要保证符合Tengine规范
 - 对于Game
 
-## 已集成的第三方 UI 效果插件参考
+## 已集成的第三方 UI 效果插件
 
-项目中已集成 Coffee 的两个 UGUI 视觉效果插件，业务侧可直接使用（不强制，但推荐优先于自造方案）：
-
-- **UIEffect**（`com.coffee.ui-effect@5.11.7`）：挂在任意 `Graphic` 上，通过材质级 shader 注入实现色调（灰度/复古/负片）、颜色（Multiply/Additive/HSV/发光）、采样（模糊/像素化/RGB错位）、过渡（溶解/燃烧/闪光）、阴影（描边/倒影）、渐变（水平/垂直/径向）、边缘（描边/流光）、细节叠加等 8 大类视觉效果。配套 `UIEffectTweener`（动画驱动）、`UIEffectPreset`（预设复用）、`UIEffectReplica`（批量副本）。
-- **UISoftMask**（`com.coffee.softmask-for-ugui@3.6.5`）：替代原生 `Mask`，提供 RenderTexture 软边缘遮罩（支持羽化/渐隐/抗锯齿/嵌套）。配套 `MaskingShape`（加减法形状/打洞）、`AlphaHitTestTarget`（精确点击）。
-- 两者通过 shader 内嵌 `SOFTMASKABLE` 代码块和 ProjectSettings 双向映射实现协作，可在软遮罩区域内正常使用 UIEffect 效果。
-- 详见 `repowiki/zh/content/UI系统/第三方UI效果插件.md` 和 `Books/Fork/third-party-plugins.md`，深度研究见 `conversation-summaries/code-research/2026-09-24-uieffect-uisoftmask-research.md`。
-- 注意：项目中另有自研的 `UIEffectSortingOrder`（`GameLogic/Module/UIModule/Expansion/Utility/`），名字相似但功能完全不同（特效排序同步 Canvas sortingOrder），不要混淆。
+- **UIEffect**（`com.coffee.ui-effect@5.11.7`）：挂在 `Graphic` 上，材质级 shader 注入实现色调/颜色/模糊/溶解/阴影/渐变/描边/细节等视觉效果。配套 Tweener 动画、Preset 预设、Replica 批量副本。
+- **UISoftMask**（`com.coffee.softmask-for-ugui@3.6.5`）：替代原生 `Mask`，RenderTexture 软遮罩，支持羽化/抗锯齿/嵌套/打洞（`MaskingShape`）/精确点击（`AlphaHitTestTarget`）。
+- 两者 shader 内嵌协作，软遮罩内可正常用 UIEffect 效果。详见 `repowiki/zh/content/UI系统/第三方UI效果插件.md`。
+- 注意：自研 `UIEffectSortingOrder`（`GameLogic/Module/UIModule/Expansion/Utility/`）名字相似但功能不同（Canvas sortingOrder 同步），不要混淆。
 
 ## 验证选择
 
