@@ -3,7 +3,7 @@
 > **本目录即项目根目录。** 上级仓库目录在实际使用中会被删除、不做保留，仓库级公共说明仅作为 Wiki 参考。
 > AI 工具在本目录下工作时，是在**为实际项目编写业务代码**，而非修改 TEngine 框架本身。
 > 框架级的改动（TEngine.Runtime、TEngine.Editor、内置模块实现）除非用户明确声明"改框架"，否则一律视为业务侧消费框架，不主动修改框架源码。
-> 当前如果是修改框架，则同步查看仓库根目录的`AGENTS.md`了解这个fork框架的一些内容
+> 当前如果是修改框架，则同步查看仓库根目录（本目录的上级）的`AGENTS.md`了解这个fork框架的一些内容
 
 ## 工程事实
 
@@ -11,28 +11,33 @@
 - 配置源位于仓库根 `Configs/GameConfig`，不是 Unity 项目内的 `Configs`。
 - Unity 版本取 `ProjectSettings/ProjectVersion.txt`；Pipeline 能力以本项目注册命令及包内 `Documentation~` 为准。
 - `.codex/skills` 是技能唯一源。不要复制到第二套目录，也不要假设所有 Codex 客户端都会自动发现此目录。
+- 中文 Windows 下 PowerShell 终端默认 `[Console]::OutputEncoding` 为 GBK（cp936），输出中文目录/文件名会乱码；执行涉及中文路径的命令前先设置 `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`。
+
+## Wiki 目录
+
+- `repowiki/` 是本项目的内嵌 Wiki 目录，**随项目走、不依赖仓库根目录存在**。
+- 仓库根目录的 `Books/Fork/`、`README.md`、`Books/Fork-定制改动说明.md` 等 fork 文档**仅存在于克隆仓库中**；上级仓库目录在实际使用中会被删除，最终项目里只有 `repowiki/`。
+- 因此，fork 定制功能的详细说明如果需要随项目分发，必须同步写入 `repowiki/` 对应页面；`Books/Fork/` 下的文档只作为仓库开发期的权威源。
+- `repowiki/zh/content/` 按功能域分目录（项目概述、核心架构、模块系统、资源管理、UI系统、事件系统、热更新系统、编辑器工具、API参考 等），新增页面时归入对应目录并保持导航链接可达。
+- `repowiki/zh/content/项目概述/当前Fork定制功能.md` 是 fork 定制功能的 Wiki 入口页，新增或变更 fork 功能时需同步更新此页的描述和文档链接。
 
 ## AI 协助开发声明
 
 **前提：由你提交代码时触发。**
 凡使用了 AI 辅助生成或修改的代码，必须在 **commit 信息结尾**（以及对应 **PR 描述**中）按以下格式注明所使用的工具环境和模型：
-
 ```
 assisted-by：{agent_name}：{model}
 ```
-
 - `{agent_name}`：使用的 AI 编码工具/环境，如 `opencode`、`codex`、`cursor`
 - `{model}`：实际使用的模型（含供应商，格式可参考 `供应商/模型`），如 `Zhipu/GLM-5.3[Max]`
-
 示例：
-
 ```
 git commit -m "feat(channel): support batch model pulling
 
 assisted-by：opencode：Zhipu/GLM-5.3[Max]"
 ```
-
 多个模型/工具参与时逐行列出。纯人工改动无需此声明，但需在 PR 描述中说明。
+
 
 ## 编码边界
 
@@ -42,7 +47,9 @@ assisted-by：opencode：Zhipu/GLM-5.3[Max]"
 - `Assets/GameScripts/GameEntry.cs`、`Procedure` 和 `Assets/Launcher` 属于主包；热更业务位于 `Assets/GameScripts/HotFix`。以 asmdef 验证边界，不虚构 `GameScripts/Main`。
 - UI 使用 `AddUIEvent` 管理监听；非 UI 类管理自身订阅。隐藏不等于销毁。
 - 修改配置加载器、生成类时追溯 `Configs/GameConfig` 中模板；不直接修补生成产物。
-- 不直接编辑 Scene/Prefab YAML、GUID 或 `.meta` 来替代资源数据库操作；新增源文件的 `.meta` 由 Unity 生成。
+- **除非用户主动要求**，不直接编辑 Scene/Prefab YAML、GUID 或 `.meta` 来替代资源数据库操作；新增源文件的 `.meta` 由 Unity 生成。
+- **除非用户主动要求**，UI部分不要通过代码运行时修改美化，这样不便于微调UI的prefab；UI必须落盘为prefab，便于用户修改（可以通过创建UI生成脚本来生成UI结构），UI要保证符合Tengine规范
+- 对于Game
 
 ## 验证选择
 
@@ -124,3 +131,9 @@ commit提交时，以中文为主，英文为辅。如果用户让你写总结�
 22. **事件批量移除**：`GameEvent.RemoveAllListeners` 支持按事件 ID 批量移除监听，优先使用批量接口，不要逐个 RemoveListener
 23. **日志走 TouchSocket 桥接**：日志统一走 TouchSocket 日志桥接 + Unity 日志落盘 + LogViewer，不要用 `Debug.Log` 直接做业务日志输出
 24. **询问用户是否可以使用UI 组件扩展优先用 fork 组件**：UI 优先使用 `UIButton`、`UIText`、`UITMPText`、`UIImage`、`UIRawImage`，不要用原生 UGUI 组件替代已封装组件
+
+## 资源加载与释放规则：
+通过 TEngine 封装的 API 加载资源时必须遵守引用计数配对：
+- LoadGameObject / LoadGameObjectAsync：返回的 GameObject 自带 AssetsReference，Destroy 时自动归计数，无需手动释放。
+- LoadAsset / LoadAssetAsync（含回调和泛型重载）：返回裸 UnityEngine.Object（Sprite、Material、AudioClip 等），用完必须手动调用 ResourceModule.UnloadAsset(asset) 归计数。
+- （开发辅助）计数未归零的资源不会被对象池回收，会导致资源泄漏。切换场景前检查 Debugger → Profiler/Object Pool 中 Count > 0 的条目定位泄漏源。

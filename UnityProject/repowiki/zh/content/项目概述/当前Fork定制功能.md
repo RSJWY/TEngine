@@ -89,7 +89,7 @@ GameModule.Resource.UnloadAsset(raw);
 ## 业务数据与 UI
 
 - `DataBinding`：纯数据变化通知和代码生成，不依赖 `UIWindow` 或 `GameEvent`。
-- `ClientSaveDataMgr`：支持 PlayerPrefs/JsonFile、版本升级、坏档备份和异步保存。
+- `ClientSaveDataMgr`：支持 PlayerPrefs/BinaryFile（Nino 二进制）、版本升级、坏档备份和异步保存。旧版 JSON 存档首次加载自动迁移到 Nino 二进制。
 - `DataCenterSys`：管理当前玩家会话数据，不应由持久化存档对象替代。
 - UGUI 扩展：`UIButton`、`UIImage`、`UIText`、`RichTextItem` 及常用布局、拖拽和效果组件。
 - `Utility.Unity`：补充组件、子节点、Layer、EventTrigger、射线、材质和分辨率等工具。

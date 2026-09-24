@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-09-24
+
+- 存档系统序列化引擎从 Newtonsoft.Json 切换为 Nino 二进制序列化器（`com.jasonxudeveloper.nino` 3.9.17）：`BaseClientSaveData` 内部序列化/反序列化改用 `NinoSerializer`/`NinoDeserializer`，存储模式 `JsonFile` 重命名为 `BinaryFile`（`.json`→`.bin`），首次加载自动迁移旧版 JSON 存档并删除旧文件；`SaveDataVersion` / `SettingParams` 等 private setter 改为 internal setter 以兼容 Nino generator，存档类加 `partial` 修饰符。新增 `Utility.Nino`（TEngine.Runtime）封装 `Serialize<T>`/`Deserialize<T>`/`DeserializeIntoClass<T>`/文件 IO/Base64/旧版 JSON 迁移辅助方法。详见 [save-data.md](save-data.md)。
+
 ## 2026-09-23
 
 - UI 脚本生成器集成自研 UI 组件扩展：在 `UIComponentName` 枚举补 `UIButton`/`UIText`/`UITMPText`/`UIImage`/`UIRawImage` 五项（25–29），`GetComponentTypeFromEnumName` switch 补对应 `typeof` 映射，`ScriptGeneratorSetting.cs` 默认规则表与已序列化 `ScriptGeneratorSetting.asset` 同步追加 5 条规则。前缀设计为 `m_uiBtn`/`m_uiText`/`m_uiTmp`/`m_uiImg`/`m_uiRimg`，与原生 `m_btn`/`m_text`/`m_tmp`/`m_img`/`m_rimg` 并存。详见 [ui-expansion.md](ui-expansion.md)。
