@@ -4,6 +4,7 @@
 
 > 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，上游地址 [Alex-Rachel/TEngine](https://github.com/Alex-Rachel/TEngine)。在仓库根工作即为对**框架本身**做改动；在 `UnityProject/` 下工作是为**本项目业务**编写代码。框架级改动（TEngine.Runtime、TEngine.Editor、内置模块实现）除非用户明确声明"改框架"，否则一律视为业务侧消费框架，不主动修改框架源码。
 
+
 ## 工作方式
 
 1. 先读相关实现与 `git status`，保留已有修改；不得恢复用户删除的文件。
@@ -42,21 +43,9 @@
 - 详细说明写入 `Books/Fork/` 下对应专题文档，并同步更新 `Books/Fork/CHANGELOG.md`；
 - 具体写法遵循 [fork-docs SKILL.md](UnityProject/.codex/skills/fork-docs/SKILL.md)。
 
-## AI 协助开发声明
-
-**前提：由你提交代码时触发。**
-凡使用了 AI 辅助生成或修改的代码，必须在 commit 信息结尾（以及对应 PR 描述中）按以下格式注明所使用的工具环境和模型：
-
-```
-assisted-by：{agent_name}：{model}
-```
-
-- `{agent_name}`：使用的 AI 编码工具/环境，如 `opencode`、`codex`、`cursor`
-- `{model}`：实际使用的模型（含供应商），如 `Zhipu/GLM-5.3[Max]`
-
-多个模型/工具参与时逐行列出。纯人工改动无需此声明，但需在 PR 描述中说明。
 
 ## Review
 
 优先报告可复现的缺陷、资源/事件生命周期问题、生成代码与模板漂移、序列化兼容性、授权和测试缺口。
 源码 API 与文档冲突时先核实源码；本次范围内修正文档，否则在任务记录中列出具体差异，不自动积累无关记忆文件。
+
