@@ -6,7 +6,7 @@
 > 当前如果是修改框架，则同步查看仓库根目录（本目录的上级）的`AGENTS.md`了解这个fork框架的一些内容
 
 ## 工程事实
-
+- 如果当前项目使用的unity版本不是unity6+(unity6000+)，则unity cli工具将无效！！
 - 项目根是本目录，CLI 为 `Tools/unity.exe`，解决方案为 `UnityProject.sln`。
 - 配置源位于仓库根 `Configs/GameConfig`，不是 Unity 项目内的 `Configs`。
 - Unity 版本取 `ProjectSettings/ProjectVersion.txt`；Pipeline 能力以本项目注册命令及包内 `Documentation~` 为准。
