@@ -247,6 +247,15 @@ namespace TEngine
 
         [TabGroup("Pages", "高级")]
         [FoldoutGroup("Pages/高级/高级设置")]
+        [LabelText("资源路径校验")]
+        [ToggleLeft]
+        [Tooltip("构建时检测资源及依赖路径中的 Unicode 格式控制字符（如零宽空格、双向控制符），命中即终止构建并输出问题路径。")]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _enableAssetPathValidation = true;
+
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("使用资源依赖数据库")]
         [ToggleLeft]
         [OnValueChanged(nameof(OnSettingsChanged))]
@@ -279,6 +288,15 @@ namespace TEngine
 
         [TabGroup("Pages", "高级")]
         [FoldoutGroup("Pages/高级/高级设置")]
+        [LabelText("在构建输出目录生成 Catalog")]
+        [Tooltip("开启后，构建完成时在 AB 输出目录额外生成 BuiltinCatalog.bytes/json，直接复制该目录即可用于 OfflinePlayMode 加载。")]
+        [ToggleLeft]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _generateCatalogInOutput = false;
+
+        [TabGroup("Pages", "高级")]
+        [FoldoutGroup("Pages/高级/高级设置")]
         [LabelText("文件名风格")]
         [ValueDropdown(nameof(FileNameStyleOptions))]
         [OnValueChanged(nameof(OnSettingsChanged))]
@@ -299,7 +317,7 @@ namespace TEngine
         [Button("编译并拷贝热更DLL", ButtonSizes.Medium)]
         private void BuildHotFixDllNow()
         {
-            BuildDLLCommand.BuildAndCopyDlls();
+            BuildDLLCommand.BuildAndCopyDlls(_buildTarget);
         }
 
         [TabGroup("Pages", "高级")]
@@ -315,7 +333,7 @@ namespace TEngine
         [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Medium)]
         private void CopyAOTAssembliesNow()
         {
-            BuildDLLCommand.CopyAOTAssembliesToAssetPath();
+            BuildDLLCommand.CopyAOTAssembliesToAssetPath(_buildTarget);
         }
 
         [TabGroup("Pages", "发布与Player")]
@@ -566,15 +584,16 @@ namespace TEngine
         [SerializeField]
         private List<FlowStepView> _flowSteps = new List<FlowStepView>();
 
-        [TitleGroup("操作")]
+        [PropertySpace(8)]
+        [TitleGroup("构建")]
         [LabelText("构建资源包")]
         [ValueDropdown(nameof(GetBuildPackageSelectionOptions))]
         [OnValueChanged(nameof(OnBuildPackageSelectionChanged))]
         [SerializeField]
         private string _selectedBuildPackageName = AllBuildPackagesDisplayName;
 
-        [TitleGroup("操作")]
-        [ButtonGroup("操作/MainBuild")]
+        [TitleGroup("构建")]
+        [ButtonGroup("构建/MainBuild")]
         [Button("构建 AssetBundle", ButtonSizes.Large)]
         [GUIColor(0.45f, 0.75f, 1f)]
         private void BuildAssetBundleButton()
@@ -583,7 +602,7 @@ namespace TEngine
             ExecuteBuild(false, GetSelectedBuildPackageName());
         }
 
-        [ButtonGroup("操作/MainBuild")]
+        [ButtonGroup("构建/MainBuild")]
         [Button("一键构建 (AB + Player)", ButtonSizes.Large)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         private void FullBuildButton()
@@ -594,7 +613,7 @@ namespace TEngine
         }
 
         // 安装包构建已与 Player 解耦,这里单独触发;仅 Windows 且勾选「构建安装包」时可用
-        [ButtonGroup("操作/MainBuild")]
+        [ButtonGroup("构建/MainBuild")]
         [Button("一键构建安装包", ButtonSizes.Medium)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         [EnableIf(nameof(IsInstallerEnabled))]
@@ -607,7 +626,7 @@ namespace TEngine
             if (config.PlayerPlatform != BuildTarget.StandaloneWindows64 ||
                 !actualPlayerPath.Equals(expectedPlayerPath, StringComparison.OrdinalIgnoreCase))
             {
-                AddLog($"[中断] 一键构建安装包要求 Windows Player 输出到：{expectedPlayerPath}\n当前输出：{actualPlayerPath}\n可点击 Player 输出路径旁的“规范化路径”后再试。");
+                AddLog($"[中断] 一键构建安装包要求 Windows Player 输出到：{expectedPlayerPath}\n当前输出：{actualPlayerPath}\n可点击 Player 输出路径旁的\"规范化路径\"后再试。");
                 Repaint();
                 return;
             }
@@ -622,8 +641,8 @@ namespace TEngine
             ExecuteInstallerBuild(clearLogs: false);
         }
 
-        [TitleGroup("操作")]
-        [ButtonGroup("操作/MoreActions")]
+        [TitleGroup("构建")]
+        [ButtonGroup("构建/SubActions")]
         [Button("构建 Player", ButtonSizes.Large)]
         private void BuildPlayerButton()
         {
@@ -631,7 +650,7 @@ namespace TEngine
             ExecuteBuildPlayerOnly();
         }
 
-        [ButtonGroup("操作/MoreActions")]
+        [ButtonGroup("构建/SubActions")]
         [Button("仅执行发布整理", ButtonSizes.Large)]
         [EnableIf(nameof(IsPublishCopyEnabled))]
         private void PublishOnlyButton()
@@ -640,7 +659,24 @@ namespace TEngine
             ExecutePublishOnly();
         }
 
-        [ButtonGroup("操作/MoreActions")]
+        [PropertySpace(8)]
+        [TitleGroup("打开目录")]
+        [ButtonGroup("打开目录/Dirs")]
+        [Button("打开AB输出目录", ButtonSizes.Large)]
+        private void OpenOutputRootButton()
+        {
+            OpenOutputRoot();
+        }
+
+        [ButtonGroup("打开目录/Dirs")]
+        [Button("打开Player输出目录", ButtonSizes.Large)]
+        [ShowIf(nameof(_buildPlayer))]
+        private void OpenPlayerOutputPathButton()
+        {
+            OpenPlayerOutputPath();
+        }
+
+        [ButtonGroup("打开目录/Dirs")]
         [Button("打开发布目录", ButtonSizes.Large)]
         [EnableIf(nameof(IsPublishCopyEnabled))]
         private void OpenPublishRootButton()
@@ -648,37 +684,111 @@ namespace TEngine
             OpenPublishRoot();
         }
 
-        [TitleGroup("操作")]
-        [ButtonGroup("操作/HotFix")]
+        [PropertySpace(8)]
+        [TitleGroup("热更DLL")]
+        [ButtonGroup("热更DLL/Actions")]
         [Button("编译并拷贝热更DLL", ButtonSizes.Large)]
         private void BuildHotFixDllFromOperations()
         {
             BuildHotFixDllNow();
         }
 
-        [ButtonGroup("操作/HotFix")]
+        [ButtonGroup("热更DLL/Actions")]
         [Button("同步 AOT 元数据清单", ButtonSizes.Large)]
         private void SyncAOTMetadataManifestFromOperations()
         {
             SyncAOTMetadataManifestNow();
         }
 
-        [ButtonGroup("操作/HotFix")]
+        [ButtonGroup("热更DLL/Actions")]
         [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Large)]
         private void CopyAOTAssembliesFromOperations()
         {
             CopyAOTAssembliesNow();
         }
 
-        [TitleGroup("操作")]
-        [ButtonGroup("操作/Settings")]
+        [ButtonGroup("热更DLL/Generate")]
+        [Button("GenerateAll（构建首包时使用）", ButtonSizes.Large)]
+        private void GenerateAllFromOperations()
+        {
+            BuildDLLCommand.GenerateAllForTarget(_buildTarget);
+        }
+
+        [PropertySpace(8)]
+#if OBFUZ_INSTALLED
+        [TitleGroup("Obfuz")]
+        [ButtonGroup("Obfuz/Actions")]
+        [GUIColor(0.95f, 0.7f, 0.25f)]
+        [EnableIf(nameof(IsPolymorphicInjectedButDisabled))]
+        [Button("清理多态注入并重新生成", ButtonSizes.Large)]
+        private void CleanupPolymorphicAndGenerateAll()
+        {
+            BuildDLLCommand.GenerateAllForTarget(_buildTarget, cleanupPolymorphicInjection: true);
+        }
+
+        private bool IsPolymorphicNotInjected()
+        {
+#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
+            try
+            {
+                if (!BuildDLLCommand.IsObfuzActive ||
+                    !Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
+                    return false;
+                return !BuildDLLCommand.IsPolymorphicInjected;
+            }
+            catch
+            {
+                return false;
+            }
+#else
+            return false;
+#endif
+        }
+
+        private bool IsPolymorphicInjectedButDisabled()
+        {
+#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
+            try
+            {
+                if (BuildDLLCommand.IsObfuzActive &&
+                    Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
+                    return false;
+                return BuildDLLCommand.IsPolymorphicInjected;
+            }
+            catch
+            {
+                return false;
+            }
+#else
+            return false;
+#endif
+        }
+
+        /// <summary>Obfuz 区提示文本；非空时在 OnImGUI 中以 HelpBox 绘制（高度自适应，不被单元格裁剪）。</summary>
+        private string PolymorphicInjectionHint()
+        {
+            if (IsPolymorphicNotInjected())
+            {
+                return "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先在「热更DLL」执行 GenerateAll，否则运行时热更 DLL 加载会 BadImageFormatException。";
+            }
+            if (IsPolymorphicInjectedButDisabled())
+            {
+                return "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。\n点击「清理多态注入并重新生成」后，再重新打 Player。";
+            }
+            return null;
+        }
+#endif
+
+        [PropertySpace(8)]
+        [TitleGroup("设置")]
+        [ButtonGroup("设置/Actions")]
         [Button("刷新设置", ButtonSizes.Large)]
         private void RefreshSettingsButton()
         {
             LoadSettings();
         }
 
-        [ButtonGroup("操作/Settings")]
+        [ButtonGroup("设置/Actions")]
         [Button("重置默认", ButtonSizes.Large)]
         private void ResetDefaultSettingsButton()
         {
@@ -688,9 +798,9 @@ namespace TEngine
             AddLog("已重置打包工具默认配置");
         }
 
-        [TitleGroup("操作")]
-        [FoldoutGroup("操作/构建日志", Expanded = false)]
-        [HorizontalGroup("操作/构建日志/Actions")]
+        [PropertySpace(8)]
+        [FoldoutGroup("构建日志", Expanded = false)]
+        [HorizontalGroup("构建日志/Actions")]
         [Button("清空日志", ButtonSizes.Small)]
         [PropertyOrder(100)]
         [EnableIf(nameof(HasBuildLogs))]
@@ -699,8 +809,7 @@ namespace TEngine
             _buildLogs.Clear();
         }
 
-        [TitleGroup("操作")]
-        [FoldoutGroup("操作/构建日志", Expanded = false)]
+        [FoldoutGroup("构建日志", Expanded = false)]
         [ShowInInspector]
         [ReadOnly]
         [HideLabel]
@@ -742,6 +851,16 @@ namespace TEngine
             GUILayout.EndHorizontal();
 
             SirenixEditorGUI.DrawThickHorizontalSeparator();
+
+#if OBFUZ_INSTALLED
+            string polymorphicHint = PolymorphicInjectionHint();
+            if (!string.IsNullOrEmpty(polymorphicHint))
+            {
+                bool isError = IsPolymorphicNotInjected();
+                EditorGUILayout.HelpBox(polymorphicHint, isError ? MessageType.Error : MessageType.Warning);
+            }
+#endif
+
             base.OnImGUI();
         }
 
@@ -1099,11 +1218,13 @@ namespace TEngine
             _minimalPackage = setting.MinimalPackage;
             _retainTags = setting.RetainTags;
             _enableSharePackRule = setting.EnableSharePackRule;
+            _enableAssetPathValidation = setting.EnableAssetPathValidation;
             _useAssetDependencyDB = setting.UseAssetDependencyDB;
             _clearBuildCache = setting.ClearBuildCache;
             _verifyBuildingResult = setting.VerifyBuildingResult;
             _buildinFileCopyOption = setting.BuildinFileCopyOption;
             _fileNameStyle = setting.FileNameStyle;
+            _generateCatalogInOutput = setting.GenerateCatalogInOutput;
             _buildHotFixDll = setting.BuildHotFixDll;
             _buildPlayer = setting.BuildPlayer;
 
@@ -1144,14 +1265,22 @@ namespace TEngine
             }
 
             // Player 旧目录前缀迁移：./Build/ 与 ./Output/Player/ 都视为旧默认，重置为当前默认路径
-            var legacyPlayerBase = NormalizePath(Application.dataPath + "/../Build/");
-            var legacyPlayerBaseV2 = NormalizePath(Application.dataPath + "/../Output/Player/");
-            if (!string.IsNullOrEmpty(_playerOutputPath) &&
-                (NormalizePath(_playerOutputPath).StartsWith(legacyPlayerBase, StringComparison.OrdinalIgnoreCase) ||
-                 NormalizePath(_playerOutputPath).StartsWith(legacyPlayerBaseV2, StringComparison.OrdinalIgnoreCase)))
+            // 兼容绝对路径（历史序列化）与项目相对路径（新版默认）两种形式
+            var legacyPlayerBaseAbs = NormalizePath(Application.dataPath + "/../Build/");
+            var legacyPlayerBaseV2Abs = NormalizePath(Application.dataPath + "/../Output/Player/");
+            var legacyPlayerBaseRel = NormalizePath("./Build/");
+            var legacyPlayerBaseV2Rel = NormalizePath("./Output/Player/");
+            if (!string.IsNullOrEmpty(_playerOutputPath))
             {
-                _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
-                migratedLegacyPaths = true;
+                var normalizedPlayer = NormalizePath(_playerOutputPath) + "/";
+                if (normalizedPlayer.StartsWith(legacyPlayerBaseAbs, StringComparison.OrdinalIgnoreCase) ||
+                    normalizedPlayer.StartsWith(legacyPlayerBaseV2Abs, StringComparison.OrdinalIgnoreCase) ||
+                    normalizedPlayer.StartsWith(legacyPlayerBaseRel + "/", StringComparison.OrdinalIgnoreCase) ||
+                    normalizedPlayer.StartsWith(legacyPlayerBaseV2Rel + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+                    migratedLegacyPaths = true;
+                }
             }
 
             // 迁移旧的硬编码可执行文件名到 PlayerSettings.productName，保留用户自定义的目录
@@ -1208,6 +1337,7 @@ namespace TEngine
             setting.MinimalPackage = EditorPrefs.GetBool("TEngine_BP_MinimalPackage", false);
             setting.RetainTags = EditorPrefs.GetString("TEngine_BP_RetainTags", string.Empty);
             setting.EnableSharePackRule = EditorPrefs.GetBool("TEngine_BP_EnableSharePack", true);
+            setting.EnableAssetPathValidation = EditorPrefs.GetBool("TEngine_BP_EnableAssetPathValidation", true);
             setting.UseAssetDependencyDB = EditorPrefs.GetBool("TEngine_BP_UseDepDB", true);
             setting.ClearBuildCache = EditorPrefs.GetBool("TEngine_BP_ClearCache", false);
             setting.VerifyBuildingResult = EditorPrefs.GetBool("TEngine_BP_VerifyResult", true);
@@ -1237,6 +1367,7 @@ namespace TEngine
             EditorPrefs.DeleteKey("TEngine_BP_MinimalPackage");
             EditorPrefs.DeleteKey("TEngine_BP_RetainTags");
             EditorPrefs.DeleteKey("TEngine_BP_EnableSharePack");
+            EditorPrefs.DeleteKey("TEngine_BP_EnableAssetPathValidation");
             EditorPrefs.DeleteKey("TEngine_BP_UseDepDB");
             EditorPrefs.DeleteKey("TEngine_BP_ClearCache");
             EditorPrefs.DeleteKey("TEngine_BP_VerifyResult");
@@ -1309,11 +1440,13 @@ namespace TEngine
             _setting.MinimalPackage = _minimalPackage;
             _setting.RetainTags = _retainTags;
             _setting.EnableSharePackRule = _enableSharePackRule;
+            _setting.EnableAssetPathValidation = _enableAssetPathValidation;
             _setting.UseAssetDependencyDB = _useAssetDependencyDB;
             _setting.ClearBuildCache = _clearBuildCache;
             _setting.VerifyBuildingResult = _verifyBuildingResult;
             _setting.BuildinFileCopyOption = _buildinFileCopyOption;
             _setting.FileNameStyle = _fileNameStyle;
+            _setting.GenerateCatalogInOutput = _generateCatalogInOutput;
             _setting.BuildHotFixDll = _buildHotFixDll;
             _setting.BuildPlayer = _buildPlayer;
             _setting.PlayerPlatform = _playerPlatform;
@@ -1685,11 +1818,13 @@ namespace TEngine
             _minimalPackage = config.MinimalPackage;
             _retainTags = config.RetainTags;
             _enableSharePackRule = config.EnableSharePackRule;
+            _enableAssetPathValidation = config.EnableAssetPathValidation;
             _useAssetDependencyDB = config.UseAssetDependencyDB;
             _clearBuildCache = config.ClearBuildCache;
             _verifyBuildingResult = config.VerifyBuildingResult;
             _buildinFileCopyOption = config.BuildinFileCopyOption;
             _fileNameStyle = config.FileNameStyle;
+            _generateCatalogInOutput = config.GenerateCatalogInOutput;
             _buildHotFixDll = config.BuildHotFixDll;
             _buildPlayer = config.BuildPlayer;
             _playerPlatform = config.PlayerPlatform;
@@ -1721,11 +1856,13 @@ namespace TEngine
                 MinimalPackage = _minimalPackage,
                 RetainTags = _retainTags,
                 EnableSharePackRule = _enableSharePackRule,
+                EnableAssetPathValidation = _enableAssetPathValidation,
                 UseAssetDependencyDB = _useAssetDependencyDB,
                 ClearBuildCache = _clearBuildCache,
                 VerifyBuildingResult = _verifyBuildingResult,
                 BuildinFileCopyOption = _buildinFileCopyOption,
                 FileNameStyle = _fileNameStyle,
+                GenerateCatalogInOutput = _generateCatalogInOutput,
                 BuildHotFixDll = _buildHotFixDll,
                 BuildPlayer = _buildPlayer,
                 PlayerPlatform = _playerPlatform,
@@ -1892,9 +2029,21 @@ namespace TEngine
             EditorUtility.RevealInFinder(ReleaseTools.GetPublishOutputRoot(CreateConfig()));
         }
 
+        private void OpenPlayerOutputPath()
+        {
+            var dir = Path.GetDirectoryName(ToAbsolutePath(_playerOutputPath));
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            {
+                Debug.LogWarning($"[BuildPipeline] Player 输出目录不存在：{dir}");
+                return;
+            }
+
+            EditorUtility.RevealInFinder(dir);
+        }
+
         private void ChoosePlayerOutputPath()
         {
-            string directory = Path.GetDirectoryName(_playerOutputPath);
+            string directory = Path.GetDirectoryName(ToAbsolutePath(_playerOutputPath));
             if (string.IsNullOrWhiteSpace(directory))
             {
                 directory = Application.dataPath;
@@ -1911,7 +2060,7 @@ namespace TEngine
                 return;
             }
 
-            _playerOutputPath = selected;
+            _playerOutputPath = ToProjectRelativePath(selected);
             OnSettingsChanged();
         }
 
@@ -2172,6 +2321,11 @@ namespace TEngine
             public EncryptionType EncryptionType = EncryptionType.None;
 
             [TableColumnWidth(70)]
+            [LabelText("清单加密")]
+            [ToggleLeft]
+            public bool ManifestEncrypted = false;
+
+            [TableColumnWidth(70)]
             [LabelText("初始化")]
             [ToggleLeft]
             public bool InitOnStartup = true;
@@ -2214,6 +2368,7 @@ namespace TEngine
                     VersionKey = string.IsNullOrWhiteSpace(VersionKey) ? GetDefaultVersionKey(packageName) : VersionKey.Trim(),
                     BuildPipeline = buildPipeline,
                     EncryptionType = EncryptionType,
+                    ManifestEncrypted = ManifestEncrypted,
                 };
             }
 
@@ -2242,6 +2397,7 @@ namespace TEngine
                     VersionKey = string.IsNullOrWhiteSpace(entry.VersionKey) ? GetDefaultVersionKey(packageName) : entry.VersionKey.Trim(),
                     BuildPipeline = buildPipeline,
                     EncryptionType = entry.EncryptionType,
+                    ManifestEncrypted = entry.ManifestEncrypted,
                 };
             }
         }

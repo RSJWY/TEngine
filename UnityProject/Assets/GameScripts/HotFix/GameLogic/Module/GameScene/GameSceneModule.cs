@@ -12,7 +12,6 @@ namespace GameLogic
 
     /// <summary>
     /// 场景数据与跳转模块。
-    /// </summary>
     /// <remarks>
     /// 职责：① 把 <see cref="SceneType"/> 映射成场景资源地址；② 提供统一的场景跳转入口，
     /// 经 <see cref="GameModule.UI"/> 直接打开 <see cref="SwitchUI"/> 加载页（场景切换不再走 UIJump，
@@ -25,7 +24,9 @@ namespace GameLogic
     /// <list type="number">
     /// <item><b>阶段 0 预热</b>（0→10%）：打开加载页后立即动画，完成后再发起真实加载；</item>
     /// <item><b>阶段 1 加载</b>（10%→90%）：progressCallBack 把 YooAsset 的 0~0.9 映射到 10%~90%；</item>
-    /// <item><b>阶段 2 收尾</b>（90%→100%）：在 90% 立即激活场景，用最后 10% 动画 + 100% 停留<b>遮盖激活卡顿</b>，走满后才执行完成回调并关闭加载页。</item>
+    /// <item><b>阶段 2 收尾</b>（90%→100% + 等待激活 + 停留）：在 90% 立即激活场景（UnSuspend 仅解除挂起，激活与首帧渲染仍异步），
+    /// 用最后 10% 动画遮盖激活卡顿；进度走满后还需<b>等待场景真实激活完成</b>（句柄 IsDone）并多渲染数帧，
+    /// 再走 100% 停留，全部满足后才执行完成回调并关闭加载页；等待激活带绝对超时兜底防卡死。</item>
     /// </list>
     /// </para>
     /// <para>
@@ -51,11 +52,11 @@ namespace GameLogic
         private IUIJumpControl _jumpControl;
 
         /// <summary>
-        /// 调试用：跳过加载页动画（预热 + 收尾），场景加载完成后立即激活并关闭加载页。
+        /// 调试用：跳过加载页动画（预热 + 收尾 + 100% 停留）。
         /// </summary>
         /// <remarks>
-        /// 仅影响三段式进度动画，不影响实际场景加载过程。
-        /// Editor 调试时设为 true 可省去等待时间；发布时保持 false。
+        /// 仅影响三段式进度动画与停留，不影响实际场景加载过程；仍会等待场景真实激活完成再关闭加载页，
+        /// 保证调试模式与发布行为一致。Editor 调试时设为 true 可省去等待时间；发布时保持 false。
         /// </remarks>
         public bool SkipLoadingAnimation { get; set; } = false;
 
@@ -79,6 +80,71 @@ namespace GameLogic
         /// </summary>
         public string CurrentSceneName => CurrentSceneType.HasValue ? GetSceneName(CurrentSceneType.Value) : string.Empty;
 
+        // ===== 加载页文案配置（SceneLoadTipsConfig） =====
+
+        /// <summary>SO 资源地址（YooAsset location，文件名 = SceneLoadTipsConfig）。</summary>
+        private const string TipsConfigAssetLocation = "SceneLoadTipsConfig";
+
+        /// <summary>SO 配置缓存（首次访问时通过 ResourceModule 同步加载）。</summary>
+        private SceneLoadTipsConfig _tipsConfig;
+
+        /// <summary>
+        /// 懒加载并缓存 <see cref="SceneLoadTipsConfig"/>；加载失败静默返回 null。
+        /// </summary>
+        /// <remarks>仅在加载会话首次调用，避免空闲期空转。</remarks>
+        private SceneLoadTipsConfig GetTipsConfig()
+        {
+            if (_tipsConfig != null)
+            {
+                return _tipsConfig;
+            }
+
+            try
+            {
+                _tipsConfig = GameModule.Resource.LoadAsset<SceneLoadTipsConfig>(TipsConfigAssetLocation);
+            }
+            catch (Exception e)
+            {
+                Log.Error($"[GameScene] {TipsConfigAssetLocation} 加载失败：{e.Message}");
+                _tipsConfig = null;
+            }
+
+            return _tipsConfig;
+        }
+
+        /// <summary>
+        /// 当前加载阶段富文本：按 <see cref="DisplayProgress"/> 查 <see cref="SceneLoadTipsConfig"/> 返回。
+        /// </summary>
+        /// <remarks>未加载 SO 或表为空返回空串；非加载会话期间返回最后一次终值。</remarks>
+        public string DisplayPhaseText
+        {
+            get
+            {
+                var cfg = _isActive ? GetTipsConfig() : _tipsConfig;
+                if (cfg == null)
+                {
+                    return string.Empty;
+                }
+
+                return cfg.GetPhaseText(_displayProgress);
+            }
+        }
+
+        /// <summary>
+        /// 从 <see cref="SceneLoadTipsConfig.Tips"/> 随机取一条小贴士。
+        /// </summary>
+        /// <returns>小贴士文本；配置为空返回空串。</returns>
+        public string GetRandomTip()
+        {
+            var cfg = _isActive ? GetTipsConfig() : _tipsConfig;
+            if (cfg == null || cfg.Tips.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            return cfg.Tips[UnityEngine.Random.Range(0, cfg.Tips.Count)];
+        }
+
         public override void OnInit()
         {
             _jumpControl = GameModule.UIJumpControl;
@@ -89,6 +155,7 @@ namespace GameLogic
             // 模块关闭：停止进度驱动，清理引用。不触发业务完成回调（避免在关闭流程中执行 CloseAll/JumpToMain 等副作用）。
             _isActive = false;
             _jumpControl = null;
+            _tipsConfig = null;
             PreviousSceneType = null;
             CurrentSceneType = null;
         }
@@ -203,6 +270,12 @@ namespace GameLogic
         /// <summary>阶段 1 绝对超时：总时长上限，防彻底卡死，秒。无论进度是否在爬升都兜底。</summary>
         private const float Phase1AbsoluteTimeout = 180f;
 
+        /// <summary>阶段 2 等待场景激活的绝对超时：超过则强制收尾关闭加载页，防激活异常卡死，秒。</summary>
+        private const float Phase2AbsoluteTimeout = 30f;
+
+        /// <summary>阶段 2 场景激活完成后需再渲染的帧数：遮盖首帧 shader 编译/资源上传卡顿。</summary>
+        private const int PostActivateFrames = 2;
+
         /// <summary>阶段 2 收尾速度 = 0.10 / 当前收尾时长，每秒前进的进度值（按会话时长动态计算）。</summary>
         private float FinishSpeed => 0.10f / _finishDuration;
 
@@ -217,6 +290,9 @@ namespace GameLogic
         private float _phase1ElapsedTime = 0f;       // 阶段 1 已持续时间（用于绝对超时兜底）
         private float _lastLoadProgress = 0f;        // 最近一次 YooAsset 原始进度（用于停滞判定）
         private float _phase1StallElapsed = 0f;      // 阶段 1 进度无提升累计时间（仅当真实进度已 >0 才累计）
+        private bool _sceneActivated = false;        // 场景真实激活完成（UnSuspend 后句柄 IsDone）
+        private int _postActivateFrames = 0;         // 场景激活后已渲染的帧数（遮盖首帧卡顿）
+        private float _phase2Elapsed = 0f;           // 阶段 2 已持续时间（真实墙钟，用于等待激活超时兜底）
 
         // ===== 防重标志 =====
         private bool _isSendLoadOver = false;        // 防重复激活场景 + 派发 OnSceneLoadOver（收尾阶段一次）
@@ -260,17 +336,13 @@ namespace GameLogic
 
                     if (_sceneLoadComplete && _displayProgress >= 0.89f)
                     {
-                        // 快速跳过模式：跳过收尾动画，直接激活场景并关闭
                         if (_skipMode)
                         {
+                            // 快速跳过模式：进度直接到 100% 跳过收尾动画，但仍进入阶段 2
+                            // 等待场景真实激活完成（仅跳过动画与停留），保证调试模式与发布行为一致
                             _displayProgress = 1.0f;
-                            EnterFinishPhase();
-                            FinishAndClose();
                         }
-                        else
-                        {
-                            EnterFinishPhase();
-                        }
+                        EnterFinishPhase();
                     }
                     else if ((_lastLoadProgress > 0f && _phase1StallElapsed >= Phase1StallTimeout)
                              || _phase1ElapsedTime >= Phase1AbsoluteTimeout) // 兜底：停滞或绝对超时强制进入收尾
@@ -280,18 +352,36 @@ namespace GameLogic
                     }
                     break;
 
-                case 2: // 阶段 2 收尾（90%→100% + 停留）：动画遮盖激活卡顿
+                case 2: // 阶段 2 收尾（90%→100% + 等待激活完成 + 停留）：动画遮盖激活卡顿
                     // 钳制 deltaTime：激活那一帧 realElapse 可能高达数百毫秒甚至秒级，
                     // 会把 90→100 动画和 100% 停留压缩成一帧瞬间完成（用户看不到 100%）。
                     // 用 0.05（约 20fps 步长）封顶，让收尾动画与停留按设定墙钟时长真实展开，确保用户看清 100%。
                     float clampedDelta = Mathf.Min(dt, 0.05f);
+                    _phase2Elapsed += dt; // 超时兜底按真实流逝时间累计（不钳制），激活大卡顿帧计入真实墙钟
                     _displayProgress = Mathf.MoveTowards(_displayProgress, _targetProgress, FinishSpeed * clampedDelta);
-                    if (_displayProgress >= 1.0f)
+
+                    // 等待场景真正激活完成：UnSuspend 只是把 allowSceneActivation 置 true，
+                    // 场景整合、Awake/OnEnable、首帧渲染仍异步进行，句柄 IsDone 才代表激活完毕。
+                    if (!_sceneActivated)
+                    {
+                        _sceneActivated = GameModule.Scene.IsSceneLoadDone(_sceneName);
+                        if (!_sceneActivated && _phase2Elapsed >= Phase2AbsoluteTimeout)
+                        {
+                            Log.Warning($"[GameScene] 阶段 2 等待场景激活超时：scene={_sceneName}, elapsed={_phase2Elapsed:F1}s，强制收尾");
+                            _sceneActivated = true;
+                        }
+                    }
+                    else
+                    {
+                        _postActivateFrames++; // 激活后多渲染数帧，遮盖首帧 shader 编译/资源上传卡顿
+                    }
+
+                    // 关闭条件：动画走满 + 场景真实激活完成 + 激活后再渲染数帧 + 停留结束（skip 模式无停留）
+                    if (_displayProgress >= 1.0f && _sceneActivated && _postActivateFrames >= PostActivateFrames)
                     {
                         _displayProgress = 1.0f;
                         _holdAt100Time += clampedDelta;
-                        // 停留结束 → 执行完成回调并关闭加载页（场景已在 90% 激活完毕）
-                        if (!_isClosing && _holdAt100Time >= _holdAt100Duration)
+                        if (!_isClosing && _holdAt100Time >= (_skipMode ? 0f : _holdAt100Duration))
                         {
                             FinishAndClose();
                         }
@@ -316,7 +406,8 @@ namespace GameLogic
         /// 流程：记录上一个/当前关卡 → 派发 <see cref="IGameSceneEvent.OnSceneLoadStart"/> → 重置三段式进度状态机 →
         /// <c>GameModule.UI.ShowUI&lt;SwitchUI&gt;</c> 打开加载页；本模块 <see cref="Update"/> 每帧推进进度，
         /// 加载就绪后 <see cref="EnterFinishPhase"/> 直接 UnSuspend 激活场景，
-        /// 收尾动画走满后 <see cref="FinishAndClose"/> 执行完成回调、派发 <see cref="IGameSceneEvent.OnSceneReady"/> 并关闭加载页。
+        /// 待「收尾动画走满 + 场景真实激活完成（句柄 IsDone）+ 激活后数帧 + 100% 停留」全部满足后，
+        /// <see cref="FinishAndClose"/> 执行完成回调、派发 <see cref="IGameSceneEvent.OnSceneReady"/> 并关闭加载页。
         /// </remarks>
         public void LoadScene(SceneType sceneType, Action finishCallBack = null,
             float? warmupDuration = null, float? finishDuration = null, float? holdAt100Duration = null)
@@ -374,6 +465,9 @@ namespace GameLogic
             _lastLoadProgress = 0f;
             _phase1StallElapsed = 0f;
             _holdAt100Time = 0f;
+            _sceneActivated = false;
+            _postActivateFrames = 0;
+            _phase2Elapsed = 0f;
             _isActive = true;
 
             // 会话级时长：传参覆盖默认值
@@ -443,7 +537,8 @@ namespace GameLogic
         /// 进入收尾阶段：派发 <see cref="IGameSceneEvent.OnSceneLoadOver"/> 通知观察方，并直接激活挂起的目标场景。
         /// </summary>
         /// <remarks>
-        /// 本模块即加载方，激活由 <c>GameModule.Scene.UnSuspend</c> 直接完成；90%→100% 收尾动画 + 停留负责遮盖激活卡顿。
+        /// 本模块即加载方，激活由 <c>GameModule.Scene.UnSuspend</c> 直接完成；90%→100% 收尾动画负责遮盖激活卡顿，
+        /// 阶段 2 随后通过 <c>GameModule.Scene.IsSceneLoadDone</c> 轮询等待激活真正完成（带绝对超时兜底）才关闭加载页。
         /// </remarks>
         private void EnterFinishPhase()
         {
@@ -467,7 +562,8 @@ namespace GameLogic
         /// 统一终结出口：执行完成回调、派发 <see cref="IGameSceneEvent.OnSceneReady"/>、关闭加载页并结束会话。
         /// </summary>
         /// <remarks>
-        /// 防重标志 <c>_isFinished</c> 确保回调只触发一次。由 <see cref="Update"/> 阶段 2 正常流程或跳过模式调用。
+        /// 防重标志 <c>_isFinished</c> 确保回调只触发一次。仅由 <see cref="Update"/> 阶段 2 在
+        /// 「动画走满 + 场景真实激活完成 + 激活后数帧 + 停留结束」全部满足时调用（skip 模式同样走此出口，仅无动画与停留）。
         /// </remarks>
         private void FinishAndClose()
         {

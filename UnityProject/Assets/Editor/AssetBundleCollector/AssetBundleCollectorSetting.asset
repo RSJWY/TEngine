@@ -21,7 +21,7 @@ MonoBehaviour:
     EnableAddressable: 1
     SupportExtensionless: 1
     LocationToLower: 0
-    IncludeAssetGUID: 0
+    IncludeAssetGUID: 1
     AutoCollectShaders: 1
     IgnoreRuleName: NormalIgnoreRule
     Groups:
@@ -247,15 +247,23 @@ MonoBehaviour:
         UserData: 
   - PackageName: RawFilePackage
     PackageDesc: 
-    EnableAddressable: 0
+    EnableAddressable: 1
     SupportExtensionless: 1
     LocationToLower: 0
     IncludeAssetGUID: 0
-    AutoCollectShaders: 1
-    IgnoreRuleName: NormalIgnoreRule
+    AutoCollectShaders: 0
+    IgnoreRuleName: RawFileIgnoreRule
     Groups:
-    - GroupName: Default Group
+    - GroupName: Test
       GroupDesc: 
       AssetTags: 
       ActiveRuleName: EnableGroup
-      Collectors: []
+      Collectors:
+      - CollectPath: Assets/AssetRaw/RawFile/Test
+        CollectorGUID: efbaf2f0272a01c47a0f6cef4a3fb617
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
+        FilterRuleName: CollectAll
+        AssetTags: 
+        UserData: 

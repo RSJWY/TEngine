@@ -2,6 +2,45 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-09-25
+
+- 日志系统新增早期日志缓冲 `EarlyLogBuffer`：`UnityLoggerBridge` 在 `BeforeSplashScreen` 才订阅 Unity 日志事件并创建 `FileLogger`，此前（如 `AfterAssembliesLoaded` 阶段的 Obfuz 静态密钥初始化）的日志只进 Console/Player.log、不进 TouchSocket 文件日志。新增 `EarlyLogBuffer`（线程安全 `ConcurrentQueue`，容量上限 256），`Log` 新增 `EarlyInfo`/`EarlyWarning`/`EarlyError` 三个专用 API，调用时先入缓冲再走常规 Console 路径；`UnityLoggerBridge.Init` 末尾 `Flush` 把缓冲补写到文件日志（带 `[Early]` 前缀）并关闭缓冲区（后续 `Enqueue` 变 no-op，避免重复落盘）；`Shutdown` 里 `Reset` 兼容 Domain Reload。Obfuz 静态密钥初始化改用 Early 系列 API。详见 [logging.md](logging.md)。
+
+## 2026-09-24
+
+- 加密密钥从 Resources 搬到代码常量：新增运行时程序集 `TEngine.CryptoKeys`（`KeyStore` 静态类以 `public static readonly byte[]` 存储密钥），密钥配置类搬到 Editor only 程序集 `TEngine.CryptoKeys.Editor`，`Resources/EncryptConfigs/` 删除不再入包；新增 `Build/加密密钥配置` 面板管理密钥编辑与烘焙到代码。详见 [resource-build.md](resource-build.md)。
+- 新增第三方 UI 效果插件文档：研究并记录已集成的 `com.coffee.ui-effect@5.11.7`（材质级 8 大类视觉效果：色调/颜色/采样/过渡/阴影/渐变/边缘/细节）与 `com.coffee.softmask-for-ugui@3.6.5`（RenderTexture 软遮罩）的能力、协作机制和使用方式。两者通过 shader 内嵌 `SOFTMASKABLE` 代码块和 ProjectSettings 双向 shader 映射实现协作。详见 [third-party-plugins.md](third-party-plugins.md)。
+- 存档系统序列化引擎从 Newtonsoft.Json 切换为 Nino 二进制序列化器（`com.jasonxudeveloper.nino` 3.9.17）：`BaseClientSaveData` 内部序列化/反序列化改用 `NinoSerializer`/`NinoDeserializer`，存储模式 `JsonFile` 重命名为 `BinaryFile`（`.json`→`.bin`），首次加载自动迁移旧版 JSON 存档并删除旧文件；`SaveDataVersion` / `SettingParams` 等 private setter 改为 internal setter 以兼容 Nino generator，存档类加 `partial` 修饰符。新增 `Utility.Nino`（TEngine.Runtime）封装 `Serialize<T>`/`Deserialize<T>`/`DeserializeIntoClass<T>`/文件 IO/Base64/旧版 JSON 迁移辅助方法。详见 [save-data.md](save-data.md)。
+
+## 2026-09-23
+
+- UI 脚本生成器集成自研 UI 组件扩展：在 `UIComponentName` 枚举补 `UIButton`/`UIText`/`UITMPText`/`UIImage`/`UIRawImage` 五项（25–29），`GetComponentTypeFromEnumName` switch 补对应 `typeof` 映射，`ScriptGeneratorSetting.cs` 默认规则表与已序列化 `ScriptGeneratorSetting.asset` 同步追加 5 条规则。前缀设计为 `m_uiBtn`/`m_uiText`/`m_uiTmp`/`m_uiImg`/`m_uiRimg`，与原生 `m_btn`/`m_text`/`m_tmp`/`m_img`/`m_rimg` 并存。详见 [ui-expansion.md](ui-expansion.md)。
+- 新增模块级自定义异步操作 `AsyncOperationModule`：借鉴 YooAsset 3.0.6 `CustomAsyncOperation` 体系，做成 TEngine 框架自有模块，不依赖 YooAsset 运行时。`GameAsyncOperation` 基类提供状态机/`Completed` 事件/优先级/进度/子任务树/协程/awaiter/同步等待；调度器双队列+时间切片预算；多调度器管理；abort-on-cancel 重载（`StartOperation(op, token)` 取消即中止操作，注明独占要求）；UniTask 完整支持（`ToUniTask`/`WithCancellation`/进度上报/池化零分配）；`AsyncOperationMonitor` 编辑器可视化监控组件（`#if UNITY_EDITOR` 打包剥离）。详见 [async-operation.md](async-operation.md)。
+- `Debugger` 新增组合快捷键切换 Debug UI：`_toggleHotkey`（默认 `BackQuote`）+ `_toggleModifierKeys`（默认 `{ LeftShift }`），修饰键全按住时按主键即切换 `ShowFullWindow`；暴露 `ToggleHotkey`/`ToggleModifierKeys` 公共属性，Inspector 可配。详见 [debugger.md](debugger.md)。
+- `ScreenModule` 新增动态摆窗 API：`SetLayout` / `BringToFront` / `SetTitle`，不依赖 `ScreenConfig` 直接以参数下发单窗布局，仍走平台守卫与句柄缓存；同步修正 `IScreenModule.IsSupported` 注释，去掉 Editor 被排除的误导描述。详见 [window-management.md](window-management.md)。
+
+## 2026-09-22
+
+- `RuntimeConfigModule` 覆盖链与缓存加固，清单强制 TOML：① 配置读取支持 `persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`，清单本身也走覆盖链；② 清单强制 `config_manifest.toml`，移除 `config_manifest.json` 回退；③ `TryGet<T>` 对象缓存命中但类型不兼容时移除旧缓存并回源重析，不再同配置名跨类型永久失败；④ 新增 `GetConfigNames()`。详见 [runtime-config.md](runtime-config.md)。
+- 加密密钥配置按用途重命名：Bundle 用密钥类/资产加 `Bundle` 前缀（`ChaCha20KeyConfig` → `BundleChaCha20KeyConfig`、`XorKeyConfig` → `BundleXorKeyConfig`），与清单用 `ManifestChaCha20KeyConfig` 命名对齐。详见 [resource-build.md](resource-build.md)。
+- `ScreenModule` 降侵入与 TOML DTO 字段转属性修复配置丢失：① `WindowsScreenNative` 真实实现收紧为 `#if UNITY_STANDALONE_WIN && !UNITY_EDITOR`，Editor 下整体 no-op，不再误操作编辑器窗口；② `ScreenConfig` 新增顶层 `Enabled` 总开关，`false` 时所有布局 API 短路；③ 副屏句柄配对新增显示器几何匹配（`MonitorFromWindow` + `GetMonitorInfo`，按配置目标点落区判定），几何不可用回退枚举顺序配对；④ `ScreenConfig`/`ScreenSetting`/`DeployConfig`/`RuntimeConfigManifest` 的公有字段全部转为属性——Tomlyn 反序列化不映射公有字段，字段会静默得到空列表/默认值导致配置丢失。详见 [window-management.md](window-management.md)。
+- Player 输出路径统一为项目根相对路径并归一到 `Releases/`：所有平台（含 Android/iOS/MacOS/WebGL）默认输出 `Releases/{平台}/build/`，路径统一 `./` 前缀，由构建链路在使用处转绝对路径；旧 `Output/Player/` 路径自动迁移。详见 [resource-build.md](resource-build.md)。
+- 打包工具操作区分区重构：原「操作」大分组拆为「构建 / 打开目录 / 热更DLL / 设置 / 构建日志」五个分区，新增「打开 AB 输出目录」「打开 Player 输出目录」按钮。详见 [resource-build.md](resource-build.md)。
+- 打包窗口资源包表格补充「清单加密」列：`RuntimePackageEntry.ManifestEncrypted` 可在窗口内直接勾选，与构建端清单加密注入联动。详见 [resource-build.md](resource-build.md)。
+- 构建输出目录生成 `BuiltinCatalog`：新增 `CatalogOutputHelper`（`YooAsset.Custom.Editor` 友元程序集），打包窗口「高级」页新增开关，开启后构建完成时在 AB 输出目录额外生成 `BuiltinCatalog.bytes/json`，直接复制该目录即可用于 `OfflinePlayMode` 加载。详见 [resource-build.md](resource-build.md)。
+
+## 2026-09-21
+
+- 同步上游 Alex-Rachel/TEngine `main`（`0d75fcb7..482a441e`）：① 事件模块新增 `GameEvent.HasEventListener`（PR #288，int/string × 0~6 泛型参数 + Delegate 重载，检查指定委托是否已注册）；② 生成器入口 `EventCenter` 改名 `GameEventHelper`（PR #290，与本 fork 文档既有叫法一致），重编 `GameEventAnalyzer.dll`/`SourceGenerator.dll`；③ `SetSprite`/`SetSubSprite` 增加地址判空提前返回。合并冲突仅 `EventInterfaceGenerator.cs`（本地为整文件换行符翻转，无逻辑差异），取上游版本；fork 自有的 `RemoveAllListeners` 与上游 `HasEventListener` 自动合并共存。主 wiki 已补充 `HasEventListener`/`RemoveAllListeners` API 与 SetSprite 判空说明。
+- 修复大场景切换时加载页（SwitchSceneUI）提前关闭：阶段 2 收尾原为纯固定时长驱动，`UnSuspend` 仅解除挂起、激活与首帧渲染仍异步，大场景激活超过约 2.5s 遮盖窗口即露黑屏/残影。现关闭条件改为「动画走满 + 场景真实激活完成（新增 `ISceneModule.IsSceneLoadDone`）+ 激活后 2 帧 + 100% 停留」，带 30s 绝对超时兜底；`_skipMode` 同样走激活等待，仅跳过动画与停留。详见 [scene-system.md](scene-system.md)。（GitHub Issue #5）
+
+## 2026-09-10
+
+- 接入 YooAsset 桌面多开缓存隔离：`ResourceModule` 新增 `InstanceId`，命令行 `--yoo-instance <id>` 驱动，沙盒缓存与内置解包目录隔离到 `instance-{id}/{PackageName}`；不传参时行为与现状完全一致。详见 [desktop-multi-instance.md](desktop-multi-instance.md)。
+- DynamicSpawn 接入 YooAsset 资源弱引用：`DynamicSpawnPoint` 新增 `prefabRef`（包裹名 + GUID）作为主引用通道，运行时 GUID 优先、`location` 保留为回落与代码列表法通道；预制体改名/移动目录不再断引用。旧引用（PPtr/`prefabGuid`）自动迁移进 `prefabRef`，`DefaultPackage` 收集器开启 `IncludeAssetGUID`。详见 [scene-system.md](scene-system.md)。
+- 修复 DynamicSpawn 测试启动回归：地址解析挪入 YooAsset 分支（未初始化时 `GetPackage` 会抛异常），编辑器回退按 GUID 经 `AssetDatabase` 实例化；`CompleteSpawn` 对未注册的 `IGameSceneEvent` 判空。详见 [scene-system.md](scene-system.md)。
+- DynamicSpawn 清理废弃引用数据：删除 `prefabReference`（旧 PPtr）、`prefabGuid`（迁移中转）字段及全部迁移代码（含管理器"迁移历史引用并保存"按钮）；存量 MainScene 数据此前已迁入 `prefabRef`，数据模型收敛为 `prefabRef` + `location` 双通道。详见 [scene-system.md](scene-system.md)。
+
 ## 2026-08-30
 
 - 资源清单加密接入：`RuntimePackageEntry` 新增 `ManifestEncrypted` 开关，固定 ChaCha20 算法 + 独立密钥（`ManifestChaCha20KeyConfig`），构建端注入 `IManifestEncryptor`/`IManifestDecryptor`（含 Catalog 生成），运行时四个 FileSystem 分支按配置注入 `IManifestDecryptor`。详见 [resource-build.md](resource-build.md)。

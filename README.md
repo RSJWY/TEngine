@@ -19,7 +19,7 @@
 
 ## 🛠️ 本 Fork 的定制改动
 
-> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、数据绑定、存档与数据中心、日志工具、窗口控制、代码混淆、运行时工具、计时器模块、UI 组件扩展、运行时工具合并、帧动画模块、GameObject 对象池、3D 动画图**做了定制改造。
+> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、数据绑定、存档与数据中心、日志工具、窗口控制、代码混淆、运行时工具、计时器模块、UI 组件扩展、运行时工具合并、帧动画模块、GameObject 对象池、3D 动画图、桌面多开、模块级自定义异步操作、第三方 UI 效果插件**做了定制改造。
 
 | 主题 | 主要改动 |
 | --- | --- |
@@ -35,12 +35,15 @@
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、多态 DLL 热更产物 |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） |
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 |
-| 存档与数据中心 | `ClientSaveDataMgr` 存档框架、`DataCenterSys` 玩家数据中枢 |
+| 存档与数据中心 | `ClientSaveDataMgr` 存档框架（Nino 二进制序列化）、`DataCenterSys` 玩家数据中枢 |
 | UI 组件扩展 | `UIButton`/`UIImage`/`UIText`/`RichTextItem` + `ListPool` 公共化 |
 | 运行时工具合并 | `Utility.Unity` 补齐组件增删/子节点查找/Layer/EventTrigger/物理/分辨率等；JSON 补 `FromJsonOverwrite` |
 | 帧动画模块 | 序列帧动画（场景版+UI版+RawImage版），手写替代 SourceGenerator |
 | GameObject 对象池 | 基于 YooAsset location 的异步实例化池，预热/回收/自动销毁 |
 | 3D 动画图 | 基于 PlayableGraph 的代码驱动 3D 动画图，多层级混合/权重过渡 |
+| 桌面多开 | YooAsset 多实例缓存隔离，命令行 `--yoo-instance` 驱动 |
+| 自定义异步操作 | 模块级 `AsyncOperationModule`，不依赖 YooAsset 的自定义异步操作体系，支持协程/UniTask/abort-on-cancel |
+| 第三方 UI 效果插件 | UIEffect（材质级 8 大类视觉效果）+ UISoftMask（RenderTexture 软遮罩），两者 shader 协作 |
 
 详细设计、使用方式和关键文件见 [Fork 定制改动总览](Books/Fork/README.md)。按时间查看改动见 [Fork 改动时间线](Books/Fork/CHANGELOG.md)。
 

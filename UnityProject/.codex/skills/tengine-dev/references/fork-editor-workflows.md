@@ -29,13 +29,30 @@ Releases/
 │   └── setup/
 ├── Linux/
 │   └── build/
+├── Android/
+│   └── build/
+├── IOS/
+│   └── build/
+├── MacOS/
+│   └── build/
+├── WebGL/
+│   └── build/
 └── Publish/{平台}/{包名}/
 ```
 
 - AB 默认根目录：`./Releases/Bundles/`。
 - 发布整理默认根目录：`./Releases/Publish/`。
-- Windows/Linux Player 进入 `Releases/{平台}/build/`。
-- Android/iOS/MacOS/WebGL 仍使用 `Output/Player/{平台}/`，不要擅自统一。
+- Player 输出路径统一使用项目根相对路径（`./` 前缀），不再存绝对路径。
+  - 所有平台统一：`./Releases/{平台}/build/...`，与 InnoSetup 安装包目录平级。
+  - Windows/Linux：`./Releases/{平台}/build/{productName}.exe|<无后缀>`。
+  - Android：`./Releases/Android/build/{version}Android.apk`。
+  - iOS：`./Releases/IOS/build/XCode_Project`。
+  - MacOS：`./Releases/MacOS/build/{productName}.app`。
+  - WebGL：`./Releases/WebGL/build`。
+  - `BuildImp` 在调用 `BuildPipeline.BuildPlayer` 前会自动把相对路径转绝对路径。
+  - 浏览按钮选择后通过 `ToProjectRelativePath` 转回项目相对路径存储。
+  - 一键构建安装包的路径校验用 `Path.GetFullPath` 归一后比较，不依赖存储格式。
+- 旧的 `./Output/Player/{平台}/` 或 `./Build/` 前缀路径会在打开窗口时自动迁移到 `./Releases/{平台}/build/`。
 - 发布整理使用运行时远端平台名，如 `Windows64`，不要直接使用 `StandaloneWindows64`。
 
 ## Inno Setup

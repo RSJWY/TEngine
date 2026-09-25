@@ -26,11 +26,13 @@ namespace TEngine
 
         // 高级设置
         public bool EnableSharePackRule = true;
+        public bool EnableAssetPathValidation = true;
         public bool UseAssetDependencyDB = true;
         public bool ClearBuildCache;
         public bool VerifyBuildingResult = true;
         public EBundledCopyOption BuildinFileCopyOption = EBundledCopyOption.ClearAndCopyAll;
         public EFileNameStyle FileNameStyle = EFileNameStyle.BundleName_HashName;
+        public bool GenerateCatalogInOutput = false;
 
         // 热更DLL设置
         public bool BuildHotFixDll = true;
@@ -109,19 +111,19 @@ namespace TEngine
 
         public static string GetDefaultPlayerOutputPath(BuildTarget target)
         {
-            // Windows/Linux 程序包统一归到 Releases/{平台}/build/，与 InnoSetup 安装包目录平级；
-            // 其它平台仍走 Output/Player/{平台}/。
-            // 可执行文件名采用 PlayerSettings.productName，统一各平台输出名
+            // 所有平台 Player 产物统一归到 Releases/{平台}/build/，与 InnoSetup 安装包目录平级；
+            // 可执行文件名采用 PlayerSettings.productName，统一各平台输出名。
+            // 统一使用项目根相对路径（./ 前缀），由构建链路在使用处转为绝对路径。
             string executableName = GetExecutableNameFromProductName();
             return target switch
             {
-                BuildTarget.StandaloneWindows64 => Application.dataPath + "/../Releases/Windows/build/" + executableName + ".exe",
-                BuildTarget.StandaloneLinux64 => Application.dataPath + "/../Releases/Linux/build/" + executableName,
-                BuildTarget.Android => Application.dataPath + "/../Output/Player/Android/" + GetDefaultPackageVersion() + "Android.apk",
-                BuildTarget.iOS => Application.dataPath + "/../Output/Player/IOS/XCode_Project",
-                BuildTarget.StandaloneOSX => Application.dataPath + "/../Output/Player/MacOS/" + executableName + ".app",
-                BuildTarget.WebGL => Application.dataPath + "/../Output/Player/WebGL",
-                _ => Application.dataPath + "/../Output/Player/" + target + "/" + executableName
+                BuildTarget.StandaloneWindows64 => "./Releases/Windows/build/" + executableName + ".exe",
+                BuildTarget.StandaloneLinux64 => "./Releases/Linux/build/" + executableName,
+                BuildTarget.Android => "./Releases/Android/build/" + GetDefaultPackageVersion() + "Android.apk",
+                BuildTarget.iOS => "./Releases/IOS/build/XCode_Project",
+                BuildTarget.StandaloneOSX => "./Releases/MacOS/build/" + executableName + ".app",
+                BuildTarget.WebGL => "./Releases/WebGL/build",
+                _ => "./Releases/" + target + "/build/" + executableName
             };
         }
 

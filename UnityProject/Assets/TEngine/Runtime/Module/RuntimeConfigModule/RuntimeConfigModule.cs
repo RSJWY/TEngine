@@ -9,25 +9,20 @@ using UnityWebRequest = UnityEngine.Networking.UnityWebRequest;
 namespace TEngine
 {
     /// <summary>
-    /// 轻量运行时配置模块。从 StreamingAssets/Configs 读取清单声明的 JSON/TOML 文件并缓存。
-    /// 通过 GameModule.Config 访问，DTO 由业务层定义。
+    /// 轻量运行时配置模块。按覆盖链 persistentDataPath/Configs -> StreamingAssets/Configs 读取清单声明的 JSON/TOML 文件并缓存。
+    /// 通过 GameModule.Config 访问，DTO 由业务层定义。非线程安全，仅支持主线程调用。
     /// </summary>
     internal sealed class RuntimeConfigModule : Module, IRuntimeConfigModule
     {
         /// <summary>
-        /// 配置根目录，相对 StreamingAssets（StreamingAssets/Configs）。
+        /// 配置根目录名，相对 StreamingAssets 与 persistentDataPath（Configs）。
         /// </summary>
         private const string CONFIG_ROOT = "Configs";
 
         /// <summary>
-        /// 默认清单文件名，声明需要加载的配置列表。
+        /// 清单文件名，声明需要加载的配置列表。
         /// </summary>
-        private const string TOML_MANIFEST_FILE = "config_manifest.toml";
-
-        /// <summary>
-        /// 旧清单文件名，仅用于迁移期兼容。
-        /// </summary>
-        private const string JSON_MANIFEST_FILE = "config_manifest.json";
+        private const string MANIFEST_FILE = "config_manifest.toml";
 
         /// <summary>
         /// 配置名 -> 原始配置文本缓存。键忽略大小写，保留相对子目录（如 sub/Foo）。
@@ -70,8 +65,9 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 读取清单并加载其中声明的全部配置到文本缓存。
+        /// 读取 TOML 清单并加载其中声明的全部配置到文本缓存。
         /// 每次调用前先清空旧缓存；清单为空时仅记录警告并标记加载完成。
+        /// 读取顺序为 persistentDataPath/Configs 覆盖 StreamingAssets/Configs，两层均缺失才视为失败。
         /// 单个配置条目失败（重名、格式不支持、读取失败）只记录错误并跳过，不中断其余配置；
         /// 仅清单读取或解析失败、以及取消令牌触发时抛出异常。
         /// </summary>
@@ -108,7 +104,7 @@ namespace TEngine
                     }
 
                     RuntimeConfigFormat format = GetConfigFormat(file);
-                    string text = await ReadStreamingAssetsTextAsync(GetRelativePath(file), cancellationToken);
+                    var (text, _) = await ReadConfigTextWithRootAsync(file, cancellationToken);
                     _textByName[normalizedName] = text;
                     _fileByName[normalizedName] = file;
                     _formatByName[normalizedName] = format;
@@ -127,7 +123,7 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 重新加载指定配置：重新读取文件覆盖文本缓存，并清理该配置的对象缓存。
+        /// 重新加载指定配置：按覆盖链重新读取文件覆盖文本缓存，并清理该配置的对象缓存。
         /// 若该配置不在文件映射中，则按配置名推断文件名（默认追加 .toml）。
         /// </summary>
         public async UniTask ReloadAsync(string configName, CancellationToken cancellationToken = default)
@@ -137,7 +133,7 @@ namespace TEngine
                 ? mappedFile
                 : NormalizeConfigFileName(configName);
 
-            string text = await ReadStreamingAssetsTextAsync(GetRelativePath(fileName), cancellationToken);
+            var (text, _) = await ReadConfigTextWithRootAsync(fileName, cancellationToken);
             _textByName[normalizedName] = text;
             _fileByName[normalizedName] = fileName;
             _formatByName[normalizedName] = GetConfigFormat(fileName);
@@ -162,7 +158,7 @@ namespace TEngine
 
         /// <summary>
         /// 尝试获取强类型配置；未找到或解析失败返回 false。
-        /// 命中对象缓存直接返回，否则按需反序列化并写入对象缓存。
+        /// 命中对象缓存但类型不兼容时移除旧缓存并回源重新解析，避免同配置名跨不兼容类型永久失败。
         /// </summary>
         public bool TryGet<T>(out T config, string configName = null) where T : class
         {
@@ -171,8 +167,15 @@ namespace TEngine
 
             if (_objectByKey.TryGetValue(objectKey, out object cachedConfig))
             {
-                config = cachedConfig as T;
-                return config != null;
+                if (cachedConfig is T typedConfig)
+                {
+                    config = typedConfig;
+                    return true;
+                }
+
+                Log.Warning("Runtime config object cache type mismatch, re-parsing: {0}, cached: {1}, requested: {2}",
+                    normalizedName, cachedConfig.GetType().FullName, typeof(T).FullName);
+                _objectByKey.Remove(objectKey);
             }
 
             if (!_textByName.TryGetValue(normalizedName, out string text))
@@ -239,6 +242,14 @@ namespace TEngine
         }
 
         /// <summary>
+        /// 获取已加载的全部配置名列表（相对 Configs 的子目录路径形式，无扩展名）。
+        /// </summary>
+        public IReadOnlyList<string> GetConfigNames()
+        {
+            return new List<string>(_textByName.Keys);
+        }
+
+        /// <summary>
         /// 清空文本缓存、文件映射与对象缓存，并重置加载标记。
         /// </summary>
         public void Clear()
@@ -251,26 +262,18 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 优先读取 TOML 清单；不存在时回退旧 JSON 清单。
+        /// 按覆盖链读取 TOML 清单：persistent 层存在则优先，否则读 streaming 层；两层均缺失抛异常。
         /// </summary>
         private static async UniTask<RuntimeConfigManifest> LoadManifestAsync(CancellationToken cancellationToken)
         {
-            string manifestToml = await ReadOptionalStreamingAssetsTextAsync(GetRelativePath(TOML_MANIFEST_FILE), cancellationToken);
-            if (manifestToml != null)
+            string manifestText = await ReadOptionalConfigTextAsync(MANIFEST_FILE, cancellationToken);
+
+            if (manifestText == null)
             {
-                return Utility.Toml.ToObject<RuntimeConfigManifest>(manifestToml);
+                throw new GameFrameworkException($"Runtime config manifest not found in both persistent and streaming: {GetRelativePath(MANIFEST_FILE)}");
             }
 
-            string manifestJson = await ReadStreamingAssetsTextAsync(GetRelativePath(JSON_MANIFEST_FILE), cancellationToken);
-            return Utility.Json.ToObject<RuntimeConfigManifest>(manifestJson);
-        }
-
-        /// <summary>
-        /// 拼接配置文件相对 StreamingAssets 的路径（Configs/文件名）。
-        /// </summary>
-        private static string GetRelativePath(string fileName)
-        {
-            return $"{CONFIG_ROOT}/{fileName}";
+            return Utility.Toml.ToObject<RuntimeConfigManifest>(manifestText);
         }
 
         /// <summary>
@@ -381,31 +384,48 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 读取 StreamingAssets 下文本文件。
-        /// 路径含 "://"（如 Android/远程）走 UnityWebRequest；否则切到线程池用 File 同步读，读完切回主线程。
+        /// 按覆盖链读取配置文本：persistentDataPath/Configs 存在则优先，否则读 StreamingAssets/Configs。
+        /// 两层均缺失抛 GameFrameworkException；读取过程中其他错误同样抛异常，由调用方决定跳过或中断。
         /// </summary>
-        private static async UniTask<string> ReadStreamingAssetsTextAsync(string relativePath, CancellationToken cancellationToken)
+        private static async UniTask<(string text, ConfigRoot root)> ReadConfigTextWithRootAsync(string fileName, CancellationToken cancellationToken)
         {
-            string path = Path.Combine(Application.streamingAssetsPath, relativePath).Replace("\\", "/");
+            string persistentText = await ReadOptionalTextFromRootAsync(ConfigRoot.Persistent, fileName, cancellationToken);
+            if (persistentText != null)
+            {
+                return (persistentText, ConfigRoot.Persistent);
+            }
+
+            string streamingText = await ReadRequiredTextFromRootAsync(ConfigRoot.Streaming, fileName, cancellationToken);
+            return (streamingText, ConfigRoot.Streaming);
+        }
+
+        /// <summary>
+        /// 按覆盖链读取配置文本；两层均不存在返回 null，其他读取错误继续抛异常（用于清单探测）。
+        /// </summary>
+        private static async UniTask<string> ReadOptionalConfigTextAsync(string fileName, CancellationToken cancellationToken)
+        {
+            string persistentText = await ReadOptionalTextFromRootAsync(ConfigRoot.Persistent, fileName, cancellationToken);
+            return persistentText ?? await ReadOptionalTextFromRootAsync(ConfigRoot.Streaming, fileName, cancellationToken);
+        }
+
+        /// <summary>
+        /// 从指定来源根目录尝试读取文本；文件不存在返回 null，其他读取错误抛异常。
+        /// persistentDataPath 永远是本地文件系统路径；StreamingAssets 路径含 "://"（如 Android）时走 UnityWebRequest。
+        /// </summary>
+        private static async UniTask<string> ReadOptionalTextFromRootAsync(ConfigRoot root, string fileName, CancellationToken cancellationToken)
+        {
+            string path = GetRootAbsolutePath(root, GetRelativePath(fileName));
 
             if (path.Contains("://"))
             {
-                using UnityWebRequest request = UnityWebRequest.Get(path);
-                await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);
-
-                if (request.result != UnityWebRequest.Result.Success)
-                {
-                    throw new GameFrameworkException($"Read streaming assets failed: {path}, error: {request.error}");
-                }
-
-                return request.downloadHandler.text;
+                return await ReadOptionalViaWebRequestAsync(path, cancellationToken);
             }
 
             await UniTask.SwitchToThreadPool();
 
             try
             {
-                return File.ReadAllText(path);
+                return File.Exists(path) ? File.ReadAllText(path) : null;
             }
             finally
             {
@@ -414,51 +434,68 @@ namespace TEngine
         }
 
         /// <summary>
-        /// 尝试读取 StreamingAssets 下文本文件；文件不存在返回 null，其他读取错误继续抛异常。
+        /// 从指定来源根目录读取文本；文件不存在抛 GameFrameworkException。
         /// </summary>
-        private static async UniTask<string> ReadOptionalStreamingAssetsTextAsync(string relativePath, CancellationToken cancellationToken)
+        private static async UniTask<string> ReadRequiredTextFromRootAsync(ConfigRoot root, string fileName, CancellationToken cancellationToken)
         {
-            string path = Path.Combine(Application.streamingAssetsPath, relativePath).Replace("\\", "/");
+            string text = await ReadOptionalTextFromRootAsync(root, fileName, cancellationToken);
 
-            if (path.Contains("://"))
+            if (text == null)
             {
-                using UnityWebRequest request = UnityWebRequest.Get(path);
-                await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    return request.downloadHandler.text;
-                }
-
-                if (request.responseCode == 404)
-                {
-                    return null;
-                }
-
-                throw new GameFrameworkException($"Read streaming assets failed: {path}, error: {request.error}");
+                throw new GameFrameworkException($"Config file not found in both persistent and streaming: {GetRelativePath(fileName)}");
             }
 
-            await UniTask.SwitchToThreadPool();
+            return text;
+        }
 
-            try
-            {
-                if (!File.Exists(path))
-                {
-                    return null;
-                }
+        /// <summary>
+        /// 通过 UnityWebRequest 读取可选文本；404/不存在返回 null，其他错误抛异常。
+        /// </summary>
+        private static async UniTask<string> ReadOptionalViaWebRequestAsync(string path, CancellationToken cancellationToken)
+        {
+            using UnityWebRequest request = UnityWebRequest.Get(path);
+            await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);
 
-                return File.ReadAllText(path);
-            }
-            finally
+            if (request.result == UnityWebRequest.Result.Success)
             {
-                await UniTask.SwitchToMainThread(cancellationToken);
+                return request.downloadHandler.text;
             }
+
+            if (request.responseCode == 404)
+            {
+                return null;
+            }
+
+            throw new GameFrameworkException($"Read config via web request failed: {path}, error: {request.error}");
+        }
+
+        /// <summary>
+        /// 拼接配置文件相对 Configs 根目录的路径（Configs/文件名）。
+        /// </summary>
+        private static string GetRelativePath(string fileName)
+        {
+            return $"{CONFIG_ROOT}/{fileName}";
+        }
+
+        /// <summary>
+        /// 获取指定来源根目录下配置文件的绝对路径。
+        /// </summary>
+        private static string GetRootAbsolutePath(ConfigRoot root, string relativePath)
+        {
+            string basePath = root == ConfigRoot.Persistent ? Application.persistentDataPath : Application.streamingAssetsPath;
+            return Path.Combine(basePath, relativePath).Replace("\\", "/");
         }
 
         private enum RuntimeConfigFormat
         {
             Json,
             Toml
+        }
+
+        private enum ConfigRoot
+        {
+            Streaming,
+            Persistent
         }
     }
 }

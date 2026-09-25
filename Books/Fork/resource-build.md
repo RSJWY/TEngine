@@ -199,7 +199,7 @@ Releases/
 └── Publish/                       # 发布整理产物（内部 {平台}/{包名}/）
 ```
 
-仅 Windows/Linux 的 Player 归 `Releases/{平台}/build/`；Android/iOS/MacOS/WebGL 的 Player 输出仍走 `Output/Player/{平台}/`，本次不动。
+仅 Windows/Linux 的 Player 原先归 `Releases/{平台}/build/`；2026-09-22 起扩展到全部平台（见「Player 输出路径统一为项目根相对路径」）。
 
 ### 改动摘要
 
@@ -357,3 +357,148 @@ Editor 模拟模式（`EditorSimulateMode`）不经过真实构建清单，清�
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-08-30-yooasset-manifest-encryption-summary.md`
+
+## Player 输出路径统一为项目根相对路径并归一到 Releases/
+
+### 背景
+
+原先仅 Windows/Linux 的 Player 归 `Releases/{平台}/build/`，Android/iOS/MacOS/WebGL 仍走 `Output/Player/{平台}/`，两套目录并存；且默认路径用 `Application.dataPath + "/../..."` 拼绝对路径，序列化进配置后跨机器不可移植。
+
+### 改动摘要
+
+- `BuildConfig.GetDefaultPlayerOutputPath` 所有平台分支统一为项目根相对路径（`./` 前缀），全部归到 `Releases/{平台}/build/`：Windows/Linux/MacOS 为可执行文件路径，Android 为 apk，iOS 为 XCode 工程目录，WebGL 为目录。
+- `ReleaseTools` 构建 Player 前将相对路径统一转绝对路径（`Path.GetFullPath` + `Application.dataPath/..`），`BuildPipeline.BuildPlayer` 入参不受影响。
+- 旧 `Output/Player/` 前缀路径沿用既有 legacy 迁移逻辑，打开窗口时自动迁移到 `Releases/{平台}/build/`。
+- `.gitignore` 中 `/Output/` 注释更新为历史残留说明。
+
+### 注意事项
+
+- 一键构建安装包仍要求 Windows Player 输出为 `Releases/Windows/build`，可用路径旁「规范化路径」纠正。
+- 手填的绝对路径（`Path.IsPathRooted`）保持原样使用，不做转换。
+
+### 关键文件
+
+- `Assets/TEngine/Editor/ReleaseTools/BuildConfig.cs`
+- `Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs`
+- `UnityProject/.gitignore`
+
+## 打包工具操作区分区重构
+
+### 背景
+
+原「操作」分组把构建、打开目录、热更 DLL、设置、构建日志十几个按钮堆在一组，主次不清。
+
+### 改动摘要
+
+- 「操作」拆为五个独立分区：「构建」（构建 AB / 一键构建 / 一键构建安装包 / 构建 Player / 仅执行发布整理）、「打开目录」（AB 输出 / Player 输出 / 发布目录）、「热更DLL」（编译拷贝 / 同步 AOT 清单 / 拷贝 AOT DLL）、「设置」（刷新设置 / 重置默认）、「构建日志」（独立折叠区）。
+- 新增「打开 AB 输出目录」「打开 Player 输出目录」按钮；Player 输出目录按钮仅勾选构建 Player 时显示，目录不存在时仅告警。
+
+### 关键文件
+
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
+
+## 打包窗口清单加密开关
+
+### 背景
+
+`RuntimePackageEntry.ManifestEncrypted` 此前只能在 `UpdateSetting` Inspector 中修改，打包窗口的资源包表格没有对应列，容易漏配。
+
+### 改动摘要
+
+- 资源包表格（`RuntimePackageView`）新增「清单加密」列，直接编辑 `ManifestEncrypted` 并随 `CreateConfig`/窗口视图双向同步。
+
+### 关键文件
+
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
+
+## 加密密钥配置按用途重命名
+
+### 背景
+
+Bundle 用密钥原名 `ChaCha20KeyConfig` / `XorKeyConfig`，与清单用 `ManifestChaCha20KeyConfig` 命名不对称，容易误解为全局通用密钥。
+
+### 改动摘要
+
+- `ChaCha20KeyConfig` → `BundleChaCha20KeyConfig`、`XorKeyConfig` → `BundleXorKeyConfig`，密钥资产同步重命名。
+- `ResourceModule.Services` 等引用处同步更新；密钥内容不变，已生成密钥的工程重命名后无需重新打包。
+
+### 关键文件
+
+- `Assets/TEngine/Runtime/Module/ResourceModule/Crypto/BundleChaCha20KeyConfig.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/Crypto/BundleXorKeyConfig.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.Services.cs`
+
+## 加密密钥从 Resources 搬到代码常量（KeyStore）
+
+### 背景
+
+密钥原以 ScriptableObject `.asset` 存放在 `Resources/EncryptConfigs/`，打包后明文进入 `resources.assets`，任何 ResourceBrowser 工具可直接提取。Obfuz 混淆的是 DLL 代码，对资源文件中的明文密钥无保护效果。
+
+### 改动摘要
+
+- 新增运行时程序集 `TEngine.CryptoKeys`（`Assets/TEngine/CryptoKeys/`），内含 `KeyStore` 静态类，密钥以 `public static readonly byte[]` 代码常量存储，编入 DLL 后可被 Obfuz `FieldEncrypt` 加密。
+- 密钥配置类（`CryptoKeyConfig<T>` 基类 + `BundleChaCha20KeyConfig` / `BundleXorKeyConfig` / `ManifestChaCha20KeyConfig`）从 `TEngine.Runtime` 搬到 Editor only 程序集 `TEngine.CryptoKeys.Editor`（`Assets/TEngine/Editor/CryptoKeys/`），`.asset` 文件搬到 `Assets/TEngine/Editor/CryptoKeys/EncryptConfigs/`。
+- `Resources/EncryptConfigs/` 目录删除，密钥不再随 `Resources` 打入运行时包。
+- `ResourceModule.Services.cs` 和 `ResourceModule.ManifestCrypto.cs` 中所有 `XxxKeyConfig.Instance.key` 改为 `KeyStore.XxxKey`，不再引用任何 ScriptableObject 密钥类。
+- `CryptoUtils` 精简为运行时校验工具（`ValidateKey` / `IsEmpty`），`GenerateRandomBytes` 和 `ResourceConfigFolder` 移到 Editor 基类。
+- `TEngine.Runtime.asmdef` 追加引用 `TEngine.CryptoKeys`。
+
+### 使用方式
+
+1. 菜单 `Build/加密密钥配置` 打开面板，编辑或重新生成密钥。
+2. 切到「烘焙」页，点「烘焙密钥到代码」，将 `.asset` 中的密钥值写入 `KeyStore.cs`。
+3. 重新打包资源（使新密钥生效于 Bundle/Manifest）。
+4. 构建玩家（Obfuz 在构建时加密 DLL 中的密钥字段）。
+
+烘焙面板会对比 Asset 与 Code 中的密钥值，显示「已烘焙」「全零」「不一致」状态。
+
+### 注意事项
+
+- **修改密钥后必须重新烘焙并重新打包资源**，否则运行时解密用的密钥与 Bundle/Manifest 加密端不一致。
+- `KeyStore` 中全零占位符是初始状态，烘焙前运行时会因 `CryptoUtils.ValidateKey` 校验失败而抛异常。
+- Obfuz 配置：`assembliesToObfuscate` 需追加 `TEngine.CryptoKeys`，`FieldEncrypt` Pass 需开启，可在 `fieldEncryptSettings.ruleFiles` 中加 XML 规则只加密 `KeyStore` 类的字段。
+- `.asset` 文件仅在 Editor 下使用，不会打入运行时包（Editor only 程序集 + 非 Resources 路径）。
+
+### 关键文件
+
+- `Assets/TEngine/CryptoKeys/TEngine.CryptoKeys.asmdef`
+- `Assets/TEngine/CryptoKeys/KeyStore.cs`
+- `Assets/TEngine/Editor/CryptoKeys/TEngine.CryptoKeys.Editor.asmdef`
+- `Assets/TEngine/Editor/CryptoKeys/CryptoKeyConfig.cs`
+- `Assets/TEngine/Editor/CryptoKeys/BundleChaCha20KeyConfig.cs`
+- `Assets/TEngine/Editor/CryptoKeys/BundleXorKeyConfig.cs`
+- `Assets/TEngine/Editor/CryptoKeys/ManifestChaCha20KeyConfig.cs`
+- `Assets/TEngine/Editor/CryptoKeys/CryptoKeyConfigWindow.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.Services.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/ResourceModule.ManifestCrypto.cs`
+- `Assets/TEngine/Runtime/Module/ResourceModule/Crypto/CryptoUtils.cs`
+- `Assets/TEngine/Runtime/TEngine.Runtime.asmdef`
+
+## 构建输出目录生成 BuiltinCatalog
+
+### 背景
+
+`OfflinePlayMode` 需要 `BuiltinCatalog` 文件，但 YooAsset 只在构建内置包（拷贝到 StreamingAssets）时生成；直接把 AB 输出目录复制到目标机器做离线加载时缺 Catalog 无法使用。
+
+### 改动摘要
+
+- 新增 `Editor/YooAssetCustom/CatalogOutputHelper.cs` 与友元程序集 `YooAsset.Custom.Editor`（需 YooAsset 3.0.6+ 的 InternalsVisibleTo 声明），直接调用 YooAsset internal 的 `BuiltinCatalogHelper.CreateFile`。
+- 打包窗口「高级」页新增「在构建输出目录生成 Catalog」开关（`BuildConfig.GenerateCatalogInOutput`，默认关闭，随 `BuildPipelineSetting` 持久化）。
+- 构建成功后按开关在 AB 输出目录额外生成 `BuiltinCatalog.bytes` + `BuiltinCatalog.json`；清单加密时自动传入 `ManifestChaCha20Decryptor`。
+- `TEngine.Editor.asmdef` 增加 `YooAsset.Custom.Editor` 引用。
+
+### 使用方式
+
+勾选开关后正常构建 AB，输出目录（`Releases/Bundles/{平台}/{包名}/{版本}/`）即含 `BuiltinCatalog.bytes/json`，整目录复制到目标机器可直接用于 `OfflinePlayMode`。
+
+### 注意事项
+
+- 依赖 YooAsset 3.0.6+ 的友元程序集声明，降级 YooAsset 会编译失败。
+- 开关只影响输出目录的额外产物，不影响 StreamingAssets 内置包的 Catalog 生成。
+
+### 关键文件
+
+- `Assets/TEngine/Editor/YooAssetCustom/CatalogOutputHelper.cs`
+- `Assets/TEngine/Editor/YooAssetCustom/YooAsset.Custom.Editor.asmdef`
+- `Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs`
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`

@@ -1,8 +1,8 @@
 using System;
 using System.IO;
-using System.Text;
 using Cysharp.Threading.Tasks;
 using Newtonsoft.Json;
+using Nino.Core;
 using TEngine;
 using UnityEngine;
 
@@ -19,38 +19,42 @@ namespace GameLogic
         PlayerPrefs,
 
         /// <summary>
-        /// 使用persistentDataPath下的JSON文件存储，适合体量更大的客户端数据。
+        /// 使用persistentDataPath下的二进制文件存储（Nino序列化），适合体量更大的客户端数据。
         /// </summary>
-        JsonFile,
+        BinaryFile,
     }
 
     /// <summary>
     /// 客户端存档数据基类。
     /// </summary>
     /// <remarks>
-    /// 提供JSON序列化、双存储后端读写（PlayerPrefs/JsonFile）、版本升级、坏档备份、PlayerPrefs→JsonFile懒迁移、异步写入。
+    /// 使用 Nino 二进制序列化，提供双存储后端读写（PlayerPrefs/BinaryFile）、版本升级、坏档备份、
+    /// PlayerPrefs→BinaryFile懒迁移、旧版JSON存档一次性迁移到Nino二进制、异步写入。
+    /// 子类必须标记 <see cref="NinoTypeAttribute"/>。
     /// </remarks>
-    public abstract class BaseClientSaveData
+    [NinoType(containNonPublicMembers: true)]
+    public abstract partial class BaseClientSaveData
     {
-        private const string JSON_FILE_DIRECTORY = "ClientSaveData";
+        private const string SAVE_DIRECTORY = "ClientSaveData";
 
         private string m_saveKey;
         private ClientSaveDataStorageMode m_storageMode;
 
-        // JsonFile模式首次找不到文件时，会尝试从同key的PlayerPrefs读取并迁移。
-        private bool m_needMigratePlayerPrefsToJson;
+        /// <summary>
+        /// JsonFile模式首次找不到文件时，会尝试从同key的PlayerPrefs读取并迁移。
+        /// </summary>
+        private bool m_needMigratePlayerPrefsToBinary;
 
         /// <summary>
-        /// JSON存档目录。
+        /// 存档目录。
         /// </summary>
-        public static string JsonSaveDirectoryPath
-            => Path.Combine(Application.persistentDataPath, JSON_FILE_DIRECTORY);
+        public static string SaveDirectoryPath
+            => Path.Combine(Application.persistentDataPath, SAVE_DIRECTORY);
 
         /// <summary>
         /// 当前存档已保存的数据版本。
         /// </summary>
-        [JsonProperty]
-        public int SaveDataVersion { get; private set; }
+        public int SaveDataVersion { get; internal set; }
 
         /// <summary>
         /// 当前代码支持的存档版本；子类字段结构变更时递增。
@@ -77,13 +81,14 @@ namespace GameLogic
         {
             try
             {
-                m_needMigratePlayerPrefsToJson = false;
-                string jsonStr = ReadJsonFromStorage();
+                m_needMigratePlayerPrefsToBinary = false;
+                byte[] data = ReadFromStorage();
 
-                if (!string.IsNullOrEmpty(jsonStr))
+                if (data != null && data.Length > 0)
                 {
-                    JsonConvert.PopulateObject(jsonStr, this);
-                    if (TryUpgradeSaveDataVersion() || m_needMigratePlayerPrefsToJson)
+                    object obj = this;
+                    NinoDeserializer.Deserialize(data, GetType(), ref obj);
+                    if (TryUpgradeSaveDataVersion() || m_needMigratePlayerPrefsToBinary)
                     {
                         Save();
                     }
@@ -96,11 +101,11 @@ namespace GameLogic
             catch (Exception e)
             {
                 LogStorageError("Load", e, GetLogFilePath());
-                BackupCorruptJsonFile();
+                BackupCorruptFile();
             }
             finally
             {
-                m_needMigratePlayerPrefsToJson = false;
+                m_needMigratePlayerPrefsToBinary = false;
             }
         }
 
@@ -112,7 +117,8 @@ namespace GameLogic
         {
             try
             {
-                WriteJsonToStorage(JsonConvert.SerializeObject(this, Formatting.None));
+                byte[] data = NinoSerializer.Serialize(this);
+                WriteToStorage(data);
             }
             catch (Exception e)
             {
@@ -121,7 +127,7 @@ namespace GameLogic
         }
 
         /// <summary>
-        /// 异步保存数据到本地存储，JsonFile模式会切到线程池执行文件写入。
+        /// 异步保存数据到本地存储，BinaryFile模式会切到线程池执行文件写入。
         /// </summary>
         public virtual async UniTask SaveAsync()
         {
@@ -131,11 +137,11 @@ namespace GameLogic
                 return;
             }
 
-            string jsonStr;
-            string filePath = GetJsonFilePath();
+            byte[] data;
+            string filePath = GetSaveFilePath();
             try
             {
-                jsonStr = JsonConvert.SerializeObject(this, Formatting.None);
+                data = NinoSerializer.Serialize(this);
             }
             catch (Exception e)
             {
@@ -147,7 +153,7 @@ namespace GameLogic
             await UniTask.SwitchToThreadPool();
             try
             {
-                WriteJsonFile(filePath, jsonStr);
+                WriteBinaryFile(filePath, data);
             }
             catch (Exception e)
             {
@@ -180,52 +186,71 @@ namespace GameLogic
         }
 
         /// <summary>
-        /// 从当前存储后端读取JSON字符串。
-        /// JsonFile模式下若文件不存在，会尝试读取旧PlayerPrefs数据用于懒迁移。
+        /// 从当前存储后端读取二进制数据。
+        /// BinaryFile模式下若文件不存在，会尝试读取旧PlayerPrefs数据用于懒迁移；
+        /// 若旧版 JSON 文件存在，会先用 Newtonsoft.Json 读取并转换为 Nino 二进制格式。
         /// </summary>
-        protected string ReadJsonFromStorage()
+        protected byte[] ReadFromStorage()
         {
             switch (m_storageMode)
             {
-                case ClientSaveDataStorageMode.JsonFile:
-                    string filePath = GetJsonFilePath();
+                case ClientSaveDataStorageMode.BinaryFile:
+                {
+                    string filePath = GetSaveFilePath();
                     if (File.Exists(filePath))
                     {
-                        return File.ReadAllText(filePath, Encoding.UTF8);
+                        return File.ReadAllBytes(filePath);
                     }
 
-                    string playerPrefsJson = Utility.PlayerPrefs.GetString(m_saveKey);
-                    m_needMigratePlayerPrefsToJson = !string.IsNullOrEmpty(playerPrefsJson);
-                    return playerPrefsJson;
+                    // 尝试从旧版 JSON 文件迁移
+                    string legacyJsonPath = Utility.Nino.GetLegacyJsonPath(filePath);
+                    if (legacyJsonPath != null)
+                    {
+                        return MigrateFromLegacyJson(legacyJsonPath);
+                    }
+
+                    // 尝试从 PlayerPrefs 迁移
+                    string playerPrefsBase64 = Utility.PlayerPrefs.GetString(m_saveKey);
+                    if (!string.IsNullOrEmpty(playerPrefsBase64))
+                    {
+                        m_needMigratePlayerPrefsToBinary = true;
+                        return Convert.FromBase64String(playerPrefsBase64);
+                    }
+
+                    return null;
+                }
                 case ClientSaveDataStorageMode.PlayerPrefs:
                 default:
-                    return Utility.PlayerPrefs.GetString(m_saveKey);
+                {
+                    string base64Str = Utility.PlayerPrefs.GetString(m_saveKey);
+                    return string.IsNullOrEmpty(base64Str) ? null : Convert.FromBase64String(base64Str);
+                }
             }
         }
 
         /// <summary>
-        /// 将JSON字符串写入当前存储后端。
+        /// 将二进制数据写入当前存储后端。
         /// </summary>
-        protected void WriteJsonToStorage(string jsonStr)
+        protected void WriteToStorage(byte[] data)
         {
             switch (m_storageMode)
             {
-                case ClientSaveDataStorageMode.JsonFile:
-                    string filePath = GetJsonFilePath();
-                    WriteJsonFile(filePath, jsonStr);
+                case ClientSaveDataStorageMode.BinaryFile:
+                    string filePath = GetSaveFilePath();
+                    WriteBinaryFile(filePath, data);
                     break;
                 case ClientSaveDataStorageMode.PlayerPrefs:
                 default:
-                    Utility.PlayerPrefs.SetString(m_saveKey, jsonStr);
+                    Utility.PlayerPrefs.SetString(m_saveKey, Convert.ToBase64String(data));
                     break;
             }
         }
 
         /// <summary>
-        /// 获取当前存档对应的JSON文件路径。
+        /// 获取当前存档对应的二进制文件路径。
         /// </summary>
-        protected string GetJsonFilePath()
-            => Path.Combine(JsonSaveDirectoryPath, $"{GetSafeFileName(m_saveKey)}.json");
+        protected string GetSaveFilePath()
+            => Utility.Nino.GetSaveFilePath(SaveDirectoryPath, GetSafeFileName(m_saveKey));
 
         /// <summary>
         /// 检查并升级存档版本；升级后由调用方保存当前对象。
@@ -245,16 +270,43 @@ namespace GameLogic
         }
 
         /// <summary>
-        /// JsonFile读取或反序列化失败时备份坏档，避免下次启动继续读取同一个坏文件。
+        /// 从旧版 JSON 文件读取数据并转换为 Nino 二进制格式。
+        /// 迁移成功后删除旧 JSON 文件。
         /// </summary>
-        private void BackupCorruptJsonFile()
+        private byte[] MigrateFromLegacyJson(string jsonFilePath)
         {
-            if (m_storageMode != ClientSaveDataStorageMode.JsonFile)
+            try
+            {
+                string jsonStr = File.ReadAllText(jsonFilePath);
+                JsonConvert.PopulateObject(jsonStr, this);
+
+                // 将迁移后的对象序列化为 Nino 二进制
+                byte[] data = NinoSerializer.Serialize(this);
+
+                // 删除旧 JSON 文件
+                Utility.Nino.DeleteLegacyJson(jsonFilePath);
+
+                Log.Info($"[ClientSaveData] Migrated legacy JSON to Nino binary: {jsonFilePath}");
+                return data;
+            }
+            catch (Exception e)
+            {
+                LogStorageError("MigrateFromLegacyJson", e, jsonFilePath);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// BinaryFile读取或反序列化失败时备份坏档，避免下次启动继续读取同一个坏文件。
+        /// </summary>
+        private void BackupCorruptFile()
+        {
+            if (m_storageMode != ClientSaveDataStorageMode.BinaryFile)
             {
                 return;
             }
 
-            string filePath = GetJsonFilePath();
+            string filePath = GetSaveFilePath();
             if (!File.Exists(filePath))
             {
                 return;
@@ -272,12 +324,12 @@ namespace GameLogic
             }
             catch (Exception e)
             {
-                LogStorageError("BackupCorruptJsonFile", e, filePath);
+                LogStorageError("BackupCorruptFile", e, filePath);
             }
         }
 
         private string GetLogFilePath()
-            => m_storageMode == ClientSaveDataStorageMode.JsonFile ? GetJsonFilePath() : string.Empty;
+            => m_storageMode == ClientSaveDataStorageMode.BinaryFile ? GetSaveFilePath() : string.Empty;
 
         private void LogStorageError(string operation, Exception exception, string filePath)
         {
@@ -285,9 +337,9 @@ namespace GameLogic
         }
 
         /// <summary>
-        /// 写入JSON文件，写入前确保目录存在。
+        /// 写入二进制文件，写入前确保目录存在。
         /// </summary>
-        private static void WriteJsonFile(string filePath, string jsonStr)
+        private static void WriteBinaryFile(string filePath, byte[] data)
         {
             string directory = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrEmpty(directory))
@@ -295,7 +347,7 @@ namespace GameLogic
                 Directory.CreateDirectory(directory);
             }
 
-            File.WriteAllText(filePath, jsonStr, Encoding.UTF8);
+            File.WriteAllBytes(filePath, data);
         }
 
         private static string GetSafeFileName(string fileName)

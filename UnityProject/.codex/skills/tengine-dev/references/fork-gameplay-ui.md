@@ -4,7 +4,6 @@
 
 - [DataBinding](#databinding)
 - [ClientSaveData 与 DataCenter](#clientsavedata-与-datacenter)
-- [FrameAnimModule](#frameanimmodule)
 - [UGUI 扩展组件](#ugui-扩展组件)
 - [Utility 扩展](#utility-扩展)
 - [事件批量清理](#事件批量清理)
@@ -52,14 +51,17 @@ _scope.Dispose();
 
 ## ClientSaveData 与 DataCenter
 
-存档系统位于热更 `GameLogic/DataCenter/`，使用 `SingletonSystem` 自动驱动。
+存档系统位于热更 `GameLogic/DataCenter/`，使用 `SingletonSystem` 自动驱动。序列化引擎为 Nino 二进制（`com.jasonxudeveloper.nino`），替代 Newtonsoft.Json。
 
 ```csharp
+using Nino.Core;
+
 [ClientSaveData("PlayerSave", perRoleID: true,
-    StorageMode: ClientSaveDataStorageMode.JsonFile)]
-public sealed class PlayerSave : BaseClientSaveData
+    storageMode: ClientSaveDataStorageMode.BinaryFile)]
+[NinoType(containNonPublicMembers: true)]
+public sealed partial class PlayerSave : BaseClientSaveData
 {
-    public int Level { get; private set; }
+    public int Level { get; internal set; }
     public static PlayerSave Get => BaseClientSaveData.Get<PlayerSave>();
 
     protected override int CurrentSaveDataVersion => 2;
@@ -78,34 +80,14 @@ ClientSaveDataMgr.Instance.SaveAllClientData();
 await ClientSaveDataMgr.Instance.SaveAllClientDataAsync();
 ```
 
-- 支持 PlayerPrefs/JsonFile、版本升级、坏档 `.corrupt` 备份和 PlayerPrefs 到文件的懒迁移。
+- 序列化引擎为 Nino 二进制，存档类必须标记 `[NinoType]`，含非 public 成员时用 `[NinoType(containNonPublicMembers: true)]` 并加 `partial`。
+- 存档属性的 setter 用 `internal set`（不要 `private set`），以兼容 Nino Source Generator。
+- 支持 PlayerPrefs/BinaryFile、版本升级、坏档 `.corrupt` 备份和 PlayerPrefs 到文件的懒迁移。
+- 旧版 JSON 存档首次加载自动迁移到 Nino 二进制（`.json`→`.bin`），迁移后删除旧文件。
 - `PerRoleID=true` 的存档应在登录后访问；未登录会退化为全局 key。
 - 首次加载空存储不会自动落盘，业务修改后必须显式保存。
-- 应用退出、切后台或定时节点由业务调用批量保存。
+- `Utility.Nino`（TEngine.Runtime）提供 `Serialize<T>`/`Deserialize<T>`/`DeserializeIntoClass<T>`/文件 IO/Base64 工具方法。
 - `DataCenterSys` 是玩家运行时数据中枢，不要用存档对象替代当前会话状态。
-
-## FrameAnimModule
-
-序列帧动画位于 HotFix，提供三种代理：
-
-```csharp
-FrameAnimatorAgent       // SpriteRenderer
-UIFrameAnimatorAgent     // UGUI Image
-UIFrameRawAnimatorAgent  // UGUI RawImage
-```
-
-```csharp
-var agent = UIFrameAnimatorAgent.Create();
-await agent.Init(config);
-agent.BindDisplayRender(image);
-agent.SwitchAnim(UIFrameAnimState.Idle);
-agent.StartAnim();
-```
-
-- `FrameAnimConfig` 由调用方构造，不依赖 Luban `ModelConfig`。
-- `FrameSpritePool.Gen.cs` 是手写映射。新增 `FrameAnimName` 时同步补字段和 `GetSprites` case。
-- RawImage 版只适合每帧独立 PNG；SpriteAtlas 中多帧共享 Texture 时会显示整张图集。
-- Agent 来自 `MemoryPool`，按类提供的生命周期 API 创建和回收，不直接 `new`。
 
 ## UGUI 扩展组件
 

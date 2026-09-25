@@ -1,6 +1,6 @@
 # Fork 业务数据与 UI
 
-本文汇总当前 fork 的 DataBinding、客户端存档、序列帧动画、UGUI 扩展和相关工具。迁移背景与关键文件见 [Fork 定制改动总览](../../../../../Books/Fork/README.md)。
+本文汇总当前 fork 的 DataBinding、客户端存档、UGUI 扩展和相关工具。迁移背景与关键文件见 [Fork 定制改动总览](../../../../../Books/Fork/README.md)。
 
 ## DataBinding
 
@@ -84,31 +84,6 @@ await ClientSaveDataMgr.Instance.SaveAllClientDataAsync();
 
 详细说明见 [save-data.md](../../../../../Books/Fork/save-data.md)。
 
-## FrameAnimModule
-
-序列帧动画提供三种代理：
-
-```csharp
-FrameAnimatorAgent       // SpriteRenderer
-UIFrameAnimatorAgent     // UGUI Image
-UIFrameRawAnimatorAgent  // UGUI RawImage
-```
-
-```csharp
-var agent = UIFrameAnimatorAgent.Create();
-await agent.Init(config);
-agent.BindDisplayRender(image);
-agent.SwitchAnim(UIFrameAnimState.Idle);
-agent.StartAnim();
-```
-
-- `FrameAnimConfig` 由业务构造，不依赖 Luban `ModelConfig`。
-- `FrameSpritePool.Gen.cs` 是手写映射，新增动画名时需要同步更新。
-- RawImage 版本适合每帧独立纹理，不适合共享 Texture 的 SpriteAtlas 多帧。
-- Agent 来自内存池，必须按类型提供的生命周期 API 回收。
-
-详细说明见 [frame-anim.md](../../../../../Books/Fork/frame-anim.md)。
-
 ## UGUI 扩展组件
 
 | 组件 | 能力 |
@@ -116,6 +91,8 @@ agent.StartAnim();
 | `UIButton` | 点击保护、缩放、长按、双击、点击音效 |
 | `UIImage` | 圆角、遮罩、镜像 |
 | `UIText` | 描边、渐变、阴影、字间距、顶点色、环形排布 |
+| `UITMPText` | TMP 文本的描边、渐变、阴影、环形排布等扩展 |
+| `UIRawImage` | 圆角、遮罩、镜像 |
 | `RichTextItem` | 图标、动画表情、超链接 |
 
 Utility 组件包括 `EmptyGraph`、`NestedScrollRect`、`CircleLayoutGroup`、`UIEffectSortingOrder`、`UIDragListener`、`UIExtension` 和 `UIImageEffect`。
@@ -126,6 +103,20 @@ Utility 组件包括 `EmptyGraph`、`NestedScrollRect`、`CircleLayoutGroup`、`
 - `UIText` 描边依赖 YooAsset location `UGUIPro_UIText`。
 - `SuperScrollView` 未迁移，不要生成 `LoopListView2` 或 `LoopGridView` 依赖。
 - Inspector 脚本放在 `Assets/Editor/UIModuleExpansion/`。
+
+### UI 脚本生成器集成
+
+TEngine 原生 UI 脚本生成器（`Assets/Editor/UIScriptGenerator/`）已为本 fork 的 5 个自研组件登记识别规则，`GenerateUIComponentScript` 能按节点名前缀自动把它们绑定进 `UIBindComponent`，无需手写 `GetComponent`。
+
+| 前缀 | 生成组件 | 对应原生规则（并存，不替换） |
+| --- | --- | --- |
+| `m_uiBtn` | `UIButton` | `m_btn` → `Button` |
+| `m_uiText` | `UIText` | `m_text` → `Text` |
+| `m_uiTmp` | `UITMPText` | `m_tmp` → `TextMeshProUGUI` |
+| `m_uiImg` | `UIImage` | `m_img` → `Image` |
+| `m_uiRimg` | `UIRawImage` | `m_rimg` → `RawImage` |
+
+两套规则并存，由 Prefab 节点名决定走哪套：存量 `m_btn`/`m_text` 等原生前缀继续生成原生 UGUI 组件；新 UI 按 fork 红线"UI 优先使用 fork 组件"用 `m_ui*` 前缀即可走自研组件。改动点在 `UIComponentName` 枚举、`GetComponentTypeFromEnumName` switch、`ScriptGeneratorSetting.cs` 默认规则表与已序列化的 `ScriptGeneratorSetting.asset`。
 
 详细说明见 [ui-expansion.md](../../../../../Books/Fork/ui-expansion.md)。
 

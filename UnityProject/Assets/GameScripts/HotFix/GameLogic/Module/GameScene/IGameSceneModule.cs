@@ -22,6 +22,17 @@ namespace GameLogic
         /// </summary>
         float DisplayProgress { get; }
 
+        /// <summary>
+        /// 当前加载阶段富文本（按 <see cref="DisplayProgress"/> 查 SO 配置返回），供 <see cref="SwitchSceneUI"/> 顶部大字体显示。
+        /// </summary>
+        string DisplayPhaseText { get; }
+
+        /// <summary>
+        /// 随机获取一条小贴士文本（从 <see cref="SceneLoadTipsConfig.Tips"/> 中取）。
+        /// </summary>
+        /// <returns>小贴士文本；配置为空返回空串。</returns>
+        string GetRandomTip();
+
         string GetSceneName(SceneType sceneType);
 
         SceneType? GetSceneTypeFromName(string sceneName);

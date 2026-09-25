@@ -24,15 +24,17 @@ MonoBehaviour:
   MinimalPackage: 0
   RetainTags: 
   EnableSharePackRule: 1
+  EnableAssetPathValidation: 1
   UseAssetDependencyDB: 1
   ClearBuildCache: 1
   VerifyBuildingResult: 1
   BuildinFileCopyOption: 1
   FileNameStyle: 2
+  GenerateCatalogInOutput: 0
   BuildHotFixDll: 1
   BuildPlayer: 1
   PlayerPlatform: 19
-  PlayerOutputPath: E:/Unity/TEngine/UnityProject/Assets/../Releases/Windows/build/hotUnitydemo.exe
+  PlayerOutputPath: .\Releases\Windows\build\hotUnitydemo.exe
   BuildInstaller: 1
   InstallerPlatform: 19
   InstallerVersion: 

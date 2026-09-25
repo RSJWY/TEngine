@@ -1,0 +1,16 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d1ecfc20fafd89e45b6443860259de0e, type: 3}
+  m_Name: BundleChaCha20KeyConfig
+  m_EditorClassIdentifier: 
+  _key: aa2259a188dc0d818381d5d929341f8327fe54d46fde1e1f3da4d4fc2b6f7e57
+  _nonce: 3b6c2ff6c04cae13d9309c6f

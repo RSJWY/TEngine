@@ -40,6 +40,9 @@ public partial class GameApp
     
     private static void StartGameLogic()
     {
+        ModuleSystem.RegisterModule<IUIJumpControl>(new UIJumpControl());
+        ModuleSystem.RegisterModule<IGameSceneModule>(new GameSceneModule());
+
         //多屏显示配置，内部异步执行
         GameModule.Screen.ApplyAll();
 

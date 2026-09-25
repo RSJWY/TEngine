@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -27,9 +27,9 @@ namespace TEngine
         EPlayMode PlayMode { get; set; }
 
         /// <summary>
-        /// 资源加密方式。
+        /// 桌面多开实例标识。为空串时不隔离（默认行为）；非空时沙盒缓存与内置解包目录隔离到 instance-{InstanceId} 目录下。
         /// </summary>
-        EncryptionType EncryptionType { get; set; }
+        string InstanceId { get; set; }
 
         /// <summary>
         /// 是否边玩边下载。

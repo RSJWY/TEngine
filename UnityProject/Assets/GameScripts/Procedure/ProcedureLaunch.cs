@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Cysharp.Threading.Tasks;
 using Launcher;
 using TEngine;
@@ -44,6 +44,14 @@ namespace Procedure
 
             // 声音配置：根据用户配置数据，设置即将使用的声音选项
             InitSoundSettings();
+
+            // 桌面多开：解析命令行实例标识，资源包初始化前注入（未传参时保持单开默认行为）
+            string instanceId = MultiInstanceLauncher.ResolveInstanceId();
+            if (!string.IsNullOrEmpty(instanceId))
+            {
+                _resourceModule.InstanceId = instanceId;
+                Log.Info($"桌面多开实例标识：{instanceId}，资源缓存将隔离到 instance-{instanceId} 目录。");
+            }
 
             // 资源初始化前加载运行时配置（现场可覆盖热更地址），主包侧通过 ModuleSystem 访问
             LoadDeployConfigAsync().Forget();

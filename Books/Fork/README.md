@@ -13,26 +13,31 @@
 | 主题 | 说明 | 详细文档 |
 | --- | --- | --- |
 | YooAsset 3.0.5 迁移 | 无兼容层迁移、运行模式修复、ArchiveFileBuildPipeline 与加密归档加载 | [yooasset-3-migration.md](yooasset-3-migration.md) |
-| 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、日志查看工具 | [logging.md](logging.md) |
+| 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、早期日志缓冲（EarlyLog）、日志查看工具 | [logging.md](logging.md) |
 | 事件系统 | 按事件 ID 批量移除监听 | [event-system.md](event-system.md) |
 | 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 | [data-binding.md](data-binding.md) |
 | 运行时配置 | RuntimeConfig、DeployConfig、TOML/JSON 轻量配置 | [runtime-config.md](runtime-config.md) |
 | 热更新 | CodePackage、归档二进制加载、版本确认、AOT 元数据 | [hot-update.md](hot-update.md) |
 | 资源打包 | 按包构建、ArchiveFile 管线、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
-| 场景系统 | DynamicSpawn 通用化、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
+| 场景系统 | DynamicSpawn 通用化与 GUID 弱引用寻址、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、运行时静态密钥初始化、多态 DLL 热更产物 | [obfuscation.md](obfuscation.md) |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](runtime-tools.md) |
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 | [timer-module.md](timer-module.md) |
-| 存档与数据中心 | `ClientSaveDataMgr` 存档框架、`DataCenterSys` 玩家数据中枢 | [save-data.md](save-data.md) |
+| 存档与数据中心 | `ClientSaveDataMgr` 存档框架（Nino 二进制序列化）、`DataCenterSys` 玩家数据中枢 | [save-data.md](save-data.md) |
 | UI 组件扩展 | `UIButton`/`UIImage`/`UIText`/`RichTextItem` + `ListPool` 公共化 | [ui-expansion.md](ui-expansion.md) |
 | 运行时工具合并 | `Utility.Unity` 补齐组件增删/子节点查找/Layer/EventTrigger/物理/分辨率等；JSON 补 `FromJsonOverwrite` | [utility-merge.md](utility-merge.md) |
 | 帧动画模块 | 序列帧动画（场景版+UI版+RawImage版），手写替代 SourceGenerator | [frame-anim.md](frame-anim.md) |
 | GameObject 对象池 | 基于 YooAsset location 的异步实例化池，预热/回收/自动销毁 | [game-object-pool.md](game-object-pool.md) |
 | 动画模块 | 基于 PlayableGraph 的代码驱动 3D 动画图，多层级混合/权重过渡 | [anim-module.md](anim-module.md) |
+| 桌面多开 | YooAsset 多实例缓存隔离，命令行 `--yoo-instance` 驱动 | [desktop-multi-instance.md](desktop-multi-instance.md) |
+| 调试器 | `Debugger` 组合快捷键切换 Debug UI | [debugger.md](debugger.md) |
+| 自定义异步操作 | 模块级 `AsyncOperationModule`，不依赖 YooAsset 的自定义异步操作体系，支持协程/UniTask/abort-on-cancel | [async-operation.md](async-operation.md) |
+| 第三方 UI 效果插件 | UIEffect（材质级 8 大类视觉效果）+ UISoftMask（RenderTexture 软遮罩），两者 shader 协作 | [third-party-plugins.md](third-party-plugins.md) |
 
 ## 最近重点
 
+- 新增模块级自定义异步操作 `AsyncOperationModule`：借鉴 YooAsset 3.0.6 `CustomAsyncOperation` 体系抽成 TEngine 框架自有模块，不依赖 YooAsset 运行时。`GameAsyncOperation` 基类提供状态机/`Completed` 事件/优先级/进度/子任务树/协程/awaiter/同步等待；`OperationScheduler` 双队列+时间切片预算；多调度器管理绑定业务域生命周期；abort-on-cancel 重载（`StartOperation(op, token)` 取消即中止操作，注明独占要求）；UniTask 完整支持（`ToUniTask`/`WithCancellation`/进度上报/池化零分配）；`AsyncOperationMonitor` 编辑器可视化监控组件（`#if UNITY_EDITOR` 打包剥离）；热更 `GameModule` 新增 `AsyncOperation` 访问器。
 - `CodePackage` 接入 YooAsset 3.0.5 `ArchiveFileBuildPipeline`：构建类型改为 `ArchiveBundle`，编辑器模拟使用 `VirtualArchiveBundle`；运行时文件系统注册归档内存解密器，DLL/PDB/AOT 元数据和 Obfuz 动态密钥按归档语义读取 `RawFileObject`；修复 ChaCha20 变换与密钥配置 Player 编译问题。上游 TEngine 支持 YooAsset 3.x 后继续收敛资源模块和二进制加载抽象。
 - 热更构建链路接入 Obfuz 多态 DLL：`CopyAOTHotUpdateDlls` 在混淆后按 `polymorphicDllSettings.enable` 调 `GeneratePolymorphicDll` 转多态格式再拷 `.bytes`，产物目录 `Obfuz/{target}/PolymorphicHotUpdateAssemblies/`；运行时加载零改动，补充元数据暂维持标准格式（`disableLoadStandardDll: 0` 混用合法）。
 - 迁移 DGame `AnimModule` 到 `TEngine/Runtime/Module/AnimModule/`（框架层）：基于 PlayableGraph 的代码驱动 3D 动画图，封装 Unity 底层 Playable API（`AnimationClipPlayable`/`AnimationMixerPlayable`/`AnimationLayerMixerPlayable`），支持多层级混合/权重过渡/动态增删动画片段/手动驱动；`MemoryObject` API 对齐（`Spawn→Alloc`/`Release→Dealloc`/`OnRelease→InitFromPool+RecycleToPool`），`Module.OnCreate/OnDestroy→OnInit/Shutdown`，`DGameException→Exception`，`DLogger→Log`，私有字段 `_小驼峰`；靠 `ModuleSystem` 反射约定自动注册；热更 `GameModule` 新增 `Anim` 访问器。
@@ -43,7 +48,7 @@
 - 新建 `UnityExtension.cs`（`TEngine/Runtime/Extension/Unity/`）：`AddCustomEventListener`/`RemoveCustomEventListener` 扩展方法糖衣，`UIBehaviour` 直接调用。
 - JSON 体系补 `FromJsonOverwrite`：`IJsonHelper` 接口 + `NewtonsoftJsonHelper`（`PopulateObject`）+ `DefaultJsonHelper`（`JsonUtility.FromJsonOverwrite` 兜底）+ `Utility.Json` 对外 API，四件套同步。
 - 迁移 DGame 自研 UI 组件扩展（`UIButton`/`UIImage`/`UIText`/`RichTextItem`）到 `GameLogic/Module/UIModule/Expansion/`；`ListPool<T>` + `Pool<T>` 抽到 `TEngine/Runtime/Core/ListPool/` 公共化（命名空间 `TEngine`、`public`）；`UIButtonClickSoundExtend` 去 Luban 依赖改用资源地址字符串；`RichTextItem` 删 `using DGame` 天然兼容 TEngine `SetSprite` 全局扩展；`UITextOutlineExtend` 描边材质依赖 YooAsset `UGUIPro_UIText`；Editor 脚本隔离到 `Assets/Editor/UIModuleExpansion/` 含配套 `UnityEditorUtil`。`SuperScrollView` 付费插件未迁移。
-- 迁移 DGame 的 `ClientSaveData` 存档系统与 `DataCenterSys` 数据中心到 `GameLogic/DataCenter/`，复用 `Singleton<T>`/`IUpdate`/`SingletonSystem` 自动驱动；特性驱动注册、双存储后端（PlayerPrefs/JsonFile）、版本升级、坏档备份、PlayerPrefs→JsonFile 懒迁移、异步线程池写入；`GameLogic.asmdef` 新增 Newtonsoft.Json 引用。
+- 迁移 DGame 的 `ClientSaveData` 存档系统与 `DataCenterSys` 数据中心到 `GameLogic/DataCenter/`，复用 `Singleton<T>`/`IUpdate`/`SingletonSystem` 自动驱动；特性驱动注册、双存储后端（PlayerPrefs/BinaryFile）、版本升级、坏档备份、PlayerPrefs→BinaryFile 懒迁移、异步线程池写入；序列化引擎从 Newtonsoft.Json 切换为 Nino 二进制（Source Generator 编译时代码生成）；新增 `Utility.Nino` 工具类（TEngine.Runtime）。
 - 整合 DGame `GameTimerModule` 改进到 `TimerModule`：链表存储 O(1) 删除、坏帧 `while` + 10 次上限防栈溢出、新增 `AddLoopCountTimer` 限定循环次数，旧 API 全保留。
 - 迁移 DGame 的 `GameTickWatcher` 到独立 `RuntimeTools` 程序集，命名空间与日志 API 适配 TEngine，补全文档注释。
 - 新增纯数据 DataBinding 运行时与 Editor 生成器，菜单和 Odin 面板已中文化。

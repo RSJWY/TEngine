@@ -1,9 +1,6 @@
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Text;
-#endif
 
 namespace TEngine
 {
@@ -11,7 +8,8 @@ namespace TEngine
     /// Windows 窗口控制底层封装（user32 / kernel32）。
     /// <para>位于 AOT 程序集 TEngine.Runtime，所有 P/Invoke 在 IL2CPP/AOT 下直接编译，
     /// 不进入 HybridCLR 解释域，避免热更程序集中调用原生互操作不稳定的问题。</para>
-    /// <para>仅 Windows Standalone 与 Editor 下走真实实现；其他平台所有方法返回安全默认值。</para>
+    /// <para>仅 Windows Standalone 打包后走真实实现；Editor 与其他平台所有方法返回安全默认值，
+    /// 避免 Editor 下误操作编辑器窗口。</para>
     /// <para>窗口枚举使用 <c>FindWindowEx</c> 循环 + 进程过滤，不使用任何 native→managed 回调委托。</para>
     /// </summary>
     public static class WindowsScreenNative
@@ -23,7 +21,7 @@ namespace TEngine
         {
             get
             {
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
                 return true;
 #else
                 return false;
@@ -31,7 +29,7 @@ namespace TEngine
             }
         }
 
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
 
         #region 常量
 
@@ -105,7 +103,76 @@ namespace TEngine
         [DllImport("kernel32.dll")]
         private static extern uint GetCurrentProcessId();
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint dwFlags);
+
+        /// <summary>MONITOR_DEFAULTTONEAREST：找不到时返回最近显示器。</summary>
+        private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+
         #endregion
+
+        /// <summary>
+        /// Win32 显示器信息结构（仅取工作区/显示器矩形部分）。
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwStyle;
+        }
+
+        /// <summary>
+        /// Win32 矩形结构。
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        /// <summary>
+        /// 查询窗口所在显示器的桌面像素矩形。
+        /// </summary>
+        /// <param name="hWnd">窗口句柄。</param>
+        /// <param name="x">显示器左上角 X（桌面坐标系）。</param>
+        /// <param name="y">显示器左上角 Y（桌面坐标系）。</param>
+        /// <param name="width">显示器宽度（像素）。</param>
+        /// <param name="height">显示器高度（像素）。</param>
+        /// <returns>是否查询成功。</returns>
+        public static bool TryGetMonitorRect(IntPtr hWnd, out int x, out int y, out int width, out int height)
+        {
+            x = y = width = height = 0;
+            if (hWnd == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            IntPtr hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+            if (hMonitor == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (!GetMonitorInfo(hMonitor, ref info))
+            {
+                return false;
+            }
+
+            x = info.rcMonitor.Left;
+            y = info.rcMonitor.Top;
+            width = info.rcMonitor.Right - info.rcMonitor.Left;
+            height = info.rcMonitor.Bottom - info.rcMonitor.Top;
+            return true;
+        }
 
         /// <summary>
         /// 取窗口样式（兼容 32/64 位）。
@@ -223,37 +290,44 @@ namespace TEngine
 
 #else
 
-        /// <summary>非 Windows 平台：返回空列表。</summary>
+        /// <summary>不支持平台：返回空列表。</summary>
         public static List<IntPtr> FindUnityWindows()
         {
             return new List<IntPtr>();
         }
 
-        /// <summary>非 Windows 平台：返回 Zero。</summary>
+        /// <summary>不支持平台：返回 Zero。</summary>
         public static IntPtr GetMainWindow()
         {
             return IntPtr.Zero;
         }
 
-        /// <summary>非 Windows 平台：空操作。</summary>
+        /// <summary>不支持平台：空操作。</summary>
         public static bool SetWindowLayout(IntPtr hWnd, int x, int y, int width, int height, bool topmost, bool borderless)
         {
             return false;
         }
 
-        /// <summary>非 Windows 平台：空操作。</summary>
+        /// <summary>不支持平台：查询失败。</summary>
+        public static bool TryGetMonitorRect(IntPtr hWnd, out int x, out int y, out int width, out int height)
+        {
+            x = y = width = height = 0;
+            return false;
+        }
+
+        /// <summary>不支持平台：空操作。</summary>
         public static bool SetTopmost(IntPtr hWnd, bool topmost)
         {
             return false;
         }
 
-        /// <summary>非 Windows 平台：空操作。</summary>
+        /// <summary>不支持平台：空操作。</summary>
         public static bool BringToFront(IntPtr hWnd)
         {
             return false;
         }
 
-        /// <summary>非 Windows 平台：空操作。</summary>
+        /// <summary>不支持平台：空操作。</summary>
         public static bool SetTitle(IntPtr hWnd, string title)
         {
             return false;

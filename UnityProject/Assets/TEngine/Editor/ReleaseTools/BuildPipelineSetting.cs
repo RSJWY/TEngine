@@ -37,11 +37,13 @@ namespace TEngine
 
         // 高级设置
         public bool EnableSharePackRule = true;
+        public bool EnableAssetPathValidation = true;
         public bool UseAssetDependencyDB = true;
         public bool ClearBuildCache;
         public bool VerifyBuildingResult = true;
         public EBundledCopyOption BuildinFileCopyOption = EBundledCopyOption.ClearAndCopyAll;
         public EFileNameStyle FileNameStyle = EFileNameStyle.BundleName_HashName;
+        public bool GenerateCatalogInOutput = false;
 
         // 热更DLL设置
         public bool BuildHotFixDll = true;
@@ -81,11 +83,13 @@ namespace TEngine
             MinimalPackage = config.MinimalPackage;
             RetainTags = config.RetainTags;
             EnableSharePackRule = config.EnableSharePackRule;
+            EnableAssetPathValidation = config.EnableAssetPathValidation;
             UseAssetDependencyDB = config.UseAssetDependencyDB;
             ClearBuildCache = config.ClearBuildCache;
             VerifyBuildingResult = config.VerifyBuildingResult;
             BuildinFileCopyOption = config.BuildinFileCopyOption;
             FileNameStyle = config.FileNameStyle;
+            GenerateCatalogInOutput = config.GenerateCatalogInOutput;
             BuildHotFixDll = config.BuildHotFixDll;
             BuildPlayer = config.BuildPlayer;
             PlayerPlatform = config.PlayerPlatform;

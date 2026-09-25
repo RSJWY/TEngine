@@ -14,7 +14,8 @@
 | 资源系统 | YooAsset 3.x 原生 API，不启用 `YOOASSET_LEGACY_API` |
 | 热更新包 | 热更程序集位于独立程序集包，默认配置名为 `CodePackage`，实际名称通过 `UpdateSetting.GetAssemblyPackageName()` 获取 |
 | 代码包构建 | 默认使用 `ArchiveFileBuildPipeline` 与 `EncryptionType.ChaCha20` |
-| 轻量配置 | 使用 `GameModule.Config` 加载 TOML/JSON；项目默认不使用 Luban |
+| 清单加密 | 按包开关 `ManifestEncrypted`（ChaCha20），密钥与 Bundle 用密钥相互独立；密钥以代码常量存储于 `KeyStore`（`TEngine.CryptoKeys` 程序集），不再随 Resources 打入运行时包 |
+| 轻量配置 | 使用 `GameModule.Config` 加载 TOML/JSON，支持 `persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`；项目默认不使用 Luban |
 | 模块访问 | 热更业务通过 `GameModule.XXX` 访问模块 |
 | 构建工具 | 使用 `Build/打包工具窗口`，运行时包配置与构建配置共用 `UpdateSetting.RuntimePackages` |
 
@@ -55,6 +56,17 @@ GameModule.Resource.UnloadAsset(raw);
 
 非 Archive 管线继续兼容 `TextAsset.bytes`。这项分流只属于热更新二进制加载链路，普通业务资源仍使用 `IResourceModule` 的类型化 API。
 
+### 资源清单加密与 BuiltinCatalog
+
+- 资源清单默认明文二进制，可在 `UpdateSetting.RuntimePackages` 按包勾选 `ManifestEncrypted` 启用 ChaCha20 加密（构建端与运行时自动注入加密器/解密器，密钥与 Bundle 用密钥独立）。Editor 模拟模式不生效。
+- 加密密钥以代码常量存储于 `KeyStore`（`TEngine.CryptoKeys` 程序集），不再以 `.asset` 形式放在 `Resources` 下；Editor 下通过 `Build/加密密钥配置` 面板管理密钥并烘焙到代码，配合 Obfuz `FieldEncrypt` 保护。
+- 打包窗口「高级」页「在构建输出目录生成 Catalog」开启后，构建完成时在 AB 输出目录额外生成 `BuiltinCatalog.bytes/json`，整目录复制即可用于 `OfflinePlayMode` 离线加载。
+- 修改任何加密密钥后必须烘焙到代码并重新构建资源，旧加密包与缓存不能混用。
+
+### 桌面多开缓存隔离
+
+桌面平台多进程同时运行时，通过命令行参数 `--yoo-instance <id>` 为每个进程隔离 YooAsset 缓存：`ResourceModule.InstanceId` 非空时，沙盒下载缓存与内置解包目录落到 `{DefaultCacheRoot}/instance-{id}/{PackageName}/`。不传参时目录结构与默认行为完全一致。仅在 `UNITY_STANDALONE || UNITY_EDITOR` 下生效，无跨进程文件锁，相同实例标识仍会冲突。
+
 ### HybridCLR 与 Obfuz
 
 - 构建前同步 `AOTMetadataManifest`，缺少补充元数据程序集时中断构建。
@@ -69,7 +81,7 @@ GameModule.Resource.UnloadAsset(raw);
 | --- | --- | --- |
 | `GameModule.Config` | TOML/JSON 轻量运行时配置 | 单项失败可跳过；消费方优先使用 `TryGet` |
 | `GameModule.GameScene` | 业务场景切换与展示进度 | UI 只展示 `DisplayProgress`，不控制状态机 |
-| `GameModule.Screen` | Windows 多显示器窗口布局 | 仅 Windows Standalone 生效 |
+| `GameModule.Screen` | Windows 多显示器窗口布局 | 仅 Windows Standalone 打包后生效，Editor 下 no-op；配置 `Enabled=false` 可整体禁用 |
 | `GameModule.GameObjectPool` | 基于 YooAsset location 的 GameObject 实例池 | 与逻辑对象 `ObjectPoolModule` 不同 |
 | `GameModule.Anim` | 基于 PlayableGraph 的代码驱动 3D 动画 | 创建后必须显式销毁 `IAnimPlayable` |
 
@@ -78,10 +90,10 @@ GameModule.Resource.UnloadAsset(raw);
 ## 业务数据与 UI
 
 - `DataBinding`：纯数据变化通知和代码生成，不依赖 `UIWindow` 或 `GameEvent`。
-- `ClientSaveDataMgr`：支持 PlayerPrefs/JsonFile、版本升级、坏档备份和异步保存。
+- `ClientSaveDataMgr`：支持 PlayerPrefs/BinaryFile（Nino 二进制）、版本升级、坏档备份和异步保存。旧版 JSON 存档首次加载自动迁移到 Nino 二进制。
 - `DataCenterSys`：管理当前玩家会话数据，不应由持久化存档对象替代。
-- `FrameAnimModule`：支持 `SpriteRenderer`、UGUI `Image` 和 `RawImage` 三种序列帧代理。
 - UGUI 扩展：`UIButton`、`UIImage`、`UIText`、`RichTextItem` 及常用布局、拖拽和效果组件。
+- 第三方 UI 效果插件：已集成 `com.coffee.ui-effect`（材质级 8 大类视觉效果）和 `com.coffee.softmask-for-ugui`（RenderTexture 软遮罩），详见 [第三方UI效果插件](../UI系统/第三方UI效果插件.md) 和 [Books/Fork/third-party-plugins.md](../../../../../Books/Fork/third-party-plugins.md)。
 - `Utility.Unity`：补充组件、子节点、Layer、EventTrigger、射线、材质和分辨率等工具。
 - `Utility.Json.FromJsonOverwrite`：支持覆盖已有对象。
 - `GameEvent.RemoveAllListeners`：支持按事件 ID 批量清理监听。
@@ -90,6 +102,7 @@ GameModule.Resource.UnloadAsset(raw);
 
 - `UnityLoggerBridge` 将 Unity、Task、UniTask 和未观察异常统一写入持久化日志目录。
 - TouchSocket 可通过 `AddUnityDebugLogger()` 接入 Unity Console。
+- `EarlyLogBuffer` + `Log.EarlyInfo`/`EarlyWarning`/`EarlyError`：`UnityLoggerBridge` 在 `BeforeSplashScreen` 才就绪，此前（如 `AfterAssembliesLoaded` 阶段的 Obfuz 静态密钥初始化）的日志只进 Console/Player.log、不进文件日志。Early 系列在调用时先入内存缓冲再走常规 Console 路径，`UnityLoggerBridge.Init` 末尾把缓冲补写到文件日志（带 `[Early]` 前缀）并关闭缓冲区（后续 `Enqueue` 变 no-op，避免重复落盘）。详见 [日志系统](../../../../../Books/Fork/logging.md)。
 - `GameTickWatcher` 位于独立 `RuntimeTools` 程序集，用于轻量逻辑耗时统计。
 - GameObjectPool 调试窗口菜单为 `TEngine Tools/Debugger/GameObject Pool`。
 
@@ -109,12 +122,18 @@ Releases/
 ├── Bundles/
 ├── Windows/{setup.iss, setup.generated.iss, build/, setup/}
 ├── Linux/build/
+├── Android/build/
+├── IOS/build/
+├── MacOS/build/
+├── WebGL/build/
 └── Publish/{平台}/{包名}/
 ```
 
-Android、iOS、MacOS 和 WebGL Player 仍使用 `Output/Player/{平台}/`。AssetBundle 或 Player 构建失败时，安装包阶段必须停止，不能复用旧产物。
+所有平台 Player 产物统一归到 `Releases/{平台}/build/`。Player 输出路径使用项目根相对路径（`./` 前缀），由构建链路在使用处转为绝对路径；旧的 `Output/Player/` 路径会自动迁移。AssetBundle 或 Player 构建失败时，安装包阶段必须停止，不能复用旧产物。
 
 场景枚举使用 `TEngine/场景枚举配置` 维护，通过 GUID 跟踪场景并生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
+
+场景内动态装饰物使用 DynamicSpawn 占位点加载：占位点序列化 `prefabRef` 弱引用（包裹名 + GUID），运行时 GUID 优先寻址，`location` 字符串保留为回落与代码动态寻址通道；`DefaultPackage` 收集器需开启 `Include Asset GUID`。
 
 ## 详细改动文档
 
@@ -132,3 +151,5 @@ Android、iOS、MacOS 和 WebGL Player 仍使用 `Output/Player/{平台}/`。Ass
 | UI 扩展 | [ui-expansion.md](../../../../../Books/Fork/ui-expansion.md) |
 | GameObject 对象池 | [game-object-pool.md](../../../../../Books/Fork/game-object-pool.md) |
 | 动画模块 | [anim-module.md](../../../../../Books/Fork/anim-module.md) |
+| 桌面多开 | [desktop-multi-instance.md](../../../../../Books/Fork/desktop-multi-instance.md) |
+| 第三方 UI 效果插件 | [third-party-plugins.md](../../../../../Books/Fork/third-party-plugins.md) |

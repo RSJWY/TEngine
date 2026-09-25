@@ -1,24 +1,16 @@
 using System;
-using System.Security.Cryptography;
 
 namespace TEngine
 {
     /// <summary>
-    /// 加密算法公共工具：随机密钥生成与校验。
+    /// 加密算法公共工具：密钥校验。
+    /// <remarks>
+    /// 随机密钥生成已移至 Editor 程序集（<see cref="CryptoKeyConfig{T}"/>），
+    /// 运行时只需要校验密钥有效性。
+    /// </remarks>
     /// </summary>
     internal static class CryptoUtils
     {
-        /// <summary>
-        /// 使用密码学安全随机数生成指定长度的字节数组。
-        /// </summary>
-        public static byte[] GenerateRandomBytes(int length)
-        {
-            var bytes = new byte[length];
-            using var rng = RandomNumberGenerator.Create();
-            rng.GetBytes(bytes);
-            return bytes;
-        }
-
         /// <summary>
         /// 判断字节数组为 null 或全零。
         /// </summary>
@@ -40,16 +32,11 @@ namespace TEngine
         public static void ValidateKey(byte[] key, int expectedLength, string name)
         {
             if (key == null)
-                throw new InvalidOperationException($"[{name}] key is null. Missing CryptoKeyConfig asset in Resources/{ResourceConfigFolder}?");
+                throw new InvalidOperationException($"[{name}] key is null. KeyStore not baked?");
             if (key.Length != expectedLength)
                 throw new InvalidOperationException($"[{name}] key length must be {expectedLength} bytes, got {key.Length}.");
             if (IsEmpty(key))
                 throw new InvalidOperationException($"[{name}] key is all zeros.");
         }
-
-        /// <summary>
-        /// 密钥配置资产所在的 Resources 子目录。
-        /// </summary>
-        public const string ResourceConfigFolder = "EncryptConfigs";
     }
 }

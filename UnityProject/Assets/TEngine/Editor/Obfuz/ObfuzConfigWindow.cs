@@ -6,6 +6,7 @@ using Sirenix.OdinInspector;
 using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine;
 #if OBFUZ_INSTALLED
 using ObfuzGarbageCodeType = Obfuz.Settings.GarbageCodeType;
@@ -25,7 +26,7 @@ namespace TEngine
     /// </summary>
     public class ObfuzConfigWindow : OdinEditorWindow
     {
-        private const string MenuPath = "TEngine/Build/混淆配置窗口";
+        private const string MenuPath = "Build/混淆配置窗口";
         private const double SaveDelaySeconds = 0.6;
 
         private static Color OkColor => new Color(0.45f, 0.85f, 0.45f);
@@ -47,6 +48,7 @@ namespace TEngine
 
         protected override void OnImGUI()
         {
+            bool refreshed = false;
             GUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 GUILayout.Label("配置存储于 ProjectSettings/Obfuz.asset，修改后自动保存", EditorStyles.miniLabel);
@@ -55,6 +57,11 @@ namespace TEngine
                 {
                     FlushSave();
                 }
+                if (GUILayout.Button(new GUIContent("刷新配置", EditorGUIUtility.IconContent("Refresh").image,
+                        "从 ProjectSettings/Obfuz.asset 重新读取配置"), EditorStyles.toolbarButton, GUILayout.Width(90)))
+                {
+                    refreshed = RefreshSettings();
+                }
                 if (GUILayout.Button("官方设置页", EditorStyles.toolbarButton, GUILayout.Width(80)))
                 {
                     FlushSave();
@@ -62,6 +69,10 @@ namespace TEngine
                 }
             }
             GUILayout.EndHorizontal();
+            if (refreshed)
+            {
+                GUIUtility.ExitGUI();
+            }
 
             SirenixEditorGUI.DrawThickHorizontalSeparator();
             base.OnImGUI();
@@ -99,8 +110,10 @@ namespace TEngine
         [PropertyOrder(2)]
         private void ToggleObfuz()
         {
-            BuildDLLCommand.SetObfuzSafe(!BuildDLLCommand.IsObfuzActiveSafe);
-            QueueSave();
+            if (BuildDLLCommand.SetObfuzSafeConfirm(!BuildDLLCommand.IsObfuzActiveSafe))
+            {
+                QueueSave();
+            }
         }
 
         private string ObfuzToggleLabel => BuildDLLCommand.IsObfuzActive ? "关闭混淆" : "开启混淆";
@@ -300,6 +313,7 @@ namespace TEngine
                 list.Add(name, name);
             }
 #endif
+            list.Add("TEngine.CryptoKeys", "TEngine.CryptoKeys");
             return list;
         }
 
@@ -1384,7 +1398,7 @@ namespace TEngine
 
         [TabGroup("Pages", "高级")]
         [BoxGroup("Pages/高级/多态 DLL")]
-        [InfoBox("依赖 HybridCLR 8.4.0+ 自定义 DLL 结构；密钥与主包结构强绑定，主包发布后不可变更。开启后执行“HybridCLR/ObfuzExtension/GenerateAll”以实现注入修改支持多态加载", InfoMessageType.None)]
+        [InfoBox("依赖 HybridCLR 8.4.0+ 自定义 DLL 结构；密钥与主包结构强绑定，主包发布后不可变更。", InfoMessageType.None)]
         [LabelText("启用多态 DLL"), ToggleLeft]
         [OnValueChanged(nameof(MarkDirty))]
         [ShowInInspector]
@@ -1396,6 +1410,44 @@ namespace TEngine
                 S.polymorphicDllSettings.enable = value;
                 MarkDirty();
             }
+        }
+
+        [TabGroup("Pages", "高级")]
+        [BoxGroup("Pages/高级/多态 DLL")]
+        [ShowInInspector, ReadOnly, HideLabel, DisplayAsString]
+        [InfoBox(
+            "多态加载支持未注入！请在「TEngine 打包工具 → 热更DLL」执行 GenerateAll，再构建 Player，否则运行时 Assembly.Load 会 BadImageFormatException。",
+            InfoMessageType.Error,
+            VisibleIf = nameof(ShouldWarnPolymorphicNotInjected))]
+        [InfoBox(
+            "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。点击「清理多态注入并重新生成」，之后需重新打 Player。",
+            InfoMessageType.Warning,
+            VisibleIf = nameof(ShouldWarnPolymorphicInjectedButDisabled))]
+        private string PolymorphicInjectionHint => string.Empty;
+
+        [TabGroup("Pages", "高级")]
+        [BoxGroup("Pages/高级/多态 DLL")]
+        [GUIColor(0.95f, 0.7f, 0.25f)]
+        [Button("清理多态注入并重新生成", ButtonSizes.Medium)]
+        [EnableIf(nameof(ShouldWarnPolymorphicInjectedButDisabled))]
+        private void CleanupPolymorphicAndGenerateAll()
+        {
+            FlushSave();
+            BuildDLLCommand.GenerateAllForTarget(EditorUserBuildSettings.activeBuildTarget, cleanupPolymorphicInjection: true);
+        }
+
+        private bool ShouldWarnPolymorphicNotInjected()
+        {
+            if (!BuildDLLCommand.IsObfuzActive || !S.polymorphicDllSettings.enable)
+                return false;
+            return !BuildDLLCommand.IsPolymorphicInjected;
+        }
+
+        private bool ShouldWarnPolymorphicInjectedButDisabled()
+        {
+            if (BuildDLLCommand.IsObfuzActive && S.polymorphicDllSettings.enable)
+                return false;
+            return BuildDLLCommand.IsPolymorphicInjected;
         }
 
         [TabGroup("Pages", "高级")]
@@ -1471,6 +1523,54 @@ namespace TEngine
 
         private bool _saveQueued;
         private double _nextSaveTime;
+
+        private bool RefreshSettings()
+        {
+            const string settingsPath = "ProjectSettings/Obfuz.asset";
+            if (!File.Exists(settingsPath))
+            {
+                EditorUtility.DisplayDialog("刷新混淆配置", $"配置文件不存在：{settingsPath}", "知道了");
+                return false;
+            }
+
+            if (_saveQueued && !EditorUtility.DisplayDialog("刷新混淆配置",
+                    "当前窗口有未保存的修改。刷新将丢弃这些修改并读取磁盘上的配置。", "丢弃并刷新", "取消"))
+            {
+                return false;
+            }
+
+            EditorApplication.update -= FlushSaveWhenReady;
+            _saveQueued = false;
+
+            ObfuzSettingsAsset loaded = null;
+            try
+            {
+                loaded = InternalEditorUtility.LoadSerializedFileAndForget(settingsPath)
+                    .OfType<ObfuzSettingsAsset>().FirstOrDefault();
+                if (!loaded)
+                {
+                    EditorUtility.DisplayDialog("刷新混淆配置", "配置文件无效，未刷新当前设置。", "知道了");
+                    return false;
+                }
+
+                EditorUtility.CopySerialized(loaded, S);
+                Repaint();
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                EditorUtility.DisplayDialog("刷新混淆配置", "读取配置失败，请查看 Console。", "知道了");
+                return false;
+            }
+            finally
+            {
+                if (loaded)
+                {
+                    DestroyImmediate(loaded);
+                }
+            }
+        }
 
         private void MarkDirty()
         {

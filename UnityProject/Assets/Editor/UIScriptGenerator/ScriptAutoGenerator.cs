@@ -697,6 +697,11 @@ namespace TEngine.Editor.UI
                 UIComponentName.TextMeshProUGUI => typeof(TextMeshProUGUI),
 #endif
                 UIComponentName.UIPointerBridge=> typeof(UIPointerBridge),
+                UIComponentName.UIButton => typeof(GameLogic.UIButton),
+                UIComponentName.UIText => typeof(GameLogic.UIText),
+                UIComponentName.UITMPText => typeof(GameLogic.UITMPText),
+                UIComponentName.UIImage => typeof(GameLogic.UIImage),
+                UIComponentName.UIRawImage => typeof(GameLogic.UIRawImage),
                 _ => null,
             };
         }

@@ -1,7 +1,7 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root Version="v2025.8.28">
   <Common ShowPackageView="True" ShowEditorAlias="True" UniqueBundleName="True" />
-  <Package PackageName="DefaultPackage" PackageDesc="" AutoAddressable="True" SupportExtensionless="True" LocationToLower="False" IncludeAssetGUID="False" IgnoreRuleName="NormalIgnoreRule">
+  <Package PackageName="DefaultPackage" PackageDesc="" AutoAddressable="True" SupportExtensionless="True" LocationToLower="False" IncludeAssetGUID="True" IgnoreRuleName="NormalIgnoreRule">
     <Group GroupActiveRule="EnableGroup" GroupName="Actor" GroupDesc="" AssetTags="">
       <Collector CollectPath="Assets/AssetRaw/Actor" CollectGUID="9c67ce0c9edfd4e4aa1006ee39846d66" CollectType="MainAssetCollector" AddressRule="AddressByFileName" PackRule="PackDirectory" FilterRule="CollectAll" UserData="" AssetTags="" />
     </Group>

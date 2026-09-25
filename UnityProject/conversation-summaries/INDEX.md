@@ -4,6 +4,16 @@
 > 新增会话总结时，按日期倒序在本文件顶部追加条目；禁止另建按日期拆分的索引文件。
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
+## 2026-09-23
+- [UI 脚本生成器集成自研 UI 组件扩展](./2026-09-23-ui-script-generator-fork-components-summary.md)
+  - 关键词：UIScriptGenerator、UIComponentName、ScriptGenerateRuler、ScriptGeneratorSetting.asset、GetComponentTypeFromEnumName、UIButton、UIText、UITMPText、UIImage、UIRawImage、m_uiBtn、前缀并存
+  - 结论：枚举/typeof/默认规则表/序列化 asset 四处同步追加 5 项，m_ui* 前缀与原生 m_btn 等并存，GenerateUIComponentScript 可自动绑定 fork 自研组件。
+
+## 2026-09-10
+- [DynamicSpawn 接入资源弱引用（GUID 寻址）](./2026-09-10-dynamic-spawn-asset-reference-summary.md)
+  - 关键词：AssetReference、prefabRef、GUID 寻址、GetAssetInfoByGuid、IncludeAssetGUID、location 回落、迁移链、测试启动回退、CompleteSpawn NRE
+  - 结论：占位点改用 GUID 弱引用主通道、location 保留回落；收集器开启 IncludeAssetGUID；修复测试启动回归与完成事件 NRE，编辑器实测通过。
+
 ## 2026-08-29
 - [YooAsset 2.x/3.x 差异与运行模式修复](./2026-08-29-yooasset-2-vs-3-and-playmode-fix-summary.md)
   - 关键词：EPlayMode、None=0、EditorPrefs、OfflinePlayMode、EditorSimulateMode、YOOASSET_LEGACY_API、Options API

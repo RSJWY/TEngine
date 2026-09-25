@@ -23,11 +23,15 @@
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 | [obfuscation.md](Fork/obfuscation.md) |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](Fork/runtime-tools.md) |
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 | [timer-module.md](Fork/timer-module.md) |
-| 存档与数据中心 | `ClientSaveDataMgr` 存档框架、`DataCenterSys` 玩家数据中枢 | [save-data.md](Fork/save-data.md) |
+| 存档与数据中心 | `ClientSaveDataMgr` 存档框架（Nino 二进制序列化）、`DataCenterSys` 玩家数据中枢 | [save-data.md](Fork/save-data.md) |
 | UI 组件扩展 | `UIButton`/`UIImage`/`UIText`/`RichTextItem` + `ListPool` 公共化 | [ui-expansion.md](Fork/ui-expansion.md) |
 | 帧动画模块 | 序列帧动画（场景版+UI版+RawImage版），手写替代 SourceGenerator | [frame-anim.md](Fork/frame-anim.md) |
 | GameObject 对象池 | 基于 YooAsset location 的异步实例化池，预热/回收/自动销毁 | [game-object-pool.md](Fork/game-object-pool.md) |
 | 动画模块 | 基于 PlayableGraph 的代码驱动 3D 动画图，多层级混合/权重过渡 | [anim-module.md](Fork/anim-module.md) |
+| 桌面多开 | YooAsset 多实例缓存隔离，命令行 `--yoo-instance` 驱动 | [desktop-multi-instance.md](Fork/desktop-multi-instance.md) |
+| 调试器 | `Debugger` 组合快捷键切换 Debug UI | [debugger.md](Fork/debugger.md) |
+| 自定义异步操作 | 模块级 `AsyncOperationModule`，不依赖 YooAsset 的自定义异步操作体系，支持协程/UniTask/abort-on-cancel | [async-operation.md](Fork/async-operation.md) |
+| 第三方 UI 效果插件 | UIEffect（材质级 8 大类视觉效果）+ UISoftMask（RenderTexture 软遮罩），两者 shader 协作 | [third-party-plugins.md](Fork/third-party-plugins.md) |
 
 ## 维护规则
 

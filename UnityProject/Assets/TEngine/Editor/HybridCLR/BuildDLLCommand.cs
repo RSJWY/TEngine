@@ -108,7 +108,7 @@ public static class BuildDLLCommand
     public static bool IsObfuzActive =>
         ScriptingDefineSymbols.HasScriptingDefineSymbol(EditorUserBuildSettings.selectedBuildTargetGroup, EnableObfuzScriptingDefineSymbol);
 
-    /// <summary>切换 Obfuz 混淆（全平台 define + ObfuzSettings.enable 同步）。</summary>
+    /// <summary>切换 Obfuz 混淆（全平台 define + ObfuzSettings.enable 同步并落盘）。</summary>
     public static void SetObfuz(bool enable)
     {
         if (enable)
@@ -124,6 +124,7 @@ public static class BuildDLLCommand
             ObfuzSettings.Instance.buildPipelineSettings.enable = false;
             Debug.Log("[BuildMode] 已关闭 Obfuz 混淆");
         }
+        ObfuzSettings.Save();
     }
 #endif
 
@@ -156,6 +157,114 @@ public static class BuildDLLCommand
 
     #endregion
 
+    #region 互斥切换（带用户确认）
+
+    // 互斥规则：
+    //   - Obfuz ⊥ pdb：开 Obfuz 必须先关 pdb；开 pdb 必须先关 Obfuz。
+    //   - release ⊥ pdb：切 release 必须先关 pdb。
+    // UI 层（工具栏菜单/构建模式窗口）调用以下带 Confirm 后缀的方法，
+    // 存在冲突时弹出确认框，由用户选择"继续并自动关闭冲突项"或"取消"。
+    // 脚本/批处理仍可调用底层 SetXxx 强制设置，不触发确认。
+
+    /// <summary>带确认的 dev/release 切换：切到 release 且 pdb 开启时，弹框询问是否自动关闭 pdb。</summary>
+    /// <returns>是否实际执行了切换。</returns>
+    public static bool SetReleaseModeConfirm(bool release)
+    {
+        if (release == IsReleaseModeActive)
+        {
+            return false;
+        }
+
+        if (release && IsPdbEnabled)
+        {
+            bool ok = EditorUtility.DisplayDialog(
+                "切换到 release 模式",
+                "release 模式与 pdb 符号互斥（release 不生成/不加载 pdb）。\n\n" +
+                "当前 pdb 处于开启状态，切换到 release 需要先关闭 pdb。\n\n" +
+                "是否继续并自动关闭 pdb？",
+                "继续（自动关闭 pdb）",
+                "取消");
+            if (!ok)
+            {
+                return false;
+            }
+            SetPdbEnabled(false);
+        }
+
+        SetReleaseMode(release);
+        return true;
+    }
+
+    /// <summary>带确认的 Obfuz 切换：开 Obfuz 且 pdb 开启时，弹框询问是否自动关闭 pdb。</summary>
+    /// <returns>是否实际执行了切换。</returns>
+    public static bool SetObfuzSafeConfirm(bool enable)
+    {
+        if (!IsObfuzInstalled || enable == IsObfuzActiveSafe)
+        {
+            return false;
+        }
+
+        if (enable && IsPdbEnabled)
+        {
+            bool ok = EditorUtility.DisplayDialog(
+                "开启 Obfuz 混淆",
+                "Obfuz 混淆与 pdb 符号互斥（混淆后 pdb 无法对应原始符号）。\n\n" +
+                "当前 pdb 处于开启状态，开启 Obfuz 需要先关闭 pdb。\n\n" +
+                "是否继续并自动关闭 pdb？",
+                "继续（自动关闭 pdb）",
+                "取消");
+            if (!ok)
+            {
+                return false;
+            }
+            SetPdbEnabled(false);
+        }
+
+        SetObfuzSafe(enable);
+        return true;
+    }
+
+    /// <summary>带确认的 pdb 切换：开 pdb 且 Obfuz 开启时，弹框询问是否自动关闭 Obfuz；release 模式下拒绝开启 pdb。</summary>
+    /// <returns>是否实际执行了切换。</returns>
+    public static bool SetPdbEnabledConfirm(bool enable)
+    {
+        if (enable == IsPdbEnabled)
+        {
+            return false;
+        }
+
+        if (enable && IsReleaseModeActive)
+        {
+            EditorUtility.DisplayDialog(
+                "开启 pdb 符号",
+                "release 模式与 pdb 符号互斥（release 不生成/不加载 pdb）。\n\n" +
+                "请先切回 dev 模式，再开启 pdb。",
+                "确定");
+            return false;
+        }
+
+        if (enable && IsObfuzActiveSafe)
+        {
+            bool ok = EditorUtility.DisplayDialog(
+                "开启 pdb 符号",
+                "pdb 符号与 Obfuz 混淆互斥（混淆后 pdb 无法对应原始符号）。\n\n" +
+                "当前 Obfuz 处于开启状态，开启 pdb 需要先关闭 Obfuz。\n\n" +
+                "是否继续并自动关闭 Obfuz？",
+                "继续（自动关闭 Obfuz）",
+                "取消");
+            if (!ok)
+            {
+                return false;
+            }
+            SetObfuzSafe(false);
+        }
+
+        SetPdbEnabled(enable);
+        return true;
+    }
+
+    #endregion
+
 #if OBFUZ_INSTALLED
     #region Obfuz/Define Symbols
     /// <summary>
@@ -169,6 +278,86 @@ public static class BuildDLLCommand
     /// </summary>
     [MenuItem("Obfuz/Define Symbols/Enable Obfuz", false, 31)]
     public static void EnableObfuz() => SetObfuz(true);
+    #endregion
+
+    #region Obfuz/多态注入清理
+    /// <summary>libil2cpp 中多态注入标记文件（存在即视为已注入）。</summary>
+    public static string PolymorphicInjectionMarkerFile =>
+        $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
+
+    /// <summary>libil2cpp 当前是否已注入多态加载支持。</summary>
+    public static bool IsPolymorphicInjected =>
+        File.Exists(PolymorphicInjectionMarkerFile);
+
+    /// <summary>
+    /// 清理 libil2cpp 中的多态注入产物：删除 Polymorphic 系列文件并将 Image.cpp 注入区还原为标准加载逻辑。
+    /// HybridCLR/Generate/All 本身不会移除这些文件，必须显式清理。
+    /// </summary>
+    public static void CleanupPolymorphicInjection()
+    {
+        string metadataDir = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata";
+        string[] polymorphicFiles =
+        {
+            $"{metadataDir}/PolymorphicRawImage.cpp",
+            $"{metadataDir}/PolymorphicRawImage.h",
+            $"{metadataDir}/PolymorphicDatas.h",
+            $"{metadataDir}/PolymorphicDefs.h",
+        };
+        bool removed = false;
+        foreach (string file in polymorphicFiles)
+        {
+            if (File.Exists(file))
+            {
+                File.Delete(file);
+                removed = true;
+            }
+        }
+
+        string imageCpp = $"{metadataDir}/Image.cpp";
+        if (File.Exists(imageCpp))
+        {
+            string content = File.ReadAllText(imageCpp);
+            string cleaned = RestoreRegion(content, "INCLUDE_RAW_IMAGE_HEADERS", "\t\t");
+            cleaned = RestoreRegion(cleaned, "INIT_RAW_IMAGE",
+                "\t\t\t_rawImage = new RawImage();\n\t\t\treturn LoadImageErrorCode::OK;");
+            if (cleaned != content)
+            {
+                File.WriteAllText(imageCpp, cleaned);
+                removed = true;
+            }
+        }
+
+        if (removed)
+        {
+            Debug.Log("[Obfuz] 已清理 libil2cpp 多态注入产物，重新打 Player 前需按当前混淆状态执行 GenerateAll。");
+        }
+    }
+
+    /// <summary>将 FileRegionReplace 风格的注入区还原为指定默认内容，region 标记行保留。</summary>
+    private static string RestoreRegion(string content, string region, string defaultBody)
+    {
+        string startMark = $"//!!!{{{{{region}";
+        string endMark = $"//!!!}}}}{region}";
+        int startIndex = content.IndexOf(startMark, StringComparison.Ordinal);
+        int endIndex = content.IndexOf(endMark, StringComparison.Ordinal);
+        if (startIndex == -1 || endIndex == -1 || endIndex <= startIndex)
+        {
+            return content;
+        }
+        int bodyStart = content.IndexOf('\n', startIndex);
+        int bodyEnd = content.LastIndexOf('\n', endIndex);
+        if (bodyStart == -1 || bodyEnd == -1 || bodyEnd < bodyStart)
+        {
+            return content;
+        }
+        string current = content.Substring(bodyStart, bodyEnd - bodyStart);
+        string replacement = "\n" + defaultBody + "\n";
+        if (current == replacement)
+        {
+            return content;
+        }
+        return content.Substring(0, bodyStart) + replacement + content.Substring(bodyEnd);
+    }
     #endregion
 #endif
 
@@ -245,23 +434,73 @@ public static class BuildDLLCommand
     [MenuItem("HybridCLR/Build/BuildAssets And CopyTo AssemblyTextAssetPath")]
     public static void BuildAndCopyDlls()
     {
+        BuildAndCopyDlls(EditorUserBuildSettings.activeBuildTarget);
+    }
+
+    public static void BuildAndCopyDlls(BuildTarget target)
+    {
 #if ENABLE_HYBRIDCLR
+        ActivateBuildTarget(target);
+
         SyncAOTMetadataManifest();
-        BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
         bool developmentBuild = Settings.UpdateSetting.WillGeneratePdb;
         CompileDllCommand.CompileDll(target, developmentBuild);
         CopyAOTHotUpdateDlls(target);
 #endif
     }
 
-    public static void BuildAndCopyDlls(BuildTarget target)
+    public static void GenerateAllForTarget(BuildTarget target, bool cleanupPolymorphicInjection = false)
     {
 #if ENABLE_HYBRIDCLR
-        SyncAOTMetadataManifest();
-        bool developmentBuild = Settings.UpdateSetting.WillGeneratePdb;
-        CompileDllCommand.CompileDll(target, developmentBuild);
-        CopyAOTHotUpdateDlls(target);
+        if (EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            throw new InvalidOperationException($"快速构建目标平台 {target} 与编辑器当前平台 {EditorUserBuildSettings.activeBuildTarget} 不一致，请先手动对齐平台再执行 GenerateAll。");
+        }
+
+#if OBFUZ_INSTALLED
+        bool obfuzEnabled = IsObfuzActive;
+        if (ObfuzSettings.Instance.buildPipelineSettings.enable != obfuzEnabled)
+        {
+            throw new InvalidOperationException("ENABLE_OBFUZ 与 Obfuz Player 构建混淆开关不一致，请先统一设置再执行 GenerateAll。");
+        }
+        if (cleanupPolymorphicInjection)
+        {
+            if (obfuzEnabled && ObfuzSettings.Instance.polymorphicDllSettings.enable)
+            {
+                throw new InvalidOperationException("多态 DLL 仍已启用，请先关闭多态再清理注入代码。");
+            }
+            CleanupPolymorphicInjection();
+        }
+        if (obfuzEnabled)
+        {
+            PrebuildCommandExt.GenerateAll();
+            return;
+        }
+#else
+        if (cleanupPolymorphicInjection)
+        {
+            throw new InvalidOperationException("未安装 Obfuz，无法清理多态注入代码。");
+        }
 #endif
+        PrebuildCommand.GenerateAll();
+#else
+        throw new InvalidOperationException("需要启用 ENABLE_HYBRIDCLR 后才能执行 GenerateAll。");
+#endif
+    }
+
+    public static void ActivateBuildTarget(BuildTarget target)
+    {
+        if (EditorUserBuildSettings.activeBuildTarget == target)
+        {
+            return;
+        }
+
+        var group = BuildPipeline.GetBuildTargetGroup(target);
+        if (!EditorUserBuildSettings.SwitchActiveBuildTarget(group, target) ||
+            EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            throw new InvalidOperationException($"无法切换 Unity 目标平台到 {target}，热更 DLL 构建已取消。");
+        }
     }
 
     public static void CopyAOTHotUpdateDlls(BuildTarget target)

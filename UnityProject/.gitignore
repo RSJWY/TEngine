@@ -114,7 +114,7 @@ yoo/
 [Aa]ssets/AssetRaw/DLL/**/*.pdb.bytes
 [Aa]ssets/AssetRaw/DLL/**/*.pdb.bytes.meta
 
-#打包统一输出目录(其它平台 Player 仍用 Output/Player/)
+#打包统一输出目录(历史残留 Player 产物，新版已统一到 Releases/{平台}/build/)
 /Output/
 
 #Releases 构建产物（保留 setup.iss 等脚本，忽略产物）
@@ -124,5 +124,11 @@ yoo/
 /Releases/Publish/
 /Releases/Windows/setup.generated.iss
 
-#本地 Claude 权限配置
-.claude/settings.local.json
+#本地 Codex/CLI 权限配置
+.codex/settings.local.json
+
+# Local workflow evidence, approvals, and Python caches
+/.codex/runs/
+/.codex/.venv/
+/.codex/**/__pycache__/
+/.codex/**/*.pyc

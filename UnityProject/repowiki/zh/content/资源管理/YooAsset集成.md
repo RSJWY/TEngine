@@ -1,6 +1,6 @@
 # YooAsset集成
 
-> **当前 Fork 基线**：项目使用 YooAsset 3.x 原生 API，不启用 `YOOASSET_LEGACY_API`。资源包初始化使用各运行模式的 `*PlayModeOptions` 与 `FileSystemParameters`；`EPlayMode` 包含 `None = 0`。`CodePackage` 默认使用 `ArchiveFileBuildPipeline + ChaCha20`，归档内 DLL/PDB/AOT 元数据和 Obfuz 动态密钥通过 `RawFileObject.GetBytes()` 读取。总览见 [当前 Fork 定制功能](../项目概述/当前Fork定制功能.md)，迁移细节见 [yooasset-3-migration.md](../../../../../Books/Fork/yooasset-3-migration.md)。
+> **当前 Fork 基线**：项目使用 YooAsset 3.x 原生 API，不启用 `YOOASSET_LEGACY_API`。资源包初始化使用各运行模式的 `*PlayModeOptions` 与 `FileSystemParameters`；`EPlayMode` 包含 `None = 0`。`CodePackage` 默认使用 `ArchiveFileBuildPipeline + ChaCha20`，归档内 DLL/PDB/AOT 元数据和 Obfuz 动态密钥通过 `RawFileObject.GetBytes()` 读取。资源清单支持按包 ChaCha20 加密（`RuntimePackageEntry.ManifestEncrypted`，密钥与 Bundle 用密钥 `BundleChaCha20KeyConfig` 相互独立）；打包窗口可在 AB 输出目录额外生成 `BuiltinCatalog` 供 `OfflinePlayMode` 使用。总览见 [当前 Fork 定制功能](../项目概述/当前Fork定制功能.md)，迁移细节见 [yooasset-3-migration.md](../../../../../Books/Fork/yooasset-3-migration.md)。
 
 <cite>
 **本文档引用的文件**

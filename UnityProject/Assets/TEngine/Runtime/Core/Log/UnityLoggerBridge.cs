@@ -67,6 +67,9 @@ namespace TEngine
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
         public static void Init()
         {
+            // 标记日志桥接开始初始化。此时 FileLogger 尚未就绪，走 Early 缓冲，待下方 Flush 时补写。
+            Log.EarlyInfo("[Log] UnityLoggerBridge initializing (BeforeSplashScreen).");
+
             lock (s_Lock)
             {
                 if (s_Initialized)
@@ -93,6 +96,12 @@ namespace TEngine
                     TaskScheduler.UnobservedTaskException += OnTaskSchedulerUnobservedTaskException;
                     UniTaskScheduler.UnobservedTaskException += OnUniTaskSchedulerUnobservedTaskException;
                     s_Initialized = true;
+
+                    // 将 Init 之前经 Log.EarlyXxx 缓冲的早期日志补写到文件日志。
+                    EarlyLogBuffer.Flush(s_FileLogger);
+
+                    // 标记日志桥接初始化完成。此时链路已通，直接落盘。
+                    Log.Info("[Log] UnityLoggerBridge initialized, file logger ready.");
                 }
                 catch
                 {
@@ -120,6 +129,9 @@ namespace TEngine
                 UniTaskScheduler.UnobservedTaskException -= OnUniTaskSchedulerUnobservedTaskException;
                 DisposeFileLogger();
                 s_Initialized = false;
+
+                // 清空早期日志缓冲，兼容关闭 Domain Reload 的编辑器播放模式，防止上次会话残留。
+                EarlyLogBuffer.Reset();
             }
         }
 

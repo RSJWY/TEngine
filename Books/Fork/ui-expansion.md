@@ -75,6 +75,28 @@ DGame 在 `Assets/Scripts/HotFix/GameLogic/Module/UIModule/Expansion/` 下沉淀
 - `UIButtonClickScaleExtend` 继续依赖 `DG.Tweening`（DOTween），TEngine 项目已有 `Assets/Plugins/Demigiant/DOTween/DOTween.dll`，`autoReferenced` 默认引用，无需改 `GameLogic.asmdef`。
 - `SuperScrollView` 未迁移，DGame 中对它的调用（`LoopListView2`/`LoopGridView`）不在本迁移范围。
 
+### UI 代码生成器集成
+
+第一梯队的四个自研组件（`UIButton`/`UIImage`/`UIText`/`RichTextItem`）迁移完成后，`UITMPText` 与 `UIRawImage` 也补齐，fork 在 TEngine 原生 UI 脚本生成器（`Assets/Editor/UIScriptGenerator/`）中为这 5 个自研组件补登记了识别规则，使 `GenerateUIComponentScript` 能按节点名前缀自动把它们绑定进 `UIBindComponent`，无需手写 `GetComponent`。
+
+改动点（三处，同一套枚举/反射体系）：
+
+1. `ScriptGenerateRuler.cs` 的 `UIComponentName` 枚举新增 `UIButton`/`UIText`/`UITMPText`/`UIImage`/`UIRawImage` 五项，序号 25–29。
+2. `ScriptAutoGenerator.cs` 的 `GetComponentTypeFromEnumName(UIComponentName)` switch 补上对应的 `typeof(GameLogic.UIButton)` 等映射，避免走全程序集扫描回退。
+3. `ScriptGeneratorSetting.cs` 默认规则表与已序列化的 `ScriptGeneratorSetting.asset` 同步追加 5 条规则。
+
+前缀设计遵循"加 `ui` 前缀与原生规则区分"原则，两套规则并存，由 Prefab 节点名决定走哪套：
+
+| 前缀 | 生成组件 | 对应原生规则（并存，不替换） |
+| --- | --- | --- |
+| `m_uiBtn` | `UIButton` | `m_btn` → `Button` |
+| `m_uiText` | `UIText` | `m_text` → `Text` |
+| `m_uiTmp` | `UITMPText` | `m_tmp` → `TextMeshProUGUI` |
+| `m_uiImg` | `UIImage` | `m_img` → `Image` |
+| `m_uiRimg` | `UIRawImage` | `m_rimg` → `RawImage` |
+
+存量 Prefab 用 `m_btn`/`m_img` 等原生前缀的继续生成原生 UGUI 组件，不受影响；新 UI 按 AGENTS.md 红线"UI 优先使用 fork 组件"用 `m_ui*` 前缀即可走自研组件。`GetComponentTypeFromEnumName` 的字符串重载本来就能通过 `GameLogic.{enumName}` 反射解析到 `GameLogic` 命名空间下的类型，但显式 `typeof` 映射更稳，不依赖全程序集扫描。
+
 ## 使用方式
 
 ### UIButton

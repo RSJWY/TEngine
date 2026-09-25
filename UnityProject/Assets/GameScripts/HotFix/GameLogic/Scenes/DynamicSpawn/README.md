@@ -63,27 +63,26 @@ namespace GameLogic
 3. 删掉这个预制体
 4. 在同样的位置新建一个空物体
 5. 给它挂上 `DynamicSpawnPoint` 脚本
-6. 填好 `location`（见下一步）
+6. 把预制体拖进 `Prefab Ref` 框（见下一步）
 
 ---
 
-## 第三步：填 location（告诉系统加载哪个预制体）
+## 第三步：拖入预制体（告诉系统加载哪个）
 
-`location` 就是预制体的文件名（不要路径、不要 .prefab 后缀）。
+`DynamicSpawnPoint` 上有个 `Prefab Ref` 字段，**直接把预制体拖进去**就行了。
 
-比如预制体文件是 `Assets/AssetRaw/Prefabs/Hangar_01.prefab`，那 location 填 `Hangar_01`。
+它存的是"包裹名 + 资源 GUID"（不是对象引用），所以：
 
-### 两种填法
+- 场景文件不会和预制体产生打包依赖
+- 预制体**改名、移动目录都不会断引用**，不用回头维护
 
-**方法 A：手打**
+Package Name 保持默认 `DefaultPackage` 即可。
 
-直接在 Inspector 里的 `location` 框里输入文件名。
+### Location 字段（可选，高级用法）
 
-**方法 B：拖预制体自动填**
-
-1. 把预制体拖到 Inspector 里的 `Prefab Reference` 框
-2. 右键点组件标题 → 选"从预制体引用填充 Location"
-3. 自动填好了
+Inspector 里还有个 `location` 字符串（预制体文件名，不要路径和后缀）。
+它是给"代码里动态决定加载什么"的场景留的通道（比如从配置表读地址）。
+**手动摆点不需要填它**——`Prefab Ref` 拖好就够了，运行时 GUID 优先，`location` 只是没有 GUID 时的回落。
 
 ---
 
@@ -107,7 +106,7 @@ Inspector 里有个 `Align Mode` 下拉框：
 | 参数 | 干什么 | 默认值 | 怎么调 |
 |------|--------|--------|--------|
 | `Batch Size` | 每一帧加载几个东西 | 3 | 东西多就调大点（5~10），模型大就调小点（1~2） |
-| `Auto Start On Scene Ready` | 场景好了自动开始加载 | 勾选 | 保持勾选就行 |
+| `Init Mode` | 什么时候开始加载 | Start | Awake 最早 / SceneReady 等加载页关闭后 / Manual 由代码手动触发，一般保持默认 |
 
 ---
 
@@ -135,12 +134,12 @@ Inspector 里有个 `Align Mode` 下拉框：
 
 ```
 DynamicSpawnRoot              [挂 SpawnPointSceneSpawner，Batch Size = 2]
-  ├─ [Spawn] 机库             [挂 DynamicSpawnPoint，location = "Hangar_01"]
+  ├─ [Spawn] 机库             [挂 DynamicSpawnPoint，Prefab Ref 拖入 Hangar_01]
   │     Position = (100, 0, 50)   ← 和原来预制体一样的位置
   │     Rotation = (0, 45, 0)
-  ├─ [Spawn] 塔台             [挂 DynamicSpawnPoint，location = "ControlTower"]
+  ├─ [Spawn] 塔台             [挂 DynamicSpawnPoint，Prefab Ref 拖入 ControlTower]
   │     Position = (200, 0, 80)
-  └─ [Spawn] 油库             [挂 DynamicSpawnPoint，location = "FuelDepot"]
+  └─ [Spawn] 油库             [挂 DynamicSpawnPoint，Prefab Ref 拖入 FuelDepot]
         Position = (150, 0, 120)
 ```
 
@@ -177,5 +176,6 @@ DynamicSpawnRoot              [挂 SpawnPointSceneSpawner，Batch Size = 2]
 | `DynamicSceneSpawner.cs` | 基类，处理加载逻辑（不用改） |
 | `SpawnPointSceneSpawner.cs` | 通用实现，从子节点的占位点收集加载项（大部分场景直接用它） |
 | `DynamicSpawnPoint.cs` | 占位组件（不用改，直接挂节点上用） |
+| `AssetReference/` | 资源弱引用（GUID 寻址），占位点的 Prefab Ref 字段就是它；也可单独用于任意组件 |
 | `ExampleSceneGameManager.cs` | 场景业务管理器示例，演示动态加载完成后怎么初始化业务 |
 | 你写的 XxxSceneSpawner.cs | 可选：只有需要场景专属收集规则或完成钩子时才写 |

@@ -19,7 +19,7 @@ GameModule.Anim            // IAnimModule
 用于部署配置、工具配置和小型业务配置，不替代 Luban 配置表。
 
 - 配置目录：`Assets/StreamingAssets/Configs/`。
-- 默认清单：`config_manifest.toml`，兼容 `config_manifest.json`。
+- 默认清单：`config_manifest.toml`（强制 TOML，不再兼容 JSON 清单）。
 - 支持 TOML/JSON 混用、子目录配置名、原始文本缓存和强类型对象缓存。
 - `IsLoaded` 表示一次加载流程完成；单个配置失败仍可能为 `true`。
 - 清单缺失或解析失败会抛异常；单个配置缺失、重复或格式不支持只记录并跳过。
@@ -116,8 +116,9 @@ float progress = GameModule.GameScene.DisplayProgress;
 - `SwitchUI` 只展示 `DisplayProgress`，不控制加载状态机。
 - 加载流程终结顺序固定为：回调 -> 关闭加载页 -> `OnSceneReady`。
 - `suspendLoad=true` 时不要 `await LoadSceneAsync` 等待 `IsDone`；激活前 `IsDone` 不会完成。使用 progress callback 驱动并在合适阶段 `UnSuspend`。
+- 阶段 2 关闭加载页需同时满足：动画走满 + 场景真实激活完成（`GameModule.Scene.IsSceneLoadDone`，句柄 IsDone）+ 激活后 2 帧 + 100% 停留；等待激活带 30s 绝对超时兜底，skip 模式同样走激活等待（仅跳过动画与停留）。
 - 阶段 1 超时采用进度停滞 60 秒 + 绝对 180 秒双门槛，不要恢复固定 5 秒超时。
-- 通用动态加载场景优先挂 `SpawnPointSceneSpawner`；只有额外收集规则或完成钩子时才派生专属 Spawner。
+- 通用动态加载场景优先挂 `SpawnPointSceneSpawner`；只有额外收集规则或完成钩子时才派生专属 Spawner。占位点引用预制体用 `prefabRef`（GUID 弱引用，改名/移动不断），`location` 仅作回落与代码列表法通道；需 `DefaultPackage` 收集器开启 `Include Asset GUID`。
 
 ## ScreenModule
 

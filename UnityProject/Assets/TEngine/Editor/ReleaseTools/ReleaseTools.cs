@@ -126,6 +126,17 @@ namespace TEngine
                 return false;
             }
 
+            if (config.BuildHotFixDll && runtimePackages.Any(runtimePackage => IsAssemblyPackage(runtimePackage.PackageName)))
+            {
+                if ((buildPlayer || config.BuildPlayer) && config.PlayerPlatform != config.BuildTarget)
+                {
+                    Debug.LogError($"[BuildWithConfig] Player 平台 {config.PlayerPlatform} 与代码资源包平台 {config.BuildTarget} 不一致。");
+                    return false;
+                }
+
+                BuildDLLCommand.ActivateBuildTarget(config.BuildTarget);
+            }
+
             AssetDatabase.Refresh();
 
             YooAsset.Editor.BuildResult firstBuildResult = null;
@@ -135,7 +146,7 @@ namespace TEngine
                 if (config.BuildHotFixDll && !hotFixDllBuilt && IsAssemblyPackage(runtimePackage.PackageName))
                 {
                     Debug.Log($"[BuildWithConfig] 构建 {runtimePackage.PackageName} 前同步AOT元数据清单并编译热更DLL...");
-                    BuildDLLCommand.BuildAndCopyDlls();
+                    BuildDLLCommand.BuildAndCopyDlls(config.BuildTarget);
                     AssetDatabase.Refresh();
                     hotFixDllBuilt = true;
                 }
@@ -274,6 +285,7 @@ namespace TEngine
             buildParameters.PackageNote = JsonUtility.ToJson(new PackageMetadata { mode = Settings.UpdateSetting.BuildMode });
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
             buildParameters.EnableSharePackRule = config.EnableSharePackRule;
+            buildParameters.EnableAssetPathValidation = config.EnableAssetPathValidation;
             buildParameters.FileNameStyle = config.FileNameStyle;
             buildParameters.BundledCopyOption = GetBundledFileCopyOption(config.BuildinFileCopyOption, appendBuildinFiles);
             buildParameters.BundledCopyParams = string.Empty;
@@ -288,7 +300,15 @@ namespace TEngine
             buildParameters.ClearBuildCacheFiles = config.ClearBuildCache;
             buildParameters.UseAssetDependencyDB = config.UseAssetDependencyDB;
 
-            return pipeline.Run(buildParameters, true);
+            var buildResult = pipeline.Run(buildParameters, true);
+
+            if (buildResult.Success && config.GenerateCatalogInOutput)
+            {
+                var decryptor = runtimePackage.ManifestEncrypted ? new ManifestChaCha20Decryptor() : null;
+                CatalogOutputHelper.GenerateCatalog(decryptor, runtimePackage.PackageName, buildResult.OutputPackageDirectory);
+            }
+
+            return buildResult;
         }
 
         /// <summary>
@@ -749,6 +769,12 @@ namespace TEngine
             EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
             AssetDatabase.Refresh();
 
+            // 统一将项目根相对路径（./ 前缀）或非根路径转为绝对路径，BuildPipeline.BuildPlayer 需要绝对路径
+            if (!string.IsNullOrWhiteSpace(locationPathName) && !Path.IsPathRooted(locationPathName))
+            {
+                locationPathName = Path.GetFullPath(Path.Combine(Application.dataPath, "..", locationPathName));
+            }
+
             BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
             {
                 scenes = EditorBuildSettings.scenes.Select(scene => scene.path).ToArray(),
@@ -825,39 +851,6 @@ namespace TEngine
         private static IBundleEncryptor GetEncryptionFromType(EncryptionType encryptionType)
         {
             return BundleCrypto.Create(encryptionType)?.Encryptor;
-        }
-
-        /// <summary>
-        /// 根据 ResourceModuleDriver 的 encryptionType 获取对应的加密服务（旧版兼容）
-        /// </summary>
-        private static IBundleEncryptor GetEncryptionFromResourceModuleDriver()
-        {
-            var guids = AssetDatabase.FindAssets("t:Prefab GameEntry");
-            if (guids.Length == 0)
-            {
-                Debug.LogWarning("[BuildInternal] Failed to find GameEntry.prefab");
-                return null;
-            }
-
-            var gameEntryPath = AssetDatabase.GUIDToAssetPath(guids[0]);
-            var gameEntryPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(gameEntryPath);
-            if (gameEntryPrefab == null)
-            {
-                Debug.LogWarning("[BuildInternal] Failed to load GameEntry.prefab");
-                return null;
-            }
-
-            var resourceModuleDriver = gameEntryPrefab.GetComponentInChildren<ResourceModuleDriver>();
-            if (resourceModuleDriver == null)
-            {
-                Debug.LogWarning("[BuildInternal] ResourceModuleDriver not found in GameEntry.prefab");
-                return null;
-            }
-
-            var encryptionType = resourceModuleDriver.EncryptionType;
-            Debug.Log($"[BuildInternal] Use EncryptionType from ResourceModuleDriver: {encryptionType}");
-
-            return GetEncryptionFromType(encryptionType);
         }
 
         private static string GetBuildPackageVersion()

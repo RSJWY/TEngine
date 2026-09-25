@@ -332,7 +332,8 @@ namespace Procedure
         {
             // 统一从 .json.bytes 加载 manifest：归档管线用 RawFileObject.GetBytes，非归档管线用 TextAsset.bytes。
             // 两种管线反序列化路径相同，仅资产类型不同。
-            var manifestLocation = AOTMetadataManifest.ManifestAssetName;
+            // 可寻址地址与收集器 AddressByFileName 一致：仅去掉最后一段扩展名 → "AOTMetadataManifest.json"。
+            var manifestLocation = Path.GetFileNameWithoutExtension(AOTMetadataManifest.ManifestJsonAssetName);
             var isArchivePackage = _setting.GetRuntimePackage(_assemblyPackageName)?.BuildPipeline == RuntimePackageBuildPipeline.ArchiveFileBuildPipeline;
             if (!_enableAddressable)
             {

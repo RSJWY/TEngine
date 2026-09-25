@@ -56,7 +56,7 @@ namespace GameLogic
         /// 初始化 UI 路由表。
         /// </summary>
         /// <remarks>
-        /// UIJumpControl 由 TEngine ModuleSystem 按接口命名约定自动创建，OnInit 会在模块创建时调用。
+        /// UIJumpControl 由 GameApp 在启动时显式注册，OnInit 会在注册时调用。
         /// 这里只注册业务路由，不直接打开窗口。
         /// </remarks>
         public override void OnInit()

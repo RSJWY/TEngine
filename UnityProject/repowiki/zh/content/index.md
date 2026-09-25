@@ -44,7 +44,7 @@
 - [UI系统/UI框架架构.md](repowiki/zh/content/UI系统/UI框架架构.md) - 框架架构
 - [UI系统/UI窗口管理.md](repowiki/zh/content/UI系统/UI窗口管理.md) - 窗口管理
 - [UI系统/UI脚本生成器.md](repowiki/zh/content/UI系统/UI脚本生成器.md) - 脚本生成器
-- [UI系统/Fork业务数据与UI.md](repowiki/zh/content/UI系统/Fork业务数据与UI.md) - DataBinding、存档、帧动画、UGUI 扩展和日志工具
+- [UI系统/Fork业务数据与UI.md](repowiki/zh/content/UI系统/Fork业务数据与UI.md) - DataBinding、存档、UGUI 扩展和日志工具
 
 **音频系统**：
 - [音频系统/](repowiki/zh/content/音频系统/) - 音频系统

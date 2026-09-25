@@ -27,7 +27,7 @@
 
 1. 在场景中新建 `DynamicSpawnRoot`。
 2. 给 `DynamicSpawnRoot` 挂 `SpawnPointSceneSpawner`。
-3. 在其子节点挂 `DynamicSpawnPoint` 并填写 `location`。
+3. 在其子节点挂 `DynamicSpawnPoint` 并把预制体拖入 `Prefab Ref`。
 4. 如需业务初始化，复制 `ExampleSceneGameManager` 为自己的 `XxxManager`。
 5. 在 `DynamicSpawnPoint.registerKey` 填写 key 后，通过 `GetSpawnedObject("你的key")` 获取加载出的对象。
 
@@ -59,6 +59,66 @@ dotnet build GameLogic.csproj --no-restore
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-06-27-dynamic-spawn-generalization-summary.md`
+
+## DynamicSpawn 接入资源弱引用（GUID 寻址）
+
+### 背景
+
+`DynamicSpawnPoint` 原以 `location` 字符串（预制体文件名）作为运行时寻址依据，编辑器侧另有 `prefabGuid` 字段仅用于预览和测试启动回退。这个"半弱引用"方案有两个运行时风险：
+
+- 预制体改名后 `location` 变陈旧，运行时加载失败（AddressRule 为 `AddressByFileName`）。
+- 不同目录下同名预制体按文件名寻址会冲突。
+
+YooAsset 3.0 扩展示例提供了 `AssetReference`（序列化"包裹名 + GUID"，非对象引用，不产生 Bundle 依赖），与本 fork 编辑器侧已有的 GUID 方案同构，将其引入并贯通到运行时。
+
+### 改动摘要
+
+- 引入 `AssetReference` / `AssetReferenceGameObject`（`GameLogic` 命名空间，源自 YooAsset Extension Sample）与配套 `AssetReferenceDrawer`（包裹名 + 拖拽框 + 只读 GUID）。
+- `DynamicSpawnPoint` 新增 `prefabRef` 弱引用字段作为主引用通道；`location` 保留为回落与代码列表法通道。旧字段（`prefabReference` PPtr、`prefabGuid` 字符串）与迁移代码在存量数据（MainScene）迁移完成后已删除，数据模型只余 `prefabRef` + `location` 双通道。
+- 运行时解析规则：`prefabRef` GUID 有效 → `GetAssetInfoByGuid` 解析出地址走原有 `LoadGameObjectAsync`（保留分批削峰、取消、引用计数）；GUID 无效 → 警告并回落 `location`；两者皆空 → 跳过。
+- 迁移链（PPtr → GUID 字符串 → 弱引用）已在存量数据迁移完成后随旧字段一并移除，管理器面板的"迁移历史引用并保存"按钮同步删除。
+- `DynamicSpawnPointManager` 校验改为 GUID 优先，新增只读"预制体"列，快速添加/一键转换不再写 `location`；"填充 Location"按钮退役。
+- YooAsset 收集器 `DefaultPackage` 开启 `IncludeAssetGUID`（清单记录 GUID 映射是 `GetAssetInfoByGuid` 的前提）。
+- 修复测试启动（编辑器直接打开场景）回归：地址解析挪入 YooAsset 分支，避免未初始化时 `YooAssets.GetPackage` 抛异常；编辑器回退直接按 GUID 经 `AssetDatabase` 实例化，纯 GUID 点可用。
+- 修复 `CompleteSpawn` 在测试启动时 NRE：`IGameSceneEvent` 未注册时 `GameEvent.Get` 返回 null，发送完成事件前判空。
+
+保持不变：
+
+- 分批削峰、`SpawnAlignMode` 对齐、注册表、`SpawnInitMode` 触发时机、完成事件、`SpawnPointSceneSpawner` 子类。
+- `location` 字符串通道长期保留：代码列表法/配置表驱动等运行时动态构造地址的场景只能用它。
+- 释放语义不变：仍由 TEngine 引用计数 + 场景卸载托管，未引入 `AssetReference` 自带的 `ReleaseAsset` 生命周期。
+
+### 使用方式
+
+摆点流程不变：占位节点挂 `DynamicSpawnPoint`，把预制体拖入 `Prefab Ref` 框即可，无需再填 `location`。预制体改名/移动目录不影响引用。
+
+### 注意事项
+
+- `DefaultPackage` 必须开启 `Include Asset GUID`（收集器窗口或 `AssetBundleCollectorConfig.xml`），否则运行时 GUID 解析无效并回落 `location`；真机/离线图需重新构建资源包后生效。
+- 收集器开启该开关前，已迁移的 GUID 点会打一条"GUID 无效，回落 location"警告——这是兜底机制正常工作，配置生效后消失。
+- `AssetReference.LoadAssetAsync`/`ReleaseAsset` 生命周期仅供单独使用弱引用字段的场景（如组件直引单张贴图）；Spawner 内部不调用它们。
+
+### 关键文件
+
+- `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/AssetReference/AssetReference.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/AssetReference/AssetReferenceGameObject.cs`
+- `Assets/Editor/SceneTools/DynamicSpawn/AssetReferenceDrawer.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/DynamicSpawnPoint.cs`
+- `Assets/GameScripts/HotFix/GameLogic/Scenes/DynamicSpawn/DynamicSceneSpawner.cs`
+- `Assets/AssetBundleCollectorConfig.xml`（`IncludeAssetGUID`）
+
+### 验证记录
+
+```powershell
+dotnet build GameLogic.csproj --no-restore
+dotnet build Assembly-CSharp-Editor.csproj --no-restore
+```
+
+结果：0 错误。Unity 编辑器实测：正常流程 GUID 寻址加载通过；测试启动（脱离 YooAsset）直接实例化通过；MainScene 迁移后 `prefabGuid` 清空、GUID 统一入 `prefabRef`。
+
+### 相关记录
+
+- `UnityProject/conversation-summaries/2026-09-10-dynamic-spawn-asset-reference-summary.md`
 
 ## 场景加载进度拆分到 GameSceneModule
 
@@ -376,3 +436,50 @@ Unity 编译（`refresh_unity compile=request force scripts wait_for_ready=true`
 
 - GitHub Issue #2
 - `UnityProject/conversation-summaries/code-researc/2026-08-07-scene-enum-auto-generate-research.md`
+
+## 阶段 2 等待场景真实激活（修复加载页提前关闭）
+
+### 背景
+
+`GameSceneModule` 阶段 2 收尾（90%→100% + 停留）的关闭时机原本完全由固定动画时长（`finishDuration` 默认 2s + `holdAt100Duration` 默认 0.5s）决定。而 `EnterFinishPhase` 调用的 `GameModule.Scene.UnSuspend` 只是解除挂起——YooAsset 侧（`AssetBundleLoadSceneOperation`）此时仅将 `allowSceneActivation` 置为 true，场景整合、Awake/OnEnable、首帧渲染仍异步进行，句柄要到激活完毕才 `IsDone`。
+
+大场景冷加载时激活耗时一旦超过约 2.5s 的遮盖窗口，加载页就提前退出，露出黑屏或上一场景残影数秒；小场景因激活快于收尾动画而被掩盖。`_skipMode` 分支同样在阶段 1 完成后直接 `FinishAndClose()`，完全不等激活。
+
+### 改动摘要
+
+- `ISceneModule` / `SceneModule` 新增 `IsSceneLoadDone(location)` 查询：句柄有效且 `IsDone` 为 true 即激活完成（suspendLoad 的场景在 `UnSuspend` 之后、激活完成前一直返回 false）。
+- 阶段 2 关闭条件从"纯计时"改为四条件同时满足：收尾动画走满（`_displayProgress >= 1.0`）+ 场景真实激活完成（`IsSceneLoadDone`）+ 激活后再渲染 2 帧（`PostActivateFrames`，遮盖首帧 shader 编译/资源上传卡顿）+ 100% 停留结束。
+- 新增 `Phase2AbsoluteTimeout = 30f` 等待激活绝对超时兜底：超时打 `Log.Warning` 后强制收尾，防激活异常卡死；`_phase2Elapsed` 按真实流逝时间（未钳制的 dt）累计，激活大卡顿帧计入真实墙钟。
+- `_skipMode` 分支不再直接 `FinishAndClose()`，改为进度跳到 100% 后同样进入阶段 2 走激活等待，仅跳过收尾动画与 100% 停留（停留时长按 0 处理），保证调试模式与发布行为一致。
+- 新增字段 `_sceneActivated` / `_postActivateFrames` / `_phase2Elapsed`，在 `StartSceneLoad` 重置块一并复位。
+
+保持不变：
+
+- 三段式状态机结构、90% 激活时机、阶段 1 超时双门槛（停滞 60s + 绝对 180s）、陷阱 1 / 陷阱 2 规避。
+- 终结顺序：回调 -> 关加载页 -> `OnSceneReady`。
+- 小场景行为：激活通常在 2s 收尾动画内已完成，整体耗时不增加（条件立即可满足）。
+
+### 注意事项
+
+- 阶段 2 进度动画与停留仍用钳制后的 `clampedDelta`（≤0.05）驱动，激活卡顿帧不会压缩动画；只有 `_phase2Elapsed` 超时兜底用未钳制的 dt。
+- `IsSceneLoadDone` 对加载失败的场景同样返回 true（`IsDone` 置位且 `Status=Failed`），此时按兜底语义关闭加载页，不会死等。
+- `Phase2AbsoluteTimeout` 为 `const`，如个别超大场景激活超过 30s 可改为可配置属性（参考 `SkipLoadingAnimation` 先例）。
+
+### 关键文件
+
+- `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/GameSceneModule.cs`
+- `Assets/TEngine/Runtime/Module/SceneModule/ISceneModule.cs`（新增 `IsSceneLoadDone`）
+- `Assets/TEngine/Runtime/Module/SceneModule/SceneModule.cs`（实现 `IsSceneLoadDone`）
+
+### 验证记录
+
+```powershell
+dotnet build TEngine.Runtime.csproj --no-restore
+dotnet build GameLogic.csproj --no-restore
+```
+
+结果：0 错误（仅存量无关警告）。
+
+### 相关记录
+
+- GitHub Issue #5

@@ -11,7 +11,7 @@ namespace TEngine
     /// </summary>
     public class BuildModeWindow : OdinEditorWindow
     {
-        [MenuItem("TEngine/Build/构建模式窗口", false, 50)]
+        [MenuItem("Build/构建模式窗口", false, 50)]
         private static void OpenWindow()
         {
             var window = GetWindow<BuildModeWindow>("构建模式");
@@ -105,7 +105,7 @@ namespace TEngine
         [PropertyOrder(10)]
         private void ToggleReleaseMode()
         {
-            BuildDLLCommand.SetReleaseMode(!IsRelease);
+            BuildDLLCommand.SetReleaseModeConfirm(!IsRelease);
         }
 
         private string ReleaseToggleLabel => IsRelease ? "切回 dev 模式" : "切到 release 模式";
@@ -116,7 +116,7 @@ namespace TEngine
         [PropertyOrder(11)]
         private void ToggleObfuz()
         {
-            BuildDLLCommand.SetObfuz(!BuildDLLCommand.IsObfuzActive);
+            BuildDLLCommand.SetObfuzSafeConfirm(!BuildDLLCommand.IsObfuzActive);
         }
 
         private string ObfuzToggleLabel => BuildDLLCommand.IsObfuzActive ? "关闭混淆" : "开启混淆";
@@ -128,7 +128,7 @@ namespace TEngine
         [PropertyOrder(12)]
         private void TogglePdb()
         {
-            BuildDLLCommand.SetPdbEnabled(!BuildDLLCommand.IsPdbEnabled);
+            BuildDLLCommand.SetPdbEnabledConfirm(!BuildDLLCommand.IsPdbEnabled);
         }
 
         private string PdbToggleLabel => BuildDLLCommand.IsPdbEnabled ? "关闭 pdb" : "开启 pdb";
@@ -136,7 +136,7 @@ namespace TEngine
         private bool EnablePdbToggle => !IsRelease;
 
         [TitleGroup("一键预设")]
-        [InfoBox("预设只切换发布模式与混淆；pdb 开关由上方独立控制。\n打包 exe 与热更资源包时请保持宏状态一致，否则启动校验会拦截。", InfoMessageType.None)]
+        [InfoBox("预设会切换发布模式与混淆；与 pdb 冲突时弹确认框，确认后自动关闭 pdb。\n打包 exe 与热更资源包时请保持宏状态一致，否则启动校验会拦截。", InfoMessageType.None)]
         [ShowInInspector, DisplayAsString, HideLabel, PropertyOrder(19)]
         private string PresetTip => string.Empty;
 
@@ -146,6 +146,7 @@ namespace TEngine
         [PropertyOrder(20)]
         private void 真机调试()
         {
+            // dev + 关 Obfuz：与 pdb 不冲突，直接切换，保留 pdb 配置。
             BuildDLLCommand.SetReleaseMode(false);
 #if OBFUZ_INSTALLED
             BuildDLLCommand.SetObfuz(false);
@@ -157,6 +158,11 @@ namespace TEngine
         [PropertyOrder(21)]
         private void 高防护发布()
         {
+            // release + 开 Obfuz：两者均与 pdb 互斥，存在 pdb 时一次性确认。
+            if (!ConfirmPresetWithPdbOff("高防护发布（release + 混淆）"))
+            {
+                return;
+            }
             BuildDLLCommand.SetReleaseMode(true);
 #if OBFUZ_INSTALLED
             BuildDLLCommand.SetObfuz(true);
@@ -168,10 +174,38 @@ namespace TEngine
         [PropertyOrder(22)]
         private void 低防护发布()
         {
+            // release 与 pdb 互斥，存在 pdb 时一次性确认。
+            if (!ConfirmPresetWithPdbOff("低防护发布（release）"))
+            {
+                return;
+            }
             BuildDLLCommand.SetReleaseMode(true);
 #if OBFUZ_INSTALLED
             BuildDLLCommand.SetObfuz(false);
 #endif
+        }
+
+        /// <summary>预设执行前确认：仅当 pdb 开启时弹一次框，用户确认后自动关闭 pdb 并返回 true。</summary>
+        private static bool ConfirmPresetWithPdbOff(string presetName)
+        {
+            if (!BuildDLLCommand.IsPdbEnabled)
+            {
+                return true;
+            }
+
+            bool ok = EditorUtility.DisplayDialog(
+                $"应用预设：{presetName}",
+                $"预设「{presetName}」与 pdb 符号互斥（release/Obfuz 均要求无 pdb）。\n\n" +
+                "当前 pdb 处于开启状态，应用预设需要先关闭 pdb。\n\n" +
+                "是否继续并自动关闭 pdb？",
+                "继续（自动关闭 pdb）",
+                "取消");
+            if (!ok)
+            {
+                return false;
+            }
+            BuildDLLCommand.SetPdbEnabled(false);
+            return true;
         }
     }
 }
