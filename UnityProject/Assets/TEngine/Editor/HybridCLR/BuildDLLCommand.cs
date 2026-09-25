@@ -157,6 +157,114 @@ public static class BuildDLLCommand
 
     #endregion
 
+    #region 互斥切换（带用户确认）
+
+    // 互斥规则：
+    //   - Obfuz ⊥ pdb：开 Obfuz 必须先关 pdb；开 pdb 必须先关 Obfuz。
+    //   - release ⊥ pdb：切 release 必须先关 pdb。
+    // UI 层（工具栏菜单/构建模式窗口）调用以下带 Confirm 后缀的方法，
+    // 存在冲突时弹出确认框，由用户选择"继续并自动关闭冲突项"或"取消"。
+    // 脚本/批处理仍可调用底层 SetXxx 强制设置，不触发确认。
+
+    /// <summary>带确认的 dev/release 切换：切到 release 且 pdb 开启时，弹框询问是否自动关闭 pdb。</summary>
+    /// <returns>是否实际执行了切换。</returns>
+    public static bool SetReleaseModeConfirm(bool release)
+    {
+        if (release == IsReleaseModeActive)
+        {
+            return false;
+        }
+
+        if (release && IsPdbEnabled)
+        {
+            bool ok = EditorUtility.DisplayDialog(
+                "切换到 release 模式",
+                "release 模式与 pdb 符号互斥（release 不生成/不加载 pdb）。\n\n" +
+                "当前 pdb 处于开启状态，切换到 release 需要先关闭 pdb。\n\n" +
+                "是否继续并自动关闭 pdb？",
+                "继续（自动关闭 pdb）",
+                "取消");
+            if (!ok)
+            {
+                return false;
+            }
+            SetPdbEnabled(false);
+        }
+
+        SetReleaseMode(release);
+        return true;
+    }
+
+    /// <summary>带确认的 Obfuz 切换：开 Obfuz 且 pdb 开启时，弹框询问是否自动关闭 pdb。</summary>
+    /// <returns>是否实际执行了切换。</returns>
+    public static bool SetObfuzSafeConfirm(bool enable)
+    {
+        if (!IsObfuzInstalled || enable == IsObfuzActiveSafe)
+        {
+            return false;
+        }
+
+        if (enable && IsPdbEnabled)
+        {
+            bool ok = EditorUtility.DisplayDialog(
+                "开启 Obfuz 混淆",
+                "Obfuz 混淆与 pdb 符号互斥（混淆后 pdb 无法对应原始符号）。\n\n" +
+                "当前 pdb 处于开启状态，开启 Obfuz 需要先关闭 pdb。\n\n" +
+                "是否继续并自动关闭 pdb？",
+                "继续（自动关闭 pdb）",
+                "取消");
+            if (!ok)
+            {
+                return false;
+            }
+            SetPdbEnabled(false);
+        }
+
+        SetObfuzSafe(enable);
+        return true;
+    }
+
+    /// <summary>带确认的 pdb 切换：开 pdb 且 Obfuz 开启时，弹框询问是否自动关闭 Obfuz；release 模式下拒绝开启 pdb。</summary>
+    /// <returns>是否实际执行了切换。</returns>
+    public static bool SetPdbEnabledConfirm(bool enable)
+    {
+        if (enable == IsPdbEnabled)
+        {
+            return false;
+        }
+
+        if (enable && IsReleaseModeActive)
+        {
+            EditorUtility.DisplayDialog(
+                "开启 pdb 符号",
+                "release 模式与 pdb 符号互斥（release 不生成/不加载 pdb）。\n\n" +
+                "请先切回 dev 模式，再开启 pdb。",
+                "确定");
+            return false;
+        }
+
+        if (enable && IsObfuzActiveSafe)
+        {
+            bool ok = EditorUtility.DisplayDialog(
+                "开启 pdb 符号",
+                "pdb 符号与 Obfuz 混淆互斥（混淆后 pdb 无法对应原始符号）。\n\n" +
+                "当前 Obfuz 处于开启状态，开启 pdb 需要先关闭 Obfuz。\n\n" +
+                "是否继续并自动关闭 Obfuz？",
+                "继续（自动关闭 Obfuz）",
+                "取消");
+            if (!ok)
+            {
+                return false;
+            }
+            SetObfuzSafe(false);
+        }
+
+        SetPdbEnabled(enable);
+        return true;
+    }
+
+    #endregion
+
 #if OBFUZ_INSTALLED
     #region Obfuz/Define Symbols
     /// <summary>

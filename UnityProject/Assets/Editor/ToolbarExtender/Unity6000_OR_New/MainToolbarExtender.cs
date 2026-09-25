@@ -395,6 +395,8 @@ public class MainToolbarBuildModeDropdown
     public static MainToolbarElement CreateBuildModeDropdown()
     {
         bool isRelease = BuildDLLCommand.IsReleaseModeActive;
+        bool pdbOn = BuildDLLCommand.IsPdbEnabled;
+        string pdbText = isRelease ? "禁用" : (pdbOn ? "开" : "关");
         string label = isRelease ? "模式: release" : "模式: dev";
         string tooltip = isRelease
             ? "当前构建模式：release（发布：不生成/不加载 pdb）"
@@ -405,6 +407,8 @@ public class MainToolbarBuildModeDropdown
             label += $" | Obfuz: {(obfuzOn ? "开" : "关")}";
             tooltip += $"\nObfuz 混淆：{(obfuzOn ? "开" : "关")}";
         }
+        label += $" | pdb: {pdbText}";
+        tooltip += $"\npdb 符号：{pdbText}";
         tooltip += "\n点击弹出快捷切换菜单";
         var content = new MainToolbarContent(label, null, tooltip);
         return new MainToolbarDropdown(content, ShowDropdownMenu);
@@ -414,19 +418,32 @@ public class MainToolbarBuildModeDropdown
     {
         bool isRelease = BuildDLLCommand.IsReleaseModeActive;
         var menu = new GenericMenu();
-        menu.AddItem(new GUIContent("dev 模式（开发，pdb 可用）"), !isRelease, () => BuildDLLCommand.SetReleaseMode(false));
-        menu.AddItem(new GUIContent("release 模式（发布，不含 pdb）"), isRelease, () => BuildDLLCommand.SetReleaseMode(true));
+        menu.AddItem(new GUIContent("dev 模式（开发，pdb 可用）"), !isRelease, () => BuildDLLCommand.SetReleaseModeConfirm(false));
+        menu.AddItem(new GUIContent("release 模式（发布，不含 pdb）"), isRelease, () => BuildDLLCommand.SetReleaseModeConfirm(true));
         if (BuildDLLCommand.IsObfuzInstalled)
         {
             menu.AddSeparator(string.Empty);
             bool obfuzActive = BuildDLLCommand.IsObfuzActiveSafe;
-            menu.AddItem(new GUIContent("Obfuz 混淆/开启"), obfuzActive, () => BuildDLLCommand.SetObfuzSafe(true));
-            menu.AddItem(new GUIContent("Obfuz 混淆/关闭"), !obfuzActive, () => BuildDLLCommand.SetObfuzSafe(false));
+            menu.AddItem(new GUIContent("Obfuz 混淆/开启"), obfuzActive, () => BuildDLLCommand.SetObfuzSafeConfirm(true));
+            menu.AddItem(new GUIContent("Obfuz 混淆/关闭"), !obfuzActive, () => BuildDLLCommand.SetObfuzSafeConfirm(false));
+        }
+
+        menu.AddSeparator(string.Empty);
+        if (isRelease)
+        {
+            // release 模式下 pdb 开关不生效，不提供切换
+            menu.AddDisabledItem(new GUIContent("pdb 符号（release 模式不生效）"));
+        }
+        else
+        {
+            bool pdbOn = BuildDLLCommand.IsPdbEnabled;
+            menu.AddItem(new GUIContent("pdb 符号/开启"), pdbOn, () => BuildDLLCommand.SetPdbEnabledConfirm(true));
+            menu.AddItem(new GUIContent("pdb 符号/关闭"), !pdbOn, () => BuildDLLCommand.SetPdbEnabledConfirm(false));
         }
 
         menu.AddSeparator(string.Empty);
         menu.AddItem(new GUIContent("打开构建模式窗口"), false,
-            () => EditorApplication.ExecuteMenuItem("TEngine/Build/构建模式窗口"));
+            () => EditorApplication.ExecuteMenuItem("Build/构建模式窗口"));
         menu.DropDown(dropDownRect);
     }
 }

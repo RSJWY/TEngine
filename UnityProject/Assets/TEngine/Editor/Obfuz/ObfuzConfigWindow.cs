@@ -110,8 +110,10 @@ namespace TEngine
         [PropertyOrder(2)]
         private void ToggleObfuz()
         {
-            BuildDLLCommand.SetObfuzSafe(!BuildDLLCommand.IsObfuzActiveSafe);
-            QueueSave();
+            if (BuildDLLCommand.SetObfuzSafeConfirm(!BuildDLLCommand.IsObfuzActiveSafe))
+            {
+                QueueSave();
+            }
         }
 
         private string ObfuzToggleLabel => BuildDLLCommand.IsObfuzActive ? "关闭混淆" : "开启混淆";

@@ -18,6 +18,8 @@ namespace TEngine
             UpdateScenes();
             ToolbarExtender.RightToolbarGUI.Add(OnToolbarGUI_EditorPlayMode);
             ToolbarExtender.RightToolbarGUI.Add(OnToolbarGUI_BuildMode);
+            // pdb 开关不走宏，切换不触发域重载，需检测变化并主动重绘
+            EditorApplication.update += RefreshToolbarOnPdbChanged;
             _resourceModeIndex = GetResourceModeIndex();
         }
     }
