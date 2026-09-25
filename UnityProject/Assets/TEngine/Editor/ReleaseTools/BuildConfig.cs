@@ -6,6 +6,17 @@ using YooAsset.Editor;
 
 namespace TEngine
 {
+    /// <summary>
+    /// 资源包版本号模式。
+    /// </summary>
+    public enum PackageVersionMode
+    {
+        /// <summary>所有包共用同一个版本号。</summary>
+        Unified,
+        /// <summary>每个包使用独立的版本号。</summary>
+        PerPackage,
+    }
+
     public class BuildConfig
     {
         // 基础设置
@@ -13,6 +24,9 @@ namespace TEngine
         public EBuildPipeline BuildPipeline = EBuildPipeline.ScriptableBuildPipeline;
         public ECompressOption CompressOption = ECompressOption.LZ4;
         public string PackageVersion = "";
+        public PackageVersionMode PackageVersionMode = PackageVersionMode.Unified;
+        /// <summary>PerPackage 模式下按包名存储独立版本号；Unified 模式下不使用。</summary>
+        public Dictionary<string, string> PackageVersionMap = new Dictionary<string, string>();
         public string OutputRoot = "./Releases/Bundles/";
 
         // 发布整理设置

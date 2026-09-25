@@ -75,21 +75,39 @@ namespace TEngine
 
         [TabGroup("Pages", "快速构建")]
         [BoxGroup("Pages/快速构建/基础设置")]
+        [HorizontalGroup("Pages/快速构建/基础设置/VersionMode")]
+        [LabelText("版本号模式")]
+        [ValueDropdown(nameof(PackageVersionModeOptions))]
+        [OnValueChanged(nameof(OnPackageVersionModeChanged))]
+        [SerializeField]
+        private PackageVersionMode _packageVersionMode = PackageVersionMode.Unified;
+
+        [TabGroup("Pages", "快速构建")]
+        [BoxGroup("Pages/快速构建/基础设置")]
         [HorizontalGroup("Pages/快速构建/基础设置/Version")]
         [LabelText("资源版本号")]
         [DelayedProperty]
         [OnValueChanged(nameof(OnSettingsChanged))]
+        [ShowIf(nameof(IsUnifiedVersionMode))]
         [SerializeField]
         private string _packageVersion = string.Empty;
 
         [TabGroup("Pages", "快速构建")]
         [HorizontalGroup("Pages/快速构建/基础设置/Version", Width = 70)]
         [Button("自动", ButtonSizes.Small)]
+        [ShowIf(nameof(IsUnifiedVersionMode))]
         private void GeneratePackageVersion()
         {
             _packageVersion = BuildConfig.GetDefaultPackageVersion();
             OnSettingsChanged();
         }
+
+        [TabGroup("Pages", "快速构建")]
+        [BoxGroup("Pages/快速构建/基础设置")]
+        [ShowIf(nameof(IsPerPackageVersionMode))]
+        [ListDrawerSettings(Expanded = true, DraggableItems = false, HideAddButton = true, HideRemoveButton = true, NumberOfItemsPerPage = 20)]
+        [SerializeField]
+        private List<PerPackageVersionEntry> _perPackageVersions = new List<PerPackageVersionEntry>();
 
         [TabGroup("Pages", "快速构建")]
         [BoxGroup("Pages/快速构建/基础设置")]
@@ -900,6 +918,15 @@ namespace TEngine
                 AddLog($"版本号为空，自动生成: {config.PackageVersion}");
             }
 
+            if (config.PackageVersionMode == PackageVersionMode.PerPackage)
+            {
+                SyncPerPackageVersionList();
+                AutoGeneratePerPackageVersions();
+                config.PackageVersionMap = BuildPackageVersionMap();
+                var versionSummary = string.Join(", ", _perPackageVersions.Select(x => $"{x.PackageName}={x.Version}"));
+                AddLog($"独立版本号模式: {versionSummary}");
+            }
+
             if (config.EnablePublishCopy)
             {
                 AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(config)}");
@@ -951,7 +978,43 @@ namespace TEngine
             var versions = ReleaseTools.GetPublishableVersions(config);
             if (versions.Count <= 0)
             {
-                AddLog("[错误] 未找到可整理的公共版本目录。请先完成 AssetBundle 构建。");
+                AddLog("[错误] 未找到可整理的版本目录。请先完成 AssetBundle 构建。");
+                Repaint();
+                return;
+            }
+
+            if (config.PackageVersionMode == PackageVersionMode.PerPackage)
+            {
+                // PerPackage 模式：直接用每包各自版本整理，不需要选公共版本。
+                var perPackageConfig = CreateConfig();
+                SyncPerPackageVersionList();
+                perPackageConfig.PackageVersionMap = BuildPackageVersionMap();
+                AddLog($"独立版本号模式: {string.Join(", ", perPackageConfig.PackageVersionMap.Select(x => $"{x.Key}={x.Value}"))}");
+                try
+                {
+                    Application.logMessageReceived += OnBuildLogReceived;
+                    if (ReleaseTools.PublishFromExistingBuild(perPackageConfig, string.Empty))
+                    {
+                        AddLog($"发布目录: {ReleaseTools.GetPublishOutputRoot(perPackageConfig)}");
+                        AddLog($"发布平台目录: {ReleaseTools.GetRemotePlatformName(perPackageConfig.BuildTarget)}");
+                        AddLog("========== 发布整理完成 ==========");
+                    }
+                    else
+                    {
+                        AddLog("[错误] 发布整理执行失败。");
+                    }
+                }
+                catch (Exception e)
+                {
+                    _lastBuildFailed = true;
+                    AddLog($"[错误] {e.Message}");
+                    Debug.LogException(e);
+                }
+                finally
+                {
+                    Application.logMessageReceived -= OnBuildLogReceived;
+                }
+
                 Repaint();
                 return;
             }
@@ -1211,6 +1274,7 @@ namespace TEngine
             _buildPipeline = setting.BuildPipeline;
             _compressOption = setting.CompressOption;
             _packageVersion = setting.PackageVersion;
+            _packageVersionMode = setting.PackageVersionMode;
             _outputRoot = string.IsNullOrWhiteSpace(setting.OutputRoot) ? DefaultOutputRoot : setting.OutputRoot;
             _enablePublishCopy = setting.EnablePublishCopy;
             _publishRoot = string.IsNullOrWhiteSpace(setting.PublishRoot) ? DefaultPublishRoot : setting.PublishRoot;
@@ -1433,6 +1497,7 @@ namespace TEngine
             _setting.BuildPipeline = _buildPipeline;
             _setting.CompressOption = _compressOption;
             _setting.PackageVersion = _packageVersion;
+            _setting.PackageVersionMode = _packageVersionMode;
             _setting.OutputRoot = _outputRoot;
             _setting.EnablePublishCopy = _enablePublishCopy;
             _setting.PublishRoot = _publishRoot;
@@ -1788,6 +1853,16 @@ namespace TEngine
 
         private string GetPreviewVersionText()
         {
+            if (_packageVersionMode == PackageVersionMode.PerPackage)
+            {
+                if (_perPackageVersions == null || _perPackageVersions.Count <= 0)
+                {
+                    return "(待生成)";
+                }
+
+                return string.Join("\n", _perPackageVersions.Select(x => $"{x.PackageName}: {x.Version}"));
+            }
+
             return string.IsNullOrWhiteSpace(_packageVersion)
                 ? "(自动生成)"
                 : _packageVersion;
@@ -1811,6 +1886,7 @@ namespace TEngine
             _buildPipeline = config.BuildPipeline;
             _compressOption = config.CompressOption;
             _packageVersion = config.PackageVersion;
+            _packageVersionMode = config.PackageVersionMode;
             _outputRoot = config.OutputRoot;
             _enablePublishCopy = config.EnablePublishCopy;
             _publishRoot = config.PublishRoot;
@@ -1843,12 +1919,14 @@ namespace TEngine
 
         private BuildConfig CreateConfig()
         {
-            return new BuildConfig
+            var config = new BuildConfig
             {
                 BuildTarget = _buildTarget,
                 BuildPipeline = _buildPipeline,
                 CompressOption = _compressOption,
                 PackageVersion = _packageVersion,
+                PackageVersionMode = _packageVersionMode,
+                PackageVersionMap = BuildPackageVersionMap(),
                 OutputRoot = _outputRoot,
                 EnablePublishCopy = _enablePublishCopy,
                 PublishRoot = _publishRoot,
@@ -1877,6 +1955,35 @@ namespace TEngine
                 InstallerPassword = _installerPassword,
                 InstallerWatermark = _installerWatermark,
             };
+            return config;
+        }
+
+        /// <summary>
+        /// 构建 PackageVersionMap：PerPackage 模式下从 _perPackageVersions 收集。
+        /// </summary>
+        private Dictionary<string, string> BuildPackageVersionMap()
+        {
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (_packageVersionMode != PackageVersionMode.PerPackage || _perPackageVersions == null)
+            {
+                return map;
+            }
+
+            foreach (var entry in _perPackageVersions)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.PackageName))
+                {
+                    continue;
+                }
+
+                var name = entry.PackageName.Trim();
+                if (!map.ContainsKey(name))
+                {
+                    map[name] = entry.Version ?? string.Empty;
+                }
+            }
+
+            return map;
         }
 
         private static string GetBuildPackageLogText(BuildConfig config)
@@ -2290,6 +2397,80 @@ namespace TEngine
             { "BundleName (资源包名)", EFileNameStyle.BundleName },
             { "BundleName_HashName (资源包名 + 哈希值)", EFileNameStyle.BundleName_HashName },
         };
+
+        private static ValueDropdownList<PackageVersionMode> PackageVersionModeOptions => new ValueDropdownList<PackageVersionMode>
+        {
+            { "统一版本号 (所有包共用)", PackageVersionMode.Unified },
+            { "独立版本号 (每包各自)", PackageVersionMode.PerPackage },
+        };
+
+        private bool IsUnifiedVersionMode => _packageVersionMode == PackageVersionMode.Unified;
+        private bool IsPerPackageVersionMode => _packageVersionMode == PackageVersionMode.PerPackage;
+        private int PerPackageVersionListCount => _perPackageVersions?.Count ?? 0;
+
+        private void OnPackageVersionModeChanged()
+        {
+            if (_packageVersionMode == PackageVersionMode.PerPackage)
+            {
+                SyncPerPackageVersionList();
+            }
+
+            OnSettingsChanged();
+        }
+
+        /// <summary>
+        /// 同步 _perPackageVersions 列表与当前启用的资源包列表一致。
+        /// </summary>
+        private void SyncPerPackageVersionList()
+        {
+            var packageNames = GetCurrentPackageNames();
+            var existing = _perPackageVersions?.ToDictionary(x => x.PackageName, x => x.Version, StringComparer.Ordinal)
+                           ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            var newList = new List<PerPackageVersionEntry>();
+            foreach (var name in packageNames)
+            {
+                var version = existing.TryGetValue(name, out var v) && !string.IsNullOrWhiteSpace(v)
+                    ? v
+                    : BuildConfig.GetDefaultPackageVersion();
+                newList.Add(new PerPackageVersionEntry { PackageName = name, Version = version });
+            }
+
+            _perPackageVersions = newList;
+        }
+
+        /// <summary>
+        /// PerPackage 模式下为所有空版本号自动生成。
+        /// </summary>
+        private void AutoGeneratePerPackageVersions()
+        {
+            if (_perPackageVersions == null)
+            {
+                return;
+            }
+
+            var version = BuildConfig.GetDefaultPackageVersion();
+            foreach (var entry in _perPackageVersions)
+            {
+                if (string.IsNullOrWhiteSpace(entry.Version))
+                {
+                    entry.Version = version;
+                }
+            }
+        }
+
+        [Serializable]
+        private sealed class PerPackageVersionEntry
+        {
+            [TableColumnWidth(150)]
+            [LabelText("包名")]
+            [ReadOnly]
+            public string PackageName = "DefaultPackage";
+
+            [TableColumnWidth(180)]
+            [LabelText("版本号")]
+            [DelayedProperty]
+            public string Version = "";
+        }
 
         [Serializable]
         private sealed class RuntimePackageView

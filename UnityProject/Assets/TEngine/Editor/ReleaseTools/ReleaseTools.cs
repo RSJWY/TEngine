@@ -163,13 +163,17 @@ namespace TEngine
 
                 if (config.EnablePublishCopy)
                 {
-                    PublishBuiltPackage(config, runtimePackage.PackageName, buildResult.OutputPackageDirectory);
+                    var publishVersion = ResolvePackageVersion(config, runtimePackage.PackageName);
+                    PublishBuiltPackage(config, runtimePackage.PackageName, buildResult.OutputPackageDirectory, publishVersion);
                 }
             }
 
             if (config.MinimalPackage && firstBuildResult != null)
             {
-                ProcessMinimalPackage(runtimePackages.Select(x => x.PackageName).ToList(), config.PackageVersion,
+                var minimalVersion = config.PackageVersionMode == PackageVersionMode.PerPackage
+                    ? ResolvePackageVersion(config, runtimePackages[0].PackageName)
+                    : config.PackageVersion;
+                ProcessMinimalPackage(runtimePackages.Select(x => x.PackageName).ToList(), minimalVersion,
                     config.RetainTags, firstBuildResult.OutputPackageDirectory);
             }
 
@@ -234,7 +238,8 @@ namespace TEngine
             }
 
             var buildPipeline = ResolveBuildPipeline(config, runtimePackage);
-            Debug.Log($"开始构建 : {config.BuildTarget} - {runtimePackage.PackageName} - {buildPipeline}");
+            string packageVersion = ResolvePackageVersion(config, runtimePackage.PackageName);
+            Debug.Log($"开始构建 : {config.BuildTarget} - {runtimePackage.PackageName} - {buildPipeline} - 版本:{packageVersion}");
 
             IBuildPipeline pipeline;
             BuildParameters buildParameters;
@@ -281,7 +286,7 @@ namespace TEngine
             buildParameters.BuildTarget = config.BuildTarget;
             buildParameters.BuildBundleType = GetBuildBundleType(buildPipeline);
             buildParameters.PackageName = runtimePackage.PackageName;
-            buildParameters.PackageVersion = config.PackageVersion;
+            buildParameters.PackageVersion = packageVersion;
             buildParameters.PackageNote = JsonUtility.ToJson(new PackageMetadata { mode = Settings.UpdateSetting.BuildMode });
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
             buildParameters.EnableSharePackRule = config.EnableSharePackRule;
@@ -397,8 +402,36 @@ namespace TEngine
                 return new List<string>();
             }
 
-            var versionTimes = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+            // PerPackage 模式：返回每包各自版本的并集，不要求公共版本。
+            if (config.PackageVersionMode == PackageVersionMode.PerPackage)
+            {
+                var versionTimes = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+                foreach (var runtimePackage in runtimePackages)
+                {
+                    var packageVersions = GetPackageVersionDirectories(config, runtimePackage.PackageName);
+                    foreach (var pair in packageVersions)
+                    {
+                        if (versionTimes.TryGetValue(pair.Key, out var existing))
+                        {
+                            versionTimes[pair.Key] = existing > pair.Value ? existing : pair.Value;
+                        }
+                        else
+                        {
+                            versionTimes[pair.Key] = pair.Value;
+                        }
+                    }
+                }
+
+                return versionTimes
+                    .OrderByDescending(kv => kv.Value)
+                    .ThenByDescending(kv => kv.Key, StringComparer.Ordinal)
+                    .Select(kv => kv.Key)
+                    .ToList();
+            }
+
+            // Unified 模式：返回所有包公共版本（交集）。
             var candidateVersions = new HashSet<string>(StringComparer.Ordinal);
+            var sharedVersionTimes = new Dictionary<string, DateTime>(StringComparer.Ordinal);
             var isFirstPackage = true;
 
             foreach (var runtimePackage in runtimePackages)
@@ -409,7 +442,7 @@ namespace TEngine
                     foreach (var packageVersion in packageVersions)
                     {
                         candidateVersions.Add(packageVersion.Key);
-                        versionTimes[packageVersion.Key] = packageVersion.Value;
+                        sharedVersionTimes[packageVersion.Key] = packageVersion.Value;
                     }
 
                     isFirstPackage = false;
@@ -419,15 +452,15 @@ namespace TEngine
                 candidateVersions.IntersectWith(packageVersions.Keys);
                 foreach (var version in candidateVersions.ToArray())
                 {
-                    if (packageVersions.TryGetValue(version, out var lastWriteTimeUtc) && versionTimes.TryGetValue(version, out var existingTime))
+                    if (packageVersions.TryGetValue(version, out var lastWriteTimeUtc) && sharedVersionTimes.TryGetValue(version, out var existingTime))
                     {
-                        versionTimes[version] = existingTime > lastWriteTimeUtc ? existingTime : lastWriteTimeUtc;
+                        sharedVersionTimes[version] = existingTime > lastWriteTimeUtc ? existingTime : lastWriteTimeUtc;
                     }
                 }
             }
 
             return candidateVersions
-                .OrderByDescending(version => versionTimes.TryGetValue(version, out var lastWriteTimeUtc)
+                .OrderByDescending(version => sharedVersionTimes.TryGetValue(version, out var lastWriteTimeUtc)
                     ? lastWriteTimeUtc
                     : DateTime.MinValue)
                 .ThenByDescending(version => version, StringComparer.Ordinal)
@@ -436,32 +469,59 @@ namespace TEngine
 
         public static bool PublishFromExistingBuild(BuildConfig config, string packageVersion)
         {
-            if (string.IsNullOrWhiteSpace(packageVersion))
+            var isPerPackage = config.PackageVersionMode == PackageVersionMode.PerPackage;
+            if (!isPerPackage && string.IsNullOrWhiteSpace(packageVersion))
             {
                 Debug.LogError("[Publish] 发布整理失败：版本号为空。");
                 return false;
             }
 
             var runtimePackages = GetBuildPackages();
-            var packageDirectories = new List<(string PackageName, string SourceDirectory)>();
+            var packageDirectories = new List<(string PackageName, string SourceDirectory, string Version)>();
+            var missingPackages = new List<string>();
+
             foreach (var runtimePackage in runtimePackages)
             {
-                var sourceDirectory = GetPackageVersionDirectory(config, runtimePackage.PackageName, packageVersion);
+                var effectiveVersion = isPerPackage
+                    ? ResolvePackageVersion(config, runtimePackage.PackageName)
+                    : packageVersion;
+
+                var sourceDirectory = GetPackageVersionDirectory(config, runtimePackage.PackageName, effectiveVersion);
                 if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
                 {
-                    Debug.LogError($"[Publish] 发布整理失败：未找到版本目录 {runtimePackage.PackageName}/{packageVersion}");
-                    return false;
+                    missingPackages.Add($"{runtimePackage.PackageName}/{effectiveVersion}");
+                    continue;
                 }
 
-                packageDirectories.Add((runtimePackage.PackageName, sourceDirectory));
+                packageDirectories.Add((runtimePackage.PackageName, sourceDirectory, effectiveVersion));
             }
 
-            foreach (var packageDirectory in packageDirectories)
+            if (packageDirectories.Count <= 0)
             {
-                PublishBuiltPackage(config, packageDirectory.PackageName, packageDirectory.SourceDirectory, packageVersion);
+                Debug.LogError($"[Publish] 发布整理失败：未找到任何版本目录。\n缺失：{string.Join("\n  ", missingPackages)}");
+                return false;
             }
 
-            Debug.Log($"[Publish] 已按版本整理完成：{packageVersion} => {GetPublishOutputRoot(config)}");
+            foreach (var missing in missingPackages)
+            {
+                Debug.LogWarning($"[Publish] 跳过缺失版本目录：{missing}");
+            }
+
+            foreach (var entry in packageDirectories)
+            {
+                PublishBuiltPackage(config, entry.PackageName, entry.SourceDirectory, entry.Version);
+            }
+
+            if (isPerPackage)
+            {
+                var versionSummary = string.Join(", ", packageDirectories.Select(x => $"{x.PackageName}={x.Version}"));
+                Debug.Log($"[Publish] 已按包版本整理完成：{versionSummary} => {GetPublishOutputRoot(config)}");
+            }
+            else
+            {
+                Debug.Log($"[Publish] 已按版本整理完成：{packageVersion} => {GetPublishOutputRoot(config)}");
+            }
+
             return true;
         }
 
@@ -853,10 +913,42 @@ namespace TEngine
             return BundleCrypto.Create(encryptionType)?.Encryptor;
         }
 
-        private static string GetBuildPackageVersion()
+        /// <summary>
+        /// 根据版本模式解析当前包的版本号。
+        /// PerPackage 模式下优先取 PackageVersionMap，其次取 _build_version.txt，最后自动生成。
+        /// </summary>
+        private static string ResolvePackageVersion(BuildConfig config, string packageName)
         {
-            int totalMinutes = DateTime.Now.Hour * 60 + DateTime.Now.Minute;
-            return DateTime.Now.ToString("yyyy-MM-dd") + "-" + totalMinutes;
+            if (config.PackageVersionMode != PackageVersionMode.PerPackage)
+            {
+                return config.PackageVersion;
+            }
+
+            if (config.PackageVersionMap.TryGetValue(packageName, out var version) && !string.IsNullOrWhiteSpace(version))
+            {
+                return version;
+            }
+
+            // 尝试从已有构建目录的 _build_version.txt 读取
+            var existingDir = GetBuildPlatformOutputRoot(config) + "/" + packageName;
+            if (Directory.Exists(existingDir))
+            {
+                var versionFile = Path.Combine(existingDir, "_build_version.txt");
+                if (File.Exists(versionFile))
+                {
+                    var fileVersion = File.ReadAllText(versionFile).Trim();
+                    if (!string.IsNullOrWhiteSpace(fileVersion))
+                    {
+                        config.PackageVersionMap[packageName] = fileVersion;
+                        return fileVersion;
+                    }
+                }
+            }
+
+            // 自动生成
+            var autoVersion = BuildConfig.GetDefaultPackageVersion();
+            config.PackageVersionMap[packageName] = autoVersion;
+            return autoVersion;
         }
 
         #endregion

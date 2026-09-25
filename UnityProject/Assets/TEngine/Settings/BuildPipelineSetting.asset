@@ -16,7 +16,8 @@ MonoBehaviour:
   BuildTarget: 19
   BuildPipeline: 2
   CompressOption: 2
-  PackageVersion: 2026-08-16-714
+  PackageVersion: 2026-09-26-424
+  PackageVersionMode: 0
   OutputRoot: ./Releases/Bundles/
   EnablePublishCopy: 1
   PublishRoot: ./Releases/Publish/
