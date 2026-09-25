@@ -2781,5 +2781,61 @@ namespace TEngine
         {
             Fatal(exception.ToString());
         }
+
+        /// <summary>
+        /// 早期信息级别日志：除正常输出到 Console 外，还在 <see cref="EarlyLogBuffer"/> 留一份副本，
+        /// 待 <see cref="UnityLoggerBridge"/> 就绪后补写到文件日志。
+        /// </summary>
+        /// <remarks>
+        /// 仅供启动早期（<see cref="UnityLoggerBridge"/> 初始化前，如 <c>AfterAssembliesLoaded</c> 阶段）需要留痕的代码使用；
+        /// 正常运行期请使用 <see cref="Info(string)"/>。
+        /// </remarks>
+        /// <param name="message">日志内容。</param>
+        [Conditional("ENABLE_LOG")]
+        [Conditional("ENABLE_INFO_LOG")]
+        [Conditional("ENABLE_DEBUG_AND_ABOVE_LOG")]
+        [Conditional("ENABLE_INFO_AND_ABOVE_LOG")]
+        public static void EarlyInfo(string message)
+        {
+            EarlyLogBuffer.Enqueue(TouchSocket.Core.LogLevel.Info, message ?? string.Empty);
+            Info(message);
+        }
+
+        /// <summary>
+        /// 早期警告级别日志：语义同 <see cref="EarlyInfo"/>，级别为 Warning。
+        /// </summary>
+        /// <param name="message">日志内容。</param>
+        [Conditional("ENABLE_LOG")]
+        [Conditional("ENABLE_WARNING_LOG")]
+        [Conditional("ENABLE_DEBUG_AND_ABOVE_LOG")]
+        [Conditional("ENABLE_INFO_AND_ABOVE_LOG")]
+        [Conditional("ENABLE_WARNING_AND_ABOVE_LOG")]
+        public static void EarlyWarning(string message)
+        {
+            EarlyLogBuffer.Enqueue(TouchSocket.Core.LogLevel.Warning, message ?? string.Empty);
+            Warning(message);
+        }
+
+        /// <summary>
+        /// 早期错误级别日志：语义同 <see cref="EarlyInfo"/>，级别为 Error。
+        /// </summary>
+        /// <remarks>
+        /// 用于启动早期致命错误的留痕（如 Obfuz 密钥加载失败）；文件日志中按 Error 级别记录，
+        /// 同时仍会经 <see cref="Fatal(string)"/> 走原有 Console 异常路径，行为不变。
+        /// </remarks>
+        /// <param name="message">日志内容。</param>
+        [Conditional("ENABLE_LOG")]
+        [Conditional("ENABLE_ERROR_LOG")]
+        [Conditional("ENABLE_FATAL_LOG")]
+        [Conditional("ENABLE_DEBUG_AND_ABOVE_LOG")]
+        [Conditional("ENABLE_INFO_AND_ABOVE_LOG")]
+        [Conditional("ENABLE_WARNING_AND_ABOVE_LOG")]
+        [Conditional("ENABLE_ERROR_AND_ABOVE_LOG")]
+        [Conditional("ENABLE_FATAL_AND_ABOVE_LOG")]
+        public static void EarlyError(string message)
+        {
+            EarlyLogBuffer.Enqueue(TouchSocket.Core.LogLevel.Error, message ?? string.Empty);
+            Fatal(message);
+        }
     }
 }

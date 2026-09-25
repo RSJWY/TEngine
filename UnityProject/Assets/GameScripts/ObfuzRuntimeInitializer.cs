@@ -24,9 +24,13 @@ namespace TEngine
     /// <para>Editor 不执行：Obfuz 官方 FAQ 明确禁止在 Editor 下运行混淆后代码——Editor 已加载原始未混淆程序集，
     /// 混淆 DLL 引用混淆后类型会“找不到类”。且 EditorSimulateMode 加载原始未混淆程序集，常量未被加密，
     /// 注入 Encryptor 反而会把正常常量当密文解、破坏运行。故用 <c>!UNITY_EDITOR</c> 守卫。</para>
-    /// <para>失败延迟报告：AfterAssembliesLoaded 时场景/UI 尚未就绪，无法弹窗。失败仅记标志 + <see cref="Log.Fatal"/>，
+    /// <para>失败延迟报告：AfterAssembliesLoaded 时场景/UI 尚未就绪，无法弹窗。失败仅记标志 + <see cref="Log.EarlyError"/>，
     /// 由 <c>ProcedureLaunch.OnEnter</c> 在 <c>LauncherMgr.Initialize()</c> 之后 UI 可用时调
     /// <see cref="CheckFailureAndReport"/> 消费，仅显示确认按钮，点击后 <see cref="Application.Quit"/>。</para>
+    /// <para>早期日志落盘：本类日志使用 <see cref="Log.EarlyInfo"/>/<see cref="Log.EarlyError"/> 而非 <see cref="Log.Info"/>/<see cref="Log.Fatal"/>。
+    /// 因 <c>UnityLoggerBridge</c> 在 <c>BeforeSplashScreen</c> 才订阅 Unity 日志事件，AfterAssembliesLoaded 阶段的
+    /// 常规日志只进 Console/Player.log、不进 TouchSocket 文件日志；Early 系列会同时在 <see cref="EarlyLogBuffer"/>
+    /// 留副本，待桥接器就绪后补写文件。</para>
     /// </remarks>
     public static class ObfuzRuntimeInitializer
     {
@@ -43,13 +47,13 @@ namespace TEngine
                 s_Failed = true;
                 s_ErrorMsg = "Obfuz 静态密钥加载失败：Resources/Obfuz/defaultStaticSecretKey.bytes 缺失或为空。"
                     + "已启用 ConstEncrypt/FieldEncrypt 等 Pass，但无密钥将无法解密混淆代码中的常量与字段，程序将退出。";
-                Log.Fatal($"[Obfuz] {s_ErrorMsg}");
+                Log.EarlyError($"[Obfuz] {s_ErrorMsg}");
                 return;
             }
 
             EncryptionService<DefaultStaticEncryptionScope>.Encryptor =
                 new GeneratedEncryptionVirtualMachine(asset.bytes);
-            Log.Info("[Obfuz] Static secret key initialized (AfterAssembliesLoaded).");
+            Log.EarlyInfo("[Obfuz] Static secret key initialized (AfterAssembliesLoaded).");
         }
 
         /// <summary>
