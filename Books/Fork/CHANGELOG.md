@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-09-25
+
+- 日志系统新增早期日志缓冲 `EarlyLogBuffer`：`UnityLoggerBridge` 在 `BeforeSplashScreen` 才订阅 Unity 日志事件并创建 `FileLogger`，此前（如 `AfterAssembliesLoaded` 阶段的 Obfuz 静态密钥初始化）的日志只进 Console/Player.log、不进 TouchSocket 文件日志。新增 `EarlyLogBuffer`（线程安全 `ConcurrentQueue`，容量上限 256），`Log` 新增 `EarlyInfo`/`EarlyWarning`/`EarlyError` 三个专用 API，调用时先入缓冲再走常规 Console 路径；`UnityLoggerBridge.Init` 末尾 `Flush` 把缓冲补写到文件日志（带 `[Early]` 前缀）并关闭缓冲区（后续 `Enqueue` 变 no-op，避免重复落盘）；`Shutdown` 里 `Reset` 兼容 Domain Reload。Obfuz 静态密钥初始化改用 Early 系列 API。详见 [logging.md](logging.md)。
+
 ## 2026-09-24
 
 - 加密密钥从 Resources 搬到代码常量：新增运行时程序集 `TEngine.CryptoKeys`（`KeyStore` 静态类以 `public static readonly byte[]` 存储密钥），密钥配置类搬到 Editor only 程序集 `TEngine.CryptoKeys.Editor`，`Resources/EncryptConfigs/` 删除不再入包；新增 `Build/加密密钥配置` 面板管理密钥编辑与烘焙到代码。详见 [resource-build.md](resource-build.md)。

@@ -102,6 +102,7 @@ GameModule.Resource.UnloadAsset(raw);
 
 - `UnityLoggerBridge` 将 Unity、Task、UniTask 和未观察异常统一写入持久化日志目录。
 - TouchSocket 可通过 `AddUnityDebugLogger()` 接入 Unity Console。
+- `EarlyLogBuffer` + `Log.EarlyInfo`/`EarlyWarning`/`EarlyError`：`UnityLoggerBridge` 在 `BeforeSplashScreen` 才就绪，此前（如 `AfterAssembliesLoaded` 阶段的 Obfuz 静态密钥初始化）的日志只进 Console/Player.log、不进文件日志。Early 系列在调用时先入内存缓冲再走常规 Console 路径，`UnityLoggerBridge.Init` 末尾把缓冲补写到文件日志（带 `[Early]` 前缀）并关闭缓冲区（后续 `Enqueue` 变 no-op，避免重复落盘）。详见 [日志系统](../../../../../Books/Fork/logging.md)。
 - `GameTickWatcher` 位于独立 `RuntimeTools` 程序集，用于轻量逻辑耗时统计。
 - GameObjectPool 调试窗口菜单为 `TEngine Tools/Debugger/GameObject Pool`。
 
