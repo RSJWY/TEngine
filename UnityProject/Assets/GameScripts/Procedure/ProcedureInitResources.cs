@@ -69,7 +69,6 @@ namespace Procedure
 
             if (_resourceModule.PlayMode == EPlayMode.HostPlayMode || _resourceModule.PlayMode == EPlayMode.WebPlayMode)
             {
-                Log.Debug($"Updated package Version : from {_resourceModule.GetPackageVersion()} to {_resourceModule.PackageVersion}");
                 if (_resourceModule.PlayMode == EPlayMode.WebPlayMode || _resourceModule.UpdatableWhilePlaying)
                 {
                     ChangeToPreloadState(procedureOwner);
@@ -278,10 +277,6 @@ namespace Procedure
         private void SavePackageVersionData(ProcedureOwner procedureOwner, RuntimePackageEntry runtimePackage, string packageVersion)
         {
             procedureOwner.SetData(GetPackageVersionDataKey(runtimePackage.PackageName), packageVersion);
-            if (runtimePackage.PackageName == _resourceModule.DefaultPackageName)
-            {
-                _resourceModule.PackageVersion = packageVersion;
-            }
         }
 
         private void ChangeToPreloadState(ProcedureOwner procedureOwner)
