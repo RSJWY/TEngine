@@ -35,6 +35,11 @@ namespace TEngine
             // buildInstaller(仅编译 InnoSetup 安装包，需已有 Windows Player 产物)
             public string action = "build";
 
+            // 多动作：同一进程内按顺序执行（Python 端分段合并后下发）。
+            // 触发域重载的动作（generateAll / switchPlatform）不会出现在此列表，由 Python 端独立分段。
+            // 为空或 null 时退回单 action 行为（向后兼容旧请求）。
+            public List<string> actions = new List<string>();
+
             // 基础设置（对应 BuildConfig）
             public string buildTarget = "StandaloneWindows64";
             public string buildPipeline = "ScriptableBuildPipeline";
@@ -104,6 +109,19 @@ namespace TEngine
             public long playerSizeBytes;
             public string installerOutputPath = "";
             public List<PackageRecordDTO> packages = new List<PackageRecordDTO>();
+            // 多动作执行时的按步记录（单动作请求也会记录一条，便于统一展示）
+            public List<StepRecordDTO> steps = new List<StepRecordDTO>();
+            // 失败时已成功的动作前缀（Python 端据此展示"停在第几步"）
+            public string executedActions = "";
+        }
+
+        [Serializable]
+        private sealed class StepRecordDTO
+        {
+            public string action = "";
+            public bool success;
+            public string error = "";
+            public long durationSeconds;
         }
 
         [Serializable]
@@ -130,14 +148,52 @@ namespace TEngine
                 }
                 else
                 {
-                    result.action = request.action;
-                    bool ok = Execute(request, result);
-                    result.success = ok;
-                    if (!ok && string.IsNullOrEmpty(result.error))
+                    var actionList = ResolveActionList(request);
+                    result.action = string.Join("->", actionList);
+                    var executed = new List<string>();
+                    bool ok = true;
+                    foreach (var action in actionList)
                     {
-                        result.error = "详见 Unity 日志";
+                        var stepWatch = System.Diagnostics.Stopwatch.StartNew();
+                        var step = new StepRecordDTO { action = action };
+                        bool stepOk;
+                        string stepError = null;
+                        try
+                        {
+                            stepOk = Execute(request, action, result);
+                            if (!stepOk && string.IsNullOrEmpty(stepError))
+                            {
+                                stepError = "详见 Unity 日志";
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogException(e);
+                            Debug.LogError($"[TEngineCLI] 动作 {action} 异常终止：{e.Message}");
+                            stepOk = false;
+                            stepError = e.Message;
+                        }
+
+                        stepWatch.Stop();
+                        step.success = stepOk;
+                        step.error = stepError ?? string.Empty;
+                        step.durationSeconds = (long)stepWatch.Elapsed.TotalSeconds;
+                        result.steps.Add(step);
+
+                        if (stepOk)
+                        {
+                            executed.Add(action);
+                            continue;
+                        }
+
+                        // 失败即停：剩余动作不再执行
+                        ok = false;
+                        result.error = $"动作 {action} 失败" + (string.IsNullOrEmpty(stepError) ? "" : $"：{stepError}");
+                        break;
                     }
 
+                    result.success = ok;
+                    result.executedActions = string.Join("->", executed);
                     exitCode = ok ? 0 : 1;
                 }
             }
@@ -211,16 +267,34 @@ namespace TEngine
             return request;
         }
 
-        private static bool Execute(BuildRequestDTO request, BuildResultDTO result)
+        /// <summary>
+        /// 解析要执行的动作列表：优先 actions[]（多动作合并请求），退回单 action。
+        /// 空列表 / 非法动作兜底为单 action，由 Execute 报"未知 action"。
+        /// </summary>
+        private static List<string> ResolveActionList(BuildRequestDTO request)
         {
-            Debug.Log($"[TEngineCLI] ========== 开始执行 action={request.action} ==========");
-            switch (request.action)
+            var list = request.actions?
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Select(a => a.Trim())
+                .ToList() ?? new List<string>();
+            if (list.Count == 0)
+            {
+                list.Add(string.IsNullOrWhiteSpace(request.action) ? "build" : request.action.Trim());
+            }
+
+            return list;
+        }
+
+        private static bool Execute(BuildRequestDTO request, string action, BuildResultDTO result)
+        {
+            Debug.Log($"[TEngineCLI] ========== 开始执行 action={action} ==========");
+            switch (action)
             {
                 case "build":
                 case "buildAb":
                 {
                     var config = ToBuildConfig(request);
-                    bool withPlayer = request.action == "build" && request.buildPlayer;
+                    bool withPlayer = action == "build" && request.buildPlayer;
                     if (string.IsNullOrWhiteSpace(request.packageVersion) &&
                         request.packageVersionMode == "Unified")
                     {
@@ -236,7 +310,7 @@ namespace TEngine
                     }
 
                     // AB 成功后串联安装包（与 GUI 窗口“串联构建”语义一致）
-                    if (ok && request.action == "build" && request.buildInstaller)
+                    if (ok && action == "build" && request.buildInstaller)
                     {
                         ok = ExecuteInstaller(request, result);
                     }
@@ -310,8 +384,8 @@ namespace TEngine
                     return true;
                 }
                 default:
-                    Debug.LogError($"[TEngineCLI] 未知 action：{request.action}");
-                    result.error = $"未知 action：{request.action}";
+                    Debug.LogError($"[TEngineCLI] 未知 action：{action}");
+                    result.error = $"未知 action：{action}";
                     return false;
             }
         }

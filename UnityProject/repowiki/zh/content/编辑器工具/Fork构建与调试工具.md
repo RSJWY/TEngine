@@ -41,6 +41,15 @@
 - 每次构建在 `BuildCLI/logs/<时间戳>/` 留存 `unity.log` + `build_request.json`。
 - 安装包（InnoSetup）构建暂未纳入，仍走打包窗口。
 
+### 批量执行（多步骤队列）
+
+预设保持纯表单快照；新增独立的**批量任务**（`BuildCLI/batches/*.json`，有序动作队列 + 绑定预设 + 失败即停）。`generateAll` / `switchPlatform` 触发域重载，各自独立成一个 Unity 进程；其余动作合并到**同一进程内顺序执行**（`CLIBridge` 收 `actions[]` 循环 `Execute`）。首包 4 步从 4 次冷启动降到 2 次，日常热更 3 步降到 1 次。
+
+- GUI「批量执行」标签页：任务下拉 + 步骤编辑器（左列可用动作双击添加、右列队列上移/下移/移除）+ ▶ 运行 + 横幅显示 `第 2/4 步：热更DLL（段 2/2）`，失败停在出错步骤。
+- CLI：`--batch 名称` 加载任务队列，或可重复 `--action hotfixDll --action buildAb` 临时组队。单 `action` 请求向后兼容。
+
+详细说明见 [resource-build.md](../../../../../Books/Fork/resource-build.md) 的「批量执行」一节。
+
 详细说明见 [resource-build.md](../../../../../Books/Fork/resource-build.md) 的「BuildCLI」一节。
 
 ## 构建产物

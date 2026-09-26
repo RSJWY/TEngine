@@ -148,11 +148,16 @@ def load_run_history(limit: int = 10) -> list[dict]:
 
 
 class BuildRun:
-    """一次 Unity batchmode 执行。GUI 用信号/回调拿日志与结果。"""
+    """一次 Unity batchmode 执行。GUI 用信号/回调拿日志与结果。
 
-    def __init__(self, state: BuildFormState, unity_exe: Path):
+    actions 为 None 时按单动作（state.action）执行（向后兼容）；
+    传入列表时下发给 CLIBridge 在同一进程内顺序执行。
+    """
+
+    def __init__(self, state: BuildFormState, unity_exe: Path, actions: list[str] | None = None):
         self.state = state
         self.unity_exe = unity_exe
+        self.actions = actions
         self.log_dir = dto.default_log_dir(LOGS_ROOT)
         self.log_file = self.log_dir / "unity.log"
         self.result_file = self.log_dir / dto.RESULT_FILENAME
@@ -205,7 +210,7 @@ class BuildRun:
             self._emit_done()
             return False
 
-        self.request_path = dto.dump_request(self.state, self.log_dir)
+        self.request_path = dto.dump_request(self.state, self.log_dir, self.actions)
         self._started_at = time.time()
         cmd = dto.build_command_line(Path(self.unity_exe), project_dir, self.request_path,
                                      self.log_file, self.result_file)
@@ -275,6 +280,9 @@ class BuildRun:
         self.unity_result = self._load_unity_result()
         if self._cancelled:
             self.result = "cancelled"
+        elif self.unity_result is not None:
+            # 有结构化结果（含按步记录）时以其 success 为准；request_version 多动作时更可靠
+            self.result = "success" if self.unity_result.get("success") else "failed"
         elif exit_code == 0 and self._check_success_sentinel():
             self.result = "success"
         else:
@@ -310,8 +318,9 @@ class BuildRun:
         """把本次执行结果落盘 result.json，供历史列表读取。"""
         import json
 
+        actions = self.actions or ([self.state.action] if self.state.action else ["build"])
         payload: dict = {
-            "action": self.state.action,
+            "action": "->".join(actions) if len(actions) > 1 else actions[0],
             "result": self.result,
             "exitCode": exit_code,
             "finishedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -320,8 +329,9 @@ class BuildRun:
         if self.failure_summary:
             payload["failureSummary"] = self.failure_summary[:2000]
         if self.unity_result:
-            # 合并 C# 侧关键字段（包记录/Player/安装包输出）
-            for key in ("packages", "playerOutputPath", "playerSizeBytes", "installerOutputPath", "durationSeconds"):
+            # 合并 C# 侧关键字段（包记录/Player/安装包输出/按步记录）
+            for key in ("packages", "playerOutputPath", "playerSizeBytes", "installerOutputPath",
+                        "durationSeconds", "steps", "executedActions"):
                 value = self.unity_result.get(key)
                 if value:
                     payload[key] = value
@@ -364,7 +374,11 @@ class BuildRun:
             pass
 
     def _check_success_sentinel(self) -> bool:
-        success_sentinel = _SENTINELS.get(self.state.action, (SENTINEL_DONE, None))[0]
+        # 多动作：C# 侧已写结构化结果时不会走到这里；无结果文件则以退出码为准
+        if self.actions and len(self.actions) > 1:
+            return not any(_load_failure_hints(self.log_file))
+        actions = self.actions or ([self.state.action] if self.state.action else ["build"])
+        success_sentinel = _SENTINELS.get(actions[0], (SENTINEL_DONE, None))[0]
         try:
             text = self.log_file.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -372,7 +386,194 @@ class BuildRun:
         if success_sentinel in text:
             return True
         # 无失败哨兵的动作（如 generateAll）以退出码为准
-        failure_sentinel = _SENTINELS.get(self.state.action, (None, None))[1]
+        failure_sentinel = _SENTINELS.get(actions[0], (None, None))[1]
         if failure_sentinel and failure_sentinel in text:
             return False
         return not any(hint in text for hint in GENERIC_FAILURE_HINTS) or success_sentinel in text
+
+
+def _load_failure_hints(log_file: Path) -> list[str]:
+    """读取日志中出现的通用失败提示（供多动作无结果文件时兜底判断）。"""
+    try:
+        text = log_file.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return list(GENERIC_FAILURE_HINTS)
+    return [hint for hint in GENERIC_FAILURE_HINTS if hint in text]
+
+
+def split_into_segments(actions: list[str]) -> list[list[str]]:
+    """把动作队列按"是否触发域重载"切成分段列表。
+
+    generateAll / switchPlatform 触发脚本重编译 + 域重载，会中断 -executeMethod
+    执行流，必须各自独占一个 Unity 进程；其余动作合并进同一进程顺序执行。
+    示例：[generateAll, hotfixDll, build, publish] → [[generateAll], [hotfixDll, build, publish]]
+    """
+    from .config_store import DOMAIN_RELOAD_ACTIONS
+
+    segments: list[list[str]] = []
+    current: list[str] = []
+    for action in actions:
+        if not action:
+            continue
+        if action in DOMAIN_RELOAD_ACTIONS:
+            if current:
+                segments.append(current)
+                current = []
+            segments.append([action])
+        else:
+            current.append(action)
+    if current:
+        segments.append(current)
+    return segments
+
+
+class BatchRun:
+    """批量执行编排器：把动作队列分段，逐段起 Unity 进程，失败即停。
+
+    GUI/CLI 复用。每段是一个 BuildRun；进度通过 on_step / on_log / on_done 回调上报。
+    """
+
+    def __init__(self, state: BuildFormState, unity_exe: Path, actions: list[str],
+                 stop_on_failure: bool = True, name: str = ""):
+        self.state = state
+        self.unity_exe = unity_exe
+        self.actions = [a for a in actions if a]
+        self.stop_on_failure = stop_on_failure
+        self.name = name
+
+        self.segments = split_into_segments(self.actions)
+        self.total_steps = len(self.actions)
+        self.completed_steps = 0          # 已成功的步骤数（跨段累计）
+        self.current_segment = 0
+        self.run: BuildRun | None = None  # 当前段
+        self.result: str | None = None    # None=未结束, "success", "failed", "cancelled"
+        self.failure_summary: str = ""
+
+        self._log_callbacks: list = []
+        self._step_callbacks: list = []
+        self._done_callbacks: list = []
+        self._cancelled = False
+        self._started_at: float | None = None
+
+    # ---- 回调 ----
+    def on_log(self, callback) -> None:
+        self._log_callbacks.append(callback)
+
+    def on_step(self, callback) -> None:
+        """callback(step_index(1-based), action, segment_index(1-based), total_segments)"""
+        self._step_callbacks.append(callback)
+
+    def on_done(self, callback) -> None:
+        self._done_callbacks.append(callback)
+
+    def _emit_log(self, line: str) -> None:
+        for cb in self._log_callbacks:
+            try:
+                cb(line)
+            except Exception:
+                pass
+
+    def _emit_step(self, action: str) -> None:
+        for cb in self._step_callbacks:
+            try:
+                cb(self.completed_steps + 1, action, self.current_segment, len(self.segments))
+            except Exception:
+                pass
+
+    def _emit_done(self) -> None:
+        for cb in self._done_callbacks:
+            try:
+                cb(self.result)
+            except Exception:
+                pass
+
+    # ---- 生命周期 ----
+    def start(self) -> bool:
+        if not self.segments:
+            self._emit_log("[BuildCLI] 批量任务没有可执行的动作。")
+            self.result = "failed"
+            self.failure_summary = "批量任务没有可执行的动作"
+            self._emit_done()
+            return False
+        if not self.unity_exe or not Path(self.unity_exe).is_file():
+            self._emit_log("[BuildCLI] 未找到 Unity.exe，请在设置中手动指定路径。")
+            self.failure_summary = "未找到 Unity.exe"
+            self.result = "failed"
+            self._emit_done()
+            return False
+        self._started_at = time.time()
+        if self.name:
+            self._emit_log(f"[BuildCLI] ====== 批量任务「{self.name}」：{' → '.join(self.actions)} ======")
+        self._start_segment(0)
+        return self.run is not None
+
+    def _start_segment(self, index: int) -> None:
+        self.current_segment = index + 1
+        segment = self.segments[index]
+        first_action = segment[0]
+        self._emit_step(first_action)
+        if len(segment) > 1:
+            self._emit_log(f"[BuildCLI] ---- 段 {index + 1}/{len(self.segments)}："
+                           f"{' → '.join(segment)}（同进程合并执行）----")
+        else:
+            self._emit_log(f"[BuildCLI] ---- 段 {index + 1}/{len(self.segments)}：{first_action} ----")
+
+        self.run = BuildRun(self.state, self.unity_exe, actions=segment)
+        self.run.on_log(self._emit_log)
+        self.run.on_done(lambda _r, idx=index: self._on_segment_done(idx))
+
+    def pump(self) -> bool:
+        """轮询推进当前段。返回是否仍在运行。"""
+        if self.result is not None:
+            return False
+        if self.run is None:
+            return False
+        if not self.run.pump():
+            return False
+        return True
+
+    def _on_segment_done(self, index: int) -> None:
+        if self.run is None:
+            return
+
+        if self.result == "cancelled" or self._cancelled:
+            self.result = "cancelled"
+            self._emit_done()
+            return
+
+        segment_result = self.run.result
+        if segment_result == "success":
+            self.completed_steps += len(self.run.actions or [])
+            next_index = index + 1
+            if next_index < len(self.segments):
+                self._start_segment(next_index)
+                if not self.run.start():
+                    self._finish_failed("启动 Unity 进程失败")
+                return
+            self.result = "success"
+            self._emit_log(f"[BuildCLI] ====== 批量任务完成（{self.total_steps} 步 / "
+                           f"{len(self.segments)} 段）======")
+            self._emit_done()
+            return
+
+        # 失败 / 取消
+        if segment_result == "cancelled":
+            self.result = "cancelled"
+            self._emit_done()
+            return
+        self._finish_failed(self.run.failure_summary or f"段 {index + 1} 执行失败")
+
+    def _finish_failed(self, summary: str) -> None:
+        stop_hint = "" if self.stop_on_failure else "（stopOnFailure=false，但批量编排仍停止）"
+        self.result = "failed"
+        self.failure_summary = f"第 {self.completed_steps + 1} 步失败，已停止。{summary}"
+        self._emit_log(f"[BuildCLI] ====== 批量任务失败：已完成 {self.completed_steps}/{self.total_steps} 步。"
+                       f"{summary}{stop_hint} ======")
+        self._emit_done()
+
+    def cancel(self) -> None:
+        self._cancelled = True
+        if self.run:
+            self.run.cancel()
+        self.result = "cancelled"
+        self._emit_done()

@@ -523,6 +523,32 @@ Bundle 用密钥原名 `ChaCha20KeyConfig` / `XorKeyConfig`，与清单用 `Mani
 - 构建留痕：每次执行在 `BuildCLI/logs/<时间戳>/` 落盘 `unity.log` + `build_request.json`，可导出比对。
 - 仓库根旧 `BuildCLI/`（build_android.bat 等上游遗留脚本）保持原样不动。
 
+### 批量执行（多步骤队列）
+
+预设保持纯表单快照不动；新增独立的**批量任务**（`BuildCLI/batches/*.json`）记录有序动作队列 + 绑定预设（可选）：
+
+```json
+{
+  "name": "first-package",
+  "preset": "win-std",
+  "steps": ["generateAll", "hotfixDll", "build", "publish"],
+  "stopOnFailure": true
+}
+```
+
+**分段合并执行**解决"多按钮逐步冷启动 Unity 太慢"的问题：`generateAll` / `switchPlatform` 会触发脚本重编译 + 域重载，中断 `-executeMethod` 执行流，故各自独立成一个 Unity 进程；其余动作合并到**同一进程内顺序执行**（CLIBridge 收到 `actions[]` 后循环调用 `Execute`，全部完成才 `Exit`）。
+
+- 首包 `generateAll → hotfixDll → build → publish`：4 次冷启动 → **2 次**（`[generateAll] | [hotfixDll→build→publish]`）。
+- 日常热更 `hotfixDll → buildAb → publish`：**1 次**。
+- 同进程合并的白名单判断标准：该动作结束后当前 AppDomain 未被卸载重载。资源导入（含 `AssetDatabase.Refresh` 自动生成 .meta）不影响；只有变动脚本类资产（`.cs`/`.asmdef`/Plugins 下裸 `.dll`）才触发域重载。
+
+实现要点：
+
+- C# 侧 `CLIBridge.BuildRequestDTO` 新增 `actions` 列表，`Run()` 解析动作列表循环执行 `Execute`，失败即停；`BuildResultDTO` 新增 `steps`/`executedActions` 按步记录耗时与错误。单 `action` 请求向后兼容。
+- Python 侧 `unity_runner.split_into_segments` 按域重载动作切分段；`BatchRun` 编排器逐段起进程、失败即停、进度/取消回调。
+- GUI「批量执行」标签页：任务下拉 + `BatchStepsDialog` 步骤编辑器（左列可用动作双击添加、右列队列上移/下移/移除）+ ▶ 运行 + 横幅显示 `第 2/4 步：热更DLL（段 2/2）`。
+- CLI：`--batch 名称` 加载任务队列，或可重复 `--action hotfixDll --action buildAb` 临时组队。
+
 ### 使用方式
 
 ```powershell
@@ -541,5 +567,6 @@ python -m tengine_build --no-gui run --action buildAb --target StandaloneWindows
 ### 关键文件
 
 - `UnityProject/BuildCLI/tengine_build/`（app / cli / unity_runner / config_store / unity_locator / dto）
+- `UnityProject/BuildCLI/batches/`（批量任务 JSON：有序动作队列 + 绑定预设，随仓库提交）
 - `UnityProject/BuildCLI/build_gui.bat` / `build_gui.sh` / `requirements.txt` / `README.md`
 - `Assets/TEngine/Editor/ReleaseTools/CLIBridge.cs`（新增，Unity 侧唯一入口）

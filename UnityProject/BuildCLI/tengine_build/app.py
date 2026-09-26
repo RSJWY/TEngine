@@ -6,17 +6,18 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QColor, QFont, QTextCursor
+from PySide6.QtGui import QAction, QFont, QTextCursor
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout,
-    QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
-    QMenu, QMessageBox, QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QTabWidget, QVBoxLayout, QWidget,
+    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
+    QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
+    QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
+    QVBoxLayout, QWidget,
 )
 
 from . import config_store, unity_locator
-from .config_store import BuildFormState, PackageVersionEntry
-from .unity_runner import BuildRun
+from .config_store import BatchTask, BuildFormState, PackageVersionEntry
+from .unity_runner import BatchRun, BuildRun
 
 try:  # 系统托盘可用性检测（无桌面环境时跳过通知）
     from PySide6.QtWidgets import QSystemTrayIcon
@@ -59,6 +60,119 @@ QLabel { color: #ccc; }
 
 
 
+class BatchStepsDialog(QDialog):
+    """批量任务编辑对话框：左列可用动作，右列已选队列（增删/上移/下移）。"""
+
+    def __init__(self, parent=None, name: str = "", preset: str = "", steps: list[str] | None = None,
+                 stop_on_failure: bool = True, preset_names: list[str] | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("编辑批量任务")
+        self.resize(560, 420)
+
+        form = QFormLayout()
+        self.name_edit = QLineEdit(name)
+        form.addRow("任务名：", self.name_edit)
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItem("（使用当前表单）", "")
+        for p in preset_names or []:
+            self.preset_combo.addItem(p, p)
+        idx = self.preset_combo.findData(preset)
+        self.preset_combo.setCurrentIndex(max(idx, 0))
+        form.addRow("绑定预设：", self.preset_combo)
+        self.stop_check = QCheckBox("失败即停（推荐）")
+        self.stop_check.setChecked(stop_on_failure)
+        form.addRow(self.stop_check)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+
+        columns = QHBoxLayout()
+        left_box = QGroupBox("可用动作（双击添加）")
+        left_layout = QVBoxLayout(left_box)
+        self.available_list = QListWidget()
+        action_names = MainWindow._action_names()
+        for action, display in action_names.items():
+            item = QListWidgetItem(display)
+            item.setData(Qt.ItemDataRole.UserRole, action)
+            self.available_list.addItem(item)
+        self.available_list.itemDoubleClicked.connect(self._add_selected)
+        left_layout.addWidget(self.available_list)
+        add_button = QPushButton("添加 →")
+        add_button.clicked.connect(self._add_selected)
+        left_layout.addWidget(add_button)
+        columns.addWidget(left_box)
+
+        right_box = QGroupBox("执行队列（按顺序）")
+        right_layout = QVBoxLayout(right_box)
+        self.steps_list = QListWidget()
+        for step in steps or []:
+            display = f"{action_names.get(step, step)}"
+            item = QListWidgetItem(display)
+            item.setData(Qt.ItemDataRole.UserRole, step)
+            self.steps_list.addItem(item)
+        right_layout.addWidget(self.steps_list)
+
+        step_buttons = QHBoxLayout()
+        up_button = QPushButton("上移")
+        up_button.clicked.connect(self._move_up)
+        down_button = QPushButton("下移")
+        down_button.clicked.connect(self._move_down)
+        remove_button = QPushButton("移除")
+        remove_button.clicked.connect(self._remove_step)
+        clear_button = QPushButton("清空")
+        clear_button.clicked.connect(self.steps_list.clear)
+        for b in (up_button, down_button, remove_button, clear_button):
+            step_buttons.addWidget(b)
+        right_layout.addLayout(step_buttons)
+        columns.addWidget(right_box)
+        layout.addLayout(columns)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _add_selected(self) -> None:
+        item = self.available_list.currentItem()
+        if item is None:
+            item = self.available_list.item(0)
+        if item is None:
+            return
+        new_item = item.clone()
+        self.steps_list.addItem(new_item)
+
+    def _move_up(self) -> None:
+        row = self.steps_list.currentRow()
+        if row > 0:
+            self.steps_list.insertItem(row - 1, self.steps_list.takeItem(row))
+            self.steps_list.setCurrentRow(row - 1)
+
+    def _move_down(self) -> None:
+        row = self.steps_list.currentRow()
+        if row < 0 or row >= self.steps_list.count() - 1:
+            return
+        self.steps_list.insertItem(row + 1, self.steps_list.takeItem(row))
+        self.steps_list.setCurrentRow(row + 1)
+
+    def _remove_step(self) -> None:
+        row = self.steps_list.currentRow()
+        if row >= 0:
+            self.steps_list.takeItem(row)
+
+    def result_task(self) -> BatchTask:
+        steps = []
+        for i in range(self.steps_list.count()):
+            action = self.steps_list.item(i).data(Qt.ItemDataRole.UserRole)
+            if action:
+                steps.append(str(action))
+        return BatchTask(
+            name=self.name_edit.text().strip(),
+            preset=self.preset_combo.currentData() or "",
+            steps=steps,
+            stopOnFailure=self.stop_check.isChecked(),
+        )
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -75,6 +189,7 @@ class MainWindow(QMainWindow):
             self.state.unityExePath = str(exe) if exe else ""
 
         self.run: BuildRun | None = None
+        self.batch_run: BatchRun | None = None
         self._dark_mode = False
         self._tray = None
         self._build_ui()
@@ -106,6 +221,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self._build_quick_tab(), "快速构建")
         tabs.addTab(self._build_publish_tab(), "发布与Player")
         tabs.addTab(self._build_advanced_tab(), "高级")
+        tabs.addTab(self._build_batch_tab(), "批量执行")
         body.addWidget(tabs, stretch=3)
         body.addWidget(self._build_log_panel(), stretch=2)
         root.addLayout(body, stretch=1)
@@ -444,6 +560,53 @@ class MainWindow(QMainWindow):
         layout.addWidget(advanced)
 
         layout.addStretch()
+        return page
+
+    def _build_batch_tab(self) -> QWidget:
+        """批量执行页：任务下拉 + 编辑/新建/删除 + ▶ 运行 + 进度展示。"""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        task_box = QGroupBox("批量任务（有序动作队列，自动分段合并执行）")
+        task_layout = QGridLayout(task_box)
+
+        task_layout.addWidget(QLabel("任务："), 0, 0)
+        self.batch_combo = QComboBox()
+        self.batch_combo.setMinimumWidth(220)
+        task_layout.addWidget(self.batch_combo, 0, 1)
+        self.batch_run_button = QPushButton("▶ 运行批量任务")
+        self.batch_run_button.setStyleSheet("background-color: rgba(90, 200, 120, 0.35);")
+        self.batch_run_button.clicked.connect(self._start_batch)
+        task_layout.addWidget(self.batch_run_button, 0, 2)
+
+        new_button = QPushButton("新建")
+        new_button.clicked.connect(lambda: self._edit_batch(None))
+        task_layout.addWidget(new_button, 0, 3)
+        edit_button = QPushButton("编辑")
+        edit_button.clicked.connect(lambda: self._edit_batch(self._current_batch_name()))
+        task_layout.addWidget(edit_button, 0, 4)
+        delete_button = QPushButton("删除")
+        delete_button.clicked.connect(self._delete_batch)
+        task_layout.addWidget(delete_button, 0, 5)
+
+        info_box = QGroupBox("任务详情")
+        info_layout = QVBoxLayout(info_box)
+        self.batch_info_label = QLabel("（选择一个任务查看详情）")
+        self.batch_info_label.setWordWrap(True)
+        info_layout.addWidget(self.batch_info_label)
+        task_layout.addWidget(info_box, 1, 0, 1, 6)
+
+        hint = QLabel("说明：generateAll / 切换平台 会触发脚本重编译，自动独立成段（单独 Unity 进程）；"
+                      "其余动作合并到同一进程顺序执行，减少冷启动。任务可绑定预设，未绑定则用当前表单。")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #666;")
+        task_layout.addWidget(hint, 2, 0, 1, 6)
+
+        layout.addWidget(task_box)
+        layout.addStretch()
+
+        self.batch_combo.currentIndexChanged.connect(self._refresh_batch_info)
+        self._reload_batch_combo()
         return page
 
     def _build_log_panel(self) -> QWidget:
@@ -857,10 +1020,153 @@ class MainWindow(QMainWindow):
         self._on_version_mode_changed()
         self._append_log("[BuildCLI] 已从 Unity 打包窗口配置（BuildPipelineSetting.asset）读取。")
 
+    # ============ 交互：批量任务 ============
+
+    def _reload_batch_combo(self) -> None:
+        self.batch_combo.blockSignals(True)
+        self.batch_combo.clear()
+        for p in config_store.list_batches():
+            task = config_store.load_batch(p.stem)
+            if task:
+                self.batch_combo.addItem(f"{task.name}（{len(task.steps)}步）", task.name)
+        self.batch_combo.blockSignals(False)
+        self._refresh_batch_info()
+
+    def _current_batch_name(self) -> str:
+        return self.batch_combo.currentData() or ""
+
+    def _refresh_batch_info(self) -> None:
+        name = self._current_batch_name()
+        if not name:
+            self.batch_info_label.setText("（暂无批量任务，点「新建」创建）")
+            return
+        task = config_store.load_batch(name)
+        if task is None:
+            self.batch_info_label.setText(f"未找到任务：{name}")
+            return
+        action_names = self._action_names()
+        steps_text = " → ".join(action_names.get(s, s) for s in task.steps) or "（空）"
+        preset_text = f"绑定预设：{task.preset}" if task.preset else "未绑定预设（用当前表单）"
+        stop_text = "失败即停" if task.stopOnFailure else "失败继续（不建议）"
+        self.batch_info_label.setText(f"{steps_text}\n{preset_text}；{stop_text}")
+
+    def _edit_batch(self, name: str | None) -> None:
+        task = config_store.load_batch(name) if name else None
+        preset_names = [p.stem for p in config_store.list_presets()]
+        dialog = BatchStepsDialog(
+            self,
+            name=task.name if task else "",
+            preset=task.preset if task else "",
+            steps=task.steps if task else ["hotfixDll", "buildAb", "publish"],
+            stop_on_failure=task.stopOnFailure if task else True,
+            preset_names=preset_names,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        result = dialog.result_task()
+        if not result.name:
+            QMessageBox.warning(self, "缺少任务名", "请填写批量任务名。")
+            return
+        if not result.steps:
+            QMessageBox.warning(self, "队列为空", "至少添加一个动作步骤。")
+            return
+        path = config_store.save_batch(result)
+        self._append_log(f"[BuildCLI] 批量任务已保存：{path}")
+        self._reload_batch_combo()
+        index = self.batch_combo.findData(result.name)
+        if index >= 0:
+            self.batch_combo.setCurrentIndex(index)
+
+    def _delete_batch(self) -> None:
+        name = self._current_batch_name()
+        if not name:
+            return
+        if QMessageBox.question(self, "删除批量任务", f"确定删除任务「{name}」？") != QMessageBox.StandardButton.Yes:
+            return
+        if config_store.delete_batch(name):
+            self._append_log(f"[BuildCLI] 批量任务已删除：{name}")
+            self._reload_batch_combo()
+
+    def _start_batch(self) -> None:
+        if (self.run is not None and self.run.result is None) or \
+                (self.batch_run is not None and self.batch_run.result is None):
+            QMessageBox.information(self, "构建中", "已有构建正在进行，请先取消或等待完成。")
+            return
+
+        name = self._current_batch_name()
+        task = config_store.load_batch(name) if name else None
+        if task is None or not task.steps:
+            QMessageBox.warning(self, "无可用任务", "请先选择或创建一个包含步骤的批量任务。")
+            return
+
+        unity_exe = self.unity_exe_edit.text().strip()
+        if not unity_exe or not Path(unity_exe).is_file():
+            QMessageBox.warning(self, "缺少 Unity 路径", "请先设置有效的 Unity.exe 路径。")
+            return
+
+        # 执行配置：绑定预设 → 加载预设；否则用当前表单（环境字段校验同单按钮）
+        state = config_store.resolve_batch_state(task, self.state)
+        if not state.projectDir or not (Path(state.projectDir) / "Assets").is_dir():
+            QMessageBox.warning(self, "项目目录无效", "请设置有效的 Unity 工程目录（含 Assets/ProjectSettings）。")
+            return
+        state.unityExePath = unity_exe
+
+        # 与单按钮一致的自动版本号兜底
+        if any(a in ("build", "buildAb", "publish") for a in task.steps) \
+                and state.packageVersionMode == "Unified" and not state.packageVersion:
+            state.packageVersion = config_store.default_package_version()
+            if state is self.state:
+                self.version_edit.setText(state.packageVersion)
+            self._append_log(f"[BuildCLI] 版本号为空，自动生成：{state.packageVersion}")
+
+        self.log_view.clear()
+        preset_note = f"（预设：{task.preset}）" if task.preset else "（当前表单）"
+        self._append_log(f"[BuildCLI] ====== 批量任务「{task.name}」{preset_note} ======")
+        self.batch_run = BatchRun(state, Path(unity_exe), task.steps,
+                                  stop_on_failure=task.stopOnFailure, name=task.name)
+        self.batch_run.on_log(self._append_log)
+        self.batch_run.on_step(self._on_batch_step)
+        self.batch_run.on_done(self._on_batch_done)
+        self._set_building_ui(True)
+        if self.batch_run.start():
+            self.pump_timer.start()
+        else:
+            self._set_building_ui(False)
+
+    def _on_batch_step(self, step_index: int, action: str, segment: int, total_segments: int) -> None:
+        action_name = self._action_names().get(action, action)
+        self._set_result_banner("running", f"批量 第{step_index}/{self.batch_run.total_steps}步：{action_name}"
+                                         f"（段 {segment}/{total_segments}）")
+
+    def _on_batch_done(self, result: str) -> None:
+        self._set_building_ui(False)
+        duration = ""
+        if self.batch_run and self.batch_run._started_at:
+            import time as _time
+
+            duration = f"耗时 {round(_time.time() - self.batch_run._started_at, 1)}s"
+        if result == "success":
+            self.status_label.setText("批量任务成功")
+            self._set_result_banner("success", f"批量任务 {self.batch_run.total_steps} 步全部完成 {duration}")
+            self._append_log("[BuildCLI] ====== 批量任务成功 ======")
+        elif result == "cancelled":
+            self.status_label.setText("已取消")
+            self._set_result_banner("cancelled", "批量任务")
+            self._append_log("[BuildCLI] ====== 批量任务已取消 ======")
+        else:
+            self.status_label.setText("批量任务失败")
+            self._set_result_banner("failed", f"已完成 {self.batch_run.completed_steps}/{self.batch_run.total_steps} 步 {duration}")
+            self._append_log("[BuildCLI] ====== 批量任务失败，详见日志 ======")
+            QMessageBox.warning(self, "批量任务失败",
+                                f"{self.batch_run.failure_summary}\n\n完整日志：\n"
+                                f"{self.batch_run.run.log_file if self.batch_run.run else '?'}")
+        self._reload_history()
+
     # ============ 构建执行 ============
 
     def _start_action(self, action: str) -> None:
-        if self.run is not None and self.run.result is None:
+        if (self.run is not None and self.run.result is None) or \
+                (self.batch_run is not None and self.batch_run.result is None):
             QMessageBox.information(self, "构建中", "已有构建正在进行，请先取消或等待完成。")
             return
 
@@ -906,12 +1212,23 @@ class MainWindow(QMainWindow):
             self._set_building_ui(False)
 
     def _cancel_build(self) -> None:
+        if self.batch_run and self.batch_run.result is None:
+            self.batch_run.cancel()
+            self.pump_timer.stop()
+            self._set_building_ui(False)
+            return
         if self.run:
             self.run.cancel()
             self.pump_timer.stop()
             self._set_building_ui(False)
 
     def _pump(self) -> None:
+        if self.batch_run is not None:
+            if self.batch_run.result is None and self.batch_run.pump():
+                return
+            self.pump_timer.stop()
+            self.batch_run = None  # 批量结束（done 回调已触发），清引用避免拦截下一次构建
+            return
         if self.run and not self.run.pump():
             self.pump_timer.stop()
 
@@ -981,7 +1298,10 @@ class MainWindow(QMainWindow):
         self.cancel_button.setEnabled(building)
         if building:
             self.status_label.setText("构建中…")
-            self._set_result_banner("running", self._action_names().get(self.state.action, self.state.action))
+            if self.batch_run is not None and self.batch_run.result is None:
+                self._set_result_banner("running", f"批量任务 {self.batch_run.total_steps} 步")
+            elif self.run is not None and self.run.result is None:
+                self._set_result_banner("running", self._action_names().get(self.state.action, self.state.action))
         for bar_btn in self.findChildren(QPushButton):
             if bar_btn is not self.cancel_button:
                 bar_btn.setEnabled(not building)
@@ -1005,12 +1325,15 @@ class MainWindow(QMainWindow):
             Path(path).write_text(self.log_view.toPlainText(), encoding="utf-8")
 
     def closeEvent(self, event) -> None:
-        if self.run and self.run.result is None:
+        if (self.run and self.run.result is None) or (self.batch_run and self.batch_run.result is None):
             answer = QMessageBox.question(self, "构建进行中", "Unity 构建仍在进行，退出会取消构建。确定退出？")
             if answer != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
-            self.run.cancel()
+            if self.batch_run:
+                self.batch_run.cancel()
+            if self.run:
+                self.run.cancel()
         config_store.save_last_session(self.state)
         super().closeEvent(event)
 

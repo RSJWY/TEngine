@@ -17,7 +17,7 @@
 | 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 | [data-binding.md](Fork/data-binding.md) |
 | 运行时配置 | `JsonConfigModule`、`DeployConfig`、`Utility.Toml` | [runtime-config.md](Fork/runtime-config.md) |
 | 热更新 | `CodePackage`、归档二进制加载、AOT 元数据、版本确认流程 | [hot-update.md](Fork/hot-update.md) |
-| 资源打包 | 按包构建、ArchiveFile 管线、发布整理、打包工具 Odin 化 | [resource-build.md](Fork/resource-build.md) |
+| 资源打包 | 按包构建、ArchiveFile 管线、发布整理、打包工具 Odin 化、BuildCLI 批量执行（多步骤队列 + 分段合并） | [resource-build.md](Fork/resource-build.md) |
 | 场景系统 | DynamicSpawn 通用化、加载进度下沉到 `GameSceneModule` | [scene-system.md](Fork/scene-system.md) |
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 | [window-management.md](Fork/window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本 | [obfuscation.md](Fork/obfuscation.md) |

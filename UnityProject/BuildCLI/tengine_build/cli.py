@@ -18,9 +18,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     run_p = sub.add_parser("run", help="执行一次构建（默认 action=build）")
-    run_p.add_argument("--action", default="build",
+    run_p.add_argument("--action", default=None, action="append",
                        choices=["build", "buildAb", "buildPlayer", "publish", "hotfixDll", "generateAll",
-                                "syncAotManifest", "copyAotDll", "switchPlatform", "buildInstaller"])
+                                "syncAotManifest", "copyAotDll", "switchPlatform", "buildInstaller"],
+                       help="要执行的动作，可重复传入按顺序执行（如 --action hotfixDll --action buildAb）；"
+                            "不传时用 --batch 任务的队列，否则单动作 build")
+    run_p.add_argument("--batch", default=None,
+                       help="批量任务名（BuildCLI/batches 下的 json）：按任务定义的动作队列执行，"
+                            "配置用其绑定预设（可再叠加 --preset/--target 等覆盖）")
     run_p.add_argument("--target", default=None, help="目标平台（默认取 .asset 或 StandaloneWindows64）")
     run_p.add_argument("--version", default=None, help="统一版本号（Unified 模式）")
     run_p.add_argument("--output-root", default=None, help="AB 输出根目录")
@@ -34,6 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
     preset_p = sub.add_parser("preset", help="列出预设")
     preset_p.add_argument("--list", action="store_true")
 
+    batch_p = sub.add_parser("batch", help="列出批量任务")
+    batch_p.add_argument("--list", action="store_true")
+
     versions_p = sub.add_parser("list-versions", help="列出各资源包已有构建版本（扫描输出目录）")
     versions_p.add_argument("--target", default=None, help="目标平台（默认取 .asset 或会话记录）")
     versions_p.add_argument("--output-root", default=None, help="AB 输出根目录")
@@ -44,18 +52,48 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _assemble_state(args) -> tuple[BuildFormState | None, int]:
-    """组装表单：预设 → 会话 → .asset。返回 (state, exit_code)，code!=0 时 state 无效。"""
-    state: BuildFormState | None = None
-    if getattr(args, "preset", None):
+    """组装表单：批量任务绑定预设 → --preset → 会话 → .asset。返回 (state, exit_code)。"""
+    actions: list[str] | None = None
+    stop_on_failure = True
+    batch_name = ""
+
+    if getattr(args, "batch", None):
+        batch = config_store.load_batch(args.batch)
+        if batch is None:
+            print(f"批量任务不存在：{args.batch}（查找目录：{config_store.BATCHES_DIR}）")
+            return None, 1
+        batch_name = batch.name or args.batch
+        actions = list(batch.steps)
+        stop_on_failure = batch.stopOnFailure
+        # 基础表单：绑定预设存在则加载，否则回落会话/.asset
+        if batch.preset:
+            preset_path = config_store.PRESETS_DIR / f"{batch.preset}.json"
+            if not preset_path.is_file():
+                print(f"批量任务绑定的预设不存在：{preset_path}")
+                return None, 1
+            state = config_store.load_preset(preset_path)
+        else:
+            state = config_store.load_last_session() or \
+                config_store.load_form_from_build_pipeline_setting() or BuildFormState()
+    elif getattr(args, "preset", None):
         path = config_store.PRESETS_DIR / f"{args.preset}.json"
         if not path.exists():
             print(f"预设不存在：{path}")
             return None, 1
         state = config_store.load_preset(path)
-    if state is None:
-        state = config_store.load_last_session() or config_store.load_form_from_build_pipeline_setting() or BuildFormState()
+    else:
+        state = config_store.load_last_session() or \
+            config_store.load_form_from_build_pipeline_setting() or BuildFormState()
 
-    state.action = args.action
+    # --action 覆盖：显式传入则取代队列（批量任务的或默认单动作）
+    if getattr(args, "action", None):
+        actions = list(args.action)
+
+    if actions is None or not actions:
+        actions = [state.action] if state.action else ["build"]
+    state.action = actions[0]
+    state.batchName = batch_name
+
     if args.project:
         state.projectDir = args.project
     if not state.projectDir or not (Path(state.projectDir) / "Assets").is_dir():
@@ -69,7 +107,7 @@ def _assemble_state(args) -> tuple[BuildFormState | None, int]:
         state.outputRoot = args.output_root
     if getattr(args, "package", None) is not None:
         state.packageName = args.package
-    return state, 0
+    return state, 0, actions, stop_on_failure
 
 
 def _cmd_list_versions(args) -> int:
@@ -125,6 +163,15 @@ def run_cli(argv: list[str]) -> int:
             print(p.stem)
         return 0
 
+    if args.command == "batch":
+        for p in config_store.list_batches():
+            task = config_store.load_batch(p.stem)
+            if task:
+                steps = "->".join(task.steps) or "(空)"
+                preset = f"预设={task.preset}" if task.preset else "用当前表单"
+                print(f"{task.name}\t{len(task.steps)}步\t{steps}\t{preset}")
+        return 0
+
     if args.command == "list-versions":
         return _cmd_list_versions(args)
 
@@ -132,15 +179,18 @@ def run_cli(argv: list[str]) -> int:
         parser.print_help()
         return 0
 
-    state, code = _assemble_state(args)
+    state, code, actions, stop_on_failure = _assemble_state(args)
     if state is None:
         return code
 
     if args.dry_run:
-        payload = {k: v for k, v in vars(state).items()
-                   if k not in {"unityExePath", "projectDir", "logKeepCount", "logKeepDays", "buildTimeoutMinutes"}}
-        print(json.dumps({"action": state.action, "projectDir": state.projectDir, "request": payload},
-                         ensure_ascii=False, indent=2, default=str))
+        from .dto import dump_request
+        import tempfile
+        tmp = Path(tempfile.gettempdir()) / "tengine_build_dryrun.json"
+        req = dump_request(state, tmp.parent, actions)
+        print(json.dumps({"actions": actions, "projectDir": state.projectDir,
+                          "request": json.loads(req.read_text(encoding="utf-8"))},
+                         ensure_ascii=False, indent=2))
         return 0
 
     unity_exe = unity_locator.locate_unity_exe(
@@ -152,39 +202,80 @@ def run_cli(argv: list[str]) -> int:
         return 1
     state.unityExePath = str(unity_exe)
 
-    run = BuildRun(state, Path(unity_exe))
-    if not args.json:
-        run.on_log(print)
-    if not run.start():
+    # 单动作：直接 BuildRun；多动作：BatchRun 分段合并执行
+    from .unity_runner import BatchRun, split_into_segments
+    if len(actions) == 1 or len(split_into_segments(actions)) == 1:
+        run = BuildRun(state, Path(unity_exe), actions=actions if len(actions) > 1 else None)
+        if not args.json:
+            run.on_log(print)
+        if not run.start():
+            if args.json:
+                _print_json_result(run, actions)
+            return 1
+        try:
+            while run.pump():
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            run.cancel()
+            if not args.json:
+                print("\n[BuildCLI] 已取消。")
+            return 130
         if args.json:
-            _print_json_result(run)
-        return 1
+            _print_json_result(run, actions)
+        else:
+            print(f"[BuildCLI] 结果：{run.result} | 日志目录：{run.log_dir}")
+        return 0 if run.result == "success" else 1
 
+    batch_run = BatchRun(state, Path(unity_exe), actions, stop_on_failure=stop_on_failure,
+                         name=state.batchName or "")
+    if not args.json:
+        batch_run.on_log(print)
+        batch_run.on_step(lambda idx, action, seg, total:
+                          print(f"[BuildCLI] 第 {idx} 步：{action}（段 {seg}/{total}）"))
+    if not batch_run.start():
+        if args.json:
+            _print_batch_json_result(batch_run)
+        return 1
     try:
-        while run.pump():
+        while batch_run.pump():
             time.sleep(0.5)
     except KeyboardInterrupt:
-        run.cancel()
+        batch_run.cancel()
         if not args.json:
             print("\n[BuildCLI] 已取消。")
         return 130
-
     if args.json:
-        _print_json_result(run)
+        _print_batch_json_result(batch_run)
     else:
-        print(f"[BuildCLI] 结果：{run.result} | 日志目录：{run.log_dir}")
-    return 0 if run.result == "success" else 1
+        print(f"[BuildCLI] 结果：{batch_run.result} | 完成 {batch_run.completed_steps}/{batch_run.total_steps} 步"
+              f" | 日志目录：{batch_run.run.log_dir if batch_run.run else '?'}")
+    return 0 if batch_run.result == "success" else 1
 
 
-def _print_json_result(run: BuildRun) -> None:
+def _print_json_result(run: BuildRun, actions: list[str] | None = None) -> None:
     payload: dict = {
         "result": run.result,
         "logDir": str(run.log_dir),
     }
+    if actions and len(actions) > 1:
+        payload["actions"] = actions
     if run.failure_summary:
         payload["failureSummary"] = run.failure_summary
     if run.unity_result:
         payload["unityResult"] = run.unity_result
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def _print_batch_json_result(batch_run: BatchRun) -> None:
+    payload: dict = {
+        "result": batch_run.result,
+        "totalSteps": batch_run.total_steps,
+        "completedSteps": batch_run.completed_steps,
+        "segments": batch_run.segments,
+        "logDir": str(batch_run.run.log_dir if batch_run.run else ""),
+    }
+    if batch_run.failure_summary:
+        payload["failureSummary"] = batch_run.failure_summary
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 

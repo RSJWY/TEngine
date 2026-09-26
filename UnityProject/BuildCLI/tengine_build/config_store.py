@@ -16,6 +16,7 @@ from . import unity_locator
 
 PRESETS_DIR = unity_locator.REPO_ROOT / "BuildCLI" / "presets"
 LAST_SESSION_PATH = PRESETS_DIR / "_last_session.json"
+BATCHES_DIR = unity_locator.REPO_ROOT / "BuildCLI" / "batches"
 
 
 def _project_settings_dir(project_dir: Path | None = None) -> Path:
@@ -104,6 +105,91 @@ class BuildFormState:
     installerWatermark: str = ""
     # 构建超时（分钟，0 = 不限）
     buildTimeoutMinutes: int = 0
+    # 批量执行：绑定预设名（空 = 使用当前表单）；执行时 Python 侧专用，不下发 CLIBridge
+    batchName: str = ""
+
+
+# ============ 批量任务（有序动作队列，独立于预设） ============
+
+# 触发域重载、不能与其他动作同进程合并的动作（与 unity_runner 分段规则一致）
+DOMAIN_RELOAD_ACTIONS = {"generateAll", "switchPlatform"}
+
+
+@dataclass
+class BatchTask:
+    """批量任务：绑定预设（可选）+ 有序动作步骤 + 失败即停。存 batches/*.json。"""
+
+    name: str = ""
+    preset: str = ""          # 绑定预设名；空 = 执行时用当前表单
+    steps: list[str] = field(default_factory=list)
+    stopOnFailure: bool = True
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self), ensure_ascii=False, indent=2)
+
+    @staticmethod
+    def from_json(text: str) -> BatchTask:
+        data = json.loads(text)
+        steps = data.get("steps") or []
+        return BatchTask(
+            name=str(data.get("name", "")),
+            preset=str(data.get("preset", "")),
+            steps=[str(s) for s in steps if isinstance(s, str) and s],
+            stopOnFailure=bool(data.get("stopOnFailure", True)),
+        )
+
+
+def _safe_task_name(name: str) -> str:
+    return re.sub(r'[\\/:*?"<>|]', "_", name.strip()) or "batch"
+
+
+def save_batch(task: BatchTask) -> Path:
+    BATCHES_DIR.mkdir(parents=True, exist_ok=True)
+    path = BATCHES_DIR / f"{_safe_task_name(task.name)}.json"
+    path.write_text(task.to_json(), encoding="utf-8")
+    return path
+
+
+def delete_batch(name: str) -> bool:
+    path = BATCHES_DIR / f"{_safe_task_name(name)}.json"
+    if path.is_file():
+        try:
+            path.unlink()
+            return True
+        except OSError:
+            return False
+    return False
+
+
+def load_batch(name: str) -> BatchTask | None:
+    path = BATCHES_DIR / f"{_safe_task_name(name)}.json"
+    if not path.is_file():
+        return None
+    try:
+        return BatchTask.from_json(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def list_batches() -> list[Path]:
+    if not BATCHES_DIR.is_dir():
+        return []
+    return sorted(p for p in BATCHES_DIR.glob("*.json") if not p.name.startswith("_"))
+
+
+def resolve_batch_state(task: BatchTask, fallback: BuildFormState) -> BuildFormState:
+    """批量任务的执行配置：绑定预设存在则加载预设，否则用当前表单（环境字段保留当前值）。"""
+    if task.preset:
+        safe_preset = re.sub(r'[\\/:*?"<>|]', "_", task.preset.strip())
+        preset_path = PRESETS_DIR / f"{safe_preset}.json"
+        if preset_path.is_file():
+            state = load_preset(preset_path)
+            if not state.unityExePath:
+                state.unityExePath = fallback.unityExePath
+            if not state.projectDir or not Path(state.projectDir).is_dir():
+                state.projectDir = fallback.projectDir
+            return state
+    return fallback
 
 
 # ============ Unity YAML 只读解析 ============

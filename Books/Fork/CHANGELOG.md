@@ -4,6 +4,7 @@
 
 ## 2026-09-26
 
+- `BuildCLI` 新增批量执行（多步骤队列 + 分段合并）：预设保持纯表单快照不动，新增独立的批量任务（`BuildCLI/batches/*.json`，有序动作队列 + 绑定预设 + 失败即停）；`generateAll` / `switchPlatform` 触发域重载各自独立成段（单独 Unity 进程），其余动作合并到同一进程内顺序执行（C# 侧 `CLIBridge.BuildRequestDTO` 新增 `actions[]`，`Run()` 循环调用 `Execute`，`BuildResultDTO` 新增 `steps`/`executedActions` 按步记录）。首包 4 步从 4 次冷启动降到 2 次，日常热更 3 步降到 1 次。GUI 新增「批量执行」标签页（任务管理 + `BatchStepsDialog` 步骤编辑器 + 进度横幅）；CLI 新增 `--batch` 与可重复 `--action`。单 `action` 请求向后兼容。详见 [resource-build.md](resource-build.md)。
 - 新增 `BuildCLI` 外置 Python GUI 构建工具（`UnityProject/BuildCLI/`，PySide6）：与打包窗口构建部分对齐，支持热更 DLL、构建 AB/Player/发布整理、切换平台（batchmode 独立进程，避开窗口模式切平台 domain reload）、统一/独立版本号模式、AB 输出目录等项目目录/Unity.exe 可配置；Unity 侧仅新增薄入口 `CLIBridge.cs`（`-tengineConfig` JSON → `BuildConfig` → 复用 `ReleaseTools` 既有链路，退出码回传），并提供 `--no-gui` CI 模式与预设管理。详见 [resource-build.md](resource-build.md)。
 
 ## 2026-09-25
