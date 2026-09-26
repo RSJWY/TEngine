@@ -28,6 +28,8 @@ public class MainToolbarSceneLauncherButton
 
     private static readonly string SceneMain = "main";
 
+    private const string MainScenePath = "Assets/Scenes/main.unity";
+
     [MainToolbarElement("TEngine/Scene Launcher Button", defaultDockIndex = -10, defaultDockPosition = MainToolbarDockPosition.Middle)]
     private static MainToolbarElement ProjectSettingsButton()
     {
@@ -40,6 +42,39 @@ public class MainToolbarSceneLauncherButton
             displayed = true
         };
         return launcherBtn;
+    }
+
+    [MainToolbarElement("TEngine/Go To Main Scene", defaultDockIndex = -9, defaultDockPosition = MainToolbarDockPosition.Middle)]
+    private static MainToolbarElement GoToMainSceneButton()
+    {
+        var icon = EditorGUIUtility.IconContent("Scene").image as Texture2D;
+        var content = new MainToolbarContent("前往主场景", icon, "切换到 Assets/Scenes/main.unity 主启动场景");
+        var btn = new MainToolbarButton(content, () => { GoToMainScene(); })
+        {
+            displayed = true
+        };
+        return btn;
+    }
+
+    private static void GoToMainScene()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            Debug.Log("正在退出播放模式，请再次点击以切换到主启动场景。");
+            EditorApplication.isPlaying = false;
+            return;
+        }
+
+        if (!TEngine.EditorSceneTransitionUtility.ConfirmSaveModifiedScenesBeforeSwitch())
+            return;
+
+        if (!File.Exists(MainScenePath))
+        {
+            Debug.LogWarning($"找不到主启动场景文件：{MainScenePath}");
+            return;
+        }
+
+        EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
     }
 
     public static void Init()
