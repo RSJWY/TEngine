@@ -8,6 +8,7 @@ using UnityEditor.Toolbars;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using YooAsset;
+using TEngine;
 
 [InitializeOnLoad]
 public class MainToolbarInitializeOnLoad
