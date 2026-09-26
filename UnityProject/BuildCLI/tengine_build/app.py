@@ -1,0 +1,1345 @@
+"""PySide6 GUI 主窗口。"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QFont, QTextCursor
+from PySide6.QtWidgets import (
+    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
+    QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
+    QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
+    QVBoxLayout, QWidget,
+)
+
+from . import config_store, unity_locator
+from .config_store import BatchTask, BuildFormState, PackageVersionEntry
+from .unity_runner import BatchRun, BuildRun
+
+try:  # 系统托盘可用性检测（无桌面环境时跳过通知）
+    from PySide6.QtWidgets import QSystemTrayIcon
+except ImportError:  # pragma: no cover
+    QSystemTrayIcon = None
+
+
+def format_size(size_bytes: object) -> str:
+    """字节数 → 人类可读（MB/GB）。"""
+    try:
+        value = float(size_bytes)
+    except (TypeError, ValueError):
+        return ""
+    if value <= 0:
+        return ""
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024:
+            return f"{value:.1f}{unit}"
+        value /= 1024
+    return f"{value:.1f}TB"
+
+
+DARK_STYLE = """
+QMainWindow, QWidget { background-color: #2b2b2b; color: #ddd; }
+QGroupBox { border: 1px solid #555; border-radius: 4px; margin-top: 8px; padding-top: 8px; }
+QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #8ab4f8; }
+QLineEdit, QComboBox, QSpinBox, QPlainTextEdit, QTableWidget {
+    background-color: #1e1e1e; color: #ddd; border: 1px solid #555; border-radius: 3px; padding: 2px;
+}
+QComboBox QAbstractItemView { background-color: #1e1e1e; color: #ddd; selection-background-color: #3d5a80; }
+QPushButton { background-color: #3c3f41; border: 1px solid #5a5a5a; border-radius: 3px; padding: 4px 10px; }
+QPushButton:hover { background-color: #4a4d4f; }
+QPushButton:disabled { color: #777; background-color: #333; }
+QHeaderView::section { background-color: #3c3f41; color: #ddd; border: 1px solid #555; }
+QTabWidget::pane { border: 1px solid #555; }
+QTabBar::tab { background-color: #333; color: #bbb; padding: 6px 12px; }
+QTabBar::tab:selected { background-color: #2b2b2b; color: #8ab4f8; }
+QLabel { color: #ccc; }
+"""
+
+
+
+class BatchStepsDialog(QDialog):
+    """批量任务编辑对话框：左列可用动作，右列已选队列（增删/上移/下移）。"""
+
+    def __init__(self, parent=None, name: str = "", preset: str = "", steps: list[str] | None = None,
+                 stop_on_failure: bool = True, preset_names: list[str] | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("编辑批量任务")
+        self.resize(560, 420)
+
+        form = QFormLayout()
+        self.name_edit = QLineEdit(name)
+        form.addRow("任务名：", self.name_edit)
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItem("（使用当前表单）", "")
+        for p in preset_names or []:
+            self.preset_combo.addItem(p, p)
+        idx = self.preset_combo.findData(preset)
+        self.preset_combo.setCurrentIndex(max(idx, 0))
+        form.addRow("绑定预设：", self.preset_combo)
+        self.stop_check = QCheckBox("失败即停（推荐）")
+        self.stop_check.setChecked(stop_on_failure)
+        form.addRow(self.stop_check)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+
+        columns = QHBoxLayout()
+        left_box = QGroupBox("可用动作（双击添加）")
+        left_layout = QVBoxLayout(left_box)
+        self.available_list = QListWidget()
+        action_names = MainWindow._action_names()
+        for action, display in action_names.items():
+            item = QListWidgetItem(display)
+            item.setData(Qt.ItemDataRole.UserRole, action)
+            self.available_list.addItem(item)
+        self.available_list.itemDoubleClicked.connect(self._add_selected)
+        left_layout.addWidget(self.available_list)
+        add_button = QPushButton("添加 →")
+        add_button.clicked.connect(self._add_selected)
+        left_layout.addWidget(add_button)
+        columns.addWidget(left_box)
+
+        right_box = QGroupBox("执行队列（按顺序）")
+        right_layout = QVBoxLayout(right_box)
+        self.steps_list = QListWidget()
+        for step in steps or []:
+            display = f"{action_names.get(step, step)}"
+            item = QListWidgetItem(display)
+            item.setData(Qt.ItemDataRole.UserRole, step)
+            self.steps_list.addItem(item)
+        right_layout.addWidget(self.steps_list)
+
+        step_buttons = QHBoxLayout()
+        up_button = QPushButton("上移")
+        up_button.clicked.connect(self._move_up)
+        down_button = QPushButton("下移")
+        down_button.clicked.connect(self._move_down)
+        remove_button = QPushButton("移除")
+        remove_button.clicked.connect(self._remove_step)
+        clear_button = QPushButton("清空")
+        clear_button.clicked.connect(self.steps_list.clear)
+        for b in (up_button, down_button, remove_button, clear_button):
+            step_buttons.addWidget(b)
+        right_layout.addLayout(step_buttons)
+        columns.addWidget(right_box)
+        layout.addLayout(columns)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _add_selected(self) -> None:
+        item = self.available_list.currentItem()
+        if item is None:
+            item = self.available_list.item(0)
+        if item is None:
+            return
+        new_item = item.clone()
+        self.steps_list.addItem(new_item)
+
+    def _move_up(self) -> None:
+        row = self.steps_list.currentRow()
+        if row > 0:
+            self.steps_list.insertItem(row - 1, self.steps_list.takeItem(row))
+            self.steps_list.setCurrentRow(row - 1)
+
+    def _move_down(self) -> None:
+        row = self.steps_list.currentRow()
+        if row < 0 or row >= self.steps_list.count() - 1:
+            return
+        self.steps_list.insertItem(row + 1, self.steps_list.takeItem(row))
+        self.steps_list.setCurrentRow(row + 1)
+
+    def _remove_step(self) -> None:
+        row = self.steps_list.currentRow()
+        if row >= 0:
+            self.steps_list.takeItem(row)
+
+    def result_task(self) -> BatchTask:
+        steps = []
+        for i in range(self.steps_list.count()):
+            action = self.steps_list.item(i).data(Qt.ItemDataRole.UserRole)
+            if action:
+                steps.append(str(action))
+        return BatchTask(
+            name=self.name_edit.text().strip(),
+            preset=self.preset_combo.currentData() or "",
+            steps=steps,
+            stopOnFailure=self.stop_check.isChecked(),
+        )
+
+
+class MainWindow(QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("TEngine BuildCLI 构建工具")
+        self.resize(1080, 760)
+
+        self.state = config_store.load_last_session() or config_store.load_form_from_build_pipeline_setting() or BuildFormState()
+        if not self.state.projectDir or not Path(self.state.projectDir).is_dir():
+            self.state.projectDir = str(unity_locator.PROJECT_DIR)
+        if not self.state.unityExePath:
+            exe = unity_locator.locate_unity_exe(
+                preferred_version=unity_locator.read_project_unity_version(
+                    project_dir=Path(self.state.projectDir)))
+            self.state.unityExePath = str(exe) if exe else ""
+
+        self.run: BuildRun | None = None
+        self.batch_run: BatchRun | None = None
+        self._dark_mode = False
+        self._tray = None
+        self._build_ui()
+        self._load_state_into_ui()
+        self.per_package_table.itemChanged.connect(self._on_package_version_changed)
+        self._refresh_package_versions(silent=True)
+        self._reload_history()
+        # 启动时按当前策略清理一次（GUI 长期不关，运行中清理只在新构建后触发）
+        from .unity_runner import cleanup_logs
+
+        removed = cleanup_logs(self.state.logKeepCount, self.state.logKeepDays)
+        if removed:
+            self._append_log(f"[BuildCLI] 启动清理：删除 {len(removed)} 个过期日志目录。")
+
+        self.pump_timer = QTimer(self)
+        self.pump_timer.setInterval(300)
+        self.pump_timer.timeout.connect(self._pump)
+
+    # ============ UI 组装 ============
+
+    def _build_ui(self) -> None:
+        central = QWidget()
+        root = QVBoxLayout(central)
+        root.addWidget(self._build_top_bar())
+        root.addWidget(self._build_action_bar(), stretch=0)
+
+        body = QHBoxLayout()
+        tabs = QTabWidget()
+        tabs.addTab(self._build_quick_tab(), "快速构建")
+        tabs.addTab(self._build_publish_tab(), "发布与Player")
+        tabs.addTab(self._build_advanced_tab(), "高级")
+        tabs.addTab(self._build_batch_tab(), "批量执行")
+        body.addWidget(tabs, stretch=3)
+        body.addWidget(self._build_log_panel(), stretch=2)
+        root.addLayout(body, stretch=1)
+        self.setCentralWidget(central)
+        self._build_menu()
+
+    def _build_menu(self) -> None:
+        view_menu = self.menuBar().addMenu("视图(&V)")
+        dark_action = QAction("深色主题(&D)", self)
+        dark_action.setCheckable(True)
+        dark_action.toggled.connect(self._toggle_dark_mode)
+        view_menu.addAction(dark_action)
+        self._dark_action = dark_action
+
+    def _toggle_dark_mode(self, dark: bool) -> None:
+        self._dark_mode = dark
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(DARK_STYLE if dark else "")
+
+    def _build_top_bar(self) -> QWidget:
+        box = QGroupBox("环境")
+        layout = QGridLayout(box)
+
+        layout.addWidget(QLabel("项目目录："), 0, 0)
+        self.project_dir_edit = QLineEdit()
+        self.project_dir_edit.setPlaceholderText("Unity 工程根（含 Assets/ProjectSettings）")
+        layout.addWidget(self.project_dir_edit, 0, 1)
+        browse_project = QPushButton("浏览")
+        browse_project.clicked.connect(self._browse_project_dir)
+        layout.addWidget(browse_project, 0, 2)
+        self.project_dir_valid_label = QLabel("")
+        layout.addWidget(self.project_dir_valid_label, 0, 3, 1, 2)
+        self.project_dir_edit.textChanged.connect(self._on_project_dir_changed)
+
+        layout.addWidget(QLabel("Unity.exe："), 1, 0)
+        self.unity_exe_edit = QLineEdit()
+        layout.addWidget(self.unity_exe_edit, 1, 1)
+        browse_unity = QPushButton("浏览")
+        browse_unity.clicked.connect(self._browse_unity)
+        layout.addWidget(browse_unity, 1, 2)
+        auto_unity = QPushButton("自动定位")
+        auto_unity.clicked.connect(self._auto_locate_unity)
+        layout.addWidget(auto_unity, 1, 3)
+        self.unity_version_label = QLabel("")
+        layout.addWidget(self.unity_version_label, 1, 4)
+
+        layout.addWidget(QLabel("预设："), 2, 0)
+        self.preset_combo = QComboBox()
+        self.preset_combo.setMinimumWidth(220)
+        layout.addWidget(self.preset_combo, 2, 1)
+        load_preset = QPushButton("加载预设")
+        load_preset.clicked.connect(self._load_preset)
+        layout.addWidget(load_preset, 2, 2)
+        save_preset = QPushButton("保存为预设")
+        save_preset.clicked.connect(self._save_preset)
+        layout.addWidget(save_preset, 2, 3)
+        from_asset = QPushButton("从 Unity 窗口配置读取")
+        from_asset.clicked.connect(self._load_from_asset)
+        layout.addWidget(from_asset, 2, 4)
+
+        self._reload_preset_combo()
+        return box
+
+    def _build_action_bar(self) -> QWidget:
+        box = QGroupBox("构建操作")
+        layout = QHBoxLayout(box)
+
+        def add_button(text: str, handler, style: str = "") -> QPushButton:
+            btn = QPushButton(text)
+            btn.clicked.connect(handler)
+            if style:
+                btn.setStyleSheet(style)
+            layout.addWidget(btn)
+            return btn
+
+        green = "background-color: rgba(90, 200, 120, 0.35);"
+        blue = "background-color: rgba(110, 170, 235, 0.35);"
+        add_button("编译并拷贝热更DLL", lambda: self._start_action("hotfixDll"))
+        add_button("构建 AssetBundle", lambda: self._start_action("buildAb"), blue)
+        add_button("一键构建 (AB + Player)", lambda: self._start_action("build"), green)
+        add_button("仅构建 Player", lambda: self._start_action("buildPlayer"))
+        add_button("仅执行发布整理", lambda: self._start_action("publish"))
+        add_button("同步 AOT 元数据清单", lambda: self._start_action("syncAotManifest"))
+        add_button("拷贝 AOT 元数据 DLL", lambda: self._start_action("copyAotDll"))
+        add_button("GenerateAll（首包）", lambda: self._start_action("generateAll"))
+        add_button("切换目标平台", lambda: self._start_action("switchPlatform"))
+        add_button("构建安装包", lambda: self._start_action("buildInstaller"))
+        layout.addStretch()
+
+        self.cancel_button = QPushButton("取消构建")
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.setStyleSheet("color: #d33;")
+        self.cancel_button.clicked.connect(self._cancel_build)
+        layout.addWidget(self.cancel_button)
+
+        self.status_label = QLabel("就绪")
+        layout.addWidget(self.status_label)
+        return box
+
+    def _build_quick_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        base = QGroupBox("基础设置")
+        form = QFormLayout(base)
+
+        self.target_combo = QComboBox()
+        self.target_combo.addItems(unity_locator.SUPPORTED_BUILD_TARGETS)
+        form.addRow("目标平台：", self.target_combo)
+        self.target_combo.currentTextChanged.connect(lambda v: self._set_state("buildTarget", v))
+
+        self.pipeline_combo = QComboBox()
+        self.pipeline_combo.addItems(unity_locator.BUILD_PIPELINES)
+        form.addRow("默认构建管线：", self.pipeline_combo)
+        self.pipeline_combo.currentTextChanged.connect(lambda v: self._set_state("buildPipeline", v))
+
+        self.compress_combo = QComboBox()
+        self.compress_combo.addItems(unity_locator.COMPRESS_OPTIONS)
+        form.addRow("压缩方式：", self.compress_combo)
+        self.compress_combo.currentTextChanged.connect(lambda v: self._set_state("compressOption", v))
+
+        self.package_name_combo = QComboBox()
+        self.package_name_combo.addItem("全部启用的资源包", "")
+        self.package_name_combo.currentIndexChanged.connect(
+            lambda idx: self._set_state("packageName", self.package_name_combo.itemData(idx) or ""))
+        form.addRow("构建资源包：", self.package_name_combo)
+
+        version_mode_row = QHBoxLayout()
+        self.version_mode_combo = QComboBox()
+        self.version_mode_combo.addItem("统一版本号 (所有包共用)", "Unified")
+        self.version_mode_combo.addItem("独立版本号 (每包各自)", "PerPackage")
+        self.version_mode_combo.currentIndexChanged.connect(self._on_version_mode_changed)
+        version_mode_row.addWidget(self.version_mode_combo)
+        version_mode_row.addStretch()
+        form.addRow("版本号模式：", version_mode_row)
+
+        unified_row = QHBoxLayout()
+        self.version_edit = QLineEdit()
+        unified_row.addWidget(self.version_edit, stretch=1)
+        auto_btn = QPushButton("自动")
+        auto_btn.setFixedWidth(56)
+        auto_btn.clicked.connect(self._auto_version)
+        unified_row.addWidget(auto_btn)
+        self.unified_wrapper = QWidget()
+        self.unified_wrapper.setLayout(unified_row)
+        form.addRow("资源版本号：", self.unified_wrapper)
+        self.version_edit.textChanged.connect(lambda v: self._set_state("packageVersion", v))
+
+        per_pkg_box = QGroupBox("独立版本号（PerPackage）")
+        per_layout = QVBoxLayout(per_pkg_box)
+        self.per_package_table = QTableWidget(0, 2)
+        self.per_package_table.setHorizontalHeaderLabels(["资源包", "版本号"])
+        header = self.per_package_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.per_package_table.verticalHeader().setVisible(False)
+        per_layout.addWidget(self.per_package_table)
+        per_buttons = QHBoxLayout()
+        read_last = QPushButton("从上次构建读取")
+        read_last.clicked.connect(self._refresh_package_versions)
+        per_buttons.addWidget(read_last)
+        all_auto = QPushButton("全部自动")
+        all_auto.clicked.connect(self._auto_all_package_versions)
+        per_buttons.addWidget(all_auto)
+        per_buttons.addStretch()
+        per_layout.addLayout(per_buttons)
+        self.per_package_box = per_pkg_box
+        form.addRow(self.per_package_box)
+
+        out_row = QHBoxLayout()
+        self.output_edit = QLineEdit()
+        out_row.addWidget(self.output_edit, stretch=1)
+        out_browse = QPushButton("浏览")
+        out_browse.setFixedWidth(56)
+        out_browse.clicked.connect(self._browse_output)
+        out_row.addWidget(out_browse)
+        out_open = QPushButton("打开")
+        out_open.setFixedWidth(56)
+        out_open.clicked.connect(lambda: unity_locator.open_in_file_manager(self._resolved_output_root()))
+        out_row.addWidget(out_open)
+        wrap = QWidget()
+        wrap.setLayout(out_row)
+        form.addRow("AB输出目录：", wrap)
+        self.output_edit.textChanged.connect(lambda v: self._set_state("outputRoot", v))
+
+        layout.addWidget(base)
+        layout.addStretch()
+        return page
+
+    def _build_publish_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        publish = QGroupBox("发布整理")
+        pub_form = QFormLayout(publish)
+        self.publish_check = QCheckBox("启用发布整理")
+        self.publish_check.toggled.connect(lambda v: self._set_state("enablePublishCopy", v))
+        pub_form.addRow(self.publish_check)
+
+        pub_dir_row = QHBoxLayout()
+        self.publish_edit = QLineEdit()
+        pub_dir_row.addWidget(self.publish_edit, stretch=1)
+        pub_browse = QPushButton("浏览")
+        pub_browse.setFixedWidth(56)
+        pub_browse.clicked.connect(self._browse_publish)
+        pub_dir_row.addWidget(pub_browse)
+        pub_open = QPushButton("打开")
+        pub_open.setFixedWidth(56)
+        pub_open.clicked.connect(lambda: unity_locator.open_in_file_manager(self._resolved_publish_root()))
+        pub_dir_row.addWidget(pub_open)
+        pub_wrap = QWidget()
+        pub_wrap.setLayout(pub_dir_row)
+        pub_form.addRow("发布根目录：", pub_wrap)
+        self.publish_edit.textChanged.connect(lambda v: self._set_state("publishRoot", v))
+
+        self.clean_publish_check = QCheckBox("清空目标包目录后再拷贝")
+        self.clean_publish_check.toggled.connect(lambda v: self._set_state("cleanPublishPackageDirectory", v))
+        pub_form.addRow(self.clean_publish_check)
+        layout.addWidget(publish)
+
+        player = QGroupBox("Player")
+        player_form = QFormLayout(player)
+        self.build_player_check = QCheckBox("构建 Player（一键构建时生效）")
+        self.build_player_check.toggled.connect(lambda v: self._set_state("buildPlayer", v))
+        player_form.addRow(self.build_player_check)
+
+        self.player_platform_combo = QComboBox()
+        self.player_platform_combo.addItems(unity_locator.SUPPORTED_BUILD_TARGETS)
+        self.player_platform_combo.currentTextChanged.connect(lambda v: self._set_state("playerPlatform", v))
+        player_form.addRow("Player 平台：", self.player_platform_combo)
+
+        player_out_row = QHBoxLayout()
+        self.player_output_edit = QLineEdit()
+        player_out_row.addWidget(self.player_output_edit, stretch=1)
+        player_browse = QPushButton("浏览")
+        player_browse.setFixedWidth(56)
+        player_browse.clicked.connect(self._browse_player_output)
+        player_out_row.addWidget(player_browse)
+        player_open = QPushButton("打开")
+        player_open.setFixedWidth(56)
+        player_open.clicked.connect(self._open_player_output_dir)
+        player_out_row.addWidget(player_open)
+        player_wrap = QWidget()
+        player_wrap.setLayout(player_out_row)
+        player_form.addRow("输出路径：", player_wrap)
+        self.player_output_edit.textChanged.connect(lambda v: self._set_state("playerOutputPath", v))
+        layout.addWidget(player)
+
+        installer = QGroupBox("InnoSetup 安装包（仅 Windows）")
+        inst_form = QFormLayout(installer)
+        self.installer_check = QCheckBox("一键构建后串联编译安装包")
+        self.installer_check.toggled.connect(lambda v: self._set_state("buildInstaller", v))
+        inst_form.addRow(self.installer_check)
+        self.installer_version_edit = QLineEdit()
+        self.installer_version_edit.setPlaceholderText("安装包版本号（空 = 使用 setup.iss 现值）")
+        self.installer_version_edit.textChanged.connect(lambda v: self._set_state("installerVersion", v))
+        inst_form.addRow("安装包版本：", self.installer_version_edit)
+        self.iscc_edit = QLineEdit()
+        self.iscc_edit.setPlaceholderText("ISCC.exe 路径（空 = 自动定位注册表/PATH）")
+        self.iscc_edit.textChanged.connect(lambda v: self._set_state("isccPath", v))
+        inst_form.addRow("ISCC 路径：", self.iscc_edit)
+        layout.addWidget(installer)
+
+        timeout_box = QGroupBox("稳定性")
+        timeout_form = QFormLayout(timeout_box)
+        from PySide6.QtWidgets import QSpinBox
+
+        timeout_row = QHBoxLayout()
+        self.timeout_spin = QSpinBox()
+        self.timeout_spin.setRange(0, 1440)
+        self.timeout_spin.setSuffix(" 分钟")
+        self.timeout_spin.setSpecialValueText("不限")
+        self.timeout_spin.valueChanged.connect(lambda v: self._set_state("buildTimeoutMinutes", v))
+        timeout_row.addWidget(self.timeout_spin)
+        timeout_row.addStretch()
+        timeout_form.addRow("构建超时：", timeout_row)
+        layout.addWidget(timeout_box)
+
+        layout.addStretch()
+        return page
+
+    def _build_advanced_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        hotfix = QGroupBox("热更 DLL")
+        hf_form = QFormLayout(hotfix)
+        self.hotfix_check = QCheckBox("构建前编译热更 DLL")
+        self.hotfix_check.toggled.connect(lambda v: self._set_state("buildHotFixDll", v))
+        hf_form.addRow(self.hotfix_check)
+        layout.addWidget(hotfix)
+
+        minimal = QGroupBox("最小包设置")
+        min_form = QFormLayout(minimal)
+        self.minimal_check = QCheckBox("启用最小包模式")
+        self.minimal_check.toggled.connect(lambda v: self._set_state("minimalPackage", v))
+        min_form.addRow(self.minimal_check)
+        self.retain_edit = QLineEdit()
+        self.retain_edit.setPlaceholderText("保留 Tag（逗号分隔），留空则仅保留清单")
+        self.retain_edit.textChanged.connect(lambda v: self._set_state("retainTags", v))
+        min_form.addRow("保留 Tag：", self.retain_edit)
+        layout.addWidget(minimal)
+
+        advanced = QGroupBox("高级设置")
+        adv_form = QFormLayout(advanced)
+        self.share_check = QCheckBox("启用共享资源打包")
+        self.share_check.toggled.connect(lambda v: self._set_state("enableSharePackRule", v))
+        adv_form.addRow(self.share_check)
+        self.validate_check = QCheckBox("资源路径校验（Unicode 控制字符）")
+        self.validate_check.toggled.connect(lambda v: self._set_state("enableAssetPathValidation", v))
+        adv_form.addRow(self.validate_check)
+        self.dep_db_check = QCheckBox("使用资源依赖数据库")
+        self.dep_db_check.toggled.connect(lambda v: self._set_state("useAssetDependencyDB", v))
+        adv_form.addRow(self.dep_db_check)
+        self.clear_cache_check = QCheckBox("清理构建缓存")
+        self.clear_cache_check.toggled.connect(lambda v: self._set_state("clearBuildCache", v))
+        adv_form.addRow(self.clear_cache_check)
+        self.verify_check = QCheckBox("验证构建结果")
+        self.verify_check.toggled.connect(lambda v: self._set_state("verifyBuildingResult", v))
+        adv_form.addRow(self.verify_check)
+
+        self.copy_option_combo = QComboBox()
+        self.copy_option_combo.addItems(unity_locator.BUNDLED_COPY_OPTIONS)
+        self.copy_option_combo.currentTextChanged.connect(lambda v: self._set_state("buildinFileCopyOption", v))
+        adv_form.addRow("内置文件拷贝：", self.copy_option_combo)
+
+        self.filename_style_combo = QComboBox()
+        self.filename_style_combo.addItems(unity_locator.FILE_NAME_STYLES)
+        self.filename_style_combo.currentTextChanged.connect(lambda v: self._set_state("fileNameStyle", v))
+        adv_form.addRow("文件名风格：", self.filename_style_combo)
+
+        self.catalog_check = QCheckBox("在构建输出目录生成 Catalog")
+        self.catalog_check.toggled.connect(lambda v: self._set_state("generateCatalogInOutput", v))
+        adv_form.addRow(self.catalog_check)
+        layout.addWidget(advanced)
+
+        layout.addStretch()
+        return page
+
+    def _build_batch_tab(self) -> QWidget:
+        """批量执行页：任务下拉 + 编辑/新建/删除 + ▶ 运行 + 进度展示。"""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        task_box = QGroupBox("批量任务（有序动作队列，自动分段合并执行）")
+        task_layout = QGridLayout(task_box)
+
+        task_layout.addWidget(QLabel("任务："), 0, 0)
+        self.batch_combo = QComboBox()
+        self.batch_combo.setMinimumWidth(220)
+        task_layout.addWidget(self.batch_combo, 0, 1)
+        self.batch_run_button = QPushButton("▶ 运行批量任务")
+        self.batch_run_button.setStyleSheet("background-color: rgba(90, 200, 120, 0.35);")
+        self.batch_run_button.clicked.connect(self._start_batch)
+        task_layout.addWidget(self.batch_run_button, 0, 2)
+
+        new_button = QPushButton("新建")
+        new_button.clicked.connect(lambda: self._edit_batch(None))
+        task_layout.addWidget(new_button, 0, 3)
+        edit_button = QPushButton("编辑")
+        edit_button.clicked.connect(lambda: self._edit_batch(self._current_batch_name()))
+        task_layout.addWidget(edit_button, 0, 4)
+        delete_button = QPushButton("删除")
+        delete_button.clicked.connect(self._delete_batch)
+        task_layout.addWidget(delete_button, 0, 5)
+
+        info_box = QGroupBox("任务详情")
+        info_layout = QVBoxLayout(info_box)
+        self.batch_info_label = QLabel("（选择一个任务查看详情）")
+        self.batch_info_label.setWordWrap(True)
+        info_layout.addWidget(self.batch_info_label)
+        task_layout.addWidget(info_box, 1, 0, 1, 6)
+
+        hint = QLabel("说明：generateAll / 切换平台 会触发脚本重编译，自动独立成段（单独 Unity 进程）；"
+                      "其余动作合并到同一进程顺序执行，减少冷启动。任务可绑定预设，未绑定则用当前表单。")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #666;")
+        task_layout.addWidget(hint, 2, 0, 1, 6)
+
+        layout.addWidget(task_box)
+        layout.addStretch()
+
+        self.batch_combo.currentIndexChanged.connect(self._refresh_batch_info)
+        self._reload_batch_combo()
+        return page
+
+    def _build_log_panel(self) -> QWidget:
+        box = QGroupBox("构建日志")
+        layout = QVBoxLayout(box)
+
+        # 状态横幅：一眼看结果，不用翻日志
+        self.result_banner = QLabel("就绪")
+        self.result_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        font = self.result_banner.font()
+        font.setPointSize(12)
+        font.setBold(True)
+        self.result_banner.setFont(font)
+        self.result_banner.setStyleSheet(
+            "background-color: rgba(127,127,127,60); color: #666; border-radius: 4px; padding: 6px;"
+        )
+        layout.addWidget(self.result_banner)
+
+        # 最近执行历史：动作 + 结果 + 耗时，可选中后打开该次日志
+        history_row = QHBoxLayout()
+        history_row.addWidget(QLabel("最近执行："))
+        self.history_combo = QComboBox()
+        self.history_combo.setMinimumWidth(200)
+        self.history_combo.activated.connect(self._open_history_log)
+        history_row.addWidget(self.history_combo, stretch=1)
+        open_history_btn = QPushButton("打开该次日志目录")
+        open_history_btn.clicked.connect(self._open_history_log)
+        history_row.addWidget(open_history_btn)
+        rerun_btn = QPushButton("重跑该次构建")
+        rerun_btn.clicked.connect(self._rerun_history)
+        history_row.addWidget(rerun_btn)
+        layout.addLayout(history_row)
+
+        self.log_view = QPlainTextEdit()
+        self.log_view.setReadOnly(True)
+        self.log_view.setFont(QFont("Consolas", 9))
+        self.log_view.setMaximumBlockCount(8000)
+        layout.addWidget(self.log_view)
+
+        buttons = QHBoxLayout()
+        copy_btn = QPushButton("复制选中")
+        copy_btn.clicked.connect(self._copy_log)
+        buttons.addWidget(copy_btn)
+        export_btn = QPushButton("导出日志")
+        export_btn.clicked.connect(self._export_log)
+        buttons.addWidget(export_btn)
+        clear_btn = QPushButton("清空")
+        clear_btn.clicked.connect(self.log_view.clear)
+        buttons.addWidget(clear_btn)
+
+        # 日志自动清理策略
+        from PySide6.QtWidgets import QSpinBox
+
+        buttons.addStretch()
+        buttons.addWidget(QLabel("日志保留："))
+        self.log_keep_count_spin = QSpinBox()
+        self.log_keep_count_spin.setRange(0, 999)
+        self.log_keep_count_spin.setSuffix(" 次")
+        self.log_keep_count_spin.setSpecialValueText("不限次数")
+        self.log_keep_count_spin.setValue(30)
+        self.log_keep_count_spin.valueChanged.connect(lambda v: self._set_state("logKeepCount", v))
+        buttons.addWidget(self.log_keep_count_spin)
+        self.log_keep_days_spin = QSpinBox()
+        self.log_keep_days_spin.setRange(0, 365)
+        self.log_keep_days_spin.setSuffix(" 天")
+        self.log_keep_days_spin.setSpecialValueText("不限天数")
+        self.log_keep_days_spin.setValue(7)
+        self.log_keep_days_spin.valueChanged.connect(lambda v: self._set_state("logKeepDays", v))
+        buttons.addWidget(self.log_keep_days_spin)
+        layout.addLayout(buttons)
+        return box
+
+    _RESULT_STYLES = {
+        "success": ("✔ 构建成功", "rgba(90,200,120,70)", "#1a7a3c"),
+        "failed": ("✘ 构建失败", "rgba(220,80,80,70)", "#a01f1f"),
+        "cancelled": ("■ 已取消", "rgba(160,160,160,70)", "#666"),
+        "running": ("⟳ 构建中…", "rgba(110,170,235,70)", "#1a4f8a"),
+        "idle": ("就绪", "rgba(127,127,127,60)", "#666"),
+    }
+
+    def _set_result_banner(self, key: str, detail: str = "") -> None:
+        text, bg, fg = self._RESULT_STYLES.get(key, self._RESULT_STYLES["idle"])
+        if detail:
+            text = f"{text}　{detail}"
+        self.result_banner.setText(text)
+        self.result_banner.setStyleSheet(
+            f"background-color: {bg}; color: {fg}; border-radius: 4px; padding: 6px;"
+        )
+
+    def _reload_history(self) -> None:
+        from .unity_runner import load_run_history
+
+        self.history_combo.clear()
+        action_names = self._action_names()
+        for record in load_run_history(10):
+            result_text = {"success": "成功", "failed": "失败", "cancelled": "取消"}.get(record.get("result"), "?")
+            duration = record.get("durationSeconds")
+            duration_text = f" {duration}s" if duration is not None else ""
+            size_text = ""
+            packages = record.get("packages")
+            if isinstance(packages, list) and packages:
+                total = sum(p.get("sizeBytes") or 0 for p in packages if isinstance(p, dict))
+                size_text = f" {format_size(total)}"
+            elif record.get("playerSizeBytes"):
+                size_text = f" {format_size(record.get('playerSizeBytes'))}"
+            label = (f"{record.get('finishedAt', '?')}  {action_names.get(record.get('action'), record.get('action'))}"
+                     f"  [{result_text}]{duration_text}{size_text}")
+            self.history_combo.addItem(label, record.get("logDir"))
+
+    def _rerun_history(self) -> None:
+        """用历史记录里落盘的 build_request.json 重跑同参数构建。"""
+        import json
+
+        log_dir = self.history_combo.currentData()
+        if not log_dir:
+            QMessageBox.information(self, "重跑构建", "请先在历史列表中选择一条记录。")
+            return
+        request_path = Path(log_dir) / "build_request.json"
+        if not request_path.is_file():
+            QMessageBox.warning(self, "重跑构建", f"该记录缺少请求快照：{request_path}")
+            return
+        try:
+            payload = json.loads(request_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            QMessageBox.warning(self, "重跑构建", f"请求快照解析失败：{e}")
+            return
+
+        action = payload.get("action", "build")
+        # 环境字段以当前会话为准（Unity 路径/项目目录可能变化）
+        unity_exe = self.state.unityExePath
+        project_dir = self.state.projectDir
+        known = {k: v for k, v in payload.items() if k in BuildFormState.__dataclass_fields__}
+        versions = known.pop("packageVersions", None) or []
+        self.state = BuildFormState(**known)
+        if unity_exe:
+            self.state.unityExePath = unity_exe
+        if project_dir:
+            self.state.projectDir = project_dir
+        self.state.packageVersions = [PackageVersionEntry(**v) for v in versions if isinstance(v, dict)]
+        self._load_state_into_ui()
+        self._on_version_mode_changed()
+        self._append_log(f"[BuildCLI] 已从历史记录恢复参数，开始重跑 action={action}")
+        self._start_action(action)
+
+    def _open_history_log(self) -> None:
+        log_dir = self.history_combo.currentData()
+        if log_dir:
+            unity_locator.open_in_file_manager(log_dir)
+
+    @staticmethod
+    def _action_names() -> dict[str, str]:
+        return {
+            "build": "一键构建", "buildAb": "构建AB", "buildPlayer": "构建Player",
+            "publish": "发布整理", "hotfixDll": "热更DLL", "generateAll": "GenerateAll",
+            "syncAotManifest": "同步AOT清单", "copyAotDll": "拷贝AOT DLL",
+            "switchPlatform": "切换平台", "buildInstaller": "安装包",
+        }
+
+    # ============ 状态绑定 ============
+
+    def _set_state(self, key: str, value) -> None:
+        setattr(self.state, key, value)
+        config_store.save_last_session(self.state)
+
+    def _load_state_into_ui(self) -> None:
+        s = self.state
+        self.project_dir_edit.setText(s.projectDir)
+        self.unity_exe_edit.setText(s.unityExePath)
+        self.log_keep_count_spin.setValue(s.logKeepCount)
+        self.log_keep_days_spin.setValue(s.logKeepDays)
+        self.target_combo.setCurrentText(s.buildTarget)
+        self.pipeline_combo.setCurrentText(s.buildPipeline)
+        self.compress_combo.setCurrentText(s.compressOption)
+        self._reload_package_name_combo(s.packageName)
+        self.version_edit.setText(s.packageVersion)
+        idx = self.version_mode_combo.findData(s.packageVersionMode)
+        self.version_mode_combo.setCurrentIndex(max(idx, 0))
+        self.output_edit.setText(s.outputRoot)
+        self.publish_check.setChecked(s.enablePublishCopy)
+        self.publish_edit.setText(s.publishRoot)
+        self.clean_publish_check.setChecked(s.cleanPublishPackageDirectory)
+        self.minimal_check.setChecked(s.minimalPackage)
+        self.retain_edit.setText(s.retainTags)
+        self.share_check.setChecked(s.enableSharePackRule)
+        self.validate_check.setChecked(s.enableAssetPathValidation)
+        self.dep_db_check.setChecked(s.useAssetDependencyDB)
+        self.clear_cache_check.setChecked(s.clearBuildCache)
+        self.verify_check.setChecked(s.verifyBuildingResult)
+        self.copy_option_combo.setCurrentText(s.buildinFileCopyOption)
+        self.filename_style_combo.setCurrentText(s.fileNameStyle)
+        self.catalog_check.setChecked(s.generateCatalogInOutput)
+        self.hotfix_check.setChecked(s.buildHotFixDll)
+        self.build_player_check.setChecked(s.buildPlayer)
+        self.player_platform_combo.setCurrentText(s.playerPlatform)
+        self.player_output_edit.setText(s.playerOutputPath)
+        self.installer_check.setChecked(s.buildInstaller)
+        self.installer_version_edit.setText(s.installerVersion)
+        self.iscc_edit.setText(s.isccPath)
+        self.timeout_spin.setValue(s.buildTimeoutMinutes)
+
+    def _reload_package_name_combo(self, selected: str = "") -> None:
+        """填充资源包下拉框：全部 + UpdateSetting 启用的包名。"""
+        packages = config_store.load_runtime_package_names(self._current_project_dir())
+        combo = self.package_name_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("全部启用的资源包", "")
+        for name in packages:
+            if name:
+                combo.addItem(name, name)
+        index = combo.findData(selected or "")
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.blockSignals(False)
+
+    # ============ 交互：版本号 ============
+
+    def _on_version_mode_changed(self) -> None:
+        mode = self.version_mode_combo.currentData()
+        self._set_state("packageVersionMode", mode)
+        is_unified = mode == "Unified"
+        self.unified_wrapper.setVisible(is_unified)
+        self.per_package_box.setVisible(not is_unified)
+        if not is_unified and self.per_package_table.rowCount() == 0:
+            self._refresh_package_versions()
+
+    def _auto_version(self) -> None:
+        self.version_edit.setText(config_store.default_package_version())
+
+    def _refresh_package_versions(self, silent: bool = False) -> None:
+        project_dir = self._current_project_dir()
+        packages = config_store.load_runtime_package_names(project_dir)
+        last = config_store.read_last_package_versions(self.state.buildTarget, self.state.outputRoot, project_dir)
+        existing = {e.packageName: e.version for e in self.state.packageVersions}
+
+        table = self.per_package_table
+        table.setRowCount(len(packages))
+        self.state.packageVersions = []
+        for row, name in enumerate(packages):
+            version = existing.get(name) or last.get(name, "")
+            table.setItem(row, 0, QTableWidgetItem(name))
+            item = QTableWidgetItem(version)
+            table.setItem(row, 1, item)
+            self.state.packageVersions.append(PackageVersionEntry(name, version))
+        if not silent and not any(e.version for e in self.state.packageVersions):
+            self._append_log("[BuildCLI] 未发现历史构建版本，可点「全部自动」生成。")
+
+    def _on_package_version_changed(self, item: QTableWidgetItem) -> None:
+        if item.column() != 1:
+            return
+        row = item.row()
+        name_item = self.per_package_table.item(row, 0)
+        if name_item is None:
+            return
+        name = name_item.text()
+        for entry in self.state.packageVersions:
+            if entry.packageName == name:
+                entry.version = item.text()
+                break
+        config_store.save_last_session(self.state)
+
+    def _auto_all_package_versions(self) -> None:
+        version = config_store.default_package_version()
+        for row in range(self.per_package_table.rowCount()):
+            self.per_package_table.item(row, 1).setText(version)
+
+    # ============ 交互：路径 ============
+
+    def _current_project_dir(self) -> Path:
+        text = self.state.projectDir.strip() if self.state.projectDir else ""
+        return Path(text) if text else unity_locator.PROJECT_DIR
+
+    def _resolved_output_root(self) -> Path:
+        root = self.state.outputRoot or "./Releases/Bundles/"
+        path = Path(root)
+        return path if path.is_absolute() else self._current_project_dir() / str(path).lstrip("./")
+
+    def _resolved_publish_root(self) -> Path:
+        root = self.state.publishRoot or "./Releases/Publish/"
+        path = Path(root)
+        return path if path.is_absolute() else self._current_project_dir() / str(path).lstrip("./")
+
+    def _browse_project_dir(self) -> None:
+        current = self.project_dir_edit.text().strip() or str(unity_locator.PROJECT_DIR)
+        path = QFileDialog.getExistingDirectory(self, "选择 Unity 工程目录（含 Assets/ProjectSettings）", current)
+        if path:
+            self.project_dir_edit.setText(path)
+
+    def _on_project_dir_changed(self, text: str) -> None:
+        """项目目录联动：写入状态 + 校验合法性 + 刷新 Unity 版本显示 + 重定位匹配版本的 Unity.exe。"""
+        text = text.strip()
+        self._set_state("projectDir", text)
+        if not text:
+            self.project_dir_valid_label.setText("")
+            self.unity_version_label.setText("")
+            return
+
+        path = Path(text)
+        is_valid = (path / "Assets").is_dir() and (path / "ProjectSettings").is_dir()
+        self.project_dir_valid_label.setText("✓ 有效工程目录" if is_valid else "✗ 缺少 Assets/ProjectSettings")
+        self.project_dir_valid_label.setStyleSheet("color: green;" if is_valid else "color: #d33;")
+
+        version = unity_locator.read_project_unity_version(project_dir=path) if is_valid else None
+        self.unity_version_label.setText(f"项目版本：{version or '未知'}")
+
+        # 版本变化时自动重定位匹配的 Unity.exe（仅当当前 Unity 路径与该版本不匹配时）
+        if version and not self.unity_exe_edit.text().strip():
+            exe = unity_locator.locate_unity_exe(preferred_version=version)
+            if exe:
+                self.unity_exe_edit.setText(str(exe))
+                self._set_state("unityExePath", str(exe))
+
+        # 项目变了，资源包清单也可能变了
+        if is_valid:
+            self._reload_package_name_combo(self.state.packageName)
+
+    def _browse_unity(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "选择 Unity.exe", "", "Unity (Unity.exe)")
+        if path:
+            self.unity_exe_edit.setText(path)
+            self._set_state("unityExePath", path)
+
+    def _auto_locate_unity(self) -> None:
+        project_dir = Path(self.project_dir_edit.text().strip()) if self.project_dir_edit.text().strip() else None
+        exe = unity_locator.locate_unity_exe(
+            preferred_version=unity_locator.read_project_unity_version(project_dir=project_dir),
+            custom_path=self.unity_exe_edit.text().strip() or None,
+        )
+        if exe:
+            self.unity_exe_edit.setText(str(exe))
+            self._set_state("unityExePath", str(exe))
+        else:
+            QMessageBox.warning(self, "未找到 Unity", "未在 Unity Hub / Program Files 下找到 Unity，请手动浏览指定。")
+
+    def _browse_output(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "选择 AB 输出根目录", str(self._resolved_output_root()))
+        if path:
+            self.output_edit.setText(path)
+
+    def _browse_publish(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "选择发布根目录", str(self._resolved_publish_root()))
+        if path:
+            self.publish_edit.setText(path)
+
+    def _browse_player_output(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(self, "Player 输出路径", self.state.playerOutputPath)
+        if path:
+            self.player_output_edit.setText(path)
+
+    def _open_player_output_dir(self) -> None:
+        text = self.state.playerOutputPath.strip()
+        if not text:
+            QMessageBox.information(self, "打开输出目录", "Player 输出路径为空。")
+            return
+        path = Path(text)
+        if not path.is_absolute():
+            path = self._current_project_dir() / str(path).lstrip("./")
+        if not path.exists():
+            QMessageBox.information(self, "打开输出目录", f"路径尚不存在（可能还没构建过）：\n{path}")
+            return
+        unity_locator.open_in_file_manager(path)
+
+    # ============ 交互：预设 ============
+
+    def _reload_preset_combo(self) -> None:
+        self.preset_combo.clear()
+        for p in config_store.list_presets():
+            self.preset_combo.addItem(p.stem)
+
+    def _save_preset(self) -> None:
+        name = self.preset_combo.currentText().strip()
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "保存预设", "预设名：", text=name)
+        if not ok or not name.strip():
+            return
+        path = config_store.save_preset(name.strip(), self.state)
+        self._append_log(f"[BuildCLI] 预设已保存：{path}")
+        self._reload_preset_combo()
+        self.preset_combo.setCurrentText(name.strip())
+
+    def _load_preset(self) -> None:
+        name = self.preset_combo.currentText().strip()
+        if not name:
+            return
+        path = config_store.PRESETS_DIR / f"{name}.json"
+        if not path.exists():
+            QMessageBox.warning(self, "预设不存在", f"未找到预设：{path}")
+            return
+        unity_exe = self.state.unityExePath
+        project_dir = self.state.projectDir
+        self.state = config_store.load_preset(path)
+        # 环境字段以当前会话为准（预设可能来自其他机器/项目）
+        if not self.state.unityExePath:
+            self.state.unityExePath = unity_exe
+        if not self.state.projectDir or not Path(self.state.projectDir).is_dir():
+            self.state.projectDir = project_dir
+        self._load_state_into_ui()
+        self._on_version_mode_changed()
+        self._append_log(f"[BuildCLI] 已加载预设：{name}")
+
+    def _load_from_asset(self) -> None:
+        project_dir = self._current_project_dir()
+        loaded = config_store.load_form_from_build_pipeline_setting(project_dir)
+        if loaded is None:
+            QMessageBox.warning(self, "读取失败", f"未能解析：{config_store.build_pipeline_setting_asset(project_dir)}")
+            return
+        unity_exe = self.state.unityExePath
+        loaded.unityExePath = unity_exe
+        loaded.projectDir = str(project_dir)
+        self.state = loaded
+        self._load_state_into_ui()
+        self._on_version_mode_changed()
+        self._append_log("[BuildCLI] 已从 Unity 打包窗口配置（BuildPipelineSetting.asset）读取。")
+
+    # ============ 交互：批量任务 ============
+
+    def _reload_batch_combo(self) -> None:
+        self.batch_combo.blockSignals(True)
+        self.batch_combo.clear()
+        for p in config_store.list_batches():
+            task = config_store.load_batch(p.stem)
+            if task:
+                self.batch_combo.addItem(f"{task.name}（{len(task.steps)}步）", task.name)
+        self.batch_combo.blockSignals(False)
+        self._refresh_batch_info()
+
+    def _current_batch_name(self) -> str:
+        return self.batch_combo.currentData() or ""
+
+    def _refresh_batch_info(self) -> None:
+        name = self._current_batch_name()
+        if not name:
+            self.batch_info_label.setText("（暂无批量任务，点「新建」创建）")
+            return
+        task = config_store.load_batch(name)
+        if task is None:
+            self.batch_info_label.setText(f"未找到任务：{name}")
+            return
+        action_names = self._action_names()
+        steps_text = " → ".join(action_names.get(s, s) for s in task.steps) or "（空）"
+        preset_text = f"绑定预设：{task.preset}" if task.preset else "未绑定预设（用当前表单）"
+        stop_text = "失败即停" if task.stopOnFailure else "失败继续（不建议）"
+        self.batch_info_label.setText(f"{steps_text}\n{preset_text}；{stop_text}")
+
+    def _edit_batch(self, name: str | None) -> None:
+        task = config_store.load_batch(name) if name else None
+        preset_names = [p.stem for p in config_store.list_presets()]
+        dialog = BatchStepsDialog(
+            self,
+            name=task.name if task else "",
+            preset=task.preset if task else "",
+            steps=task.steps if task else ["hotfixDll", "buildAb", "publish"],
+            stop_on_failure=task.stopOnFailure if task else True,
+            preset_names=preset_names,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        result = dialog.result_task()
+        if not result.name:
+            QMessageBox.warning(self, "缺少任务名", "请填写批量任务名。")
+            return
+        if not result.steps:
+            QMessageBox.warning(self, "队列为空", "至少添加一个动作步骤。")
+            return
+        path = config_store.save_batch(result)
+        self._append_log(f"[BuildCLI] 批量任务已保存：{path}")
+        self._reload_batch_combo()
+        index = self.batch_combo.findData(result.name)
+        if index >= 0:
+            self.batch_combo.setCurrentIndex(index)
+
+    def _delete_batch(self) -> None:
+        name = self._current_batch_name()
+        if not name:
+            return
+        if QMessageBox.question(self, "删除批量任务", f"确定删除任务「{name}」？") != QMessageBox.StandardButton.Yes:
+            return
+        if config_store.delete_batch(name):
+            self._append_log(f"[BuildCLI] 批量任务已删除：{name}")
+            self._reload_batch_combo()
+
+    def _start_batch(self) -> None:
+        if (self.run is not None and self.run.result is None) or \
+                (self.batch_run is not None and self.batch_run.result is None):
+            QMessageBox.information(self, "构建中", "已有构建正在进行，请先取消或等待完成。")
+            return
+
+        name = self._current_batch_name()
+        task = config_store.load_batch(name) if name else None
+        if task is None or not task.steps:
+            QMessageBox.warning(self, "无可用任务", "请先选择或创建一个包含步骤的批量任务。")
+            return
+
+        unity_exe = self.unity_exe_edit.text().strip()
+        if not unity_exe or not Path(unity_exe).is_file():
+            QMessageBox.warning(self, "缺少 Unity 路径", "请先设置有效的 Unity.exe 路径。")
+            return
+
+        # 执行配置：绑定预设 → 加载预设；否则用当前表单（环境字段校验同单按钮）
+        state = config_store.resolve_batch_state(task, self.state)
+        if not state.projectDir or not (Path(state.projectDir) / "Assets").is_dir():
+            QMessageBox.warning(self, "项目目录无效", "请设置有效的 Unity 工程目录（含 Assets/ProjectSettings）。")
+            return
+        state.unityExePath = unity_exe
+
+        # 与单按钮一致的自动版本号兜底
+        if any(a in ("build", "buildAb", "publish") for a in task.steps) \
+                and state.packageVersionMode == "Unified" and not state.packageVersion:
+            state.packageVersion = config_store.default_package_version()
+            if state is self.state:
+                self.version_edit.setText(state.packageVersion)
+            self._append_log(f"[BuildCLI] 版本号为空，自动生成：{state.packageVersion}")
+
+        self.log_view.clear()
+        preset_note = f"（预设：{task.preset}）" if task.preset else "（当前表单）"
+        self._append_log(f"[BuildCLI] ====== 批量任务「{task.name}」{preset_note} ======")
+        self.batch_run = BatchRun(state, Path(unity_exe), task.steps,
+                                  stop_on_failure=task.stopOnFailure, name=task.name)
+        self.batch_run.on_log(self._append_log)
+        self.batch_run.on_step(self._on_batch_step)
+        self.batch_run.on_done(self._on_batch_done)
+        self._set_building_ui(True)
+        if self.batch_run.start():
+            self.pump_timer.start()
+        else:
+            self._set_building_ui(False)
+
+    def _on_batch_step(self, step_index: int, action: str, segment: int, total_segments: int) -> None:
+        action_name = self._action_names().get(action, action)
+        self._set_result_banner("running", f"批量 第{step_index}/{self.batch_run.total_steps}步：{action_name}"
+                                         f"（段 {segment}/{total_segments}）")
+
+    def _on_batch_done(self, result: str) -> None:
+        self._set_building_ui(False)
+        duration = ""
+        if self.batch_run and self.batch_run._started_at:
+            import time as _time
+
+            duration = f"耗时 {round(_time.time() - self.batch_run._started_at, 1)}s"
+        if result == "success":
+            self.status_label.setText("批量任务成功")
+            self._set_result_banner("success", f"批量任务 {self.batch_run.total_steps} 步全部完成 {duration}")
+            self._append_log("[BuildCLI] ====== 批量任务成功 ======")
+        elif result == "cancelled":
+            self.status_label.setText("已取消")
+            self._set_result_banner("cancelled", "批量任务")
+            self._append_log("[BuildCLI] ====== 批量任务已取消 ======")
+        else:
+            self.status_label.setText("批量任务失败")
+            self._set_result_banner("failed", f"已完成 {self.batch_run.completed_steps}/{self.batch_run.total_steps} 步 {duration}")
+            self._append_log("[BuildCLI] ====== 批量任务失败，详见日志 ======")
+            QMessageBox.warning(self, "批量任务失败",
+                                f"{self.batch_run.failure_summary}\n\n完整日志：\n"
+                                f"{self.batch_run.run.log_file if self.batch_run.run else '?'}")
+        self._reload_history()
+
+    # ============ 构建执行 ============
+
+    def _start_action(self, action: str) -> None:
+        if (self.run is not None and self.run.result is None) or \
+                (self.batch_run is not None and self.batch_run.result is None):
+            QMessageBox.information(self, "构建中", "已有构建正在进行，请先取消或等待完成。")
+            return
+
+        unity_exe = self.unity_exe_edit.text().strip()
+        if not unity_exe or not Path(unity_exe).is_file():
+            QMessageBox.warning(self, "缺少 Unity 路径", "请先设置有效的 Unity.exe 路径。")
+            return
+
+        project_dir = self.project_dir_edit.text().strip()
+        if not project_dir or not (Path(project_dir) / "Assets").is_dir():
+            QMessageBox.warning(self, "项目目录无效", "请设置有效的 Unity 工程目录（含 Assets/ProjectSettings）。")
+            return
+
+        self.state.action = action
+        self.state.unityExePath = unity_exe
+        self.state.projectDir = project_dir
+        config_store.save_last_session(self.state)
+
+        action_names = {
+            "build": "一键构建 (AB + Player)", "buildAb": "构建 AssetBundle", "buildPlayer": "构建 Player",
+            "publish": "发布整理", "hotfixDll": "编译并拷贝热更DLL", "generateAll": "GenerateAll",
+            "syncAotManifest": "同步 AOT 元数据清单", "copyAotDll": "拷贝 AOT 元数据 DLL",
+            "switchPlatform": "切换目标平台", "buildInstaller": "构建安装包",
+        }
+        if action in ("build", "buildAb", "publish") and self.state.packageVersionMode == "Unified" and not self.state.packageVersion:
+            self.state.packageVersion = config_store.default_package_version()
+            self.version_edit.setText(self.state.packageVersion)
+            self._append_log(f"[BuildCLI] 版本号为空，自动生成：{self.state.packageVersion}")
+
+        if action == "build" and self.state.buildPlayer and self.state.playerPlatform != self.state.buildTarget:
+            QMessageBox.warning(self, "平台不一致", f"Player 平台 {self.state.playerPlatform} 与资源包平台 {self.state.buildTarget} 不一致，Unity 侧会拒绝构建。")
+            return
+
+        self.log_view.clear()
+        self._append_log(f"[BuildCLI] ====== {action_names.get(action, action)} ======")
+        self.run = BuildRun(self.state, Path(unity_exe))
+        self.run.on_log(self._append_log)
+        self.run.on_done(self._on_build_done)
+        self._set_building_ui(True)
+        if self.run.start():
+            self.pump_timer.start()
+        else:
+            self._set_building_ui(False)
+
+    def _cancel_build(self) -> None:
+        if self.batch_run and self.batch_run.result is None:
+            self.batch_run.cancel()
+            self.pump_timer.stop()
+            self._set_building_ui(False)
+            return
+        if self.run:
+            self.run.cancel()
+            self.pump_timer.stop()
+            self._set_building_ui(False)
+
+    def _pump(self) -> None:
+        if self.batch_run is not None:
+            if self.batch_run.result is None and self.batch_run.pump():
+                return
+            self.pump_timer.stop()
+            self.batch_run = None  # 批量结束（done 回调已触发），清引用避免拦截下一次构建
+            return
+        if self.run and not self.run.pump():
+            self.pump_timer.stop()
+
+    def _on_build_done(self, result: str) -> None:
+        self._set_building_ui(False)
+        duration = ""
+        if self.run and getattr(self.run, "_started_at", None):
+            import time as _time
+
+            duration = f"耗时 {round(_time.time() - self.run._started_at, 1)}s"
+        action_name = self._action_names().get(self.state.action, self.state.action)
+        if result == "success":
+            size_detail = self._summarize_build_output()
+            self.status_label.setText("构建成功")
+            self._set_result_banner("success", f"{action_name} {duration}{size_detail}")
+            self._append_log("[BuildCLI] ====== 构建成功 ======")
+            self._notify_desktop(f"{action_name}成功", f"{duration}{size_detail}".strip())
+        elif result == "cancelled":
+            self.status_label.setText("已取消")
+            self._set_result_banner("cancelled", action_name)
+            self._append_log("[BuildCLI] ====== 已取消 ======")
+        else:
+            self.status_label.setText("构建失败")
+            self._set_result_banner("failed", f"{action_name} {duration}")
+            self._append_log("[BuildCLI] ====== 构建失败，详见日志 ======")
+            summary = self.run.failure_summary if self.run else ""
+            detail = f"\n\n错误摘要：\n{summary}" if summary else ""
+            self._notify_desktop(f"{action_name}失败", summary.splitlines()[0] if summary else "详见日志")
+            QMessageBox.warning(
+                self, "构建失败",
+                f"{action_name}失败{detail}\n\n完整日志：\n{self.run.log_file if self.run else '?'}")
+        self._reload_history()
+
+    def _summarize_build_output(self) -> str:
+        """成功后汇总产物体积：包记录 / Player / 安装包（来自 C# 结构化结果）。"""
+        if not self.run or not self.run.unity_result:
+            return ""
+        data = self.run.unity_result
+        parts: list[str] = []
+        packages = data.get("packages")
+        if isinstance(packages, list):
+            for package in packages:
+                if isinstance(package, dict) and package.get("packageName"):
+                    size = format_size(package.get("sizeBytes"))
+                    parts.append(f"{package['packageName']}{f' {size}' if size else ''}")
+        if data.get("playerSizeBytes"):
+            parts.append(f"Player {format_size(data['playerSizeBytes'])}")
+        if data.get("installerOutputPath"):
+            parts.append("安装包已生成")
+        return f"　{'，'.join(parts)}" if parts else ""
+
+    def _notify_desktop(self, title: str, message: str) -> None:
+        """系统托盘通知（窗口最小化/不在前台时仍有感知）。失败静默跳过。"""
+        if QSystemTrayIcon is None:
+            return
+        try:
+            if not QSystemTrayIcon.isSystemTrayAvailable():
+                return
+            if self._tray is None:
+                self._tray = QSystemTrayIcon(self)
+                self._tray.show()
+            self._tray.showMessage(title, message, QSystemTrayIcon.MessageIcon.Information, 5000)
+        except Exception:
+            pass
+
+    def _set_building_ui(self, building: bool) -> None:
+        self.cancel_button.setEnabled(building)
+        if building:
+            self.status_label.setText("构建中…")
+            if self.batch_run is not None and self.batch_run.result is None:
+                self._set_result_banner("running", f"批量任务 {self.batch_run.total_steps} 步")
+            elif self.run is not None and self.run.result is None:
+                self._set_result_banner("running", self._action_names().get(self.state.action, self.state.action))
+        for bar_btn in self.findChildren(QPushButton):
+            if bar_btn is not self.cancel_button:
+                bar_btn.setEnabled(not building)
+
+    # ============ 日志 ============
+
+    def _append_log(self, line: str) -> None:
+        self.log_view.appendPlainText(line)
+        self.log_view.moveCursor(QTextCursor.MoveOperation.End)
+
+    def _copy_log(self) -> None:
+        selected = self.log_view.textCursor().selectedText()
+        if selected:
+            QApplication.clipboard().setText(selected.replace("\u2029", "\n"))
+
+    def _export_log(self) -> None:
+        if self.run is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "导出日志", str(self.run.log_file))
+        if path:
+            Path(path).write_text(self.log_view.toPlainText(), encoding="utf-8")
+
+    def closeEvent(self, event) -> None:
+        if (self.run and self.run.result is None) or (self.batch_run and self.batch_run.result is None):
+            answer = QMessageBox.question(self, "构建进行中", "Unity 构建仍在进行，退出会取消构建。确定退出？")
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+            if self.batch_run:
+                self.batch_run.cancel()
+            if self.run:
+                self.run.cancel()
+        config_store.save_last_session(self.state)
+        super().closeEvent(event)
+
+
+def run_app() -> int:
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    return app.exec()

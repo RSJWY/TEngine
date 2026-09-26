@@ -17,7 +17,7 @@
 | 清单加密 | 按包开关 `ManifestEncrypted`（ChaCha20），密钥与 Bundle 用密钥相互独立；密钥以代码常量存储于 `KeyStore`（`TEngine.CryptoKeys` 程序集），不再随 Resources 打入运行时包 |
 | 轻量配置 | 使用 `GameModule.Config` 加载 TOML/JSON，支持 `persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`；项目默认不使用 Luban |
 | 模块访问 | 热更业务通过 `GameModule.XXX` 访问模块 |
-| 构建工具 | 使用 `Build/打包工具窗口`，运行时包配置与构建配置共用 `UpdateSetting.RuntimePackages` |
+| 构建工具 | 使用 `Build/打包工具窗口`，运行时包配置与构建配置共用 `UpdateSetting.RuntimePackages`；外置命令行/GUI 构建走 `UnityProject/BuildCLI/`（Python，复用同一套 `ReleaseTools` 链路，支持批量任务多步骤队列 + 分段合并省冷启动，见 [Fork构建与调试工具](../编辑器工具/Fork构建与调试工具.md)） |
 
 ## 资源与热更新
 

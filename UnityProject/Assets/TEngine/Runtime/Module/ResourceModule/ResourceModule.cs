@@ -81,11 +81,6 @@ namespace TEngine
         /// </summary>
         public int InternalResourceVersion => _internalResourceVersion;
 
-        /// <summary>
-        /// 当前最新的包裹版本。
-        /// </summary>
-        public string PackageVersion { set; get; }
-
         public int DownloadingMaxNum { get; set; }
 
         public int FailedTryAgain { get; set; }

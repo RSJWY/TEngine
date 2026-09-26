@@ -6,6 +6,17 @@ using YooAsset.Editor;
 
 namespace TEngine
 {
+    /// <summary>
+    /// 资源包版本号模式。
+    /// </summary>
+    public enum PackageVersionMode
+    {
+        /// <summary>所有包共用同一个版本号。</summary>
+        Unified,
+        /// <summary>每个包使用独立的版本号。</summary>
+        PerPackage,
+    }
+
     public class BuildConfig
     {
         // 基础设置
@@ -13,6 +24,9 @@ namespace TEngine
         public EBuildPipeline BuildPipeline = EBuildPipeline.ScriptableBuildPipeline;
         public ECompressOption CompressOption = ECompressOption.LZ4;
         public string PackageVersion = "";
+        public PackageVersionMode PackageVersionMode = PackageVersionMode.Unified;
+        /// <summary>PerPackage 模式下按包名存储独立版本号；Unified 模式下不使用。</summary>
+        public Dictionary<string, string> PackageVersionMap = new Dictionary<string, string>();
         public string OutputRoot = "./Releases/Bundles/";
 
         // 发布整理设置
@@ -57,6 +71,12 @@ namespace TEngine
         public string InstallerPassword = "";
         // 向导水印,回写 BrandWatermark;为空时回退用 Publisher
         public string InstallerWatermark = "";
+
+        // CLI/batchmode 模式：跳过一切交互对话框（如 pdb 残留确认，自动清理继续），日志哨兵照常输出
+        public bool HeadlessMode;
+
+        /// <summary>构建记录：每个资源包的输出目录与体积，供 CLI 结构化结果回传。</summary>
+        public readonly List<PackageBuildRecord> PackageRecords = new List<PackageBuildRecord>();
 
         public static BuildConfig CreateDefault()
         {
@@ -169,5 +189,15 @@ namespace TEngine
                 _ => BuildTargetGroup.Standalone
             };
         }
+    }
+
+    /// <summary>单个资源包的构建结果记录。</summary>
+    public sealed class PackageBuildRecord
+    {
+        public string PackageName;
+        public string PackageVersion;
+        public string OutputDirectory;
+        /// <summary>输出目录字节数（含 OutputCache 清理后的最终产物）。</summary>
+        public long OutputSizeBytes;
     }
 }

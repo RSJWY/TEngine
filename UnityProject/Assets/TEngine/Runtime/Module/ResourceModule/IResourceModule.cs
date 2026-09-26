@@ -306,11 +306,6 @@ namespace TEngine
         ResourceDownloaderOperation CreateResourceDownloader(string customPackageName = "");
 
         /// <summary>
-        /// 当前最新的包裹版本。
-        /// </summary>
-        string PackageVersion { set; get; }
-
-        /// <summary>
         /// 获取当前资源包版本。
         /// </summary>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>

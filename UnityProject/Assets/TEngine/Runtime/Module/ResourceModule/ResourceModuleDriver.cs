@@ -37,11 +37,6 @@ namespace TEngine
         private bool useSystemUnloadUnusedAssets = true;
 
         /// <summary>
-        /// 当前最新的包裹版本。
-        /// </summary>
-        public string PackageVersion { set; get; }
-
-        /// <summary>
         /// 资源系统运行模式。
         /// </summary>
         [SerializeField]

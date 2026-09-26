@@ -1,0 +1,13 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.smoke_test.py
+.gui_smoke_test.py
+
+# 构建日志（保留目录占位，不提交每次构建产物）
+logs/*
+!logs/.gitkeep
+
+# 预设中的会话快照（随机器状态，不提交）
+presets/_last_session.json

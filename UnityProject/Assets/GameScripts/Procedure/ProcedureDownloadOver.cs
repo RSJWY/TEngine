@@ -36,10 +36,6 @@ namespace Procedure
 
                 var packageVersion = procedureOwner.GetData<string>(versionDataKey);
                 Utility.PlayerPrefs.SetString(GetVersionPlayerPrefsKey(runtimePackage), packageVersion);
-                if (runtimePackage.PackageName == _resourceModule.DefaultPackageName)
-                {
-                    _resourceModule.PackageVersion = packageVersion;
-                }
 
                 Log.Info($"写入资源包版本记录：{runtimePackage.PackageName} => {packageVersion}");
             }

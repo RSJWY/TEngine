@@ -160,16 +160,21 @@ namespace TEngine
 
                 firstBuildResult ??= buildResult;
                 Debug.Log($"[BuildWithConfig] AssetBundle构建成功: {runtimePackage.PackageName} => {buildResult.OutputPackageDirectory}");
+                RecordPackageBuild(config, runtimePackage.PackageName, ResolvePackageVersion(config, runtimePackage.PackageName), buildResult.OutputPackageDirectory);
 
                 if (config.EnablePublishCopy)
                 {
-                    PublishBuiltPackage(config, runtimePackage.PackageName, buildResult.OutputPackageDirectory);
+                    var publishVersion = ResolvePackageVersion(config, runtimePackage.PackageName);
+                    PublishBuiltPackage(config, runtimePackage.PackageName, buildResult.OutputPackageDirectory, publishVersion);
                 }
             }
 
             if (config.MinimalPackage && firstBuildResult != null)
             {
-                ProcessMinimalPackage(runtimePackages.Select(x => x.PackageName).ToList(), config.PackageVersion,
+                var minimalVersion = config.PackageVersionMode == PackageVersionMode.PerPackage
+                    ? ResolvePackageVersion(config, runtimePackages[0].PackageName)
+                    : config.PackageVersion;
+                ProcessMinimalPackage(runtimePackages.Select(x => x.PackageName).ToList(), minimalVersion,
                     config.RetainTags, firstBuildResult.OutputPackageDirectory);
             }
 
@@ -196,26 +201,36 @@ namespace TEngine
             // pdb 残留检测（当前配置不生成 pdb 且构建 CodePackage 时检查：release 模式，或 dev 但 pdb 开关关闭）
             bool pdbDisabled = !Settings.UpdateSetting.WillGeneratePdb;
             bool isCodePackage = IsAssemblyPackage(runtimePackage.PackageName);
-            if (pdbDisabled && isCodePackage)
-            {
-                string pdbDir = Settings.UpdateSetting.GetPdbAssemblyAssetPath();
-                if (Directory.Exists(pdbDir))
+                if (pdbDisabled && isCodePackage)
                 {
-                    var pdbFiles = Directory.GetFiles(pdbDir, "*.pdb.bytes", SearchOption.TopDirectoryOnly);
-                    if (pdbFiles.Length > 0)
+                    string pdbDir = Settings.UpdateSetting.GetPdbAssemblyAssetPath();
+                    if (Directory.Exists(pdbDir))
                     {
-                        string pdbList = string.Join("\n", pdbFiles.Select(Path.GetFileName));
-                        bool shouldContinue = EditorUtility.DisplayDialog(
-                            "检测到 pdb 调试符号文件",
-                            $"当前构建配置不会生成 pdb（release 模式或 pdb 开关已关闭），但在 PDB 目录检测到以下 pdb 残留文件：\n\n{pdbList}\n\npdb 文件会增大包体并泄露符号信息，不应打入此包。\n\n是否清理这些文件并继续打包？",
-                            "清理并继续",
-                            "取消打包");
-
-                        if (!shouldContinue)
+                        var pdbFiles = Directory.GetFiles(pdbDir, "*.pdb.bytes", SearchOption.TopDirectoryOnly);
+                        if (pdbFiles.Length > 0)
                         {
-                            Debug.LogWarning("[打包中止] 用户取消打包以手动处理 pdb 文件。");
-                            return new YooAsset.Editor.BuildResult { Success = false };
-                        }
+                            string pdbList = string.Join("\n", pdbFiles.Select(Path.GetFileName));
+                            bool shouldContinue;
+                            if (config.HeadlessMode)
+                            {
+                                // batchmode 下 DisplayDialog 不可见且默认取消，直接自动清理继续
+                                Debug.LogWarning($"[Headless] 检测到 pdb 残留文件（{pdbFiles.Length} 个），已自动清理：\n{pdbList}");
+                                shouldContinue = true;
+                            }
+                            else
+                            {
+                                shouldContinue = EditorUtility.DisplayDialog(
+                                    "检测到 pdb 调试符号文件",
+                                    $"当前构建配置不会生成 pdb（release 模式或 pdb 开关已关闭），但在 PDB 目录检测到以下 pdb 残留文件：\n\n{pdbList}\n\npdb 文件会增大包体并泄露符号信息，不应打入此包。\n\n是否清理这些文件并继续打包？",
+                                    "清理并继续",
+                                    "取消打包");
+                            }
+
+                            if (!shouldContinue)
+                            {
+                                Debug.LogWarning("[打包中止] 用户取消打包以手动处理 pdb 文件。");
+                                return new YooAsset.Editor.BuildResult { Success = false };
+                            }
 
                         // 清理 pdb
                         foreach (var pdbFile in pdbFiles)
@@ -234,7 +249,8 @@ namespace TEngine
             }
 
             var buildPipeline = ResolveBuildPipeline(config, runtimePackage);
-            Debug.Log($"开始构建 : {config.BuildTarget} - {runtimePackage.PackageName} - {buildPipeline}");
+            string packageVersion = ResolvePackageVersion(config, runtimePackage.PackageName);
+            Debug.Log($"开始构建 : {config.BuildTarget} - {runtimePackage.PackageName} - {buildPipeline} - 版本:{packageVersion}");
 
             IBuildPipeline pipeline;
             BuildParameters buildParameters;
@@ -281,7 +297,7 @@ namespace TEngine
             buildParameters.BuildTarget = config.BuildTarget;
             buildParameters.BuildBundleType = GetBuildBundleType(buildPipeline);
             buildParameters.PackageName = runtimePackage.PackageName;
-            buildParameters.PackageVersion = config.PackageVersion;
+            buildParameters.PackageVersion = packageVersion;
             buildParameters.PackageNote = JsonUtility.ToJson(new PackageMetadata { mode = Settings.UpdateSetting.BuildMode });
             buildParameters.VerifyBuildingResult = config.VerifyBuildingResult;
             buildParameters.EnableSharePackRule = config.EnableSharePackRule;
@@ -397,8 +413,36 @@ namespace TEngine
                 return new List<string>();
             }
 
-            var versionTimes = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+            // PerPackage 模式：返回每包各自版本的并集，不要求公共版本。
+            if (config.PackageVersionMode == PackageVersionMode.PerPackage)
+            {
+                var versionTimes = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+                foreach (var runtimePackage in runtimePackages)
+                {
+                    var packageVersions = GetPackageVersionDirectories(config, runtimePackage.PackageName);
+                    foreach (var pair in packageVersions)
+                    {
+                        if (versionTimes.TryGetValue(pair.Key, out var existing))
+                        {
+                            versionTimes[pair.Key] = existing > pair.Value ? existing : pair.Value;
+                        }
+                        else
+                        {
+                            versionTimes[pair.Key] = pair.Value;
+                        }
+                    }
+                }
+
+                return versionTimes
+                    .OrderByDescending(kv => kv.Value)
+                    .ThenByDescending(kv => kv.Key, StringComparer.Ordinal)
+                    .Select(kv => kv.Key)
+                    .ToList();
+            }
+
+            // Unified 模式：返回所有包公共版本（交集）。
             var candidateVersions = new HashSet<string>(StringComparer.Ordinal);
+            var sharedVersionTimes = new Dictionary<string, DateTime>(StringComparer.Ordinal);
             var isFirstPackage = true;
 
             foreach (var runtimePackage in runtimePackages)
@@ -409,7 +453,7 @@ namespace TEngine
                     foreach (var packageVersion in packageVersions)
                     {
                         candidateVersions.Add(packageVersion.Key);
-                        versionTimes[packageVersion.Key] = packageVersion.Value;
+                        sharedVersionTimes[packageVersion.Key] = packageVersion.Value;
                     }
 
                     isFirstPackage = false;
@@ -419,15 +463,15 @@ namespace TEngine
                 candidateVersions.IntersectWith(packageVersions.Keys);
                 foreach (var version in candidateVersions.ToArray())
                 {
-                    if (packageVersions.TryGetValue(version, out var lastWriteTimeUtc) && versionTimes.TryGetValue(version, out var existingTime))
+                    if (packageVersions.TryGetValue(version, out var lastWriteTimeUtc) && sharedVersionTimes.TryGetValue(version, out var existingTime))
                     {
-                        versionTimes[version] = existingTime > lastWriteTimeUtc ? existingTime : lastWriteTimeUtc;
+                        sharedVersionTimes[version] = existingTime > lastWriteTimeUtc ? existingTime : lastWriteTimeUtc;
                     }
                 }
             }
 
             return candidateVersions
-                .OrderByDescending(version => versionTimes.TryGetValue(version, out var lastWriteTimeUtc)
+                .OrderByDescending(version => sharedVersionTimes.TryGetValue(version, out var lastWriteTimeUtc)
                     ? lastWriteTimeUtc
                     : DateTime.MinValue)
                 .ThenByDescending(version => version, StringComparer.Ordinal)
@@ -436,32 +480,59 @@ namespace TEngine
 
         public static bool PublishFromExistingBuild(BuildConfig config, string packageVersion)
         {
-            if (string.IsNullOrWhiteSpace(packageVersion))
+            var isPerPackage = config.PackageVersionMode == PackageVersionMode.PerPackage;
+            if (!isPerPackage && string.IsNullOrWhiteSpace(packageVersion))
             {
                 Debug.LogError("[Publish] 发布整理失败：版本号为空。");
                 return false;
             }
 
             var runtimePackages = GetBuildPackages();
-            var packageDirectories = new List<(string PackageName, string SourceDirectory)>();
+            var packageDirectories = new List<(string PackageName, string SourceDirectory, string Version)>();
+            var missingPackages = new List<string>();
+
             foreach (var runtimePackage in runtimePackages)
             {
-                var sourceDirectory = GetPackageVersionDirectory(config, runtimePackage.PackageName, packageVersion);
+                var effectiveVersion = isPerPackage
+                    ? ResolvePackageVersion(config, runtimePackage.PackageName)
+                    : packageVersion;
+
+                var sourceDirectory = GetPackageVersionDirectory(config, runtimePackage.PackageName, effectiveVersion);
                 if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
                 {
-                    Debug.LogError($"[Publish] 发布整理失败：未找到版本目录 {runtimePackage.PackageName}/{packageVersion}");
-                    return false;
+                    missingPackages.Add($"{runtimePackage.PackageName}/{effectiveVersion}");
+                    continue;
                 }
 
-                packageDirectories.Add((runtimePackage.PackageName, sourceDirectory));
+                packageDirectories.Add((runtimePackage.PackageName, sourceDirectory, effectiveVersion));
             }
 
-            foreach (var packageDirectory in packageDirectories)
+            if (packageDirectories.Count <= 0)
             {
-                PublishBuiltPackage(config, packageDirectory.PackageName, packageDirectory.SourceDirectory, packageVersion);
+                Debug.LogError($"[Publish] 发布整理失败：未找到任何版本目录。\n缺失：{string.Join("\n  ", missingPackages)}");
+                return false;
             }
 
-            Debug.Log($"[Publish] 已按版本整理完成：{packageVersion} => {GetPublishOutputRoot(config)}");
+            foreach (var missing in missingPackages)
+            {
+                Debug.LogWarning($"[Publish] 跳过缺失版本目录：{missing}");
+            }
+
+            foreach (var entry in packageDirectories)
+            {
+                PublishBuiltPackage(config, entry.PackageName, entry.SourceDirectory, entry.Version);
+            }
+
+            if (isPerPackage)
+            {
+                var versionSummary = string.Join(", ", packageDirectories.Select(x => $"{x.PackageName}={x.Version}"));
+                Debug.Log($"[Publish] 已按包版本整理完成：{versionSummary} => {GetPublishOutputRoot(config)}");
+            }
+            else
+            {
+                Debug.Log($"[Publish] 已按版本整理完成：{packageVersion} => {GetPublishOutputRoot(config)}");
+            }
+
             return true;
         }
 
@@ -801,6 +872,31 @@ namespace TEngine
 
         #region 工具方法
 
+        private static void RecordPackageBuild(BuildConfig config, string packageName, string packageVersion, string outputDirectory)
+        {
+            try
+            {
+                long sizeBytes = 0;
+                if (Directory.Exists(outputDirectory))
+                {
+                    sizeBytes = Directory.GetFiles(outputDirectory, "*", SearchOption.AllDirectories)
+                        .Sum(file => new FileInfo(file).Length);
+                }
+
+                config.PackageRecords.Add(new PackageBuildRecord
+                {
+                    PackageName = packageName,
+                    PackageVersion = packageVersion,
+                    OutputDirectory = outputDirectory,
+                    OutputSizeBytes = sizeBytes,
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[BuildWithConfig] 统计包体积失败（忽略）：{packageName} - {e.Message}");
+            }
+        }
+
         private static BuildTarget GetBuildTarget(string platform)
         {
             BuildTarget target = BuildTarget.NoTarget;
@@ -853,10 +949,42 @@ namespace TEngine
             return BundleCrypto.Create(encryptionType)?.Encryptor;
         }
 
-        private static string GetBuildPackageVersion()
+        /// <summary>
+        /// 根据版本模式解析当前包的版本号。
+        /// PerPackage 模式下优先取 PackageVersionMap，其次取 _build_version.txt，最后自动生成。
+        /// </summary>
+        private static string ResolvePackageVersion(BuildConfig config, string packageName)
         {
-            int totalMinutes = DateTime.Now.Hour * 60 + DateTime.Now.Minute;
-            return DateTime.Now.ToString("yyyy-MM-dd") + "-" + totalMinutes;
+            if (config.PackageVersionMode != PackageVersionMode.PerPackage)
+            {
+                return config.PackageVersion;
+            }
+
+            if (config.PackageVersionMap.TryGetValue(packageName, out var version) && !string.IsNullOrWhiteSpace(version))
+            {
+                return version;
+            }
+
+            // 尝试从已有构建目录的 _build_version.txt 读取
+            var existingDir = GetBuildPlatformOutputRoot(config) + "/" + packageName;
+            if (Directory.Exists(existingDir))
+            {
+                var versionFile = Path.Combine(existingDir, "_build_version.txt");
+                if (File.Exists(versionFile))
+                {
+                    var fileVersion = File.ReadAllText(versionFile).Trim();
+                    if (!string.IsNullOrWhiteSpace(fileVersion))
+                    {
+                        config.PackageVersionMap[packageName] = fileVersion;
+                        return fileVersion;
+                    }
+                }
+            }
+
+            // 自动生成
+            var autoVersion = BuildConfig.GetDefaultPackageVersion();
+            config.PackageVersionMap[packageName] = autoVersion;
+            return autoVersion;
         }
 
         #endregion

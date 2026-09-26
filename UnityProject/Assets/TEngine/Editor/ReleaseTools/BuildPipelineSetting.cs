@@ -24,6 +24,7 @@ namespace TEngine
         public EBuildPipeline BuildPipeline = EBuildPipeline.ScriptableBuildPipeline;
         public ECompressOption CompressOption = ECompressOption.LZ4;
         public string PackageVersion = "";
+        public PackageVersionMode PackageVersionMode = PackageVersionMode.Unified;
         public string OutputRoot = "./Releases/Bundles/";
 
         // 发布整理设置
@@ -76,6 +77,7 @@ namespace TEngine
             BuildPipeline = config.BuildPipeline;
             CompressOption = config.CompressOption;
             PackageVersion = config.PackageVersion;
+            PackageVersionMode = config.PackageVersionMode;
             OutputRoot = config.OutputRoot;
             EnablePublishCopy = config.EnablePublishCopy;
             PublishRoot = config.PublishRoot;
