@@ -39,6 +39,13 @@ class MainWindow(QMainWindow):
         self._load_state_into_ui()
         self.per_package_table.itemChanged.connect(self._on_package_version_changed)
         self._refresh_package_versions(silent=True)
+        self._reload_history()
+        # 启动时按当前策略清理一次（GUI 长期不关，运行中清理只在新构建后触发）
+        from .unity_runner import cleanup_logs
+
+        removed = cleanup_logs(self.state.logKeepCount, self.state.logKeepDays)
+        if removed:
+            self._append_log(f"[BuildCLI] 启动清理：删除 {len(removed)} 个过期日志目录。")
 
         self.pump_timer = QTimer(self)
         self.pump_timer.setInterval(300)
@@ -344,6 +351,31 @@ class MainWindow(QMainWindow):
     def _build_log_panel(self) -> QWidget:
         box = QGroupBox("构建日志")
         layout = QVBoxLayout(box)
+
+        # 状态横幅：一眼看结果，不用翻日志
+        self.result_banner = QLabel("就绪")
+        self.result_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        font = self.result_banner.font()
+        font.setPointSize(12)
+        font.setBold(True)
+        self.result_banner.setFont(font)
+        self.result_banner.setStyleSheet(
+            "background-color: rgba(127,127,127,60); color: #666; border-radius: 4px; padding: 6px;"
+        )
+        layout.addWidget(self.result_banner)
+
+        # 最近执行历史：动作 + 结果 + 耗时，可选中后打开该次日志
+        history_row = QHBoxLayout()
+        history_row.addWidget(QLabel("最近执行："))
+        self.history_combo = QComboBox()
+        self.history_combo.setMinimumWidth(200)
+        self.history_combo.activated.connect(self._open_history_log)
+        history_row.addWidget(self.history_combo, stretch=1)
+        open_history_btn = QPushButton("打开该次日志目录")
+        open_history_btn.clicked.connect(self._open_history_log)
+        history_row.addWidget(open_history_btn)
+        layout.addLayout(history_row)
+
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setFont(QFont("Consolas", 9))
@@ -360,9 +392,71 @@ class MainWindow(QMainWindow):
         clear_btn = QPushButton("清空")
         clear_btn.clicked.connect(self.log_view.clear)
         buttons.addWidget(clear_btn)
+
+        # 日志自动清理策略
+        from PySide6.QtWidgets import QSpinBox
+
         buttons.addStretch()
+        buttons.addWidget(QLabel("日志保留："))
+        self.log_keep_count_spin = QSpinBox()
+        self.log_keep_count_spin.setRange(0, 999)
+        self.log_keep_count_spin.setSuffix(" 次")
+        self.log_keep_count_spin.setSpecialValueText("不限次数")
+        self.log_keep_count_spin.setValue(30)
+        self.log_keep_count_spin.valueChanged.connect(lambda v: self._set_state("logKeepCount", v))
+        buttons.addWidget(self.log_keep_count_spin)
+        self.log_keep_days_spin = QSpinBox()
+        self.log_keep_days_spin.setRange(0, 365)
+        self.log_keep_days_spin.setSuffix(" 天")
+        self.log_keep_days_spin.setSpecialValueText("不限天数")
+        self.log_keep_days_spin.setValue(7)
+        self.log_keep_days_spin.valueChanged.connect(lambda v: self._set_state("logKeepDays", v))
+        buttons.addWidget(self.log_keep_days_spin)
         layout.addLayout(buttons)
         return box
+
+    _RESULT_STYLES = {
+        "success": ("✔ 构建成功", "rgba(90,200,120,70)", "#1a7a3c"),
+        "failed": ("✘ 构建失败", "rgba(220,80,80,70)", "#a01f1f"),
+        "cancelled": ("■ 已取消", "rgba(160,160,160,70)", "#666"),
+        "running": ("⟳ 构建中…", "rgba(110,170,235,70)", "#1a4f8a"),
+        "idle": ("就绪", "rgba(127,127,127,60)", "#666"),
+    }
+
+    def _set_result_banner(self, key: str, detail: str = "") -> None:
+        text, bg, fg = self._RESULT_STYLES.get(key, self._RESULT_STYLES["idle"])
+        if detail:
+            text = f"{text}　{detail}"
+        self.result_banner.setText(text)
+        self.result_banner.setStyleSheet(
+            f"background-color: {bg}; color: {fg}; border-radius: 4px; padding: 6px;"
+        )
+
+    def _reload_history(self) -> None:
+        from .unity_runner import load_run_history
+
+        self.history_combo.clear()
+        action_names = self._action_names()
+        for record in load_run_history(10):
+            result_text = {"success": "成功", "failed": "失败", "cancelled": "取消"}.get(record.get("result"), "?")
+            duration = record.get("durationSeconds")
+            duration_text = f" {duration}s" if duration is not None else ""
+            label = f"{record.get('finishedAt', '?')}  {action_names.get(record.get('action'), record.get('action'))}  [{result_text}]{duration_text}"
+            self.history_combo.addItem(label, record.get("logDir"))
+
+    def _open_history_log(self) -> None:
+        log_dir = self.history_combo.currentData()
+        if log_dir:
+            unity_locator.open_in_file_manager(log_dir)
+
+    @staticmethod
+    def _action_names() -> dict[str, str]:
+        return {
+            "build": "一键构建", "buildAb": "构建AB", "buildPlayer": "构建Player",
+            "publish": "发布整理", "hotfixDll": "热更DLL", "generateAll": "GenerateAll",
+            "syncAotManifest": "同步AOT清单", "copyAotDll": "拷贝AOT DLL",
+            "switchPlatform": "切换平台",
+        }
 
     # ============ 状态绑定 ============
 
@@ -374,6 +468,8 @@ class MainWindow(QMainWindow):
         s = self.state
         self.project_dir_edit.setText(s.projectDir)
         self.unity_exe_edit.setText(s.unityExePath)
+        self.log_keep_count_spin.setValue(s.logKeepCount)
+        self.log_keep_days_spin.setValue(s.logKeepDays)
         self.target_combo.setCurrentText(s.buildTarget)
         self.pipeline_combo.setCurrentText(s.buildPipeline)
         self.compress_combo.setCurrentText(s.compressOption)
@@ -641,20 +737,32 @@ class MainWindow(QMainWindow):
 
     def _on_build_done(self, result: str) -> None:
         self._set_building_ui(False)
+        duration = ""
+        if self.run and getattr(self.run, "_started_at", None):
+            import time as _time
+
+            duration = f"耗时 {round(_time.time() - self.run._started_at, 1)}s"
+        action_name = self._action_names().get(self.state.action, self.state.action)
         if result == "success":
             self.status_label.setText("构建成功")
+            self._set_result_banner("success", f"{action_name} {duration}")
             self._append_log("[BuildCLI] ====== 构建成功 ======")
         elif result == "cancelled":
             self.status_label.setText("已取消")
+            self._set_result_banner("cancelled", action_name)
             self._append_log("[BuildCLI] ====== 已取消 ======")
         else:
             self.status_label.setText("构建失败")
+            self._set_result_banner("failed", f"{action_name} {duration}")
             self._append_log("[BuildCLI] ====== 构建失败，详见日志 ======")
-            QMessageBox.warning(self, "构建失败", f"构建失败，完整日志：\n{self.run.log_file if self.run else '?'}")
+            QMessageBox.warning(self, "构建失败", f"{action_name}失败，完整日志：\n{self.run.log_file if self.run else '?'}")
+        self._reload_history()
 
     def _set_building_ui(self, building: bool) -> None:
         self.cancel_button.setEnabled(building)
-        self.status_label.setText("构建中…" if building else self.status_label.text())
+        if building:
+            self.status_label.setText("构建中…")
+            self._set_result_banner("running", self._action_names().get(self.state.action, self.state.action))
         for bar_btn in self.findChildren(QPushButton):
             if bar_btn is not self.cancel_button:
                 bar_btn.setEnabled(not building)

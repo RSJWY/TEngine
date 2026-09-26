@@ -56,6 +56,9 @@ class BuildFormState:
     # 环境类（不入预设核心，但随预设保存）
     unityExePath: str = ""
     projectDir: str = ""
+    # 日志自动清理策略：保留最近 N 次；超过 M 天的删除（满足任一即删；0 表示不限）
+    logKeepCount: int = 30
+    logKeepDays: int = 7
     # 动作
     action: str = "build"
     # 基础设置

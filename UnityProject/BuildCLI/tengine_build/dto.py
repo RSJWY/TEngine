@@ -10,12 +10,14 @@ from .config_store import BuildFormState
 
 REQUEST_FILENAME = "build_request.json"
 
+# Python 侧专有字段，不下发给 CLIBridge
+_LOCAL_ONLY_FIELDS = {"unityExePath", "projectDir", "logKeepCount", "logKeepDays"}
+
 
 def dump_request(state: BuildFormState, log_dir: Path) -> Path:
     """把表单序列化为 CLIBridge.BuildRequestDTO 兼容 JSON，写入本次构建日志目录。"""
     data = asdict(state)
-    # action/unityExePath 等环境字段保留在 JSON 中，CLIBridge 只消费它认识的字段
-    payload = {k: v for k, v in data.items() if k != "unityExePath"}
+    payload = {k: v for k, v in data.items() if k not in _LOCAL_ONLY_FIELDS}
     request_path = log_dir / REQUEST_FILENAME
     request_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return request_path
