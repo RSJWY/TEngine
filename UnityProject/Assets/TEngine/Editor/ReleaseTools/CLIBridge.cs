@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using UnityEditor;
 using UnityEngine;
 using YooAsset;
@@ -14,13 +15,14 @@ namespace TEngine
     /// <remarks>
     /// 供 BuildCLI（Python GUI）以 batchmode 方式调用，是唯一对外 CLI 入口。
     /// 用法：Unity.exe -projectPath &lt;项目&gt; -batchmode -quit -executeMethod TEngine.CLIBridge.Run
-    ///       -tengineConfig=&lt;JSON 文件绝对路径&gt;
+    ///       -tengineConfig=&lt;JSON 文件绝对路径&gt; [-tengineResult=&lt;结果 JSON 输出路径&gt;]
     /// 退出码：0 成功；1 失败（Python 端据此判定构建结果）。
     /// </remarks>
     /// </summary>
     public static class CLIBridge
     {
         private const string ConfigArgPrefix = "-tengineConfig=";
+        private const string ResultArgPrefix = "-tengineResult=";
 
         /// <summary>
         /// JSON 反序列化 DTO。字段名与 Python 端 BuildCLI 的 build_config JSON 保持一致。
@@ -30,6 +32,7 @@ namespace TEngine
         {
             // 动作：build(AB+可选Player) / buildAb(仅AB) / buildPlayer(仅Player) / publish(仅发布整理)
             // hotfixDll(编译并拷贝热更DLL) / generateAll / syncAotManifest / copyAotDll / switchPlatform(仅切平台)
+            // buildInstaller(仅编译 InnoSetup 安装包，需已有 Windows Player 产物)
             public string action = "build";
 
             // 基础设置（对应 BuildConfig）
@@ -40,6 +43,8 @@ namespace TEngine
             public string packageVersionMode = "Unified";
             public List<PackageVersionEntryDTO> packageVersions = new List<PackageVersionEntryDTO>();
             public string outputRoot = "./Releases/Bundles/";
+            // 指定资源包名：为空构建全部启用的包
+            public string packageName = "";
 
             // 发布整理
             public bool enablePublishCopy;
@@ -67,6 +72,16 @@ namespace TEngine
             public bool buildPlayer;
             public string playerPlatform = "StandaloneWindows64";
             public string playerOutputPath = "";
+
+            // InnoSetup 安装包（action=buildInstaller 或 build+buildInstaller 时使用）
+            public bool buildInstaller;
+            public string installerVersion = "";
+            public string isccPath = "";
+            public string installerAppName = "";
+            public string installerAppEnglishName = "";
+            public string installerPublisher = "";
+            public string installerPassword = "";
+            public string installerWatermark = "";
         }
 
         [Serializable]
@@ -76,31 +91,99 @@ namespace TEngine
             public string version = "";
         }
 
+        // ============ 结构化结果（与 Python 端 unity_runner 合并读取） ============
+
+        [Serializable]
+        private sealed class BuildResultDTO
+        {
+            public string action = "";
+            public bool success;
+            public string error = "";
+            public long durationSeconds;
+            public string playerOutputPath = "";
+            public long playerSizeBytes;
+            public string installerOutputPath = "";
+            public List<PackageRecordDTO> packages = new List<PackageRecordDTO>();
+        }
+
+        [Serializable]
+        private sealed class PackageRecordDTO
+        {
+            public string packageName = "";
+            public string packageVersion = "";
+            public string outputDirectory = "";
+            public long sizeBytes;
+        }
+
         public static void Run()
         {
             int exitCode;
+            var result = new BuildResultDTO();
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 var request = LoadRequest();
                 if (request == null)
                 {
+                    result.error = "配置文件不存在或未传入 -tengineConfig 参数";
                     exitCode = 1;
                 }
                 else
                 {
-                    exitCode = Execute(request) ? 0 : 1;
+                    result.action = request.action;
+                    bool ok = Execute(request, result);
+                    result.success = ok;
+                    if (!ok && string.IsNullOrEmpty(result.error))
+                    {
+                        result.error = "详见 Unity 日志";
+                    }
+
+                    exitCode = ok ? 0 : 1;
                 }
             }
             catch (Exception e)
             {
                 Debug.LogException(e);
                 Debug.LogError($"[TEngineCLI] 构建异常终止：{e.Message}");
+                result.success = false;
+                result.error = e.Message;
                 exitCode = 1;
             }
+
+            stopwatch.Stop();
+            result.durationSeconds = (long)stopwatch.Elapsed.TotalSeconds;
+            WriteResultFile(result);
 
             if (Application.isBatchMode)
             {
                 EditorApplication.Exit(exitCode);
+            }
+        }
+
+        private static void WriteResultFile(BuildResultDTO result)
+        {
+            try
+            {
+                string resultPath = Environment.GetCommandLineArgs()
+                    .FirstOrDefault(arg => arg.StartsWith(ResultArgPrefix, StringComparison.OrdinalIgnoreCase))
+                    ?.Substring(ResultArgPrefix.Length);
+                if (string.IsNullOrWhiteSpace(resultPath))
+                {
+                    return;
+                }
+
+                string directory = Path.GetDirectoryName(resultPath);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                File.WriteAllText(resultPath, JsonUtility.ToJson(result, true), new UTF8Encoding(false));
+                Debug.Log($"[TEngineCLI] 结构化结果已写入：{resultPath}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[TEngineCLI] 结果文件写入失败（忽略）：{e.Message}");
             }
         }
 
@@ -128,7 +211,7 @@ namespace TEngine
             return request;
         }
 
-        private static bool Execute(BuildRequestDTO request)
+        private static bool Execute(BuildRequestDTO request, BuildResultDTO result)
         {
             Debug.Log($"[TEngineCLI] ========== 开始执行 action={request.action} ==========");
             switch (request.action)
@@ -145,7 +228,19 @@ namespace TEngine
                         Debug.Log($"[TEngineCLI] 统一版本号为空，自动生成：{config.PackageVersion}");
                     }
 
-                    bool ok = ReleaseTools.BuildWithConfig(config, withPlayer, null);
+                    bool ok = ReleaseTools.BuildWithConfig(config, withPlayer, NullIfEmpty(request.packageName));
+                    FillPackageRecords(config, result);
+                    if (ok && withPlayer)
+                    {
+                        FillPlayerRecord(config, result);
+                    }
+
+                    // AB 成功后串联安装包（与 GUI 窗口“串联构建”语义一致）
+                    if (ok && request.action == "build" && request.buildInstaller)
+                    {
+                        ok = ExecuteInstaller(request, result);
+                    }
+
                     Debug.Log(ok
                         ? "[TEngineCLI] ========== 构建完成 =========="
                         : "[TEngineCLI] ========== 构建失败 ==========");
@@ -153,6 +248,7 @@ namespace TEngine
                 }
                 case "buildPlayer":
                 {
+                    var config = ToBuildConfig(request);
                     var playerTarget = ParseBuildTarget(request.playerPlatform);
                     if (!ReleaseTools.BuildImp(
                             BuildConfig.GetBuildTargetGroup(playerTarget),
@@ -163,9 +259,12 @@ namespace TEngine
                         return false;
                     }
 
+                    FillPlayerRecord(config, result);
                     Debug.Log("[TEngineCLI] ========== Player 构建完成 ==========");
                     return true;
                 }
+                case "buildInstaller":
+                    return ExecuteInstaller(request, result);
                 case "publish":
                 {
                     var config = ToBuildConfig(request);
@@ -212,7 +311,84 @@ namespace TEngine
                 }
                 default:
                     Debug.LogError($"[TEngineCLI] 未知 action：{request.action}");
+                    result.error = $"未知 action：{request.action}";
                     return false;
+            }
+        }
+
+        private static bool ExecuteInstaller(BuildRequestDTO request, BuildResultDTO result)
+        {
+            try
+            {
+                var exeName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.StandaloneWindows64));
+                var watermark = string.IsNullOrWhiteSpace(request.installerWatermark)
+                    ? request.installerPublisher
+                    : request.installerWatermark;
+                var issConfig = new IssInstallerConfig
+                {
+                    AppName = request.installerAppName,
+                    AppEnglishName = request.installerAppEnglishName,
+                    InstallerVersion = request.installerVersion,
+                    Publisher = request.installerPublisher,
+                    ExeName = exeName,
+                    Password = request.installerPassword,
+                    Watermark = watermark,
+                };
+
+                Debug.Log("[TEngineCLI] ========== 开始编译 InnoSetup 安装包 ==========");
+                InnoSetupBuilder.BuildInstaller(issConfig, NullIfEmpty(request.isccPath));
+                result.installerOutputPath = InnoSetupBuilder.InstallerOutputDir;
+                Debug.Log($"[TEngineCLI] ========== 安装包构建完成：{result.installerOutputPath} ==========");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[TEngineCLI] 安装包构建失败：{e.Message}");
+                result.error = $"安装包构建失败：{e.Message}";
+                return false;
+            }
+        }
+
+        private static void FillPackageRecords(BuildConfig config, BuildResultDTO result)
+        {
+            foreach (var record in config.PackageRecords)
+            {
+                result.packages.Add(new PackageRecordDTO
+                {
+                    packageName = record.PackageName,
+                    packageVersion = record.PackageVersion,
+                    outputDirectory = record.OutputDirectory,
+                    sizeBytes = record.OutputSizeBytes,
+                });
+            }
+        }
+
+        private static void FillPlayerRecord(BuildConfig config, BuildResultDTO result)
+        {
+            var outputPath = string.IsNullOrWhiteSpace(config.PlayerOutputPath)
+                ? BuildConfig.GetDefaultPlayerOutputPath(config.PlayerPlatform)
+                : config.PlayerOutputPath;
+            if (!Path.IsPathRooted(outputPath))
+            {
+                outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", outputPath));
+            }
+
+            result.playerOutputPath = outputPath;
+            try
+            {
+                if (Directory.Exists(outputPath))
+                {
+                    result.playerSizeBytes = Directory.GetFiles(outputPath, "*", SearchOption.AllDirectories)
+                        .Sum(file => new FileInfo(file).Length);
+                }
+                else if (File.Exists(outputPath))
+                {
+                    result.playerSizeBytes = new FileInfo(outputPath).Length;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[TEngineCLI] 统计 Player 体积失败（忽略）：{e.Message}");
             }
         }
 
@@ -245,6 +421,7 @@ namespace TEngine
                 BuildPlayer = request.buildPlayer,
                 PlayerPlatform = ParseBuildTarget(request.playerPlatform),
                 PlayerOutputPath = request.playerOutputPath ?? string.Empty,
+                HeadlessMode = Application.isBatchMode,
             };
 
             if (config.PackageVersionMode == PackageVersionMode.PerPackage && request.packageVersions != null)
@@ -261,6 +438,11 @@ namespace TEngine
             }
 
             return config;
+        }
+
+        private static string NullIfEmpty(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value;
         }
 
         private static BuildTarget ParseBuildTarget(string value)

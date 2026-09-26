@@ -160,6 +160,7 @@ namespace TEngine
 
                 firstBuildResult ??= buildResult;
                 Debug.Log($"[BuildWithConfig] AssetBundle构建成功: {runtimePackage.PackageName} => {buildResult.OutputPackageDirectory}");
+                RecordPackageBuild(config, runtimePackage.PackageName, ResolvePackageVersion(config, runtimePackage.PackageName), buildResult.OutputPackageDirectory);
 
                 if (config.EnablePublishCopy)
                 {
@@ -200,26 +201,36 @@ namespace TEngine
             // pdb 残留检测（当前配置不生成 pdb 且构建 CodePackage 时检查：release 模式，或 dev 但 pdb 开关关闭）
             bool pdbDisabled = !Settings.UpdateSetting.WillGeneratePdb;
             bool isCodePackage = IsAssemblyPackage(runtimePackage.PackageName);
-            if (pdbDisabled && isCodePackage)
-            {
-                string pdbDir = Settings.UpdateSetting.GetPdbAssemblyAssetPath();
-                if (Directory.Exists(pdbDir))
+                if (pdbDisabled && isCodePackage)
                 {
-                    var pdbFiles = Directory.GetFiles(pdbDir, "*.pdb.bytes", SearchOption.TopDirectoryOnly);
-                    if (pdbFiles.Length > 0)
+                    string pdbDir = Settings.UpdateSetting.GetPdbAssemblyAssetPath();
+                    if (Directory.Exists(pdbDir))
                     {
-                        string pdbList = string.Join("\n", pdbFiles.Select(Path.GetFileName));
-                        bool shouldContinue = EditorUtility.DisplayDialog(
-                            "检测到 pdb 调试符号文件",
-                            $"当前构建配置不会生成 pdb（release 模式或 pdb 开关已关闭），但在 PDB 目录检测到以下 pdb 残留文件：\n\n{pdbList}\n\npdb 文件会增大包体并泄露符号信息，不应打入此包。\n\n是否清理这些文件并继续打包？",
-                            "清理并继续",
-                            "取消打包");
-
-                        if (!shouldContinue)
+                        var pdbFiles = Directory.GetFiles(pdbDir, "*.pdb.bytes", SearchOption.TopDirectoryOnly);
+                        if (pdbFiles.Length > 0)
                         {
-                            Debug.LogWarning("[打包中止] 用户取消打包以手动处理 pdb 文件。");
-                            return new YooAsset.Editor.BuildResult { Success = false };
-                        }
+                            string pdbList = string.Join("\n", pdbFiles.Select(Path.GetFileName));
+                            bool shouldContinue;
+                            if (config.HeadlessMode)
+                            {
+                                // batchmode 下 DisplayDialog 不可见且默认取消，直接自动清理继续
+                                Debug.LogWarning($"[Headless] 检测到 pdb 残留文件（{pdbFiles.Length} 个），已自动清理：\n{pdbList}");
+                                shouldContinue = true;
+                            }
+                            else
+                            {
+                                shouldContinue = EditorUtility.DisplayDialog(
+                                    "检测到 pdb 调试符号文件",
+                                    $"当前构建配置不会生成 pdb（release 模式或 pdb 开关已关闭），但在 PDB 目录检测到以下 pdb 残留文件：\n\n{pdbList}\n\npdb 文件会增大包体并泄露符号信息，不应打入此包。\n\n是否清理这些文件并继续打包？",
+                                    "清理并继续",
+                                    "取消打包");
+                            }
+
+                            if (!shouldContinue)
+                            {
+                                Debug.LogWarning("[打包中止] 用户取消打包以手动处理 pdb 文件。");
+                                return new YooAsset.Editor.BuildResult { Success = false };
+                            }
 
                         // 清理 pdb
                         foreach (var pdbFile in pdbFiles)
@@ -860,6 +871,31 @@ namespace TEngine
         #endregion
 
         #region 工具方法
+
+        private static void RecordPackageBuild(BuildConfig config, string packageName, string packageVersion, string outputDirectory)
+        {
+            try
+            {
+                long sizeBytes = 0;
+                if (Directory.Exists(outputDirectory))
+                {
+                    sizeBytes = Directory.GetFiles(outputDirectory, "*", SearchOption.AllDirectories)
+                        .Sum(file => new FileInfo(file).Length);
+                }
+
+                config.PackageRecords.Add(new PackageBuildRecord
+                {
+                    PackageName = packageName,
+                    PackageVersion = packageVersion,
+                    OutputDirectory = outputDirectory,
+                    OutputSizeBytes = sizeBytes,
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[BuildWithConfig] 统计包体积失败（忽略）：{packageName} - {e.Message}");
+            }
+        }
 
         private static BuildTarget GetBuildTarget(string platform)
         {

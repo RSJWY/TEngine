@@ -72,6 +72,12 @@ namespace TEngine
         // 向导水印,回写 BrandWatermark;为空时回退用 Publisher
         public string InstallerWatermark = "";
 
+        // CLI/batchmode 模式：跳过一切交互对话框（如 pdb 残留确认，自动清理继续），日志哨兵照常输出
+        public bool HeadlessMode;
+
+        /// <summary>构建记录：每个资源包的输出目录与体积，供 CLI 结构化结果回传。</summary>
+        public readonly List<PackageBuildRecord> PackageRecords = new List<PackageBuildRecord>();
+
         public static BuildConfig CreateDefault()
         {
             return new BuildConfig
@@ -183,5 +189,15 @@ namespace TEngine
                 _ => BuildTargetGroup.Standalone
             };
         }
+    }
+
+    /// <summary>单个资源包的构建结果记录。</summary>
+    public sealed class PackageBuildRecord
+    {
+        public string PackageName;
+        public string PackageVersion;
+        public string OutputDirectory;
+        /// <summary>输出目录字节数（含 OutputCache 清理后的最终产物）。</summary>
+        public long OutputSizeBytes;
     }
 }

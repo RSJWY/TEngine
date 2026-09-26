@@ -11,7 +11,9 @@ from .config_store import BuildFormState
 REQUEST_FILENAME = "build_request.json"
 
 # Python 侧专有字段，不下发给 CLIBridge
-_LOCAL_ONLY_FIELDS = {"unityExePath", "projectDir", "logKeepCount", "logKeepDays"}
+_LOCAL_ONLY_FIELDS = {"unityExePath", "projectDir", "logKeepCount", "logKeepDays", "buildTimeoutMinutes"}
+
+RESULT_FILENAME = "unity_result.json"
 
 
 def dump_request(state: BuildFormState, log_dir: Path) -> Path:
@@ -23,9 +25,10 @@ def dump_request(state: BuildFormState, log_dir: Path) -> Path:
     return request_path
 
 
-def build_command_line(unity_exe: Path, project_dir: Path, request_path: Path, log_file: Path) -> list[str]:
+def build_command_line(unity_exe: Path, project_dir: Path, request_path: Path, log_file: Path,
+                       result_path: Path | None = None) -> list[str]:
     """生成 Unity batchmode 命令行。Player 构建需要 GPU，不加 -nographics。"""
-    return [
+    cmd = [
         str(unity_exe),
         "-projectPath",
         str(project_dir),
@@ -37,6 +40,9 @@ def build_command_line(unity_exe: Path, project_dir: Path, request_path: Path, l
         str(log_file),
         f"-tengineConfig={request_path}",
     ]
+    if result_path is not None:
+        cmd.append(f"-tengineResult={result_path}")
+    return cmd
 
 
 def default_log_dir(base: Path) -> Path:

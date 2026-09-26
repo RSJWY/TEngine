@@ -26,6 +26,7 @@ _SENTINELS = {
     "buildAb": ("[TEngineCLI] ========== 构建完成 ==========", "[TEngineCLI] ========== 构建失败 =========="),
     "buildPlayer": ("[TEngineCLI] ========== Player 构建完成 ==========", "[TEngineCLI] Player 构建失败。"),
     "publish": ("[TEngineCLI] ========== 发布整理完成 ==========", "[TEngineCLI] 发布整理失败。"),
+    "buildInstaller": ("[TEngineCLI] ========== 安装包构建完成", "[TEngineCLI] 安装包构建失败："),
     "hotfixDll": ("[TEngineCLI] ========== 热更 DLL 编译拷贝完成 ==========", None),
     "generateAll": ("[TEngineCLI] ========== GenerateAll 完成 ==========", None),
     "syncAotManifest": ("[TEngineCLI] ========== AOT 元数据清单同步完成 ==========", None),
@@ -33,6 +34,49 @@ _SENTINELS = {
     "switchPlatform": ("[TEngineCLI] ========== 平台已切换到", None),
 }
 GENERIC_FAILURE_HINTS = ("Aborting batchmode", "[TEngineCLI] 未知 action", "Scripts have compiler errors")
+
+# 失败摘要提取：首个匹配行（含其后的异常消息行）
+_FAILURE_SUMMARY_PATTERNS = (
+    "[TEngineCLI] 构建异常终止",
+    "[TEngineCLI] 安装包构建失败",
+    "[TEngineCLI] Player 构建失败",
+    "[TEngineCLI] 发布整理失败",
+    "[TEngineCLI] ========== 构建失败",
+    "[BuildWithConfig] AssetBundle构建失败",
+    "[BuildWithConfig] 未找到可构建的资源包",
+    "[BuildWithConfig] Player 平台",
+    "[TEngineCLI] 配置文件不存在",
+    "[TEngineCLI] 配置 JSON 解析失败",
+    "[TEngineCLI] 未知 action",
+    "Aborting batchmode",
+    "Scripts have compiler errors",
+    "Compilation failed",
+    "Exception:",
+    "error CS",
+)
+
+
+def extract_failure_summary(log_file: Path, max_lines: int = 15) -> str:
+    """从 Unity 日志提取首个错误相关行及其上下文，作为失败摘要。"""
+    try:
+        text = log_file.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if any(p in line for p in _FAILURE_SUMMARY_PATTERNS):
+            tail = lines[index:index + max_lines]
+            return "\n".join(tail).strip()
+    return ""
+
+
+def check_unity_lock(project_dir: Path) -> str | None:
+    """检测项目是否被打开的 Unity 编辑器锁定。返回提示文案，None 表示可用。"""
+    lock_file = Path(project_dir) / "Temp" / "UnityLockfile"
+    if lock_file.exists():
+        return (f"项目正被 Unity 编辑器占用（存在 {lock_file}）。\n"
+                "请关闭正在打开该项目的 Unity 编辑器后重试。")
+    return None
 
 
 def cleanup_logs(keep_count: int = DEFAULT_KEEP_COUNT, keep_days: int = DEFAULT_KEEP_DAYS,
@@ -111,6 +155,7 @@ class BuildRun:
         self.unity_exe = unity_exe
         self.log_dir = dto.default_log_dir(LOGS_ROOT)
         self.log_file = self.log_dir / "unity.log"
+        self.result_file = self.log_dir / dto.RESULT_FILENAME
         self.request_path: Path | None = None
         self.process: subprocess.Popen | None = None
         self._log_callbacks: list = []
@@ -118,6 +163,8 @@ class BuildRun:
         self._cancelled = False
         self._started_at: float | None = None
         self.result: str | None = None  # None=未结束, "success", "failed", "cancelled"
+        self.failure_summary: str = ""  # 失败时的错误摘要（来自日志）
+        self.unity_result: dict | None = None  # C# 侧结构化结果（unity_result.json）
 
     # ---- 回调注册 ----
     def on_log(self, callback) -> None:
@@ -144,14 +191,24 @@ class BuildRun:
     def start(self) -> bool:
         if not self.unity_exe or not Path(self.unity_exe).is_file():
             self._emit_log("[BuildCLI] 未找到 Unity.exe，请在设置中手动指定路径。")
+            self.failure_summary = "未找到 Unity.exe"
+            self.result = "failed"
+            self._emit_done()
+            return False
+
+        project_dir = Path(self.state.projectDir) if self.state.projectDir else unity_locator.PROJECT_DIR
+        lock_hint = check_unity_lock(project_dir)
+        if lock_hint:
+            self._emit_log(f"[BuildCLI] {lock_hint}")
+            self.failure_summary = lock_hint
             self.result = "failed"
             self._emit_done()
             return False
 
         self.request_path = dto.dump_request(self.state, self.log_dir)
         self._started_at = time.time()
-        project_dir = Path(self.state.projectDir) if self.state.projectDir else unity_locator.PROJECT_DIR
-        cmd = dto.build_command_line(Path(self.unity_exe), project_dir, self.request_path, self.log_file)
+        cmd = dto.build_command_line(Path(self.unity_exe), project_dir, self.request_path,
+                                     self.log_file, self.result_file)
         self._emit_log(f"[BuildCLI] 命令：{' '.join(cmd)}")
         self._emit_log(f"[BuildCLI] 日志：{self.log_file}")
 
@@ -172,17 +229,35 @@ class BuildRun:
 
     def cancel(self) -> None:
         self._cancelled = True
+        self._kill_process()
+        self.result = "cancelled"
+        self._emit_done()
+
+    def _kill_process(self) -> None:
         if self.process and self.process.poll() is None:
             try:
                 self.process.kill()
             except OSError:
                 pass
-        self.result = "cancelled"
-        self._emit_done()
 
     def pump(self) -> bool:
-        """轮询推进：tail 日志 + 检查进程退出。返回是否仍在运行。"""
+        """轮询推进：tail 日志 + 检查进程退出 + 超时看门狗。返回是否仍在运行。"""
         if self.result == "cancelled":
+            return False
+
+        # 超时看门狗：Unity 卡死（license 弹窗/对话框）时主动终止
+        timeout_minutes = getattr(self.state, "buildTimeoutMinutes", 0) or 0
+        if (timeout_minutes > 0 and self._started_at is not None and self.process is not None
+                and self.process.poll() is None
+                and (time.time() - self._started_at) > timeout_minutes * 60):
+            self._emit_log(f"[BuildCLI] 构建超时（{timeout_minutes} 分钟），正在终止 Unity 进程。")
+            self._cancelled = True
+            self._kill_process()
+            self.failure_summary = f"构建超时（{timeout_minutes} 分钟）被终止。"
+            self.result = "failed"
+            self._run_log_cleanup()
+            self._write_result(-1)
+            self._emit_done()
             return False
 
         self._tail_log()
@@ -197,6 +272,7 @@ class BuildRun:
         self._tail_log(final=True)
         self._emit_log(f"[BuildCLI] Unity 退出码：{exit_code}")
 
+        self.unity_result = self._load_unity_result()
         if self._cancelled:
             self.result = "cancelled"
         elif exit_code == 0 and self._check_success_sentinel():
@@ -204,27 +280,54 @@ class BuildRun:
         else:
             self.result = "failed"
 
+        if self.result == "failed":
+            self.failure_summary = self._resolve_failure_summary()
+
         self._run_log_cleanup()
         self._write_result(exit_code)
         self._emit_done()
         return False
 
+    def _resolve_failure_summary(self) -> str:
+        """优先取 C# 结构化结果的 error 字段，其次扫日志。"""
+        if self.unity_result and self.unity_result.get("error"):
+            return str(self.unity_result["error"])
+        return extract_failure_summary(self.log_file)
+
+    def _load_unity_result(self) -> dict | None:
+        """读取 C# 侧落盘的 unity_result.json（CLIBridge -tengineResult）。"""
+        import json
+
+        if not self.result_file.is_file():
+            return None
+        try:
+            data = json.loads(self.result_file.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else None
+        except (OSError, json.JSONDecodeError):
+            return None
+
     def _write_result(self, exit_code: int) -> None:
         """把本次执行结果落盘 result.json，供历史列表读取。"""
         import json
 
+        payload: dict = {
+            "action": self.state.action,
+            "result": self.result,
+            "exitCode": exit_code,
+            "finishedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "durationSeconds": round(time.time() - self._started_at, 1) if self._started_at else None,
+        }
+        if self.failure_summary:
+            payload["failureSummary"] = self.failure_summary[:2000]
+        if self.unity_result:
+            # 合并 C# 侧关键字段（包记录/Player/安装包输出）
+            for key in ("packages", "playerOutputPath", "playerSizeBytes", "installerOutputPath", "durationSeconds"):
+                value = self.unity_result.get(key)
+                if value:
+                    payload[key] = value
         try:
             (self.log_dir / "result.json").write_text(
-                json.dumps(
-                    {
-                        "action": self.state.action,
-                        "result": self.result,
-                        "exitCode": exit_code,
-                        "finishedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "durationSeconds": round(time.time() - self._started_at, 1) if self._started_at else None,
-                    },
-                    ensure_ascii=False,
-                ),
+                json.dumps(payload, ensure_ascii=False),
                 encoding="utf-8",
             )
         except OSError:

@@ -69,6 +69,8 @@ class BuildFormState:
     packageVersionMode: str = "Unified"
     packageVersions: list[PackageVersionEntry] = field(default_factory=list)
     outputRoot: str = "./Releases/Bundles/"
+    # 指定资源包名：空 = 构建全部启用的包
+    packageName: str = ""
     # 发布整理
     enablePublishCopy: bool = False
     publishRoot: str = "./Releases/Publish/"
@@ -91,6 +93,17 @@ class BuildFormState:
     buildPlayer: bool = False
     playerPlatform: str = "StandaloneWindows64"
     playerOutputPath: str = ""
+    # InnoSetup 安装包（action=buildInstaller，或 action=build 勾选 buildInstaller 串联）
+    buildInstaller: bool = False
+    installerVersion: str = ""
+    isccPath: str = ""
+    installerAppName: str = ""
+    installerAppEnglishName: str = ""
+    installerPublisher: str = ""
+    installerPassword: str = ""
+    installerWatermark: str = ""
+    # 构建超时（分钟，0 = 不限）
+    buildTimeoutMinutes: int = 0
 
 
 # ============ Unity YAML 只读解析 ============
