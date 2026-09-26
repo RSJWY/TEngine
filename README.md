@@ -29,7 +29,7 @@
 | 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 |
 | 运行时配置 | `RuntimeConfigModule`、`DeployConfig`、TOML/JSON 轻量配置 |
 | 热更新 | 独立 `CodePackage`、归档二进制加载、AOT 元数据清单、版本确认流程 |
-| 资源打包 | 按包构建管线、ArchiveFile 管线、发布整理、Odin 化打包窗口 |
+| 资源打包 | 按包构建管线、ArchiveFile 管线、发布整理、Odin 化打包窗口、外置 Python 构建工具 `BuildCLI` |
 | 场景系统 | DynamicSpawn 通用化、加载进度下沉到 `GameSceneModule` |
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 `ScreenModule` |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、多态 DLL 热更产物 |

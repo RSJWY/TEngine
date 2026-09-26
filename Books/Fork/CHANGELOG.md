@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-09-26
+
+- 新增 `BuildCLI` 外置 Python GUI 构建工具（`UnityProject/BuildCLI/`，PySide6）：与打包窗口构建部分对齐，支持热更 DLL、构建 AB/Player/发布整理、切换平台（batchmode 独立进程，避开窗口模式切平台 domain reload）、统一/独立版本号模式、AB 输出目录等项目目录/Unity.exe 可配置；Unity 侧仅新增薄入口 `CLIBridge.cs`（`-tengineConfig` JSON → `BuildConfig` → 复用 `ReleaseTools` 既有链路，退出码回传），并提供 `--no-gui` CI 模式与预设管理。详见 [resource-build.md](resource-build.md)。
+
 ## 2026-09-25
 
 - 日志系统新增早期日志缓冲 `EarlyLogBuffer`：`UnityLoggerBridge` 在 `BeforeSplashScreen` 才订阅 Unity 日志事件并创建 `FileLogger`，此前（如 `AfterAssembliesLoaded` 阶段的 Obfuz 静态密钥初始化）的日志只进 Console/Player.log、不进 TouchSocket 文件日志。新增 `EarlyLogBuffer`（线程安全 `ConcurrentQueue`，容量上限 256），`Log` 新增 `EarlyInfo`/`EarlyWarning`/`EarlyError` 三个专用 API，调用时先入缓冲再走常规 Console 路径；`UnityLoggerBridge.Init` 末尾 `Flush` 把缓冲补写到文件日志（带 `[Early]` 前缀）并关闭缓冲区（后续 `Enqueue` 变 no-op，避免重复落盘）；`Shutdown` 里 `Reset` 兼容 Domain Reload。Obfuz 静态密钥初始化改用 Early 系列 API。详见 [logging.md](logging.md)。

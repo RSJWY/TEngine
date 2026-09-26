@@ -27,6 +27,22 @@
 
 操作区按「构建 / 打开目录 / 热更DLL / 设置 / 构建日志」分区组织；「打开目录」提供 AB 输出、Player 输出与发布目录直达按钮。
 
+## BuildCLI（外置 Python 构建工具）
+
+位置：`UnityProject/BuildCLI/`（Python 3.10+，PySide6 GUI，随项目走）。启动：`UnityProject\BuildCLI\build_gui.bat`。
+
+不打开 Unity Editor 的命令行/GUI 构建入口，与打包窗口共用同一套 `ReleaseTools` 构建链路（Unity 侧唯一入口 `Assets/TEngine/Editor/ReleaseTools/CLIBridge.cs`，`-tengineConfig=<json>` 驱动，退出码回传结果），不会另建平行构建实现。
+
+- GUI 覆盖打包窗口「构建」相关能力：热更 DLL（编译拷贝 / GenerateAll / 同步 AOT 清单 / 拷贝 AOT DLL）、构建 AB / 一键 AB+Player / 仅 Player / 发布整理 / 切换平台、统一/独立版本号模式（可从上次构建读取每包版本）、AB 输出目录、发布整理、高级项。
+- 项目目录与 `Unity.exe` 可配置，目录校验与编辑器版本联动；配置存 `BuildCLI/presets/*.json`，对 Unity `.asset` 只读（「从 Unity 窗口配置读取」为单向导入）。
+- `--no-gui` 纯命令行模式适合 CI：`python -m tengine_build --no-gui run --action buildAb --target StandaloneWindows64 --preset 名字`。
+- batchmode 是独立 Unity 进程，**必须先关闭已打开的 Editor**（Library 锁互斥）；切平台走独立进程冷启动，避开窗口模式切平台的 domain reload。
+- Player 构建需要 GPU，不使用 `-nographics`。
+- 每次构建在 `BuildCLI/logs/<时间戳>/` 留存 `unity.log` + `build_request.json`。
+- 安装包（InnoSetup）构建暂未纳入，仍走打包窗口。
+
+详细说明见 [resource-build.md](../../../../../Books/Fork/resource-build.md) 的「BuildCLI」一节。
+
 ## 构建产物
 
 ```text
