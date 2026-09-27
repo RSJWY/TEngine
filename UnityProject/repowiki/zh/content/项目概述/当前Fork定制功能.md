@@ -84,6 +84,7 @@ GameModule.Resource.UnloadAsset(raw);
 | `GameModule.Screen` | Windows 多显示器窗口布局 | 仅 Windows Standalone 打包后生效，Editor 下 no-op；配置 `Enabled=false` 可整体禁用 |
 | `GameModule.GameObjectPool` | 基于 YooAsset location 的 GameObject 实例池 | 与逻辑对象 `ObjectPoolModule` 不同 |
 | `GameModule.Anim` | 基于 PlayableGraph 的代码驱动 3D 动画 | 创建后必须显式销毁 `IAnimPlayable` |
+| `GameModule.Network` | PurrNet NetworkManager 生命周期封装 | OnInit 主动查一次 + 懒加载兜底 + `BindNetworkManager` 预制体注入；`StartClient` 无参（地址配在 transport Inspector） |
 
 `TimerModule` 保留旧 API，并新增 `AddLoopCountTimer`。坏帧补触发单帧最多执行 10 次，业务对象销毁时仍需主动移除计时器。
 
@@ -152,4 +153,5 @@ Releases/
 | GameObject 对象池 | [game-object-pool.md](../../../../../Books/Fork/game-object-pool.md) |
 | 动画模块 | [anim-module.md](../../../../../Books/Fork/anim-module.md) |
 | 桌面多开 | [desktop-multi-instance.md](../../../../../Books/Fork/desktop-multi-instance.md) |
+| PurrNet 网络模块封装 | [purrnet-ds.md](../../../../../Books/Fork/purrnet-ds.md) |
 | 第三方 UI 效果插件 | [third-party-plugins.md](../../../../../Books/Fork/third-party-plugins.md) |

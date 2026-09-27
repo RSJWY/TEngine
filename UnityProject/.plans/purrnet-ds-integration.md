@@ -4,7 +4,7 @@
 > **Unity 版本**：6000.3.25f1
 > **PurrNet 版本**：v1.23.0-beta.24（fork yooasset 分支）
 > **创建时间**：2026-09-27
-> **状态**：待执行（需用户明确要求后才开始）
+> **状态**：阶段一已完成（2026-09-27），阶段二~四待执行
 
 ---
 
@@ -24,11 +24,11 @@
 
 | 项 | 状态 |
 |---|---|
-| GameLogic.asmdef | **未引用 PurrNet.Runtime**（GUID `6e20f757a1bae164fa42750dd2b27dcb`） |
-| 业务代码 PurrNet 引用 | **零**（无 NetworkBehaviour、无 NetworkIdentity、无 RPC） |
-| NetworkModule 封装 | **不存在** |
-| GameModule.Network 访问器 | **不存在** |
-| 场景中的 NetworkManager | **无**（main.unity 和 MainScene.unity 均未挂载） |
+| GameLogic.asmdef | **已引用 PurrNet.Runtime**（GUID `6e20f757a1bae164fa42750dd2b27dcb`） |
+| 业务代码 PurrNet 引用 | GameLogic 已可引用 PurrNet 命名空间 |
+| NetworkModule 封装 | **已完成**（`Module/NetworkModule/INetworkModule.cs` + `NetworkModule.cs`） |
+| GameModule.Network 访问器 | **已完成** |
+| 场景中的 NetworkManager | **无**（main.unity 和 MainScene.unity 均未挂载，按需注入或懒查找） |
 
 ### 1.3 启动流程
 
@@ -81,9 +81,12 @@ GameEntry.Awake
 
 ## 三、实施步骤
 
-### 阶段一：基础引用打通（前置必须）
+### 阶段一：基础引用打通（前置必须）✅ 已完成
 
-#### 步骤 1.1：GameLogic.asmdef 添加 PurrNet.Runtime 引用
+> **完成时间**：2026-09-27
+> **验证**：Unity 编译零 Error，`read_console` 无 Error
+
+#### 步骤 1.1：GameLogic.asmdef 添加 PurrNet.Runtime 引用 ✅
 
 **文件**：`Assets/GameScripts/HotFix/GameLogic/GameLogic.asmdef`
 
@@ -92,150 +95,72 @@ GameEntry.Awake
 "GUID:6e20f757a1bae164fa42750dd2b27dcb"
 ```
 
-**注意**：
-- PurrNet.Runtime 的 GUID 已确认为 `6e20f757a1bae164fa42750dd2b27dcb`
-- 添加后热更代码即可引用 `PurrNet` 命名空间
-- PurrNet 的 ILPP 会自动处理 GameLogic 程序集（WillProcess 对非 Editor/非 Unity.* 返回 true）
-
-**验证**：
+**验证结果**：
+- PurrNet.Runtime 的 GUID 已确认为 `6e20f757a1bae164fa42750dd2b27dcb`（查 `.asmdef.meta`）
 - Unity 编译无报错
-- `read_console` 无 Error
+- PurrNet 的 ILPP 自动处理 GameLogic 程序集
 
-#### 步骤 1.2：创建 INetworkModule 接口
+#### 步骤 1.2：创建 INetworkModule 接口 ✅
 
 **新增文件**：`Assets/GameScripts/HotFix/GameLogic/Module/NetworkModule/INetworkModule.cs`
 
-**设计要点**：
+**实际实现**（与草案的差异已标注）：
+
 ```csharp
-namespace GameLogic
+public interface INetworkModule
 {
-    /// <summary>
-    /// 网络模块接口。封装 PurrNet NetworkManager 生命周期。
-    /// </summary>
-    public interface INetworkModule
-    {
-        /// <summary>PurrNet NetworkManager 实例（场景中挂载的）。</summary>
-        PurrNet.NetworkManager NetworkManager { get; }
+    PurrNet.NetworkManager NetworkManager { get; }
+    bool IsServer { get; }
+    bool IsClient { get; }
+    bool IsHost { get; }
+    bool IsDedicatedServerBuild { get; }
+    bool IsAutoStarted { get; }  // 新增：PurrNet AutoStart 是否已触发
 
-        /// <summary>当前是否为服务器模式。</summary>
-        bool IsServer { get; }
+    void StartServer();
+    void StartClient();          // 修正：无参（PurrNet StartClient() 本身无参，地址配在 transport Inspector）
+    void StartHost();
+    void StopNetwork();
 
-        /// <summary>当前是否为客户端模式。</summary>
-        bool IsClient { get; }
-
-        /// <summary>当前是否为 Host 模式（server+client 同机）。</summary>
-        bool IsHost { get; }
-
-        /// <summary>是否为专用服务器构建（UNITY_SERVER define）。</summary>
-        bool IsDedicatedServerBuild { get; }
-
-        /// <summary>启动服务器。</summary>
-        void StartServer();
-
-        /// <summary>启动客户端并连接到指定地址。</summary>
-        void StartClient(string address = "localhost", int port = 7777);
-
-        /// <summary>启动 Host（同机 server+client）。</summary>
-        void StartHost();
-
-        /// <summary>停止网络（断开连接/关闭服务器）。</summary>
-        void StopNetwork();
-    }
+    void BindNetworkManager(PurrNet.NetworkManager networkManager);  // 新增：预制体注入入口
 }
 ```
 
-**注意**：
-- 接口放在热更域，遵循 TEngine Module 模式（参考 `IGameSceneModule`）
-- 不暴露 transport 细节，业务通过此接口操作网络
-- `IsDedicatedServerBuild` 走 `PurrNet.Utils.ApplicationContext.isServerBuild`（运行时编译期判断）
+**与草案的差异**：
+1. `StartClient` 改为无参——PurrNet 的 `StartClient()` 本身无参（源码 `:2394`），地址配置在 `UDPTransport` Inspector
+2. 新增 `IsAutoStarted`——业务据此判断"网络已是活的"还是"需要手动 Start"
+3. 新增 `BindNetworkManager`——业务动态实例化 NM 预制体后注入，跳过懒查找
 
-#### 步骤 1.3：创建 NetworkModule 实现
+#### 步骤 1.3：创建 NetworkModule 实现 ✅
 
 **新增文件**：`Assets/GameScripts/HotFix/GameLogic/Module/NetworkModule/NetworkModule.cs`
 
-**设计要点**：
-```csharp
-namespace GameLogic
-{
-    /// <summary>
-    /// 网络模块。封装 PurrNet NetworkManager 生命周期。
-    /// NetworkManager 是 MonoBehaviour，本模块在 OnInit 时通过 FindObjectOfType 获取场景实例，
-    /// 或在未找到时按需实例化（DS 模式下场景中预挂载更佳）。
-    /// </summary>
-    public sealed class NetworkModule : Module, INetworkModule
-    {
-        private PurrNet.NetworkManager _networkManager;
+**关键设计**（基于源码核实）：
 
-        public PurrNet.NetworkManager NetworkManager => _networkManager;
+1. **OnInit 主动查一次 + 懒加载兜底**：OnInit 优先 `NetworkManager.main`（源码 `:33/837`），fallback `FindFirstObjectByType`。找不到打 Info 日志（不报错），等注入或懒查找。
+2. **懒加载**：所有查询属性（`IsServer` 等）和操作方法（`StartServer` 等）内部调 `EnsureNetworkManager()`，首次访问时懒查找并缓存。
+3. **IsAutoStarted 实时查询**：不靠 OnInit 缓存，实时读 `NM.isServer || NM.isClient`。
+4. **BindNetworkManager 注入**：业务 `LoadGameObjectAsync` 出 NM 预制体后调用。
+5. **Shutdown 只清引用**：不调 StopNetwork，NM 的 OnDestroy 自行断连（源码 `:1995-2030`）。
 
-        public bool IsServer => _networkManager != null && _networkManager.isServer;
-        public bool IsClient => _networkManager != null && _networkManager.isClient;
-        public bool IsHost => _networkManager != null && _networkManager.isHost;
-        public bool IsDedicatedServerBuild => PurrNet.Utils.ApplicationContext.isServerBuild;
+**NM 获取方式**：`NetworkManager.main` → `FindFirstObjectByType` → `BindNetworkManager` 注入
 
-        protected override void OnInit()
-        {
-            // 查找场景中已挂载的 NetworkManager
-            _networkManager = UnityEngine.Object.FindObjectOfType<PurrNet.NetworkManager>();
-            if (_networkManager == null)
-            {
-                Log.Warning("[NetworkModule] 场景中未找到 NetworkManager。请确保场景中预挂载或通过 EnsureNetworkManager 创建。");
-            }
-        }
-
-        public void StartServer() { /* ... */ }
-        public void StartClient(string address, int port) { /* ... */ }
-        public void StartHost() { /* ... */ }
-        public void StopNetwork() { /* ... */ }
-    }
-}
-```
-
-**注意**：
-- NetworkManager 是 MonoBehaviour 且 `main` 为静态单例（`NetworkManager.main`）
-- 不在 OnInit 中自动 StartServer/StartClient——PurrNet 的 StartFlags 机制已处理自动启动
-- DS 构建时 `StartFlags.ServerBuild` 自动触发 `StartServer()`，无需手动调用
-- 客户端构建时 `StartFlags.ClientBuild` 自动触发 `StartClient()`（需配置 transport 地址）
-- 业务可手动调用 StartHost 做开发期 host 模式
-
-#### 步骤 1.4：GameModule 添加 Network 访问器
+#### 步骤 1.4：GameModule 添加 Network 访问器 ✅
 
 **文件**：`Assets/GameScripts/HotFix/GameLogic/GameModule.cs`
 
-**改动**：在 `#region 框架模块` 中添加：
-```csharp
-/// <summary>
-/// 获取网络模块。
-/// <para>封装 PurrNet NetworkManager 生命周期，提供服务器/客户端启动、停止等能力。</para>
-/// </summary>
-public static INetworkModule Network => _network ??= Get<INetworkModule>();
+**改动**：添加 `Network` 属性 + `Shutdown` 清理 `_network = null`
 
-private static INetworkModule _network;
-```
-
-**改动**：在 `Shutdown()` 中添加 `_network = null;`
-
-#### 步骤 1.5：GameApp.StartGameLogic 注册 NetworkModule
+#### 步骤 1.5：GameApp 注册 NetworkModule ✅
 
 **文件**：`Assets/GameScripts/HotFix/GameLogic/GameApp.cs`
 
-**改动**：在 `StartGameLogic()` 中添加注册（在 UIJumpControl 和 GameSceneModule 之后，按依赖顺序）：
-```csharp
-private static void StartGameLogic()
-{
-    ModuleSystem.RegisterModule<IUIJumpControl>(new UIJumpControl());
-    ModuleSystem.RegisterModule<IGameSceneModule>(new GameSceneModule());
-    ModuleSystem.RegisterModule<INetworkModule>(new NetworkModule());  // 新增
+**改动**：`StartGameLogic()` 中添加 `ModuleSystem.RegisterModule<INetworkModule>(new NetworkModule());`
 
-    GameModule.Screen.ApplyAll();
-    GameModule.GameScene.LoadScene(SceneType.MainScene);
-}
-```
-
-**验证**：
-- Unity 编译无报错
-- `GameModule.Network` 可访问且不为 null
-- 运行时场景中无 NetworkManager 时仅 Warning，不崩溃
+**验证结果**：
+- Unity 编译零 Error
+- `GameModule.Network` 可访问
+- 无 NetworkManager 场景下 OnInit 打 Info 日志，不崩溃
+- `FindObjectOfType` warning 已修正为 `FindFirstObjectByType`
 
 ---
 
@@ -837,23 +762,27 @@ PurrNet 集成不仅是为了联机功能，还包括：
 
 ### 8.4 关于 PurrNet 的自动启动机制
 
-PurrNet 通过 `StartFlags` 控制自动启动：
+PurrNet 通过 `StartFlags` 控制自动启动（源码 `NetworkManager.cs:1638-1647` 的 `ShouldStart`）：
 - `startServerFlags = ServerBuild | Editor`：DS 构建和编辑器中自动启动服务器
 - `startClientFlags = ClientBuild | Editor | Clone`：客户端构建和编辑器克隆中自动启动客户端
 
+**编辑器内**：`StartFlags.Editor` 走 `ApplicationContext.isMainEditor`（源码 `ApplicationContext.cs:36`，`isEditor && !isClone`），这是独立机制，与 `UNITY_SERVER` define 无关。
+
 **DS 构建时**：
 1. `UNITY_SERVER` define 被注入（Unity DS 构建行为）
-2. `ApplicationContext.isServerBuild = true`
+2. `ApplicationContext.isServerBuild = true`（源码 `ApplicationContext.cs:20-21`，`#if UNITY_SERVER && !UNITY_EDITOR`）
 3. `ShouldStart(_startServerFlags)` 返回 true（`ServerBuild` flag 匹配）
-4. `AutoStart()` 调用 `StartServer()`
+4. `AutoStart()` 调用 `StartServer()`（源码 `:1738-1754`）
 5. 服务器自动运行，无需手动调用
 
 **客户端构建时**：
 1. `UNITY_SERVER` 未定义
-2. `ApplicationContext.isClientBuild = true`
+2. `ApplicationContext.isClientBuild = true`（源码 `ApplicationContext.cs:24-25`，`!Application.isBatchMode`）
 3. `ShouldStart(_startClientFlags)` 返回 true（`ClientBuild` flag 匹配）
 4. `AutoStart()` 调用 `StartClient()`
 5. 客户端自动连接（需配置 transport 地址）
+
+**注意**：`ApplicationContext.isServerBuild` 在非 Editor batchmode 下也为 true（源码 `:24`，`Application.isBatchMode`），即普通 `-batchmode` 运行也会被当作 DS。
 
 ---
 

@@ -19,10 +19,11 @@
 
 ## 🛠️ 本 Fork 的定制改动
 
-> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、数据绑定、存档与数据中心、日志工具、窗口控制、代码混淆、运行时工具、计时器模块、UI 组件扩展、运行时工具合并、帧动画模块、GameObject 对象池、3D 动画图、桌面多开、模块级自定义异步操作、第三方 UI 效果插件**做了定制改造。
+> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、数据绑定、存档与数据中心、日志工具、窗口控制、代码混淆、运行时工具、计时器模块、UI 组件扩展、运行时工具合并、帧动画模块、GameObject 对象池、3D 动画图、桌面多开、模块级自定义异步操作、第三方 UI 效果插件、PurrNet 网络模块封装**做了定制改造。
 
 | 主题 | 主要改动 |
 | --- | --- |
+| PurrNet 网络模块封装 | `INetworkModule` + `NetworkModule`（懒加载 + 预制体注入），`GameModule.Network` 访问器 |
 | YooAsset 3.0.5 迁移 | 无兼容层迁移、运行模式修复、ArchiveFileBuildPipeline 与加密归档加载 |
 | 日志系统 | TouchSocket 日志桥接、Unity 日志落盘、LogViewer 工具 |
 | 事件系统 | `GameEvent.RemoveAllListeners` 按事件 ID 批量移除监听 |

@@ -42,6 +42,7 @@ public partial class GameApp
     {
         ModuleSystem.RegisterModule<IUIJumpControl>(new UIJumpControl());
         ModuleSystem.RegisterModule<IGameSceneModule>(new GameSceneModule());
+        ModuleSystem.RegisterModule<INetworkModule>(new NetworkModule());
 
         //多屏显示配置，内部异步执行
         GameModule.Screen.ApplyAll();

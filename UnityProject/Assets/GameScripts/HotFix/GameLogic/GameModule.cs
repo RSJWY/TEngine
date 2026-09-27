@@ -137,6 +137,14 @@ public class GameModule
     public static IAsyncOperationModule AsyncOperation => _asyncOperation ??= Get<IAsyncOperationModule>();
 
     private static IAsyncOperationModule _asyncOperation;
+
+    /// <summary>
+    /// 获取网络模块。
+    /// <para>封装 PurrNet NetworkManager 生命周期，提供服务器/客户端启动、停止等能力。</para>
+    /// </summary>
+    public static INetworkModule Network => _network ??= Get<INetworkModule>();
+
+    private static INetworkModule _network;
     #endregion
     
     
@@ -175,5 +183,6 @@ public class GameModule
         _gameObjectPool = null;
         _anim = null;
         _asyncOperation = null;
+        _network = null;
     }
 }

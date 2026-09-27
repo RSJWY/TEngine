@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-09-27
+
+- 新增 PurrNet 网络模块封装（阶段一：基础引用打通）：`GameLogic.asmdef` 添加 `PurrNet.Runtime` 引用（GUID `6e20f757a1bae164fa42750dd2b27dcb`）；新建 `INetworkModule` 接口 + `NetworkModule` 实现（`Module/NetworkModule/`）；`GameModule` 新增 `Network` 访问器 + `Shutdown` 清理；`GameApp.StartGameLogic` 注册模块。NetworkManager 获取采用三层策略：OnInit 主动查一次（`NetworkManager.main` → `FindFirstObjectByType`）→ 懒加载兜底（首次访问触发 `EnsureNetworkManager`）→ `BindNetworkManager` 预制体注入。`StartClient` 无参（地址配在 transport Inspector）。`Shutdown` 只清引用不调 `StopNetwork`（NM 的 `OnDestroy` 自行断连）。编译零 Error。详见 [purrnet-ds.md](purrnet-ds.md)。
+
 ## 2026-09-26
 
 - `BuildCLI` 新增批量执行（多步骤队列 + 分段合并）：预设保持纯表单快照不动，新增独立的批量任务（`BuildCLI/batches/*.json`，有序动作队列 + 绑定预设 + 失败即停）；`generateAll` / `switchPlatform` 触发域重载各自独立成段（单独 Unity 进程），其余动作合并到同一进程内顺序执行（C# 侧 `CLIBridge.BuildRequestDTO` 新增 `actions[]`，`Run()` 循环调用 `Execute`，`BuildResultDTO` 新增 `steps`/`executedActions` 按步记录）。首包 4 步从 4 次冷启动降到 2 次，日常热更 3 步降到 1 次。GUI 新增「批量执行」标签页（任务管理 + `BatchStepsDialog` 步骤编辑器 + 进度横幅）；CLI 新增 `--batch` 与可重复 `--action`。单 `action` 请求向后兼容。详见 [resource-build.md](resource-build.md)。
