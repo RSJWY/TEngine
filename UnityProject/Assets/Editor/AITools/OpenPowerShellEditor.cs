@@ -1,73 +1,195 @@
 using UnityEditor;
+using System;
 using System.Diagnostics;
 using System.IO;
+using Microsoft.Win32;
+using UnityEngine;
 
 public class OpenPowerShellEditor
 {
-    // 在 Unity 菜单栏中添加一个按钮：Tools -> 打开 PowerShell (管理员 / 项目根目录)
-    [MenuItem("Tools/AI工具/OpenPowerShell _F4")]
+    // Windows Terminal 官方"默认终端应用程序"委派 GUID（微软文档公开值）
+    // DelegationConsole = Terminal 包内 OpenConsole，DelegationTerminal = Windows Terminal
+    private const string DelegationConsoleGuid = "{2EACA947-7F5F-4CFA-BA87-8F7FBEEFBE69}";
+    private const string DelegationTerminalGuid = "{E12CFF52-A866-4C77-9A90-F570A7AA2C6B}";
+
+    // Tools -> AI工具 -> Opencode
+    // F4 快捷键
+    [MenuItem("Tools/AI工具/Opencode _F4")]
     public static void LaunchPowerShellAsAdmin()
     {
-        string projectRoot = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, ".."));
+        string projectPath = Directory.GetParent(Application.dataPath).FullName;
 
-        // 首选 Windows Terminal（即"右键开始菜单 -> 终端"打开的那个窗口），使用其默认配置文件（本机为 PowerShell 7）
-        string localAppData = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
-        string wtPath = Path.Combine(localAppData, "Microsoft", "WindowsApps", "wt.exe");
-        if (File.Exists(wtPath) && TryLaunch(wtPath, $"-d \"{projectRoot}\""))
-            return;
+        // PowerShell 7
+        string pwshPath = FindPowerShell7();
 
-        // 回退：直接启动 PowerShell 7（朴素控制台窗口，不经过 Windows Terminal）
-        string shellArgs = $"-NoExit -Command \"Set-Location -LiteralPath '{projectRoot}'\"";
-        foreach (string pwshPath in GetPwshCandidates())
+        if (string.IsNullOrEmpty(pwshPath))
         {
-            if (TryLaunch(pwshPath, shellArgs))
-                return;
+            UnityEngine.Debug.LogError(
+                "没有找到 PowerShell 7 (pwsh.exe)"
+            );
+            return;
         }
 
-        // 最后回退：Windows 自带的 PowerShell 5.1
-        if (!TryLaunch("powershell.exe", shellArgs))
-            UnityEngine.Debug.LogWarning("OpenPowerShell: 所有终端候选路径均启动失败。");
-    }
+        // 若装有 Windows Terminal，把当前用户"默认终端应用程序"设为 Terminal。
+        // 之后控制台窗口经 ConPTY 委派由 Terminal 渲染（含 runas 提权窗口），
+        // 而 pwsh 仍是 Unity 直接启动的进程 —— 不经过 wt.exe 串链。
+        if (!string.IsNullOrEmpty(FindWindowsTerminal()))
+        {
+            SetDefaultTerminalToWindowsTerminal();
+        }
 
-    private static bool TryLaunch(string fileName, string arguments)
-    {
+        // 关键：必须由 Unity 直接启动 pwsh。
+        // 加密文件的透明解密授权跟随 Unity 的进程链，
+        // 若先启动 wt.exe 再由 Terminal 拉起 pwsh，链路断开，只能读到密文。
+        string arguments =
+            $"-NoExit " +
+            $"-Command \"Set-Location -LiteralPath '{EscapePowerShellPath(projectPath)}'\"";
+
+        ProcessStartInfo startInfo = new ProcessStartInfo
+        {
+            FileName = pwshPath,
+            Arguments = arguments,
+            UseShellExecute = true,
+
+            // 管理员权限
+            Verb = "runas"
+        };
+
         try
         {
-            ProcessStartInfo startInfo = new ProcessStartInfo
-            {
-                FileName = fileName,
-                // 通过 ShellExecute 的 Verb 触发 UAC 提权
-                Verb = "runas",
-                UseShellExecute = true,
-                // 提权时 WorkingDirectory 可能被忽略，这里用 -NoExit + cd 定位到项目根目录
-                Arguments = arguments
-            };
             Process.Start(startInfo);
-            return true;
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            // 用户在 UAC 弹窗点了"否"（错误码 1223）：不再尝试其他候选
             if (ex.NativeErrorCode == 1223)
             {
-                UnityEngine.Debug.Log("OpenPowerShell: 用户取消了 UAC 提权。");
-                return true;
+                UnityEngine.Debug.LogWarning(
+                    "用户取消了管理员权限请求。"
+                );
             }
-            return false;
+            else
+            {
+                UnityEngine.Debug.LogException(ex);
+            }
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogException(ex);
         }
     }
 
-    private static System.Collections.Generic.IEnumerable<string> GetPwshCandidates()
+    /// <summary>
+    /// 将当前用户"默认终端应用程序"设为 Windows Terminal（HKCU\Console\%%Startup）
+    /// </summary>
+    private static void SetDefaultTerminalToWindowsTerminal()
     {
-        string localAppData = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
+        try
+        {
+            using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Console\%%Startup"))
+            {
+                key.SetValue("DelegationConsole", DelegationConsoleGuid);
+                key.SetValue("DelegationTerminal", DelegationTerminalGuid);
+            }
+        }
+        catch (Exception ex)
+        {
+            // 设置失败不阻断启动，只是窗口退回传统控制台样式
+            UnityEngine.Debug.LogWarning(
+                $"设置默认终端为 Windows Terminal 失败（不影响启动）: {ex.Message}"
+            );
+        }
+    }
 
-        // winget / Microsoft Store（MSIX）版的应用执行别名
-        string appExecutionAlias = Path.Combine(localAppData, "Microsoft", "WindowsApps", "pwsh.exe");
-        if (File.Exists(appExecutionAlias))
-            yield return appExecutionAlias;
+    /// <summary>
+    /// 查找 Windows Terminal
+    /// </summary>
+    private static string FindWindowsTerminal()
+    {
+        string[] paths =
+        {
+            Environment.ExpandEnvironmentVariables(
+                @"%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe"
+            ),
 
-        // MSI 默认安装位置（机器级 / 用户级）
-        yield return @"C:\Program Files\PowerShell\7\pwsh.exe";
-        yield return Path.Combine(localAppData, "Programs", "PowerShell", "7", "pwsh.exe");
+            @"C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_*\wt.exe"
+        };
+
+        foreach (string path in paths)
+        {
+            if (File.Exists(path))
+                return path;
+        }
+
+        // PATH
+        string pathEnv = Environment.GetEnvironmentVariable("PATH");
+
+        if (!string.IsNullOrEmpty(pathEnv))
+        {
+            foreach (string dir in pathEnv.Split(Path.PathSeparator))
+            {
+                if (string.IsNullOrWhiteSpace(dir))
+                    continue;
+
+                string wt = Path.Combine(
+                    dir.Trim(),
+                    "wt.exe"
+                );
+
+                if (File.Exists(wt))
+                    return wt;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 查找 PowerShell 7
+    /// </summary>
+    private static string FindPowerShell7()
+    {
+        string[] paths =
+        {
+            @"C:\Program Files\PowerShell\7\pwsh.exe",
+
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData
+                ),
+                @"Programs\PowerShell\7\pwsh.exe"
+            )
+        };
+
+        foreach (string path in paths)
+        {
+            if (File.Exists(path))
+                return path;
+        }
+
+        string pathEnv = Environment.GetEnvironmentVariable("PATH");
+
+        if (!string.IsNullOrEmpty(pathEnv))
+        {
+            foreach (string dir in pathEnv.Split(Path.PathSeparator))
+            {
+                if (string.IsNullOrWhiteSpace(dir))
+                    continue;
+
+                string pwsh = Path.Combine(
+                    dir.Trim(),
+                    "pwsh.exe"
+                );
+
+                if (File.Exists(pwsh))
+                    return pwsh;
+            }
+        }
+
+        return null;
+    }
+
+    private static string EscapePowerShellPath(string path)
+    {
+        return path.Replace("'", "''");
     }
 }
