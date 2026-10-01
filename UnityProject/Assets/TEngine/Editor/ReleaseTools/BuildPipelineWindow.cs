@@ -379,7 +379,7 @@ namespace TEngine
                  "仅对 Standalone 平台生效（Windows/macOS/Linux），Unity 6+。")]
         [ValueDropdown(nameof(SubtargetOptions))]
         [ShowIf(nameof(_buildPlayer))]
-        [OnValueChanged(nameof(OnSettingsChanged))]
+        [OnValueChanged(nameof(OnSubtargetChanged))]
         [SerializeField]
         private string _subtarget = string.Empty;
 
@@ -1320,10 +1320,10 @@ namespace TEngine
             _playerPlatform = Array.IndexOf(PlatformTargets, setting.PlayerPlatform) >= 0
                 ? setting.PlayerPlatform
                 : GetActiveSupportedBuildTarget();
-            _playerOutputPath = string.IsNullOrWhiteSpace(setting.PlayerOutputPath)
-                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform)
-                : setting.PlayerOutputPath;
             _subtarget = setting.subtarget ?? string.Empty;
+            _playerOutputPath = string.IsNullOrWhiteSpace(setting.PlayerOutputPath)
+                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget)
+                : setting.PlayerOutputPath;
 
             _buildInstaller = setting.BuildInstaller;
             _installerPlatform = Array.IndexOf(PlatformTargets, setting.InstallerPlatform) >= 0
@@ -1368,7 +1368,7 @@ namespace TEngine
                     normalizedPlayer.StartsWith(legacyPlayerBaseRel + "/", StringComparison.OrdinalIgnoreCase) ||
                     normalizedPlayer.StartsWith(legacyPlayerBaseV2Rel + "/", StringComparison.OrdinalIgnoreCase))
                 {
-                    _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+                    _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget);
                     migratedLegacyPaths = true;
                 }
             }
@@ -1493,7 +1493,7 @@ namespace TEngine
             }
 
             var currentName = Path.GetFileName(_playerOutputPath);
-            var newName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform));
+            var newName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget));
             if (string.Equals(currentName, newName, StringComparison.Ordinal))
             {
                 return false;
@@ -1509,7 +1509,7 @@ namespace TEngine
 
             var dir = Path.GetDirectoryName(_playerOutputPath);
             _playerOutputPath = string.IsNullOrWhiteSpace(dir)
-                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform)
+                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget)
                 : Path.Combine(dir, newName);
             return true;
         }
@@ -1588,7 +1588,23 @@ namespace TEngine
         private void OnPlayerPlatformChanged()
         {
             // 切平台时重新生成输出路径，确保可执行文件名跟随当前平台与 productName
-            _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+            _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget);
+            OnSettingsChanged();
+        }
+
+        /// <summary>
+        /// 切换构建子目标时联动输出路径：若当前路径为空或等于默认路径，自动追加/移除 _DS 后缀；
+        /// 用户手动指定的自定义路径不覆盖。
+        /// </summary>
+        private void OnSubtargetChanged()
+        {
+            var prevDefault = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, string.Empty);
+            var newDefault = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget);
+            if (string.IsNullOrWhiteSpace(_playerOutputPath)
+                || string.Equals(NormalizePath(_playerOutputPath), NormalizePath(prevDefault), StringComparison.OrdinalIgnoreCase))
+            {
+                _playerOutputPath = newDefault;
+            }
             OnSettingsChanged();
         }
 
@@ -1598,7 +1614,7 @@ namespace TEngine
         /// </summary>
         private void SyncPlayerOutputName()
         {
-            var defaultPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+            var defaultPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget);
             var newName = Path.GetFileName(defaultPath);
 
             if (string.IsNullOrWhiteSpace(_playerOutputPath))

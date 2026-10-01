@@ -256,10 +256,19 @@ public static bool BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget build
 ```
 **兼容性**：原 `BuildImp(group, target, path)` 的调用方（`BuildPipelineWindow` GUI 等）保持兼容——新重载 `subtarget` 默认 `""`，等价于原行为；原三参数签名改为委托到新签名即可。
 
+**DS 输出路径自动追加 `_DS` 后缀**（2026-10-02 补充）：
+- `BuildConfig.GetDefaultPlayerOutputPath` 新增带 `subtarget` 参数的重载
+- `subtarget="Server"` 时，平台目录自动变为 `{Platform}_DS`（如 `Releases/Windows_DS/build/`、`Releases/Linux_DS/build/`）
+- `BuildPipelineWindow` 切换 subtarget 时联动更新输出路径（仅当当前路径为空或等于默认路径时，不覆盖用户自定义路径）
+- CLIBridge `FillPlayerRecord` 同步透传 subtarget 到默认路径计算
+- DS 预设 `dedicated_server_linux.json` 的 `playerOutputPath` 留空，由 CLIBridge 自动算为 `./Releases/Linux_DS/build/{executableName}`
+- **目的**：避免 DS 构建产物与普通 Player 构建产物冲突（Scripting Backend 可能不同），无需用户手动换路径
+
 **验证**：
 - Unity 编译零 Error，`read_console` 无 Error
 - `dry_run` 请求 JSON 含 `subtarget` 字段
 - 实际 DS 构建产物以 `-batchmode` 运行时 `ApplicationContext.isServerBuild == true`
+- DS 构建产物输出到 `Releases/{Platform}_DS/build/` 目录
 
 #### 步骤 2.2：BuildCLI（Python）传递 subtarget
 

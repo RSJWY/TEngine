@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -134,19 +135,44 @@ namespace TEngine
 
         public static string GetDefaultPlayerOutputPath(BuildTarget target)
         {
+            return GetDefaultPlayerOutputPath(target, string.Empty);
+        }
+
+        /// <summary>
+        /// 获取 Player 默认输出路径。subtarget 为 Server 时目录追加 _DS 后缀，
+        /// 避免与普通 Player 构建产物冲突（Scripting Backend 可能不同）。
+        /// </summary>
+        public static string GetDefaultPlayerOutputPath(BuildTarget target, string subtarget)
+        {
             // 所有平台 Player 产物统一归到 Releases/{平台}/build/，与 InnoSetup 安装包目录平级；
             // 可执行文件名采用 PlayerSettings.productName，统一各平台输出名。
             // 统一使用项目根相对路径（./ 前缀），由构建链路在使用处转为绝对路径。
+            bool isServer = !string.IsNullOrWhiteSpace(subtarget)
+                && subtarget.Equals("Server", StringComparison.OrdinalIgnoreCase);
+            string platformDir = target switch
+            {
+                BuildTarget.StandaloneWindows64 => "Windows",
+                BuildTarget.StandaloneLinux64 => "Linux",
+                BuildTarget.StandaloneOSX => "MacOS",
+                BuildTarget.Android => "Android",
+                BuildTarget.iOS => "IOS",
+                BuildTarget.WebGL => "WebGL",
+                _ => target.ToString()
+            };
+            if (isServer)
+            {
+                platformDir += "_DS";
+            }
             string executableName = GetExecutableNameFromProductName();
             return target switch
             {
-                BuildTarget.StandaloneWindows64 => "./Releases/Windows/build/" + executableName + ".exe",
-                BuildTarget.StandaloneLinux64 => "./Releases/Linux/build/" + executableName,
-                BuildTarget.Android => "./Releases/Android/build/" + GetDefaultPackageVersion() + "Android.apk",
-                BuildTarget.iOS => "./Releases/IOS/build/XCode_Project",
-                BuildTarget.StandaloneOSX => "./Releases/MacOS/build/" + executableName + ".app",
-                BuildTarget.WebGL => "./Releases/WebGL/build",
-                _ => "./Releases/" + target + "/build/" + executableName
+                BuildTarget.StandaloneWindows64 => $"./Releases/{platformDir}/build/{executableName}.exe",
+                BuildTarget.StandaloneLinux64 => $"./Releases/{platformDir}/build/{executableName}",
+                BuildTarget.Android => $"./Releases/{platformDir}/build/{GetDefaultPackageVersion()}Android.apk",
+                BuildTarget.iOS => $"./Releases/{platformDir}/build/XCode_Project",
+                BuildTarget.StandaloneOSX => $"./Releases/{platformDir}/build/{executableName}.app",
+                BuildTarget.WebGL => $"./Releases/{platformDir}/build",
+                _ => $"./Releases/{platformDir}/build/{executableName}"
             };
         }
 

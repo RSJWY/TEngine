@@ -442,7 +442,7 @@ namespace TEngine
         private static void FillPlayerRecord(BuildConfig config, BuildResultDTO result)
         {
             var outputPath = string.IsNullOrWhiteSpace(config.PlayerOutputPath)
-                ? BuildConfig.GetDefaultPlayerOutputPath(config.PlayerPlatform)
+                ? BuildConfig.GetDefaultPlayerOutputPath(config.PlayerPlatform, config.subtarget)
                 : config.PlayerOutputPath;
             if (!Path.IsPathRooted(outputPath))
             {
