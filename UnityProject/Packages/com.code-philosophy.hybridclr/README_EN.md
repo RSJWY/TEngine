@@ -1,7 +1,3 @@
-
-- [README Chinese](./README.md)
-- [README English](./README_EN.md)
-
 # HybridCLR
 
 [![license](http://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/focus-creative-games/hybridclr/blob/main/LICENSE)
@@ -10,6 +6,8 @@
 
 <br/>
 <br/>
+
+[中文](./README.md) | **English**
 
 HybridCLR is a **feature-complete, zero-cost, high-performance, low-memory** **near-perfect** Unity cross-platform native C# hot update solution.
 
@@ -25,6 +23,8 @@ Welcome to embrace modern native C# hot update technology!
 - [Quick Start](https://www.hybridclr.cn/en/docs/beginner/quickstart)
 - [Business Project Cases](https://www.hybridclr.cn/en/docs/other/businesscase)
 - [LeanCLR](https://github.com/focus-creative-games/leanclr)
+- HybridCLR native scripting solutions: Lua-[ZLua](https://github.com/focus-creative-games/zlua)/Typescript-[ZenTS](https://github.com/focus-creative-games/zen-ts)
+- Code obfuscation tool [Obfuz](https://github.com/focus-creative-games/obfuz)
 
 ## Features
 
@@ -74,7 +74,7 @@ You can view the [list of known top companies using HybridCLR and their launched
 - Beginner Group 1: 428404198 (Full)
 - Beginner Group 2: 680274677 (Full)
 - Beginner Group 3: **920714552 (Recommended)**
-- Discord channel https://discord.gg/BATfNfJnm2
+- Discord channel: <https://discord.gg/BATfNfJnm2>
 - Business cooperation email: business#code-philosophy.com
 - [Commercial Support](https://www.hybridclr.cn/en/docs/business/intro)
 
