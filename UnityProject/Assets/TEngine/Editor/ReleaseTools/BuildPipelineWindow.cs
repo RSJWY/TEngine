@@ -45,6 +45,7 @@ namespace TEngine
         private bool _settingSaveQueued;
         private double _nextSettingSaveTime;
         private double _nextLogRepaintTime;
+        private UpdateSetting _cachedUpdateSetting;
         private string _cachedPackageSummary = "DefaultPackage(ScriptableBuildPipeline)";
         private string _cachedToolbarStatus = string.Empty;
         private string _cachedPublishPackagePreviewText = "DefaultPackage";
@@ -144,14 +145,14 @@ namespace TEngine
         [EnableIf(nameof(HasUpdateSetting))]
         private void AddRuntimePackage()
         {
-            var updateSetting = Settings.UpdateSetting;
+            var updateSetting = _cachedUpdateSetting;
             if (updateSetting == null)
             {
                 return;
             }
 
             EnsureRuntimePackages(updateSetting);
-            _runtimePackages.Add(RuntimePackageView.FromEntry(CreateRuntimePackageEntry(GetNextPackageName(updateSetting))));
+            _runtimePackages.Add(RuntimePackageView.FromEntry(CreateRuntimePackageEntry(GetNextPackageName(updateSetting), GetAssemblyPackageName())));
             MarkRuntimePackagesDirty();
         }
 
@@ -170,8 +171,8 @@ namespace TEngine
         [EnableIf(nameof(HasUpdateSetting))]
         private void PingUpdateSetting()
         {
-            Selection.activeObject = Settings.UpdateSetting;
-            EditorGUIUtility.PingObject(Settings.UpdateSetting);
+            Selection.activeObject = _cachedUpdateSetting;
+            EditorGUIUtility.PingObject(_cachedUpdateSetting);
         }
 
         [TabGroup("Pages", "发布与Player")]
@@ -475,6 +476,9 @@ namespace TEngine
         [SerializeField]
         private string _isccPath = string.Empty;
 
+        private string _cachedIsccResolved;
+        private string _cachedIsccResolvedForPath = "\0";
+
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/ISCC 编译")]
         [ShowInInspector]
@@ -486,7 +490,15 @@ namespace TEngine
         {
             get
             {
-                var resolved = InnoSetupBuilder.ResolveIscc(_isccPath);
+                var isccPath = _isccPath ?? string.Empty;
+                if (!ReferenceEquals(isccPath, _cachedIsccResolvedForPath) &&
+                    !string.Equals(isccPath, _cachedIsccResolvedForPath, StringComparison.Ordinal))
+                {
+                    _cachedIsccResolvedForPath = isccPath;
+                    _cachedIsccResolved = InnoSetupBuilder.ResolveIscc(isccPath);
+                }
+
+                var resolved = _cachedIsccResolved;
                 return string.IsNullOrWhiteSpace(resolved)
                     ? "未找到 ISCC.exe（请安装 Inno Setup 或在上方手动指定路径）"
                     : $"已就绪：{resolved}";
@@ -1239,6 +1251,7 @@ namespace TEngine
         {
             _isLoadingSettings = true;
 
+            _cachedUpdateSetting = LoadUpdateSettingCached();
             _setting = BuildPipelineSetting.LoadOrCreate();
             if (!_setting.EditorPrefsImported)
             {
@@ -1611,7 +1624,7 @@ namespace TEngine
 
         private void ReloadRuntimePackageViews()
         {
-            var updateSetting = Settings.UpdateSetting;
+            var updateSetting = _cachedUpdateSetting;
             _runtimePackages.Clear();
             if (updateSetting == null)
             {
@@ -1691,7 +1704,7 @@ namespace TEngine
                 return;
             }
 
-            var updateSetting = Settings.UpdateSetting;
+            var updateSetting = _cachedUpdateSetting;
             if (updateSetting == null)
             {
                 return;
@@ -1701,7 +1714,7 @@ namespace TEngine
 
             if (_runtimePackages.Count <= 0)
             {
-                _runtimePackages.Add(RuntimePackageView.FromEntry(CreateRuntimePackageEntry("DefaultPackage")));
+                _runtimePackages.Add(RuntimePackageView.FromEntry(CreateRuntimePackageEntry("DefaultPackage", GetAssemblyPackageName())));
             }
 
             updateSetting.RuntimePackages = _runtimePackages
@@ -1721,7 +1734,7 @@ namespace TEngine
             _isSavingRuntimePackages = false;
         }
 
-        private static void EnsureRuntimePackages(UpdateSetting updateSetting)
+        private void EnsureRuntimePackages(UpdateSetting updateSetting)
         {
             if (updateSetting.RuntimePackages == null)
             {
@@ -1730,12 +1743,13 @@ namespace TEngine
 
             if (updateSetting.RuntimePackages.Count <= 0)
             {
-                updateSetting.RuntimePackages.Add(CreateRuntimePackageEntry("DefaultPackage"));
+                updateSetting.RuntimePackages.Add(CreateRuntimePackageEntry("DefaultPackage", GetAssemblyPackageName()));
             }
         }
 
-        private static RuntimePackageEntry CreateRuntimePackageEntry(string packageName)
+        private static RuntimePackageEntry CreateRuntimePackageEntry(string packageName, string assemblyPackageName)
         {
+            var isAssembly = string.Equals(packageName, assemblyPackageName, StringComparison.Ordinal);
             return new RuntimePackageEntry
             {
                 Enable = true,
@@ -1745,10 +1759,10 @@ namespace TEngine
                 DownloadOnDemand = true,
                 SaveVersion = true,
                 VersionKey = GetDefaultVersionKey(packageName),
-                EncryptionType = string.Equals(packageName, GetAssemblyPackageName(), StringComparison.Ordinal)
+                EncryptionType = isAssembly
                     ? EncryptionType.ChaCha20
                     : EncryptionType.None,
-                BuildPipeline = string.Equals(packageName, GetAssemblyPackageName(), StringComparison.Ordinal)
+                BuildPipeline = isAssembly
                     ? RuntimePackageBuildPipeline.ArchiveFileBuildPipeline
                     : RuntimePackageBuildPipeline.UseGlobal,
             };
@@ -1986,10 +2000,11 @@ namespace TEngine
             return map;
         }
 
-        private static string GetBuildPackageLogText(BuildConfig config)
+        private string GetBuildPackageLogText(BuildConfig config)
         {
-            var runtimePackages = Settings.UpdateSetting != null
-                ? Settings.UpdateSetting.GetEnabledRuntimePackages()
+            var updateSetting = _cachedUpdateSetting;
+            var runtimePackages = updateSetting != null
+                ? updateSetting.GetEnabledRuntimePackages()
                 : null;
 
             if (runtimePackages == null || runtimePackages.Count <= 0)
@@ -2025,8 +2040,9 @@ namespace TEngine
 
         private List<string> GetCurrentPackageNames()
         {
-            var runtimePackages = Settings.UpdateSetting != null
-                ? Settings.UpdateSetting.GetEnabledRuntimePackages()
+            var updateSetting = _cachedUpdateSetting;
+            var runtimePackages = updateSetting != null
+                ? updateSetting.GetEnabledRuntimePackages()
                 : null;
 
             if (runtimePackages == null || runtimePackages.Count <= 0)
@@ -2052,15 +2068,16 @@ namespace TEngine
             return GetCurrentPackageNames().Any(IsAssemblyPackage);
         }
 
-        private static bool IsAssemblyPackage(string packageName)
+        private bool IsAssemblyPackage(string packageName)
         {
             return string.Equals(packageName, GetAssemblyPackageName(), StringComparison.Ordinal);
         }
 
-        private static string GetAssemblyPackageName()
+        private string GetAssemblyPackageName()
         {
-            return Settings.UpdateSetting != null
-                ? Settings.UpdateSetting.GetAssemblyPackageName()
+            var updateSetting = _cachedUpdateSetting;
+            return updateSetting != null
+                ? updateSetting.GetAssemblyPackageName()
                 : "CodePackage";
         }
 
@@ -2326,7 +2343,12 @@ namespace TEngine
 
         #region Odin 数据
 
-        private bool HasUpdateSetting => Settings.UpdateSetting != null;
+        private static UpdateSetting LoadUpdateSettingCached()
+        {
+            return Settings.UpdateSetting;
+        }
+
+        private bool HasUpdateSetting => _cachedUpdateSetting != null;
         private bool IsUpdateSettingMissing => !HasUpdateSetting;
         private bool IsPublishCopyEnabled => _enablePublishCopy;
         private bool HasBuildLogs => _buildLogs.Count > 0;
@@ -2557,7 +2579,7 @@ namespace TEngine
             {
                 if (entry == null)
                 {
-                    entry = CreateRuntimePackageEntry("DefaultPackage");
+                    entry = CreateRuntimePackageEntry("DefaultPackage", "CodePackage");
                 }
 
                 var packageName = string.IsNullOrWhiteSpace(entry.PackageName)
