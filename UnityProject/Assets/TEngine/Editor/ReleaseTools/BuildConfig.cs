@@ -55,6 +55,9 @@ namespace TEngine
         public bool BuildPlayer;
         public BuildTarget PlayerPlatform;
         public string PlayerOutputPath = "";
+        /// <summary>Standalone 构建子目标（"Server"=专用服务器，"Player"=普通客户端，""=默认）。
+        /// 仅对 Standalone 平台生效，Unity 6+ 通过 EditorUserBuildSettings.standaloneBuildSubtarget 设置。</summary>
+        public string subtarget = "";
 
         // InnoSetup 安装包设置（仅 Windows）
         public bool BuildInstaller;

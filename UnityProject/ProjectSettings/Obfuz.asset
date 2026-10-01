@@ -31,7 +31,8 @@ MonoBehaviour:
     obfuscateObfuzRuntime: 1
   obfuscationPassSettings:
     enabledPasses: 3149059
-    ruleFiles: []
+    ruleFiles:
+    - Assets/Obfuz/Rules/symbol-preserve-purrnet.xml
   secretSettings:
     defaultStaticSecretKey: Code Philosophy-Static
     defaultDynamicSecretKey: Code Philosophy-Dynamic
@@ -53,6 +54,7 @@ MonoBehaviour:
     debugSymbolMappingFile: Assets/Obfuz/SymbolObfus/symbol-mapping-debug.xml
     ruleFiles:
     - Assets/Obfuz/Rules/symbol-preserve-module-virtuals.xml
+    - Assets/Obfuz/Rules/symbol-preserve-purrnet.xml
     customRenamePolicyTypes: []
   constEncryptSettings:
     encryptionLevel: 1

@@ -53,6 +53,7 @@ namespace TEngine
         public bool BuildPlayer;
         public BuildTarget PlayerPlatform;
         public string PlayerOutputPath = "";
+        public string subtarget = "";
 
         // InnoSetup 安装包设置（仅 Windows）
         public bool BuildInstaller;
@@ -96,6 +97,7 @@ namespace TEngine
             BuildPlayer = config.BuildPlayer;
             PlayerPlatform = config.PlayerPlatform;
             PlayerOutputPath = config.PlayerOutputPath;
+            subtarget = config.subtarget;
             BuildInstaller = config.BuildInstaller;
             InstallerPlatform = config.InstallerPlatform;
             InstallerVersion = config.InstallerVersion;

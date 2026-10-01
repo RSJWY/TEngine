@@ -374,6 +374,17 @@ namespace TEngine
 
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/Player 设置")]
+        [LabelText("构建子目标")]
+        [Tooltip("Server=专用服务器（注入 UNITY_SERVER define，剥离渲染/音频/输入）；Player=普通客户端；留空=默认。" +
+                 "仅对 Standalone 平台生效（Windows/macOS/Linux），Unity 6+。")]
+        [ValueDropdown(nameof(SubtargetOptions))]
+        [ShowIf(nameof(_buildPlayer))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _subtarget = string.Empty;
+
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("输出路径")]
         [InlineButton(nameof(ChoosePlayerOutputPath), "浏览")]
         [InlineButton(nameof(SyncPlayerOutputName), "同步名字")]
@@ -1112,7 +1123,8 @@ namespace TEngine
                 if (!ReleaseTools.BuildImp(
                     BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
                     config.PlayerPlatform,
-                    config.PlayerOutputPath
+                    config.PlayerOutputPath,
+                    config.subtarget
                 ))
                     throw new Exception("Player 构建失败。");
 
@@ -1311,6 +1323,7 @@ namespace TEngine
             _playerOutputPath = string.IsNullOrWhiteSpace(setting.PlayerOutputPath)
                 ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform)
                 : setting.PlayerOutputPath;
+            _subtarget = setting.subtarget ?? string.Empty;
 
             _buildInstaller = setting.BuildInstaller;
             _installerPlatform = Array.IndexOf(PlatformTargets, setting.InstallerPlatform) >= 0
@@ -1429,6 +1442,7 @@ namespace TEngine
                 ? PlatformTargets[playerPlatformIndex]
                 : defaultConfig.PlayerPlatform;
             setting.PlayerOutputPath = EditorPrefs.GetString("TEngine_BP_PlayerOutput", string.Empty);
+            setting.subtarget = EditorPrefs.GetString("TEngine_BP_Subtarget", string.Empty);
         }
 
         private static void DeleteLegacyEditorPrefs()
@@ -1454,6 +1468,7 @@ namespace TEngine
             EditorPrefs.DeleteKey("TEngine_BP_BuildPlayer");
             EditorPrefs.DeleteKey("TEngine_BP_PlayerPlatform");
             EditorPrefs.DeleteKey("TEngine_BP_PlayerOutput");
+            EditorPrefs.DeleteKey("TEngine_BP_Subtarget");
         }
 
         private static string NormalizePath(string path)
@@ -1529,6 +1544,7 @@ namespace TEngine
             _setting.BuildPlayer = _buildPlayer;
             _setting.PlayerPlatform = _playerPlatform;
             _setting.PlayerOutputPath = _playerOutputPath;
+            _setting.subtarget = _subtarget ?? string.Empty;
             _setting.BuildInstaller = _buildInstaller;
             _setting.InstallerPlatform = _installerPlatform;
             _setting.InstallerVersion = _installerVersion;
@@ -1959,6 +1975,7 @@ namespace TEngine
                 BuildPlayer = _buildPlayer,
                 PlayerPlatform = _playerPlatform,
                 PlayerOutputPath = _playerOutputPath,
+                subtarget = _subtarget ?? string.Empty,
                 BuildInstaller = _buildInstaller,
                 InstallerPlatform = _installerPlatform,
                 InstallerVersion = _installerVersion,
@@ -2372,6 +2389,13 @@ namespace TEngine
             { "Android", BuildTarget.Android },
             { "iOS", BuildTarget.iOS },
             { "WebGL", BuildTarget.WebGL },
+        };
+
+        private static ValueDropdownList<string> SubtargetOptions => new ValueDropdownList<string>
+        {
+            { "默认（普通客户端）", "" },
+            { "Server（专用服务器）", "Server" },
+            { "Player（普通客户端）", "Player" },
         };
 
         private static ValueDropdownList<EBuildPipeline> BuildPipelineOptions => new ValueDropdownList<EBuildPipeline>

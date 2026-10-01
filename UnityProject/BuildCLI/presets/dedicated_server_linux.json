@@ -1,0 +1,8 @@
+{
+  "buildTarget": "StandaloneLinux64",
+  "subtarget": "Server",
+  "action": "buildPlayer",
+  "playerOutputPath": "./Releases/DedicatedServer/build/",
+  "buildHotFixDll": true,
+  "compressOption": "LZ4"
+}

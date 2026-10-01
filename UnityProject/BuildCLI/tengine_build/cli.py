@@ -27,6 +27,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="批量任务名（BuildCLI/batches 下的 json）：按任务定义的动作队列执行，"
                             "配置用其绑定预设（可再叠加 --preset/--target 等覆盖）")
     run_p.add_argument("--target", default=None, help="目标平台（默认取 .asset 或 StandaloneWindows64）")
+    run_p.add_argument("--subtarget", default=None, choices=["Server", "Player"],
+                       help="构建子目标（Server=专用服务器，Player=普通客户端）；仅 Standalone 平台生效")
     run_p.add_argument("--version", default=None, help="统一版本号（Unified 模式）")
     run_p.add_argument("--output-root", default=None, help="AB 输出根目录")
     run_p.add_argument("--package", default=None, help="只构建指定资源包（默认全部）")
@@ -101,6 +103,8 @@ def _assemble_state(args) -> tuple[BuildFormState | None, int]:
         return None, 1
     if args.target:
         state.buildTarget = args.target
+    if getattr(args, "subtarget", None):
+        state.subtarget = args.subtarget
     if args.version:
         state.packageVersion = args.version
     if args.output_root:

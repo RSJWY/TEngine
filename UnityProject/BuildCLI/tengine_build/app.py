@@ -454,6 +454,14 @@ class MainWindow(QMainWindow):
         self.player_platform_combo.currentTextChanged.connect(lambda v: self._set_state("playerPlatform", v))
         player_form.addRow("Player 平台：", self.player_platform_combo)
 
+        self.subtarget_combo = QComboBox()
+        self.subtarget_combo.addItem("默认（普通客户端）", "")
+        self.subtarget_combo.addItem("Server（专用服务器）", "Server")
+        self.subtarget_combo.addItem("Player（普通客户端）", "Player")
+        self.subtarget_combo.currentIndexChanged.connect(
+            lambda idx: self._set_state("subtarget", self.subtarget_combo.itemData(idx) or ""))
+        player_form.addRow("构建子目标：", self.subtarget_combo)
+
         player_out_row = QHBoxLayout()
         self.player_output_edit = QLineEdit()
         player_out_row.addWidget(self.player_output_edit, stretch=1)
@@ -801,6 +809,8 @@ class MainWindow(QMainWindow):
         self.hotfix_check.setChecked(s.buildHotFixDll)
         self.build_player_check.setChecked(s.buildPlayer)
         self.player_platform_combo.setCurrentText(s.playerPlatform)
+        subtarget_idx = self.subtarget_combo.findData(s.subtarget or "")
+        self.subtarget_combo.setCurrentIndex(max(subtarget_idx, 0))
         self.player_output_edit.setText(s.playerOutputPath)
         self.installer_check.setChecked(s.buildInstaller)
         self.installer_version_edit.setText(s.installerVersion)

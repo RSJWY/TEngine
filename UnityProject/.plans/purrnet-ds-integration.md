@@ -166,55 +166,139 @@ public interface INetworkModule
 
 ### 阶段二：DS 打包管线
 
-#### 步骤 2.1：BuildCommand 支持 Server subtarget
+#### 步骤 2.1：ReleaseTools.BuildImp 支持 Server subtarget
 
-**文件**：`Packages/com.unity.pipeline/Editor/Commands/Build/BuildCommand.cs`
+> **修正说明**（2026-10-01 研究后调整）：原计划改 `com.unity.pipeline` 的 `BuildCommand`，但实际 Player/DS 构建链路是 `BuildCLI → CLIBridge.Run → ReleaseTools.BuildImp → BuildPipeline.BuildPlayer`，与 pipeline 包的 `BuildCommand`（HTTP 远程控制）是两条独立路径。`com.unity.pipeline` 包**不考虑改动**。
 
-**改动**：
-1. 在 `ValidateAndQueue` 中添加 `subtarget` 参数解析：
+**前提核实**（已通过 Unity 反射确认）：
+- `UnityEditor.StandaloneBuildSubtarget` 枚举存在（`UnityEditor.CoreModule`），值为 `Default/Player/Server`，命名空间是 `UnityEditor`（非 `UnityEditor.Build`）
+- `EditorUserBuildSettings.standaloneBuildSubtarget` 属性可读写，类型为 `StandaloneBuildSubtarget`
+- DS subtarget 构建时 Unity 自动注入 `UNITY_SERVER` define
+
+**文件 1**：`Assets/TEngine/Editor/ReleaseTools/BuildConfig.cs`
+改动：`BuildConfig` 类（:20）添加字段
 ```csharp
-[CliArg("subtarget", "Build subtarget name. For dedicated server use 'Server'. Only applies to Standalone targets in Unity 6+.")]
-string subtarget = "",
+/// <summary>Standalone 构建子目标（"Server"=专用服务器，"Player"=普通客户端，""=默认）。
+/// 仅对 Standalone 平台生效，Unity 6+ 通过 EditorUserBuildSettings.standaloneBuildSubtarget 设置。</summary>
+public string subtarget = "";
 ```
-2. 在构建队列中保存 subtarget，在 `DoBuild` 中设置：
+
+**文件 2**：`Assets/TEngine/Editor/ReleaseTools/CLIBridge.cs`
+改动：
+1. `BuildRequestDTO`（:30）添加字段 `public string subtarget = "";`
+2. `ToBuildConfig`（:469）中传递：`config.subtarget = request.subtarget ?? string.Empty;`
+3. `Execute` 的 `case "buildPlayer"`（:323）改为将 subtarget 传入 `BuildImp`：
 ```csharp
-// Unity 6+ StandaloneBuildSubtarget
-if (!string.IsNullOrWhiteSpace(subtarget))
+case "buildPlayer":
 {
-    var subtargetType = typeof(UnityEditor.Build.StandaloneBuildSubtarget);
-    if (Enum.TryParse(subtarget, true, out var subtargetValue))
+    var config = ToBuildConfig(request);
+    var playerTarget = ParseBuildTarget(request.playerPlatform);
+    if (!ReleaseTools.BuildImp(
+            BuildConfig.GetBuildTargetGroup(playerTarget),
+            playerTarget,
+            request.playerOutputPath,
+            config.subtarget))
     {
-        // BuildPlayerOptions.subtarget = (int)subtargetValue;
-        EditorUserBuildSettings.standaloneBuildSubtarget = (UnityEditor.Build.StandaloneBuildSubtarget)subtargetValue;
+        Debug.LogError("[TEngineCLI] Player 构建失败。");
+        return false;
+    }
+    FillPlayerRecord(config, result);
+    Debug.Log("[TEngineCLI] ========== Player 构建完成 ==========");
+    return true;
+}
+```
+4. `case "build"` / `case "buildAb"` 的 `withPlayer` 分支同样需将 subtarget 透传至 `BuildImp`（`ReleaseTools.BuildWithConfig` 内部调用 `BuildImp` 时读取 `config.subtarget`）。
+
+**文件 3**：`Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs`
+改动：`BuildImp`（:838）增加 `subtarget` 参数，构建前设置 `EditorUserBuildSettings.standaloneBuildSubtarget`，构建后恢复原值：
+```csharp
+public static bool BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget buildTarget,
+    string locationPathName, string subtarget = "")
+{
+    var prevSubtarget = EditorUserBuildSettings.standaloneBuildSubtarget;
+    try
+    {
+        if (!string.IsNullOrWhiteSpace(subtarget)
+            && Enum.TryParse<StandaloneBuildSubtarget>(subtarget, true, out var st))
+        {
+            EditorUserBuildSettings.standaloneBuildSubtarget = st;
+            Debug.Log($"[BuildImp] 设置 standaloneBuildSubtarget = {st}");
+        }
+        // ===== 原有逻辑不变 =====
+        EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
+        AssetDatabase.Refresh();
+        if (!string.IsNullOrWhiteSpace(locationPathName) && !Path.IsPathRooted(locationPathName))
+            locationPathName = Path.GetFullPath(Path.Combine(Application.dataPath, "..", locationPathName));
+        BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
+        {
+            scenes = EditorBuildSettings.scenes.Select(scene => scene.path).ToArray(),
+            locationPathName = locationPathName,
+            targetGroup = buildTargetGroup,
+            target = buildTarget,
+            options = BuildOptions.None
+        };
+        var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+        BuildSummary summary = report.summary;
+        if (summary.result == BuildResult.Succeeded)
+        {
+            Debug.Log($"Build success: {summary.totalSize / 1024 / 1024} MB, {summary.outputPath}");
+            return true;
+        }
+        Debug.LogError($"Build Failed: {summary.result}");
+        return false;
+        // ===== 原有逻辑结束 =====
+    }
+    finally
+    {
+        EditorUserBuildSettings.standaloneBuildSubtarget = prevSubtarget;
     }
 }
 ```
-3. 构建完成后恢复原 subtarget 设置
-
-**注意**：
-- Unity 6 用 `StandaloneBuildSubtarget.Server` 替代已废弃的 `EnableHeadlessMode`
-- DS 构建会自动注入 `UNITY_SERVER` define（Unity 引擎行为）
-- 需确认 `BuildPipeline.IsBuildTargetSupported` 对 Server subtarget 的支持
+**兼容性**：原 `BuildImp(group, target, path)` 的调用方（`BuildPipelineWindow` GUI 等）保持兼容——新重载 `subtarget` 默认 `""`，等价于原行为；原三参数签名改为委托到新签名即可。
 
 **验证**：
-- `dry_run` 模式下 subtarget 参数被正确解析
-- 实际构建出的可执行文件以 `-batchmode` 运行时 `ApplicationContext.isServerBuild` 为 true
+- Unity 编译零 Error，`read_console` 无 Error
+- `dry_run` 请求 JSON 含 `subtarget` 字段
+- 实际 DS 构建产物以 `-batchmode` 运行时 `ApplicationContext.isServerBuild == true`
 
-#### 步骤 2.2：BuildCLI 支持 server subtarget
+#### 步骤 2.2：BuildCLI（Python）传递 subtarget
 
-**文件**：`BuildCLI/tengine_build/cli.py`、`BuildCLI/tengine_build/dto.py`、`BuildCLI/tengine_build/unity_runner.py`
+**文件**（3 个）：
 
-**改动**：
-1. `cli.py` 的 `run` 子命令添加 `--subtarget` 参数：
+**文件 1**：`BuildCLI/tengine_build/config_store.py`
+改动：`BuildFormState`（:53）添加字段
+```python
+# Standalone 构建子目标（"Server"=专用服务器，"Player"=普通客户端，""=默认）
+# Unity 6+ 通过 EditorUserBuildSettings.standaloneBuildSubtarget 设置
+subtarget: str = ""
+```
+位置：放在 `playerOutputPath` 字段之后（Player 分组内），逻辑上归属 Player 构建配置。
+**注意**：`subtarget` 不加入 `_LOCAL_ONLY_FIELDS`（dto.py:14），需下发给 CLIBridge。
+
+**文件 2**：`BuildCLI/tengine_build/cli.py`
+改动：`run` 子命令（run_p）添加参数
 ```python
 run_p.add_argument("--subtarget", default=None, choices=["Server", "Player"],
-                   help="构建子目标（Server=专用服务器，Player=普通客户端）")
+                   help="构建子目标（Server=专用服务器，Player=普通客户端）；仅 Standalone 平台生效")
 ```
-2. `dto.py` 的 `BuildFormState` 添加 `subtarget` 字段
-3. `unity_runner.py` 构建请求 JSON 中添加 `subtarget` 参数
+并在 `_assemble_state`（:54）中透传：
+```python
+if getattr(args, "subtarget", None):
+    state.subtarget = args.subtarget
+```
+
+**文件 3**：`BuildCLI/tengine_build/dto.py`
+**无需改动**：`dump_request`（:28）通过 `asdict(state)` 已包含新字段，`_LOCAL_ONLY_FIELDS`（:14）不含 `subtarget`，自动透传到 CLIBridge 的 `BuildRequestDTO`。
 
 **验证**：
-- `python -m tengine_build run --target StandaloneLinux64 --subtarget Server --dry-run` 输出正确 JSON
+```powershell
+# dry_run 验证 subtarget 透传
+python -m tengine_build run --target StandaloneLinux64 --subtarget Server --action buildPlayer --dry-run
+# 确认输出 JSON 含 "subtarget": "Server"
+
+# 不传 --subtarget 时为空字符串（默认行为，向后兼容）
+python -m tengine_build run --target StandaloneWindows64 --action buildPlayer --dry-run
+```
 
 #### 步骤 2.3：PurrNetSettings 配置 DS 裁剪策略
 
@@ -239,22 +323,60 @@ run_p.add_argument("--subtarget", default=None, choices=["Server", "Player"],
 - `[ServerOnly(StripCodeModeOverride.Settings)]` 标注的方法/字段按 `stripCodeMode` 裁剪
 - DS 构建不需要裁剪客户端代码（DS 包不包含客户端逻辑时由 IL2CPP managed code stripping 处理）
 
-#### 步骤 2.4：Obfuz + PurrNet ILPP 共存验证
+#### 步骤 2.4：Obfuz + PurrNet ILPP 共存验证与排除规则
 
-**无需代码改动**，但需验证：
+**现状核实**（读取 `ProjectSettings/Obfuz.asset` 确认）：
+- `assembliesToObfuscate`：仅 `GameLogic`、`GameProto`、`TEngine.CryptoKeys`
+- PurrNet 程序集（`PurrNet.Runtime`）**不在混淆范围**，本身不会被混淆
+- `obfuscateObfuzRuntime: 1`（Obfuz.Runtime 被混淆，与 PurrNet 无关）
+- 现有排除规则文件：`symbol-preserve-module-virtuals.xml`（保留 Module 虚方法名）、`field-encrypt-cryptokeys.xml`
 
 1. **时机分析**（已确认不冲突）：
-   - PurrNet ILPP：编辑器编译阶段（ILPostProcessor），织入 RPC/序列化器/模块注册代码
-   - Obfuz：构建后处理（`IPostBuildPlayerScriptDLLs`），混淆方法名/字段名
-   - ILPP 先于 Obfuz，织入代码已生成完整
+   - PurrNet ILPP：编辑器编译阶段（ILPostProcessor），织入 RPC/序列化器/模块注册代码到 GameLogic.dll
+   - Obfuz：构建后处理（`ObfuscationProcess.OnPostBuildPlayerScriptDLLs`，`Obfuz.asset` 中 `obfuscationProcessCallbackOrder: 10000`），混淆 GameLogic.dll 中的方法名/字段名
+   - ILPP 先于 Obfuz，织入代码已生成完整，Obfuz 会看到织入后的完整 DLL
 
-2. **潜在风险**：
-   - Obfuz 混淆 PurrNet 生成的方法名（如 `HandleRPCGenerated_N`、`_Original_N`）可能导致 RPC 收发失败
-   - **解决方案**：在 ObfuzSettings 中将 PurrNet 生成的命名模式加入排除列表，或对 `PurrNet` 命名空间整体 `ObfuzIgnore`
-   - Obfuz 的 `[ObfuzIgnore]` 特性已在本项目使用（参考 `GameApp.cs`）
+2. **实际风险**（比原计划评估更精确）：
+   - PurrNet 程序集本身不被混淆 → PurrNet 内部 RPC 收发逻辑不受影响
+   - **但 GameLogic 被 Obfuz 混淆**：PurrNet ILPP 织入 GameLogic.dll 的 RPC 句柄方法（如 `HandleRPCGenerated_N`、`_Original_N`、`RPCGenerated_*`）在混淆范围内
+   - 若这些方法名被混淆，PurrNet 运行时通过反射/委托按名查找的 RPC 句柄会失配，导致 RPC 收发失败
+   - `[ObfuzIgnore]` 特性已在本项目使用（参考 `GameApp.cs`），但 ILPP 生成的方法不带 `[ObfuzIgnore]`
 
-3. **验证方式**：
-   - 做一次完整构建（Development build），检查构建日志无 Obfuz 错误
+3. **方案**：新增 Obfuz XML 规则文件，按方法名模式排除 PurrNet 生成方法
+
+**新增文件**：`Assets/Obfuz/Rules/symbol-preserve-purrnet.xml`
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<obfuz>
+  <assembly name="GameLogic">
+    <type name="*">
+      <!-- PurrNet ILPP 生成的 RPC 句柄方法，混淆会导致网络收发失败 -->
+      <method name="HandleRPCGenerated_*" obName="false" />
+      <method name="_Original_*" obName="false" />
+      <method name="RPCGenerated_*" obName="false" />
+    </type>
+  </assembly>
+</obfuz>
+```
+
+**修改文件**：`ProjectSettings/Obfuz.asset`
+改动：在 `obfuscationPassSettings.ruleFiles` 列表（当前只有 `symbol-preserve-module-virtuals.xml`）追加：
+```yaml
+  obfuscationPassSettings:
+    enabledPasses: 3149059
+    ruleFiles:
+    - Assets/Obfuz/Rules/symbol-preserve-module-virtuals.xml
+    - Assets/Obfuz/Rules/symbol-preserve-purrnet.xml   # 新增
+```
+
+**注意**：
+- 实际方法名模式需在首次 Development build 后从 PurrNet ILPP 产物或构建日志确认，上述模式基于计划文档先前的研究推断
+- 若 PurrNet ILPP 使用 `[ObfuzIgnore]` 或其他保留特性标注生成方法，则无需额外规则（需核实 PurrNet ILPP 源码）
+- Obfuz XML 规则的 `obName="false"` 表示不重命名方法名，方法体仍可被其他 pass 混淆（控制流/常量加密等）
+
+4. **验证方式**：
+   - 做一次完整 Development build，检查构建日志无 Obfuz 报错
+   - 用 dnSpy/ILSpy 反汇编 GameLogic.dll，确认 `HandleRPCGenerated_*` 方法名未被混淆
    - 运行构建产物，确认网络功能正常（RPC 可收发）
 
 #### 步骤 2.5：ProjectSettings 启用 Dedicated Server 优化（可选）
@@ -265,6 +387,22 @@ run_p.add_argument("--subtarget", default=None, choices=["Server", "Player"],
 
 **建议**：上线前改为 `1`（启用 Unity 6 的 dedicated server 优化：剥离渲染/音频/输入等）
 - 开发期保持 `0`，避免影响 Editor 调试
+
+#### 步骤 2.6：DS 构建预设（新增）
+
+**新增文件**：`BuildCLI/presets/dedicated_server_linux.json`
+```json
+{
+  "buildTarget": "StandaloneLinux64",
+  "subtarget": "Server",
+  "action": "buildPlayer",
+  "playerOutputPath": "./Releases/DedicatedServer/build/",
+  "buildHotFixDll": true,
+  "compressOption": "LZ4"
+}
+```
+**用途**：`python -m tengine_build run --preset dedicated_server_linux --json` 一键打 DS 包。
+**注意**：预设里 `subtarget` 字段随 `BuildFormState` 持久化（步骤 2.2 已加字段），`load_preset` 通过 `form_from_json` 自动解析。
 
 ---
 
@@ -579,11 +717,23 @@ python .codex/scripts/workflow.py verify --profile code
 ### 4.2 阶段二验证
 
 ```powershell
-# dry_run 验证 BuildCommand subtarget 参数
-# 通过 unity-pipeline command build --target StandaloneLinux64 --subtarget Server --dry_run
+# 1. C# 编译检查（BuildConfig/CLIBridge/ReleaseTools 改动）
+python .codex/scripts/workflow.py verify --profile code
 
-# 实际构建验证（需用户授权）
-python -m tengine_build run --target StandaloneLinux64 --subtarget Server --json
+# 2. dry_run 验证 subtarget 透传（不启动 Unity）
+python -m tengine_build run --target StandaloneLinux64 --subtarget Server --action buildPlayer --dry-run
+# 确认输出 JSON 含 "subtarget": "Server"
+
+# 3. 实际 DS 构建验证（需用户授权）
+python -m tengine_build run --target StandaloneLinux64 --subtarget Server --action buildPlayer --json
+# 或用预设：python -m tengine_build run --preset dedicated_server_linux --json
+
+# 4. 运行产物确认 DS 模式
+# ./<产物> -batchmode -scene MainScene
+# 确认：ApplicationContext.isServerBuild == true（日志可见 PurrNet 自动 StartServer）
+
+# 5. Obfuz 排除规则验证（Development build 后）
+# 反汇编 GameLogic.dll，确认 HandleRPCGenerated_* 方法名未被混淆
 ```
 
 ### 4.3 阶段三验证
@@ -616,6 +766,8 @@ python .codex/scripts/workflow.py verify --profile full
 | `Assets/GameScripts/HotFix/GameLogic/Module/NetworkModule/NetworkModule.cs` | 阶段一 |
 | `Assets/Launcher/Scripts/DedicatedServerLauncher.cs` | 阶段三 |
 | `Assets/Scenes/dedicated_server.unity`（或复用 main.unity） | 阶段三 |
+| `Assets/Obfuz/Rules/symbol-preserve-purrnet.xml` | 阶段二 |
+| `BuildCLI/presets/dedicated_server_linux.json` | 阶段二 |
 
 ### 修改文件
 
@@ -627,17 +779,22 @@ python .codex/scripts/workflow.py verify --profile full
 | `Assets/GameScripts/Procedure/ProcedureLaunch.cs` | 阶段三 | DS 跳过客户端 UI |
 | `Assets/GameScripts/Procedure/ProcedureSplash.cs` | 阶段三 | DS 跳过 Splash |
 | `Assets/GameScripts/Procedure/ProcedurePreload.cs` | 阶段三 | DS 跳过预加载 |
-| `Packages/com.unity.pipeline/Editor/Commands/Build/BuildCommand.cs` | 阶段二 | 添加 subtarget 参数 |
-| `BuildCLI/tengine_build/cli.py` | 阶段二 | 添加 --subtarget 参数 |
-| `BuildCLI/tengine_build/dto.py` | 阶段二 | BuildFormState 添加 subtarget |
-| `BuildCLI/tengine_build/unity_runner.py` | 阶段二 | 构建请求添加 subtarget |
+| `Assets/TEngine/Editor/ReleaseTools/BuildConfig.cs` | 阶段二 | BuildConfig 添加 subtarget 字段 |
+| `Assets/TEngine/Editor/ReleaseTools/CLIBridge.cs` | 阶段二 | BuildRequestDTO 添加 subtarget + buildPlayer 透传 |
+| `Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs` | 阶段二 | BuildImp 设置/恢复 standaloneBuildSubtarget |
+| `BuildCLI/tengine_build/config_store.py` | 阶段二 | BuildFormState 添加 subtarget 字段 |
+| `BuildCLI/tengine_build/cli.py` | 阶段二 | run 子命令添加 --subtarget 参数 |
+| `ProjectSettings/Obfuz.asset` | 阶段二 | obfuscationPassSettings.ruleFiles 追加 PurrNet 排除规则 |
 
 ### 不修改的文件
 
 | 文件 | 原因 |
 |---|---|
 | PurrNet 包内所有文件 | 框架级，不主动修改 |
-| TEngine.Runtime / TEngine.Editor | 框架级，不主动修改 |
+| TEngine.Runtime / TEngine.Editor | 框架级，不主动修改（阶段二改的是 ReleaseTools，属于 TEngine.Editor 但用户明确授权的构建工具改动） |
+| `Packages/com.unity.pipeline/**`（含 BuildCommand.cs） | 用户明确排除，DS 构建不走 pipeline 包的 HTTP 路径 |
+| `BuildCLI/tengine_build/dto.py` | `asdict(state)` 自动透传新字段，无需改动 |
+| `BuildCLI/tengine_build/unity_runner.py` | 不涉及 subtarget 逻辑，无需改动 |
 | ProjectSettings/PurrNetSettings.asset | 开发期保持默认，上线前再改 |
 | ProjectSettings/ProjectSettings.asset | 不主动改 scriptingDefineSymbols |
 
@@ -647,10 +804,11 @@ python .codex/scripts/workflow.py verify --profile full
 
 ### 6.1 Obfuz 混淆与 PurrNet ILPP
 
-- **时机不冲突**：ILPP（编译期）先于 Obfuz（构建后处理）
-- **风险**：Obfuz 混淆 PurrNet 生成的 RPC 句柄方法名可能导致网络功能失败
-- **缓解**：PurrNet 生成的命名模式（`HandleRPCGenerated_N`、`_Original_N`）需加入 Obfuz 排除列表
-- **验证**：完整构建后运行测试 RPC 收发
+- **时机不冲突**：ILPP（编译期）先于 Obfuz（构建后处理，`obfuscationProcessCallbackOrder: 10000`）
+- **混淆范围**：Obfuz 只混淆 `GameLogic`/`GameProto`/`TEngine.CryptoKeys`（见 `Obfuz.asset`），PurrNet 程序集本身不被混淆
+- **风险**：GameLogic 内由 PurrNet ILPP 织入的 RPC 句柄方法（`HandleRPCGenerated_N` 等）在混淆范围内，方法名被混淆会导致 PurrNet 运行时按名查找失配
+- **缓解**：步骤 2.4 新增 `symbol-preserve-purrnet.xml` 排除规则，按方法名模式保留
+- **验证**：Development build 后反汇编 GameLogic.dll，确认 RPC 句柄方法名未被混淆 + 运行测试 RPC 收发
 
 ### 6.2 HybridCLR 热更 DLL 与 PurrNet ILPP
 
@@ -699,12 +857,13 @@ python .codex/scripts/workflow.py verify --profile full
      ↓ 验证：编译通过 + GameModule.Network 可访问
 
 阶段二：DS 打包管线（能打出 DS 包）
-  ├─ 2.1 BuildCommand 支持 Server subtarget
-  ├─ 2.2 BuildCLI 支持 server subtarget
+  ├─ 2.1 ReleaseTools.BuildImp 支持 Server subtarget（BuildConfig/CLIBridge/ReleaseTools）
+  ├─ 2.2 BuildCLI（Python）传递 subtarget（config_store/cli）
   ├─ 2.3 PurrNetSettings 配置（开发期保持默认）
-  ├─ 2.4 Obfuz + ILPP 共存验证
-  └─ 2.5 ProjectSettings DS 优化（可选，上线前）
-     ↓ 验证：dry_run 正确 + 实际构建出 DS 可执行文件
+  ├─ 2.4 Obfuz 排除 PurrNet 生成方法（新增 XML 规则 + Obfuz.asset 追加）
+  ├─ 2.5 ProjectSettings DS 优化（可选，上线前）
+  └─ 2.6 DS 构建预设（dedicated_server_linux.json）
+     ↓ 验证：dry_run 正确 + 实际构建出 DS 可执行文件 + Obfuz 不破坏 RPC
 
 阶段三：DS 启动流程分支（DS 能跑起来）
   ├─ 3.1 创建 DedicatedServerLauncher 命令行工具

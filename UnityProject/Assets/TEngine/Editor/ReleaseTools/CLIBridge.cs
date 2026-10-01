@@ -77,6 +77,7 @@ namespace TEngine
             public bool buildPlayer;
             public string playerPlatform = "StandaloneWindows64";
             public string playerOutputPath = "";
+            public string subtarget = "";
 
             // InnoSetup 安装包（action=buildInstaller 或 build+buildInstaller 时使用）
             public bool buildInstaller;
@@ -327,7 +328,8 @@ namespace TEngine
                     if (!ReleaseTools.BuildImp(
                             BuildConfig.GetBuildTargetGroup(playerTarget),
                             playerTarget,
-                            request.playerOutputPath))
+                            request.playerOutputPath,
+                            config.subtarget))
                     {
                         Debug.LogError("[TEngineCLI] Player 构建失败。");
                         return false;
@@ -496,6 +498,7 @@ namespace TEngine
                 PlayerPlatform = ParseBuildTarget(request.playerPlatform),
                 PlayerOutputPath = request.playerOutputPath ?? string.Empty,
                 HeadlessMode = Application.isBatchMode,
+                subtarget = request.subtarget ?? string.Empty,
             };
 
             if (config.PackageVersionMode == PackageVersionMode.PerPackage && request.packageVersions != null)

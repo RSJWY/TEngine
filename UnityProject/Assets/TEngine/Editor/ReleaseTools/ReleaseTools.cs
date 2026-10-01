@@ -185,7 +185,8 @@ namespace TEngine
                 return BuildImp(
                     BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
                     config.PlayerPlatform,
-                    config.PlayerOutputPath
+                    config.PlayerOutputPath,
+                    config.subtarget
                 );
             }
 
@@ -835,36 +836,51 @@ namespace TEngine
 
         #region Player 构建
 
-        public static bool BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget buildTarget, string locationPathName)
+        public static bool BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget buildTarget, string locationPathName, string subtarget = "")
         {
-            EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
-            AssetDatabase.Refresh();
+            var prevSubtarget = EditorUserBuildSettings.standaloneBuildSubtarget;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(subtarget)
+                    && Enum.TryParse<StandaloneBuildSubtarget>(subtarget, true, out var st))
+                {
+                    EditorUserBuildSettings.standaloneBuildSubtarget = st;
+                    Debug.Log($"[BuildImp] 设置 standaloneBuildSubtarget = {st}");
+                }
 
-            // 统一将项目根相对路径（./ 前缀）或非根路径转为绝对路径，BuildPipeline.BuildPlayer 需要绝对路径
-            if (!string.IsNullOrWhiteSpace(locationPathName) && !Path.IsPathRooted(locationPathName))
-            {
-                locationPathName = Path.GetFullPath(Path.Combine(Application.dataPath, "..", locationPathName));
-            }
+                EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
+                AssetDatabase.Refresh();
 
-            BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
-            {
-                scenes = EditorBuildSettings.scenes.Select(scene => scene.path).ToArray(),
-                locationPathName = locationPathName,
-                targetGroup = buildTargetGroup,
-                target = buildTarget,
-                options = BuildOptions.None
-            };
-            var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
-            BuildSummary summary = report.summary;
-            if (summary.result == BuildResult.Succeeded)
-            {
-                Debug.Log($"Build success: {summary.totalSize / 1024 / 1024} MB, {summary.outputPath}");
-                return true;
+                // 统一将项目根相对路径（./ 前缀）或非根路径转为绝对路径，BuildPipeline.BuildPlayer 需要绝对路径
+                if (!string.IsNullOrWhiteSpace(locationPathName) && !Path.IsPathRooted(locationPathName))
+                {
+                    locationPathName = Path.GetFullPath(Path.Combine(Application.dataPath, "..", locationPathName));
+                }
+
+                BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
+                {
+                    scenes = EditorBuildSettings.scenes.Select(scene => scene.path).ToArray(),
+                    locationPathName = locationPathName,
+                    targetGroup = buildTargetGroup,
+                    target = buildTarget,
+                    options = BuildOptions.None
+                };
+                var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+                BuildSummary summary = report.summary;
+                if (summary.result == BuildResult.Succeeded)
+                {
+                    Debug.Log($"Build success: {summary.totalSize / 1024 / 1024} MB, {summary.outputPath}");
+                    return true;
+                }
+                else
+                {
+                    Debug.LogError($"Build Failed: {summary.result}");
+                    return false;
+                }
             }
-            else
+            finally
             {
-                Debug.LogError($"Build Failed: {summary.result}");
-                return false;
+                EditorUserBuildSettings.standaloneBuildSubtarget = prevSubtarget;
             }
         }
 

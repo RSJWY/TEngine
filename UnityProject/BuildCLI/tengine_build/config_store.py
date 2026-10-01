@@ -94,6 +94,9 @@ class BuildFormState:
     buildPlayer: bool = False
     playerPlatform: str = "StandaloneWindows64"
     playerOutputPath: str = ""
+    # Standalone 构建子目标（"Server"=专用服务器，"Player"=普通客户端，""=默认）
+    # Unity 6+ 通过 EditorUserBuildSettings.standaloneBuildSubtarget 设置
+    subtarget: str = ""
     # InnoSetup 安装包（action=buildInstaller，或 action=build 勾选 buildInstaller 串联）
     buildInstaller: bool = False
     installerVersion: str = ""

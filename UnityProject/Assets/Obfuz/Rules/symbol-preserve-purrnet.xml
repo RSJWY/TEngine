@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<obfuz>
+  <assembly name="GameLogic">
+    <type name="*">
+      <!-- PurrNet ILPP 生成的 RPC 句柄方法，混淆会导致网络收发失败 -->
+      <method name="HandleRPCGenerated_*" obName="false" />
+      <method name="_Original_*" obName="false" />
+      <method name="RPCGenerated_*" obName="false" />
+    </type>
+  </assembly>
+</obfuz>
