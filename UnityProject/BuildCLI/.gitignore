@@ -11,3 +11,6 @@ logs/*
 
 # 预设中的会话快照（随机器状态，不提交）
 presets/_last_session.json
+
+# 构建请求快照（每次构建会重写，不提交）
+build_request.json
