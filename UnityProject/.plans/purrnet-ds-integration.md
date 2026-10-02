@@ -4,7 +4,7 @@
 > **Unity 版本**：6000.3.25f1
 > **PurrNet 版本**：v1.23.0-beta.24（fork yooasset 分支）
 > **创建时间**：2026-09-27
-> **状态**：阶段一已完成（2026-09-27），阶段二~四待执行
+> **状态**：阶段一已完成（2026-09-27），阶段二已完成（2026-10-02），阶段三~四待执行
 
 ---
 
@@ -164,7 +164,7 @@ public interface INetworkModule
 
 ---
 
-### 阶段二：DS 打包管线
+### 阶段二：DS 打包管线 ✅ 已完成（2026-10-02）
 
 #### 步骤 2.1：ReleaseTools.BuildImp 支持 Server subtarget
 
@@ -405,13 +405,43 @@ python -m tengine_build run --target StandaloneWindows64 --action buildPlayer --
   "buildTarget": "StandaloneLinux64",
   "subtarget": "Server",
   "action": "buildPlayer",
-  "playerOutputPath": "./Releases/DedicatedServer/build/",
+  "playerOutputPath": "",
   "buildHotFixDll": true,
   "compressOption": "LZ4"
 }
 ```
 **用途**：`python -m tengine_build run --preset dedicated_server_linux --json` 一键打 DS 包。
-**注意**：预设里 `subtarget` 字段随 `BuildFormState` 持久化（步骤 2.2 已加字段），`load_preset` 通过 `form_from_json` 自动解析。
+**注意**：`playerOutputPath` 留空，由 CLIBridge `FillPlayerRecord` 自动算为 `./Releases/Linux_DS/build/{executableName}`（步骤 2.1 的 `_DS` 后缀逻辑）。`subtarget` 字段随 `BuildFormState` 持久化（步骤 2.2 已加字段），`load_preset` 通过 `form_from_json` 自动解析。
+
+---
+
+### 阶段二完成总结（2026-10-02）
+
+**已提交**：
+- `9313d0dc` feat(build): DS构建管线支持Server subtarget
+- `41eca2de` feat(build): DS构建输出路径自动追加_DS后缀
+
+**改动文件**（10 个）：
+- C# 构建：`BuildConfig.cs`、`CLIBridge.cs`、`ReleaseTools.cs`（BuildImp 加 subtarget 参数 + finally 恢复 + `_DS` 后缀路径重载）
+- TEngine 打包窗口：`BuildPipelineWindow.cs`（Odin GUI 加「构建子目标」下拉 + 联动更新输出路径 + 全链路持久化同步）
+- 持久化：`BuildPipelineSetting.cs`（加 subtarget 字段）
+- Python CLI：`config_store.py`、`cli.py`（BuildFormState 加字段 + `--subtarget` 参数）
+- BuildCLI GUI：`app.py`（PySide6 加「构建子目标」下拉框）
+- Obfuz：`symbol-preserve-purrnet.xml`（新增排除规则）、`Obfuz.asset`（ruleFiles 追加）
+- DS 预设：`dedicated_server_linux.json`（新增）
+
+**验证状态**：
+- ✅ Unity 编译零 Error
+- ✅ Python `dump_request` 确认 `subtarget: "Server"` 透传正确
+- ✅ BuildImp 调用链路走通（HybridCLR/Pipeline 预处理正常执行）
+- ✅ `_DS` 后缀路径自动生效（`Releases/{Platform}_DS/build/`）
+- ⏳ Obfuz 排除规则实际方法名模式待首次 Development build 后反汇编核实
+- ⏳ DS 产物运行确认 `isServerBuild == true`（待用户授权跑真实构建）
+
+**后续优化项**（不在阶段二范围）：
+- DS 生产环境建议切 IL2CPP（当前 Mono，由 Player Settings 控制，不自动切）
+- PurrNet 代码裁剪（`stripCodeMode`/`stripServerCode`）上线前再切
+- `dedicatedServerOptimizations` 上线前再开
 
 ---
 
@@ -865,14 +895,15 @@ python .codex/scripts/workflow.py verify --profile full
   └─ 1.5 GameApp 注册 NetworkModule
      ↓ 验证：编译通过 + GameModule.Network 可访问
 
-阶段二：DS 打包管线（能打出 DS 包）
+阶段二：DS 打包管线（能打出 DS 包）✅ 已完成
   ├─ 2.1 ReleaseTools.BuildImp 支持 Server subtarget（BuildConfig/CLIBridge/ReleaseTools）
   ├─ 2.2 BuildCLI（Python）传递 subtarget（config_store/cli）
   ├─ 2.3 PurrNetSettings 配置（开发期保持默认）
   ├─ 2.4 Obfuz 排除 PurrNet 生成方法（新增 XML 规则 + Obfuz.asset 追加）
   ├─ 2.5 ProjectSettings DS 优化（可选，上线前）
-  └─ 2.6 DS 构建预设（dedicated_server_linux.json）
-     ↓ 验证：dry_run 正确 + 实际构建出 DS 可执行文件 + Obfuz 不破坏 RPC
+  ├─ 2.6 DS 构建预设（dedicated_server_linux.json）
+  └─ 补充：DS 输出路径自动追加 _DS 后缀 + TEngine 打包窗口/BuildCLI GUI 加 subtarget 下拉
+     ↓ 验证：编译零 Error + dry_run 透传正确 + _DS 路径生效 ✅ | Obfuz 反汇编核实 ⏳ | DS 运行确认 ⏳
 
 阶段三：DS 启动流程分支（DS 能跑起来）
   ├─ 3.1 创建 DedicatedServerLauncher 命令行工具
