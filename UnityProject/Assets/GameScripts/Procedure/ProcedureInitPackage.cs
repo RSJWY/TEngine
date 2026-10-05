@@ -76,7 +76,10 @@ namespace Procedure
                 }
                 else if (playMode == EPlayMode.HostPlayMode || playMode == EPlayMode.WebPlayMode)
                 {
-                    LauncherMgr.ShowUI<LoadUpdateUI>();
+                    if (!Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+                    {
+                        LauncherMgr.ShowUI<LoadUpdateUI>();
+                    }
                     Log.Info("Updatable resource mode detected.");
                     ChangeState<ProcedureInitResources>(procedureOwner);
                 }
@@ -93,9 +96,17 @@ namespace Procedure
 
         private void OnInitPackageFailed(ProcedureOwner procedureOwner, string packageName, string message)
         {
-            LauncherMgr.ShowUI<LoadUpdateUI>();
-
             Log.Error($"{packageName} init failed: {message}");
+
+            // DS 模式：无 UI 可用，直接退出
+            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+            {
+                Log.Fatal($"[ProcedureInitPackage] DS 资源包初始化失败，退出。包名：{packageName}，原因：{message}");
+                Application.Quit(1);
+                return;
+            }
+
+            LauncherMgr.ShowUI<LoadUpdateUI>();
             LauncherMgr.ShowUI<LoadUpdateUI>("资源初始化失败！");
 
             if (message.Contains($"PackageManifest_{packageName}.version Error : HTTP/1.1 404 Not Found"))
@@ -110,6 +121,11 @@ namespace Procedure
 
         private void Retry(ProcedureOwner procedureOwner)
         {
+            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+            {
+                InitPackage(procedureOwner).Forget();
+                return;
+            }
             LauncherMgr.ShowUI<LoadUpdateUI>("重新初始化资源中...");
             InitPackage(procedureOwner).Forget();
         }
