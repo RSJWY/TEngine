@@ -608,6 +608,14 @@ namespace TEngine
                 case RuntimePlatform.WindowsPlayer:
                     return "Windows64";
 
+                // DS 构建平台：复用对应桌面平台资源（DS 包资源结构同 Player）
+                case RuntimePlatform.WindowsServer:
+                    return "Windows64";
+                case RuntimePlatform.LinuxServer:
+                    return "Linux";
+                case RuntimePlatform.OSXServer:
+                    return "MacOS";
+
                 case RuntimePlatform.OSXEditor:
                 case RuntimePlatform.OSXPlayer:
                     return "MacOS";

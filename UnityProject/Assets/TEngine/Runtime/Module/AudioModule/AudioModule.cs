@@ -322,7 +322,14 @@ namespace TEngine
         public override void OnInit()
         {
             _resourceModule = ModuleSystem.GetModule<IResourceModule>();
+#if UNITY_SERVER && !UNITY_EDITOR
+            // DS 构建剥离音频模块，AudioMixer/FindMatchingGroups 不可用，跳过初始化避免崩溃
+            // 客户端流程也不应调用 PlaySound/StopSound，DS 下 AudioModule 仅作空桩
+            Log.Warning("[AudioModule] Dedicated Server 模式，跳过音频初始化（音频模块被剥离）。");
+            return;
+#else
             Initialize(Settings.AudioSetting.audioGroupConfigs);
+#endif
         }
 
         public override void Shutdown()

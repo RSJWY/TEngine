@@ -846,6 +846,12 @@ namespace TEngine
                 {
                     EditorUserBuildSettings.standaloneBuildSubtarget = st;
                     Debug.Log($"[BuildImp] 设置 standaloneBuildSubtarget = {st}");
+
+                    // DS 构建提醒：Debugger 组件依赖 IMGUI 模块，DS 包会剥离 IMGUI 导致运行时崩溃
+                    if (st == StandaloneBuildSubtarget.Server)
+                    {
+                        WarnDedicatedServerDebuggerConflict();
+                    }
                 }
 
                 EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
@@ -881,6 +887,52 @@ namespace TEngine
             finally
             {
                 EditorUserBuildSettings.standaloneBuildSubtarget = prevSubtarget;
+            }
+        }
+
+        /// <summary>
+        /// DS 构建前检测 EditorBuildSettings 场景里是否挂了 TEngine.Debugger 组件。
+        /// Debugger 依赖 IMGUI 模块，DS 包会剥离 IMGUI，运行时 Awake 调 new TextEditor() 会崩溃。
+        /// 提醒用户在场景里禁用或移除 Debugger 组件（Log 系统不受影响，走 DebuggerModule）。
+        /// </summary>
+        private static void WarnDedicatedServerDebuggerConflict()
+        {
+            const string DEBUGGER_TYPENAME = "TEngine.Debugger";
+            var conflictScenes = new List<string>();
+            foreach (var entry in EditorBuildSettings.scenes.Where(s => s.enabled))
+            {
+                if (string.IsNullOrEmpty(entry.path) || entry.path.EndsWith(".unity") == false)
+                {
+                    continue;
+                }
+
+                // 用 OpenScene 加载检测，避免修改场景文件
+                var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(entry.path, UnityEditor.SceneManagement.OpenSceneMode.Additive);
+                try
+                {
+                    var debuggerType = System.Type.GetType(DEBUGGER_TYPENAME + ", TEngine.Runtime");
+                    if (debuggerType != null)
+                    {
+                        var found = UnityEngine.Object.FindObjectsByType(debuggerType, FindObjectsSortMode.None);
+                        if (found != null && found.Length > 0)
+                        {
+                            conflictScenes.Add(entry.path);
+                        }
+                    }
+                }
+                finally
+                {
+                    UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+                }
+            }
+
+            if (conflictScenes.Count > 0)
+            {
+                Debug.LogWarning(
+                    "[BuildImp] 检测到以下场景挂载了 TEngine.Debugger 组件，DS 构建会剥离 IMGUI 模块，" +
+                    "Debugger.Awake 调用 new TextEditor() 会导致 DS 包运行时崩溃。\n" +
+                    $"冲突场景：{string.Join(", ", conflictScenes)}\n" +
+                    "请在场景中禁用或移除 Debugger 组件后重新构建（Log 系统不受影响，走 DebuggerModule）。");
             }
         }
 

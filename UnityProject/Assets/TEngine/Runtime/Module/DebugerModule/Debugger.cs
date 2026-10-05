@@ -94,13 +94,9 @@ namespace TEngine
         /// </summary>
         public bool ActiveWindow
         {
-            get => _debuggerModule != null && _debuggerModule.ActiveWindow;
+            get => _debuggerModule.ActiveWindow;
             set
             {
-                if (_debuggerModule == null)
-                {
-                    return;
-                }
                 _debuggerModule.ActiveWindow = value;
                 enabled = value;
             }
@@ -177,12 +173,9 @@ namespace TEngine
         void Awake()
         {
             _instance = this;
-            _instance.gameObject.name = $"[{nameof(Debugger)}]";
-#if !UNITY_SERVER
-            // IMGUI 模块在 DS 构建被剥离，TextEditor 构造会调 GUIUtility.pixelsPerPoint 导致崩溃
             s_TextEditor = new TextEditor();
+            _instance.gameObject.name = $"[{nameof(Debugger)}]";
             _eventSystem = GameObject.Find("UIRoot/EventSystem");
-#endif
         }
 
         private void OnDestroy()
@@ -212,7 +205,6 @@ namespace TEngine
             _windowRect = new Rect(lastWindowX, lastWindowY, lastWindowWidth, lastWindowHeight);
         }
 
-#if !UNITY_SERVER
         private void Start()
         {
             Initialize();
@@ -249,7 +241,6 @@ namespace TEngine
 
             ApplyActiveWindowType(activeWindow);
         }
-#endif
 
         /// <summary>
         /// 按激活策略设置调试器窗口是否激活。
@@ -259,10 +250,7 @@ namespace TEngine
         public void ApplyActiveWindowType(DebuggerActiveWindowType type)
         {
             activeWindow = type;
-#if UNITY_SERVER
-            // DS 模式不激活调试窗口（IMGUI 模块被剥离，调试器不可用）
-            return;
-#else
+
             switch (type)
             {
                 case DebuggerActiveWindowType.AlwaysOpen:
@@ -281,10 +269,8 @@ namespace TEngine
                     ActiveWindow = false;
                     break;
             }
-#endif
         }
 
-#if !UNITY_SERVER
         private void Update()
         {
             _fpsCounter.Update(Time.deltaTime, Time.unscaledDeltaTime);
@@ -310,9 +296,7 @@ namespace TEngine
                 }
             }
         }
-#endif
 
-#if !UNITY_SERVER
         private void OnGUI()
         {
             if (_debuggerModule == null || !_debuggerModule.ActiveWindow)
@@ -338,7 +322,6 @@ namespace TEngine
             GUI.matrix = cachedMatrix;
             GUI.skin = cachedGuiSkin;
         }
-#endif
 
         /// <summary>
         /// 注册调试器窗口。
@@ -410,15 +393,12 @@ namespace TEngine
             _consoleWindow.GetRecentLogs(results, count);
         }
 
-#if !UNITY_SERVER
         private void DrawWindow(int windowId)
         {
             GUI.DragWindow(_dragRect);
             DrawDebuggerWindowGroup(_debuggerModule.DebuggerWindowRoot);
         }
-#endif
 
-#if !UNITY_SERVER
         private void DrawDebuggerWindowGroup(IDebuggerWindowGroup debuggerWindowGroup)
         {
             if (debuggerWindowGroup == null)
@@ -465,9 +445,7 @@ namespace TEngine
 
             debuggerWindowGroup?.SelectedWindow?.OnDraw();
         }
-#endif
 
-#if !UNITY_SERVER
         private void DrawDebuggerWindowIcon(int windowId)
         {
             GUI.DragWindow(_dragRect);
@@ -497,9 +475,7 @@ namespace TEngine
                 ShowFullWindow = true;
             }
         }
-#endif
 
-#if !UNITY_SERVER
         private static void CopyToClipboard(string content)
         {
             s_TextEditor.text = content;
@@ -507,6 +483,5 @@ namespace TEngine
             s_TextEditor.Copy();
             s_TextEditor.text = string.Empty;
         }
-#endif
     }
 }
