@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using Launcher;
+using TEngine;
+using UnityEngine;
 using ProcedureOwner = TEngine.IFsm<TEngine.IProcedureModule>;
 
 namespace Procedure
@@ -13,6 +15,13 @@ namespace Procedure
         protected override void OnUpdate(ProcedureOwner procedureOwner, float elapseSeconds, float realElapseSeconds)
         {
             base.OnUpdate(procedureOwner, elapseSeconds, realElapseSeconds);
+
+            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+            {
+                // DS 模式跳过 Splash 动画，仅留日志便于未来扩展
+                Log.Info("[ProcedureSplash] Dedicated Server 模式，跳过 Splash。");
+            }
+
             // 播放 Splash 动画
             //Splash.Active(splashTime:3f);
             //初始化资源包

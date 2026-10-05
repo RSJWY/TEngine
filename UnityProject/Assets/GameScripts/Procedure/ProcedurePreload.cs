@@ -44,6 +44,14 @@ namespace Procedure
 
             _loadedFlag.Clear();
 
+            // DS 模式：跳过加载 UI 显示，仍执行预加载（PRELOAD 标签的配置资产）
+            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+            {
+                Log.Info("[ProcedurePreload] Dedicated Server 模式，跳过加载 UI 显示，仍执行预加载。");
+                PreloadResources();
+                return;
+            }
+
             LauncherMgr.ShowUI<LoadUpdateUI>(Utility.Text.Format(LoadText.Instance.Label_Load_Load_Progress, 0));
 
             GameEvent.Send("UILoadUpdate.RefreshVersion");
@@ -55,9 +63,30 @@ namespace Procedure
         {
             base.OnUpdate(procedureOwner, elapseSeconds, realElapseSeconds);
 
-            var totalCount = _loadedFlag.Count <= 0 ? 1 : _loadedFlag.Count;
+            // DS 模式：跳过 UI 进度刷新，但仍按加载完成度进入 LoadAssembly
+            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+            {
+                var totalCount = _loadedFlag.Count <= 0 ? 1 : _loadedFlag.Count;
+                var loadCount = _loadedFlag.Count <= 0 ? 1 : 0;
+                foreach (KeyValuePair<string, bool> loadedFlag in _loadedFlag)
+                {
+                    if (!loadedFlag.Value)
+                    {
+                        break;
+                    }
+                    loadCount++;
+                }
+                if (loadCount < totalCount)
+                {
+                    return;
+                }
+                ChangeProcedureToLoadAssembly();
+                return;
+            }
 
-            var loadCount = _loadedFlag.Count <= 0 ? 1 : 0;
+            var totalCountClient = _loadedFlag.Count <= 0 ? 1 : _loadedFlag.Count;
+
+            var loadCountClient = _loadedFlag.Count <= 0 ? 1 : 0;
 
             foreach (KeyValuePair<string, bool> loadedFlag in _loadedFlag)
             {
@@ -67,13 +96,13 @@ namespace Procedure
                 }
                 else
                 {
-                    loadCount++;
+                    loadCountClient++;
                 }
             }
 
             if (_loadedFlag.Count != 0)
             {
-                LauncherMgr.ShowUI<LoadUpdateUI>(Utility.Text.Format(LoadText.Instance.Label_Load_Load_Progress, (float)loadCount / totalCount * 100));
+                LauncherMgr.ShowUI<LoadUpdateUI>(Utility.Text.Format(LoadText.Instance.Label_Load_Load_Progress, (float)loadCountClient / totalCountClient * 100));
             }
             else
             {
@@ -91,7 +120,7 @@ namespace Procedure
                 }
             }
 
-            if (loadCount < totalCount)
+            if (loadCountClient < totalCountClient)
             {
                 return;
             }

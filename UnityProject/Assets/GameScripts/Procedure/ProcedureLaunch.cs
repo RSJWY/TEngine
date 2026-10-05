@@ -27,7 +27,33 @@ namespace Procedure
         protected override void OnEnter(ProcedureOwner procedureOwner)
         {
             base.OnEnter(procedureOwner);
-            
+
+            // DS 模式：跳过客户端 UI/语言/声音初始化，保留 Obfuz/多开/DeployConfig
+            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+            {
+                Log.Info("[ProcedureLaunch] Dedicated Server 模式，跳过客户端 UI 初始化。");
+
+#if ENABLE_OBFUZ && !UNITY_EDITOR
+                // Obfuz 静态密钥在 AfterAssembliesLoaded 已尝试初始化；DS 包同样运行混淆 DLL，此处报告失败并阻断流程。
+                if (ObfuzRuntimeInitializer.CheckFailureAndReport())
+                {
+                    return;
+                }
+#endif
+
+                // 桌面多开：DS 同机多实例部署会用 --yoo-instance
+                string dsInstanceId = MultiInstanceLauncher.ResolveInstanceId();
+                if (!string.IsNullOrEmpty(dsInstanceId))
+                {
+                    _resourceModule.InstanceId = dsInstanceId;
+                    Log.Info($"桌面多开实例标识：{dsInstanceId}，资源缓存将隔离到 instance-{dsInstanceId} 目录。");
+                }
+
+                // DS 仍需读取服务器地址/端口配置（DeployConfig）
+                LoadDeployConfigAsync().Forget();
+                return;
+            }
+
             //热更新UI初始化
             LauncherMgr.Initialize();
 
