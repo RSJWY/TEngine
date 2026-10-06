@@ -1,0 +1,23 @@
+﻿<Solution>
+  <Project Path="TEngine.Runtime.csproj" />
+  <Project Path="Obfuz.Editor.csproj" />
+  <Project Path="HybridCLR.Editor.csproj" />
+  <Project Path="TEngine.Editor.csproj" />
+  <Project Path="Unity.Pipeline.csproj" />
+  <Project Path="GameLogic.csproj" />
+  <Project Path="Unity.Pipeline.Editor.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="Unity.Pipeline.CodeGen.csproj" />
+  <Project Path="Assembly-CSharp-firstpass.csproj" />
+  <Project Path="Obfuz.Runtime.csproj" />
+  <Project Path="TEngine.CryptoKeys.Editor.csproj" />
+  <Project Path="Launcher.csproj" />
+  <Project Path="HybridCLR.Runtime.csproj" />
+  <Project Path="Assembly-CSharp-Editor-firstpass.csproj" />
+  <Project Path="GameProto.csproj" />
+  <Project Path="TEngine.CryptoKeys.csproj" />
+  <Project Path="YooAsset.Custom.Editor.csproj" />
+  <Project Path="RuntimeTools.csproj" />
+  <Project Path="Sirenix.OdinInspector.Modules.UnityMathematics.csproj" />
+</Solution>
