@@ -8,4 +8,4 @@ FallbackResDownloadPath = "http://127.0.0.1:80/ProjectHotupdate"
 
 # 调试器激活策略：
 # AlwaysOpen / OnlyOpenWhenDevelopment / OnlyOpenInEditor / AlwaysClose
-DebuggerActiveWindow = "OnlyOpenWhenDevelopment"
+DebuggerActiveWindow = "AlwaysClose"

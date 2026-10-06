@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   buildPipelineSettings:
-    enable: 1
+    enable: 0
     linkXmlProcessCallbackOrder: 10000
     obfuscationProcessCallbackOrder: 10000
   compatibilitySettings:

@@ -3,6 +3,7 @@
         "DOTween.dll",
         "Nino.Core.dll",
         "Obfuz.Runtime.dll",
+        "PurrNet.Runtime.dll",
         "RuntimeTools.dll",
         "System.Core.dll",
         "System.Runtime.CompilerServices.Unsafe.dll",

@@ -22,3 +22,10 @@ MonoBehaviour:
     ChineseName: "UI\u573A\u666F"
     Active: 1
     DisplayName: "\u4E3BUI\u5E38\u9A7B\u7A7A\u573A\u666F"
+  - SceneAsset: {fileID: 102900000, guid: 7a9c3a34e7e3712408a7e05530465ad4, type: 3}
+    EnumValue: 1
+    SceneGuid: 7a9c3a34e7e3712408a7e05530465ad4
+    EnumName: dedicated_server
+    ChineseName: 
+    Active: 1
+    DisplayName: dedicated_server

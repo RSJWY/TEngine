@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   projectName: hotUnitydemo
   companyName: DefaultCompany
-  GeneratePdb: 0
+  GeneratePdb: 1
   HotUpdateAssemblies:
   - GameProto.dll
   - GameLogic.dll

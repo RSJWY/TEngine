@@ -35,7 +35,8 @@ MonoBehaviour:
   BuildHotFixDll: 1
   BuildPlayer: 1
   PlayerPlatform: 19
-  PlayerOutputPath: .\Releases\Windows\build\hotUnitydemo.exe
+  PlayerOutputPath: ./Releases/Windows_DS/build/hotUnitydemo.exe
+  subtarget: Server
   BuildInstaller: 1
   InstallerPlatform: 19
   InstallerVersion: 
