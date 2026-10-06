@@ -32,7 +32,17 @@ namespace Procedure
             _usedLocalPackageVersion = false;
             _handledLocalPackageVersionNotice = false;
             _needDownloadCheck = false;
-            LauncherMgr.ShowUI<LoadUpdateUI>("初始化资源中...");
+
+            // DS 模式：跳过加载 UI 显示（LauncherMgr 未初始化，m_uiRoot 为空），仍执行资源初始化
+            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+            {
+                Log.Info("[ProcedureInitResources] Dedicated Server 模式，跳过加载 UI 显示，仍执行资源初始化。");
+            }
+            else
+            {
+                LauncherMgr.ShowUI<LoadUpdateUI>("初始化资源中...");
+            }
+
             InitResources(procedureOwner).Forget();
         }
 
@@ -96,7 +106,12 @@ namespace Procedure
                     continue;
                 }
 
-                LauncherMgr.ShowUI<LoadUpdateUI>($"更新清单文件...({runtimePackage.PackageName})");
+                // DS 模式：跳过加载 UI 显示（LauncherMgr 未初始化）
+                if (!Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+                {
+                    LauncherMgr.ShowUI<LoadUpdateUI>($"更新清单文件...({runtimePackage.PackageName})");
+                }
+
                 Log.Info($"请求资源包版本：{runtimePackage.PackageName}");
 
                 var savedVersion = updatablePlayMode ? GetLocalPackageVersion(runtimePackage) : string.Empty;
@@ -202,6 +217,15 @@ namespace Procedure
                         {
                             string errorMessage = $"资源模式不匹配！\n\n包名：{runtimePackage.PackageName}\nExe 模式：{exeBuildMode}\n资源包模式：{metadata.mode}\n\n请使用匹配的资源包，或重新构建 Exe。";
                             Log.Error(errorMessage);
+
+                            // DS 模式：无 UI 可用，直接退出
+                            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+                            {
+                                Log.Fatal($"[ProcedureInitResources] DS 资源模式不匹配，退出。包名：{runtimePackage.PackageName}，Exe 模式：{exeBuildMode}，资源包模式：{metadata.mode}");
+                                Application.Quit(1);
+                                return;
+                            }
+
                             LauncherMgr.ShowMessageBox(errorMessage, Application.Quit);
                             return;
                         }
@@ -287,6 +311,15 @@ namespace Procedure
         private void OnInitResourcesError(ProcedureOwner procedureOwner, string packageName, string message)
         {
             Log.Error(message);
+
+            // DS 模式：无 UI 可用，直接退出
+            if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+            {
+                Log.Fatal($"[ProcedureInitResources] DS 资源初始化失败，退出。包名：{packageName}，原因：{message}");
+                Application.Quit(1);
+                return;
+            }
+
             LauncherMgr.ShowMessageBox($"初始化资源失败！点击确定重试\n包名：{packageName}\n<color=#FF0000>{message}</color>",
                 () => { RetryInitResources(procedureOwner); }, Application.Quit);
         }
