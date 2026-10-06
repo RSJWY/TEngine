@@ -272,6 +272,62 @@ private static void StartDedicatedServer()
 
 ---
 
+### 步骤 3.7：`ProcedureInitResources.cs` 加 DS 分支（补漏）
+
+**文件**：`Assets/GameScripts/Procedure/ProcedureInitResources.cs`
+
+**背景**：阶段三初版计划漏列此文件。`ProcedureInitResources.OnEnter` 第 35 行无条件调用 `LauncherMgr.ShowUI<LoadUpdateUI>("初始化资源中...")`，而 DS 模式下 `ProcedureLaunch` 的 DS 分支已跳过 `LauncherMgr.Initialize()`，`m_uiRoot` 保持为 null。`LauncherMgr.ShowUI` 内部 `Object.Instantiate(obj)` 后调用 `uiWindow.transform.SetParent(m_uiRoot.transform)` 时抛 `NullReferenceException`，被 `ProcedureInitPackage.InitPackage` 的 catch 块捕获，以 `OnInitPackageFailed` 报"DefaultPackage init failed: Object reference not set to an instance of an object"退出。日志见 `Logs/2026-10-06/0000.log`。
+
+**改动点（4 处）**：
+
+1. **`OnEnter`**（原第 35 行）：`LauncherMgr.ShowUI<LoadUpdateUI>("初始化资源中...")` 加 DS 守卫
+```csharp
+if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+{
+    Log.Info("[ProcedureInitResources] Dedicated Server 模式，跳过加载 UI 显示，仍执行资源初始化。");
+}
+else
+{
+    LauncherMgr.ShowUI<LoadUpdateUI>("初始化资源中...");
+}
+```
+
+2. **`InitResources` 循环内**（原第 99 行）：`LauncherMgr.ShowUI<LoadUpdateUI>($"更新清单文件...")` 加 DS 守卫
+```csharp
+if (!Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+{
+    LauncherMgr.ShowUI<LoadUpdateUI>($"更新清单文件...({runtimePackage.PackageName})");
+}
+```
+
+3. **`InitResources` 内资源模式不匹配分支**（原第 205 行）：`LauncherMgr.ShowMessageBox(errorMessage, Application.Quit)` 加 DS 守卫
+```csharp
+if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+{
+    Log.Fatal($"[ProcedureInitResources] DS 资源模式不匹配，退出。...");
+    Application.Quit(1);
+    return;
+}
+LauncherMgr.ShowMessageBox(errorMessage, Application.Quit);
+```
+
+4. **`OnInitResourcesError`**（原第 287 行）：`LauncherMgr.ShowMessageBox` 加 DS 守卫，参考 `ProcedureInitPackage.OnInitPackageFailed` 的 DS 分支
+```csharp
+if (Launcher.DedicatedServerLauncher.IsDedicatedServerBuild)
+{
+    Log.Fatal($"[ProcedureInitResources] DS 资源初始化失败，退出。包名：{packageName}，原因：{message}");
+    Application.Quit(1);
+    return;
+}
+LauncherMgr.ShowMessageBox(...);
+```
+
+**保留项**：DS 仍执行 `InitResources` 资源清单加载逻辑（OfflinePlayMode 走本地清单加载分支，不触网，无 UI 依赖）。
+
+**未改（HostPlay/WebPlay 专属路径）**：`ConfirmPackageVersion`（第 221 行）、`HandleLocalPackageVersionFallback`（第 304 行）的 `ShowMessageBox` 仅在可更新模式下触发，DS 当前固定走 OfflinePlayMode，按最小改动原则暂不加守卫；若未来 DS 切到 HostPlay 再补。
+
+---
+
 ### 步骤 3.6：新建 DS 场景 + EditorBuildSettings（unitycli + MCP）
 
 **新增场景**：`Assets/Scenes/dedicated_server.unity`
@@ -331,6 +387,7 @@ private static void StartDedicatedServer()
 | `Assets/GameScripts/Procedure/ProcedureLaunch.cs` | 3.2 | OnEnter 加 DS 分支 |
 | `Assets/GameScripts/Procedure/ProcedureSplash.cs` | 3.3 | OnUpdate 加 DS 分支（仅日志） |
 | `Assets/GameScripts/Procedure/ProcedurePreload.cs` | 3.4 | OnEnter + OnUpdate 加 DS 分支 |
+| `Assets/GameScripts/Procedure/ProcedureInitResources.cs` | 3.7（补漏） | OnEnter / InitResources 循环 / 模式不匹配 / OnInitResourcesError 加 DS 守卫 |
 | `Assets/GameScripts/HotFix/GameLogic/GameApp.cs` | 3.5 | StartGameLogic 加 DS 分支 + StartDedicatedServer |
 | `Assets/TEngine/Runtime/Module/ScreenModule/ScreenModule.cs` | 3.6b | OnInit 加 DS 保护（框架级改动，已授权） |
 | `ProjectSettings/EditorBuildSettings.asset` | 3.6 | 加入 dedicated_server.unity |
@@ -354,6 +411,7 @@ private static void StartDedicatedServer()
 | DS 走 OnUpdate 路径进 Splash | 是 | 保持 FSM 流程完整，不跨状态跳转 |
 | ProcedureSplash 显式加 DS 分支 | 是 | 仅日志，便于未来扩展 |
 | DS 仍执行 PreloadResources | 是 | 预加载 PRELOAD 标签的配置资产 |
+| ProcedureInitResources DS 守卫（补漏） | 是（4 处） | LauncherMgr 未初始化，所有 ShowUI/ShowMessageBox 必须加 DS 守卫，否则 NRE 退出（详见步骤 3.7） |
 | ProcedureLoadAssembly 必须执行 | 是 | 热更代码初始化不能跳过 |
 | DS 不调 Screen.ApplyAll | 是 | DS 无多屏布局需求 |
 | ScreenModule 模块仍注册 | 是 | 避免其他模块访问 GameModule.Screen 时 NRE |
@@ -414,6 +472,8 @@ python .codex/scripts/workflow.py verify --profile full
 3.3 ProcedureSplash DS 分支
   ↓
 3.4 ProcedurePreload DS 分支
+  ↓
+3.7 ProcedureInitResources DS 守卫（补漏，4 处）
   ↓
 3.5 GameApp.StartGameLogic DS 分支
   ↓

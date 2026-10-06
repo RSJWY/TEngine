@@ -993,3 +993,60 @@ PurrNet 通过 `StartFlags` 控制自动启动（源码 `NetworkManager.cs:1638-
 - [PurrNet 免费生态包详细报告](../conversation-summaries/code-research/2026-09-04-purrnet-03-免费生态包详细报告.md)
 - PurrNet 官方文档：https://purrnet.dev/docs
 - Unity 6 Dedicated Server 文档：https://docs.unity3d.com/6000.0/Documentation/Manual/dedicated-server.html
+
+---
+
+## 十、阶段三完成总结（2026-10-06）
+
+### 10.1 已实施改动
+
+| 文件 | 改动 |
+|---|---|
+| `Assets/Launcher/Scripts/DedicatedServerLauncher.cs` | 新增：DS 命令行解析工具（`IsDedicatedServerBuild` / `ResolveStartupScene` / `ResolveStartupSceneType` / `ResolvePort` / `ResolveAddress`），严格口径 `#if UNITY_SERVER && !UNITY_EDITOR` |
+| `Assets/GameScripts/Procedure/ProcedureLaunch.cs` | `OnEnter` 加 DS 分支：跳过 `LauncherMgr.Initialize()` / `InitLanguageSettings` / `InitSoundSettings`，保留 Obfuz 检查、`MultiInstanceLauncher`、`LoadDeployConfigAsync` |
+| `Assets/GameScripts/Procedure/ProcedureSplash.cs` | `OnUpdate` 加 DS 分支（仅日志） |
+| `Assets/GameScripts/Procedure/ProcedurePreload.cs` | `OnEnter` + `OnUpdate` 加 DS 分支：跳过加载 UI 显示，仍执行 `PreloadResources` |
+| `Assets/GameScripts/Procedure/ProcedureInitResources.cs` | **4 处 DS 守卫（补漏，原计划未列）**：`OnEnter` / `InitResources` 循环内 `ShowUI` / 资源模式不匹配分支 / `OnInitResourcesError` |
+| `Assets/GameScripts/HotFix/GameLogic/GameApp.cs` | `StartGameLogic` 加 DS 分支 + `StartDedicatedServer()`：按 `--scene-type` / `--scene` / fallback MainScene 加载，NM 启动交给业务 |
+| `Assets/AssetRaw/Scenes/dedicated_server.unity` | 新建 DS 场景（含 Camera / Directional Light / NetworkManager + Transport），后迁移至 `Assets/AssetRaw/Scenes/` 作为热更场景使用，`SceneEnumConfig` 已关联 |
+| `ProjectSettings/EditorBuildSettings.asset` | 加入 DS 场景 |
+
+### 10.2 关键修复（运行时验证）
+
+**问题**：首次 DS 构建运行报 `DefaultPackage init failed: Object reference not set to an instance of an object.` 退出。
+
+**根因**：阶段三初版计划漏列 `ProcedureInitResources.cs`。该状态 `OnEnter` 无条件调用 `LauncherMgr.ShowUI<LoadUpdateUI>("初始化资源中...")`，而 DS 模式下 `ProcedureLaunch` 的 DS 分支已跳过 `LauncherMgr.Initialize()`，`m_uiRoot` 保持为 null。`LauncherMgr.ShowUI` 内部 `uiWindow.transform.SetParent(m_uiRoot.transform)` 抛 NRE，被 `ProcedureInitPackage.InitPackage` 的 catch 块捕获后以 `OnInitPackageFailed` 报"DefaultPackage init failed"退出（包名误导，实际 NRE 在 `ProcedureInitResources`）。
+
+**修复**：给 `ProcedureInitResources.cs` 加 4 处 DS 守卫，所有 `LauncherMgr.ShowUI/ShowMessageBox` 在 DS 模式下跳过或走 `Log.Fatal` + `Application.Quit(1)`。
+
+**验证日志**：`Logs/2026-10-06/0000.log`（2026-10-06 09:00:22 启动段）：
+- `[ProcedureLaunch] Dedicated Server 模式，跳过客户端 UI 初始化` ✅
+- `[ProcedureInitResources] Dedicated Server 模式，跳过加载 UI 显示，仍执行资源初始化` ✅
+- `[ProcedurePreload] Dedicated Server 模式，跳过加载 UI 显示，仍执行预加载` ✅
+- 3 个资源包（DefaultPackage/CodePackage/RawFilePackage）初始化成功 ✅
+- 14 个 AOT 元数据加载全部 `Ret:OK` ✅
+- GameLogic.dll / GameProto.dll with PDB 加载成功 ✅
+- `======= 看到此条日志代表你成功运行了热更新代码 =======` ✅
+- `======= Dedicated Server 启动 =======` ✅
+- `[DS] 未指定启动场景，加载默认 MainScene` → MainScene 加载完成 ✅
+- `[DS] NetworkManager 启动由业务自行处理` ✅
+- `SpawnPointSceneSpawner: 加载完成，成功 1/1` ✅
+- **全程无 Error，DS 进程未退出** ✅
+
+### 10.3 次要事项（已记入本计划，阶段四或上线前处理）
+
+| # | 事项 | 现状 | 优先级 |
+|---|---|---|---|
+| 1 | `dedicated_server.unity` 中 `AsyncOperationMonitor` 组件序列化布局错误 | DS 包每次启动报 `different serialization layout` + `referenced script is missing`（Editor-only 类型被剥离），不阻塞启动但污染日志 | 中（清理场景组件） |
+| 2 | `GUISkin` 序列化布局错误 | 同上，Editor-only 字段在 DS 包被剥离，影响范围待查 | 低 |
+| 3 | `NetworkModule.OnInit` 未找到 NetworkManager | DS fallback 走 MainScene，场景里没挂 NM；DS 实际部署需在 `dedicated_server.unity` 预挂 NM + UDPTransport（含 `StartFlags.ServerBuild`） | 高（DS 实际联调时必做） |
+| 4 | 计划 3.6b 框架级改动 `ScreenModule.OnInit` DS 保护 | 本次运行未触发 `ScreenModule.OnInit` 报错（`Screen.ApplyAll` 在 DS 分支被跳过），但仍建议按计划完成框架级保护 | 低（防御性） |
+
+> 阶段三主目标（DS 构建产物能跑起来）已达成。上述次要事项不影响 DS 启动流程，可在阶段四或 DS 实际联调时一并处理。
+
+### 10.4 DS 场景迁移说明
+
+`dedicated_server.unity` 原位于 `Assets/Scenes/`（构建内置场景），现迁移至 `Assets/AssetRaw/Scenes/` 作为**热更场景**使用：
+- `SceneEnumConfig` 已关联该场景（用户已配置）
+- DS 启动时通过 `GameModule.GameScene.LoadScene(SceneType)` 或 `GameModule.Scene.LoadSceneAsync(location)` 加载
+- 作为热更场景后，DS 场景内容可随热更资源迭代，无需重新打主包
