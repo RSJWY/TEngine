@@ -92,7 +92,6 @@ class BuildFormState:
     buildHotFixDll: bool = True
     # Player
     buildPlayer: bool = False
-    playerPlatform: str = "StandaloneWindows64"
     playerOutputPath: str = ""
     # InnoSetup 安装包（action=buildInstaller，或 action=build 勾选 buildInstaller 串联）
     buildInstaller: bool = False
@@ -319,7 +318,6 @@ def load_form_from_build_pipeline_setting(project_dir: Path | None = None) -> Bu
     state.generateCatalogInOutput = bool(fields.get("GenerateCatalogInOutput", False))
     state.buildHotFixDll = bool(fields.get("BuildHotFixDll", True))
     state.buildPlayer = bool(fields.get("BuildPlayer", False))
-    state.playerPlatform = _map_build_target(fields.get("PlayerPlatform"))
     state.playerOutputPath = str(fields.get("PlayerOutputPath", "") or "")
     return state
 

@@ -81,7 +81,6 @@ namespace TEngine
             config.BuildTarget = BuildTarget.StandaloneWindows64;
             config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
-            config.PlayerPlatform = BuildTarget.StandaloneWindows64;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.StandaloneWindows64);
             BuildWithConfig(config, buildPlayer: true);
         }
@@ -93,7 +92,6 @@ namespace TEngine
             config.BuildTarget = BuildTarget.Android;
             config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
-            config.PlayerPlatform = BuildTarget.Android;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.Android);
             BuildWithConfig(config, buildPlayer: true);
         }
@@ -105,7 +103,6 @@ namespace TEngine
             config.BuildTarget = BuildTarget.iOS;
             config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
-            config.PlayerPlatform = BuildTarget.iOS;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.iOS);
             BuildWithConfig(config, buildPlayer: true);
         }
@@ -128,12 +125,6 @@ namespace TEngine
 
             if (config.BuildHotFixDll && runtimePackages.Any(runtimePackage => IsAssemblyPackage(runtimePackage.PackageName)))
             {
-                if ((buildPlayer || config.BuildPlayer) && config.PlayerPlatform != config.BuildTarget)
-                {
-                    Debug.LogError($"[BuildWithConfig] Player 平台 {config.PlayerPlatform} 与代码资源包平台 {config.BuildTarget} 不一致。");
-                    return false;
-                }
-
                 BuildDLLCommand.ActivateBuildTarget(config.BuildTarget);
             }
 
@@ -183,8 +174,8 @@ namespace TEngine
             if (buildPlayer || config.BuildPlayer)
             {
                 return BuildImp(
-                    BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
-                    config.PlayerPlatform,
+                    BuildConfig.GetBuildTargetGroup(config.BuildTarget),
+                    config.BuildTarget,
                     config.PlayerOutputPath
                 );
             }

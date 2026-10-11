@@ -53,8 +53,9 @@ namespace TEngine
         [TabGroup("Pages", "快速构建")]
         [BoxGroup("Pages/快速构建/基础设置")]
         [LabelText("目标平台")]
+        [Tooltip("资源包与 Player 的统一目标平台（Player 不再单独配置）")]
         [ValueDropdown(nameof(BuildTargetOptions))]
-        [OnValueChanged(nameof(OnSettingsChanged))]
+        [OnValueChanged(nameof(OnBuildTargetChanged))]
         [SerializeField]
         private BuildTarget _buildTarget;
 
@@ -340,15 +341,6 @@ namespace TEngine
 
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/Player 设置")]
-        [LabelText("Player平台")]
-        [ValueDropdown(nameof(BuildTargetOptions))]
-        [ShowIf(nameof(_buildPlayer))]
-        [OnValueChanged(nameof(OnPlayerPlatformChanged))]
-        [SerializeField]
-        private BuildTarget _playerPlatform;
-
-        [TabGroup("Pages", "发布与Player")]
-        [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("输出路径")]
         [InlineButton(nameof(ChoosePlayerOutputPath), "浏览")]
         [InlineButton(nameof(SyncPlayerOutputName), "同步名字")]
@@ -360,8 +352,8 @@ namespace TEngine
         private string _playerOutputPath = string.Empty;
 
         // ============ 安装包配置（独立 Tab，为后续 Linux 安装包留位） ============
-        // 平台选择：决定下方显示哪类安装包配置；与「发布与Player」的 Player 平台独立，
-        // 默认跟随当前 Player 平台，便于在 Windows 上独立配置 InnoSetup。
+        // 平台选择：决定下方显示哪类安装包配置；与 Player/资源包的目标平台（快速构建页）解耦，
+        // 便于在任意目标平台下独立配置 InnoSetup。
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/平台选择")]
         [LabelText("安装包平台")]
@@ -374,7 +366,7 @@ namespace TEngine
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [LabelText("构建安装包")]
         [ToggleLeft]
-        [ShowIf(nameof(IsWindowsPlayerPlatform))]
+        [ShowIf(nameof(IsWindowsInstallerPlatform))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _buildInstaller;
@@ -608,7 +600,7 @@ namespace TEngine
         }
 
         [ButtonGroup("构建/MainBuild")]
-        [Button("一键构建 (AB + Player)", ButtonSizes.Large)]
+        [Button("构建 AssetBundle + Player", ButtonSizes.Large)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         private void FullBuildButton()
         {
@@ -619,7 +611,7 @@ namespace TEngine
 
         // 安装包构建已与 Player 解耦,这里单独触发;仅 Windows 且勾选「构建安装包」时可用
         [ButtonGroup("构建/MainBuild")]
-        [Button("一键构建安装包", ButtonSizes.Medium)]
+        [Button("构建 AssetBundle + Player + 安装包", ButtonSizes.Medium)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         [EnableIf(nameof(IsInstallerEnabled))]
         private void MainBuildInstallerButton()
@@ -628,7 +620,7 @@ namespace TEngine
             var config = CreateConfig();
             var expectedPlayerPath = Path.GetFullPath(BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.StandaloneWindows64));
             var actualPlayerPath = Path.GetFullPath(ToAbsolutePath(config.PlayerOutputPath));
-            if (config.PlayerPlatform != BuildTarget.StandaloneWindows64 ||
+            if (config.BuildTarget != BuildTarget.StandaloneWindows64 ||
                 !actualPlayerPath.Equals(expectedPlayerPath, StringComparison.OrdinalIgnoreCase))
             {
                 AddLog($"[中断] 一键构建安装包要求 Windows Player 输出到：{expectedPlayerPath}\n当前输出：{actualPlayerPath}\n可点击 Player 输出路径旁的\"规范化路径\"后再试。");
@@ -648,7 +640,7 @@ namespace TEngine
 
         [TitleGroup("构建")]
         [ButtonGroup("构建/SubActions")]
-        [Button("构建 Player", ButtonSizes.Large)]
+        [Button("仅构建 Player", ButtonSizes.Large)]
         private void BuildPlayerButton()
         {
             SaveSettings();
@@ -1029,14 +1021,14 @@ namespace TEngine
             var config = CreateConfig();
             _buildLogs.Clear();
             AddLog("========== 仅构建 Player ==========");
-            AddLog($"平台: {config.PlayerPlatform} | 输出: {config.PlayerOutputPath}");
+            AddLog($"平台: {config.BuildTarget} | 输出: {config.PlayerOutputPath}");
 
             try
             {
                 Application.logMessageReceived += OnBuildLogReceived;
                 if (!ReleaseTools.BuildImp(
-                    BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
-                    config.PlayerPlatform,
+                    BuildConfig.GetBuildTargetGroup(config.BuildTarget),
+                    config.BuildTarget,
                     config.PlayerOutputPath
                 ))
                     throw new Exception("Player 构建失败。");
@@ -1230,11 +1222,8 @@ namespace TEngine
             _buildHotFixDll = setting.BuildHotFixDll;
             _buildPlayer = setting.BuildPlayer;
 
-            _playerPlatform = Array.IndexOf(PlatformTargets, setting.PlayerPlatform) >= 0
-                ? setting.PlayerPlatform
-                : GetActiveSupportedBuildTarget();
             _playerOutputPath = string.IsNullOrWhiteSpace(setting.PlayerOutputPath)
-                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform)
+                ? BuildConfig.GetDefaultPlayerOutputPath(_buildTarget)
                 : setting.PlayerOutputPath;
 
             _buildInstaller = setting.BuildInstaller;
@@ -1280,7 +1269,7 @@ namespace TEngine
                     normalizedPlayer.StartsWith(legacyPlayerBaseRel + "/", StringComparison.OrdinalIgnoreCase) ||
                     normalizedPlayer.StartsWith(legacyPlayerBaseV2Rel + "/", StringComparison.OrdinalIgnoreCase))
                 {
-                    _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+                    _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_buildTarget);
                     migratedLegacyPaths = true;
                 }
             }
@@ -1349,10 +1338,6 @@ namespace TEngine
             setting.BuildHotFixDll = EditorPrefs.GetBool("TEngine_BP_BuildDll", true);
             setting.BuildPlayer = EditorPrefs.GetBool("TEngine_BP_BuildPlayer", false);
 
-            var playerPlatformIndex = EditorPrefs.GetInt("TEngine_BP_PlayerPlatform", -1);
-            setting.PlayerPlatform = IsValidPlatformIndex(playerPlatformIndex)
-                ? PlatformTargets[playerPlatformIndex]
-                : defaultConfig.PlayerPlatform;
             setting.PlayerOutputPath = EditorPrefs.GetString("TEngine_BP_PlayerOutput", string.Empty);
         }
 
@@ -1403,7 +1388,7 @@ namespace TEngine
             }
 
             var currentName = Path.GetFileName(_playerOutputPath);
-            var newName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform));
+            var newName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(_buildTarget));
             if (string.Equals(currentName, newName, StringComparison.Ordinal))
             {
                 return false;
@@ -1419,7 +1404,7 @@ namespace TEngine
 
             var dir = Path.GetDirectoryName(_playerOutputPath);
             _playerOutputPath = string.IsNullOrWhiteSpace(dir)
-                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform)
+                ? BuildConfig.GetDefaultPlayerOutputPath(_buildTarget)
                 : Path.Combine(dir, newName);
             return true;
         }
@@ -1452,7 +1437,6 @@ namespace TEngine
             _setting.GenerateCatalogInOutput = _generateCatalogInOutput;
             _setting.BuildHotFixDll = _buildHotFixDll;
             _setting.BuildPlayer = _buildPlayer;
-            _setting.PlayerPlatform = _playerPlatform;
             _setting.PlayerOutputPath = _playerOutputPath;
             _setting.BuildInstaller = _buildInstaller;
             _setting.InstallerPlatform = _installerPlatform;
@@ -1494,10 +1478,10 @@ namespace TEngine
             Repaint();
         }
 
-        private void OnPlayerPlatformChanged()
+        private void OnBuildTargetChanged()
         {
-            // 切平台时重新生成输出路径，确保可执行文件名跟随当前平台与 productName
-            _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+            // 平台统一后 Player 跟随目标平台；切平台时重算默认输出路径，确保可执行文件名跟随当前平台与 productName
+            _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_buildTarget);
             OnSettingsChanged();
         }
 
@@ -1507,7 +1491,7 @@ namespace TEngine
         /// </summary>
         private void SyncPlayerOutputName()
         {
-            var defaultPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform);
+            var defaultPath = BuildConfig.GetDefaultPlayerOutputPath(_buildTarget);
             var newName = Path.GetFileName(defaultPath);
 
             if (string.IsNullOrWhiteSpace(_playerOutputPath))
@@ -1535,11 +1519,6 @@ namespace TEngine
             if (Array.IndexOf(PlatformTargets, _buildTarget) < 0)
             {
                 _buildTarget = GetActiveSupportedBuildTarget();
-            }
-
-            if (Array.IndexOf(PlatformTargets, _playerPlatform) < 0)
-            {
-                _playerPlatform = GetActiveSupportedBuildTarget();
             }
         }
 
@@ -1769,7 +1748,7 @@ namespace TEngine
 
             AddFlowStep(config.BuildPlayer,
                 "构建 Player",
-                $"平台 {config.PlayerPlatform} | 输出 {config.PlayerOutputPath}",
+                $"平台 {config.BuildTarget} | 输出 {config.PlayerOutputPath}",
                 "Player 构建未启用，跳过");
 
             // 安装包构建已与 Player 解耦:改由「安装包配置」tab 的「一键构建安装包」按钮单独触发
@@ -1842,7 +1821,6 @@ namespace TEngine
             _generateCatalogInOutput = config.GenerateCatalogInOutput;
             _buildHotFixDll = config.BuildHotFixDll;
             _buildPlayer = config.BuildPlayer;
-            _playerPlatform = config.PlayerPlatform;
             _playerOutputPath = config.PlayerOutputPath;
             _buildInstaller = config.BuildInstaller;
             _installerPlatform = config.InstallerPlatform;
@@ -1882,7 +1860,6 @@ namespace TEngine
                 GenerateCatalogInOutput = _generateCatalogInOutput,
                 BuildHotFixDll = _buildHotFixDll,
                 BuildPlayer = _buildPlayer,
-                PlayerPlatform = _playerPlatform,
                 PlayerOutputPath = _playerOutputPath,
                 BuildInstaller = _buildInstaller,
                 InstallerPlatform = _installerPlatform,
@@ -2174,7 +2151,7 @@ namespace TEngine
                 return;
             }
 
-            var platformName = GetPlayerPlatformDirectoryName(_playerPlatform);
+            var platformName = GetPlayerPlatformDirectoryName(_buildTarget);
             var normalized = NormalizePlatformPath(_playerOutputPath, platformName);
             if (normalized == null)
             {
@@ -2280,8 +2257,8 @@ namespace TEngine
 
         // 安装包配置独立 tab：Windows 平台下显示 InnoSetup 配置，后续可扩展 Linux 安装包
         // 注意：仅控制 UI 显隐；实际编译仍由 ExecuteBuild 在 Player 构建成功后按 Windows 平台触发
-        private bool IsWindowsPlayerPlatform => _installerPlatform == BuildTarget.StandaloneWindows64;
-        private bool IsInstallerEnabled => IsWindowsPlayerPlatform && _buildInstaller;
+        private bool IsWindowsInstallerPlatform => _installerPlatform == BuildTarget.StandaloneWindows64;
+        private bool IsInstallerEnabled => IsWindowsInstallerPlatform && _buildInstaller;
 
         private static ValueDropdownList<BuildTarget> InstallerPlatformOptions => new ValueDropdownList<BuildTarget>
         {

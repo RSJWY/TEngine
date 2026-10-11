@@ -75,6 +75,7 @@ namespace TEngine
 
             // Player
             public bool buildPlayer;
+            // 已废弃：Player 平台统一取 buildTarget；保留字段仅为兼容旧调用方（发送后会被忽略）。
             public string playerPlatform = "StandaloneWindows64";
             public string playerOutputPath = "";
 
@@ -323,7 +324,7 @@ namespace TEngine
                 case "buildPlayer":
                 {
                     var config = ToBuildConfig(request);
-                    var playerTarget = ParseBuildTarget(request.playerPlatform);
+                    var playerTarget = ParseBuildTarget(request.buildTarget);
                     if (!ReleaseTools.BuildImp(
                             BuildConfig.GetBuildTargetGroup(playerTarget),
                             playerTarget,
@@ -440,7 +441,7 @@ namespace TEngine
         private static void FillPlayerRecord(BuildConfig config, BuildResultDTO result)
         {
             var outputPath = string.IsNullOrWhiteSpace(config.PlayerOutputPath)
-                ? BuildConfig.GetDefaultPlayerOutputPath(config.PlayerPlatform)
+                ? BuildConfig.GetDefaultPlayerOutputPath(config.BuildTarget)
                 : config.PlayerOutputPath;
             if (!Path.IsPathRooted(outputPath))
             {
@@ -493,7 +494,6 @@ namespace TEngine
                 GenerateCatalogInOutput = request.generateCatalogInOutput,
                 BuildHotFixDll = request.buildHotFixDll,
                 BuildPlayer = request.buildPlayer,
-                PlayerPlatform = ParseBuildTarget(request.playerPlatform),
                 PlayerOutputPath = request.playerOutputPath ?? string.Empty,
                 HeadlessMode = Application.isBatchMode,
             };

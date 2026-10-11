@@ -49,9 +49,8 @@ namespace TEngine
         // 热更DLL设置
         public bool BuildHotFixDll = true;
 
-        // 打包Player设置
+        // 打包Player设置（Player 平台统一使用 BuildTarget）
         public bool BuildPlayer;
-        public BuildTarget PlayerPlatform;
         public string PlayerOutputPath = "";
 
         // InnoSetup 安装包设置（仅 Windows）
@@ -94,7 +93,6 @@ namespace TEngine
             GenerateCatalogInOutput = config.GenerateCatalogInOutput;
             BuildHotFixDll = config.BuildHotFixDll;
             BuildPlayer = config.BuildPlayer;
-            PlayerPlatform = config.PlayerPlatform;
             PlayerOutputPath = config.PlayerOutputPath;
             BuildInstaller = config.BuildInstaller;
             InstallerPlatform = config.InstallerPlatform;
