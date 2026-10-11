@@ -48,6 +48,9 @@ namespace TEngine
 
         protected override void OnImGUI()
         {
+            // Obfuz v4 起 WaterMark / EvalStackObfus 已失效，打开窗口即剔除历史残留的无效通道位。
+            EnsureUnsupportedPassesRemoved();
+
             bool refreshed = false;
             GUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
@@ -190,7 +193,7 @@ namespace TEngine
             {
                 Add("警告", $"动态密钥文件不存在：{secret.dynamicSecretKeyOutputPath}");
             }
-            if (passMask == (ObfuzPassType)(-1))
+            if (SanitizePassMask(passMask) == SanitizePassMask((ObfuzPassType)(-1)))
             {
                 Add("警告", "混淆通道为全部启用（All），生产建议按成本显式选择通道（混淆通道页有预设）");
             }
@@ -431,16 +434,42 @@ namespace TEngine
         [Button("全部", ButtonSizes.Medium), GUIColor(nameof(WarnColor))]
         private void PresetAll()
         {
-            S.obfuscationPassSettings.enabledPasses = (ObfuzPassType)(-1);
+            S.obfuscationPassSettings.enabledPasses = SanitizePassMask((ObfuzPassType)(-1));
             MarkDirty();
+        }
+
+        /// <summary>
+        /// Obfuz v4 起 WaterMark 与 EvalStackObfus 两个 Pass 已失效（开与不开均无任何效果），
+        /// 本项目不再使用：既不在界面暴露开关，也从通道掩码中统一剔除，避免残留无效位。
+        /// </summary>
+        private const ObfuzPassType UnsupportedPasses = ObfuzPassType.WaterMark | ObfuzPassType.EvalStackObfus;
+
+        private static ObfuzPassType SanitizePassMask(ObfuzPassType mask) => mask & ~UnsupportedPasses;
+
+        /// <summary>剔除已失效通道；返回是否发生变更（用于决定是否落盘）。</summary>
+        private bool EnsureUnsupportedPassesRemoved()
+        {
+            var current = S.obfuscationPassSettings.enabledPasses;
+            var sanitized = SanitizePassMask(current);
+            if (sanitized == current)
+            {
+                return false;
+            }
+            S.obfuscationPassSettings.enabledPasses = sanitized;
+            MarkDirty();
+            return true;
         }
 
         private bool GetPass(ObfuzPassType flag) => S.obfuscationPassSettings.enabledPasses.HasFlag(flag);
 
         private void SetPass(ObfuzPassType flag, bool value)
         {
+            if (UnsupportedPasses.HasFlag(flag))
+            {
+                return;
+            }
             var current = S.obfuscationPassSettings.enabledPasses;
-            S.obfuscationPassSettings.enabledPasses = value ? current | flag : current & ~flag;
+            S.obfuscationPassSettings.enabledPasses = SanitizePassMask(value ? current | flag : current & ~flag);
             MarkDirty();
         }
 
@@ -494,27 +523,11 @@ namespace TEngine
 
         [TabGroup("Pages", "混淆通道")]
         [BoxGroup("Pages/混淆通道/通道开关")]
-        [LabelText("执行栈混淆 EvalStackObfus"), ToggleLeft]
-        [Tooltip("执行栈与临时值扰动；当前 Obfuz 版本默认 Builder 未注册该 Pass")]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private bool PassEvalStack { get => GetPass(ObfuzPassType.EvalStackObfus); set => SetPass(ObfuzPassType.EvalStackObfus, value); }
-
-        [TabGroup("Pages", "混淆通道")]
-        [BoxGroup("Pages/混淆通道/通道开关")]
         [LabelText("移除常量字段 RemoveConstField"), ToggleLeft]
         [Tooltip("移除可内联的 const 元数据字段，成本很低")]
         [OnValueChanged(nameof(MarkDirty))]
         [ShowInInspector]
         private bool PassRemoveConst { get => GetPass(ObfuzPassType.RemoveConstField); set => SetPass(ObfuzPassType.RemoveConstField, value); }
-
-        [TabGroup("Pages", "混淆通道")]
-        [BoxGroup("Pages/混淆通道/通道开关")]
-        [LabelText("水印 WaterMark"), ToggleLeft]
-        [Tooltip("注入元数据/RVA/指令水印；Obfuz v4 起该 Pass 已被官方禁用，开启不生效")]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private bool PassWatermark { get => GetPass(ObfuzPassType.WaterMark); set => SetPass(ObfuzPassType.WaterMark, value); }
 
         [TabGroup("Pages", "混淆通道")]
         [FoldoutGroup("Pages/混淆通道/参数与规则", Expanded = false)]
@@ -729,21 +742,6 @@ namespace TEngine
             set
             {
                 S.removeConstFieldSettings.ruleFiles = value ?? Array.Empty<string>();
-                MarkDirty();
-            }
-        }
-
-        [TabGroup("Pages", "混淆通道")]
-        [FoldoutGroup("Pages/混淆通道/参数与规则")]
-        [LabelText("执行栈混淆规则")]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private string[] EvalStackRuleFiles
-        {
-            get => S.evalStackObfusSettings.ruleFiles ?? Array.Empty<string>();
-            set
-            {
-                S.evalStackObfusSettings.ruleFiles = value ?? Array.Empty<string>();
                 MarkDirty();
             }
         }
@@ -1382,38 +1380,6 @@ namespace TEngine
             set
             {
                 S.compatibilitySettings.targetRuntime = value;
-                MarkDirty();
-            }
-        }
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/水印")]
-        [InfoBox("Obfuz v4 起代码水印（WaterMark）Pass 已被官方禁用，以下设置不再产生任何效果（官方仅保留字段以兼容序列化）。", InfoMessageType.Warning)]
-        [LabelText("水印文本")]
-        [DelayedProperty]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private string WatermarkText
-        {
-            get => S.watermarkSettings.text;
-            set
-            {
-                S.watermarkSettings.text = value;
-                MarkDirty();
-            }
-        }
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/水印")]
-        [LabelText("签名字节长度"), MinValue(1)]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private int WatermarkSignatureLength
-        {
-            get => S.watermarkSettings.signatureLength;
-            set
-            {
-                S.watermarkSettings.signatureLength = Mathf.Max(1, value);
                 MarkDirty();
             }
         }

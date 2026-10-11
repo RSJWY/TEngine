@@ -95,7 +95,21 @@ Packages\com.code-philosophy.obfuz4hybridclr\Editor\PrebuildCommandExt.cs(21,17)
 - 实验：恢复 HybridCLR v9 的 `Plugins/dnlib.dll`（不再移除），两包各持一份同名 dnlib.dll 同时存在。Unity 2022.3.62f3 导入 + 编译通过，**未出现 “Multiple precompiled assemblies with the same name dnlib.dll” 类报错**。
 - 据此更新 `sync-hybridclr-local.sh`：移除 dnlib 的步骤改为保留；同步修正 `sync-obfuz-local.sh` 头部注释。
 
-## 八、剩余待办
+## 八、WaterMark / EvalStackObfus 彻底移除（追加提交）
+
+用户决定：既然 v4 已不支持，就不保留任何相关入口。改动：
+
+- `ObfuzConfigWindow.cs`
+  - 删除「混淆通道」页的 `EvalStackObfus`、`WaterMark` 两个开关属性
+  - 删除「参数与规则」里的 `EvalStackRuleFiles`
+  - 删除「高级」页整块「水印」设置（`WatermarkText`、`WatermarkSignatureLength`）
+  - 新增 `UnsupportedPasses = WaterMark | EvalStackObfus` 与 `SanitizePassMask()`：
+    `SetPass` 拒绝这两个 flag，`PresetAll` 不再置全位，`BuildHealthReport` 的「全部启用」判定改用 sanitize 后掩码，
+    `OnImGUI` 开头调用 `EnsureUnsupportedPassesRemoved()` 打开窗口即剔除历史残留位并落盘
+- `ProjectSettings/Obfuz.asset`：`enabledPasses` 由 `3149059`（含 WaterMark 0x200000）改为 `1051907`，WaterMark 位清除
+- 包侧的 `WatermarkSettings` / `EvalStackObfusSettings` / `polymorphicDllSettings` 序列化字段仍存在（第三方包定义，Unity 会补默认值），但已无任何入口可启用
+
+## 九、剩余待办
 
 - **重装 HybridCLR il2cpp**：`HybridCLRData/LocalIl2CppData-WindowsEditor/il2cpp/libil2cpp/hybridclr/generated/libil2cpp-version.txt` 仍为 `8.15.0`，需走 `HybridCLR/Installer...` 将本地 il2cpp 升到与包匹配的 `v2022.3.x-9.0.1`。
 - 真实构建验证（Player + YooAsset 资源 + 混淆产物链）。

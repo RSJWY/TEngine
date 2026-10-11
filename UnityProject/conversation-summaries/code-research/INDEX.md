@@ -2,8 +2,8 @@
 
 ## 2026-10-11
 - [Obfuz v4 + HybridCLR v9 升级影响研究](./2026-10-11-obfuz-v4-hybridclr-v9-migration-research.md)
-  - 关键词：Obfuz v4、HybridCLR v9.0.1、obfuz4hybridclr v4、PolymorphicDll移除、WaterMark禁用、polymorphicDllSettings字段删除、patchAOTAssemblies移除、HybridCLR.Editor命名空间取消、SettingsUtil迁HybridCLR、HybridCLRSettings.instance、BuildDLLCommand、ObfuzConfigWindow、BuildPipelineWindow、UpdateSettingEditor、CS0234、dnlib共存实验、嵌入包git跟踪、sync-*-local.sh、il2cpp重装
-  - 结论：三包升 9.0.1/4.0.0/4.0.0 并迁移 4 个脚本后 MCP 复检 0 错；dnlib 与 HybridCLR 逐字节一致可共存，脚本已改为不移除；剩 il2cpp 重装。
+  - 关键词：Obfuz v4、HybridCLR v9.0.1、obfuz4hybridclr v4、PolymorphicDll移除、WaterMark禁用、EvalStackObfus失效、WaterMark彻底移除、enabledPasses掩码、SanitizePassMask、PresetAll、patchAOTAssemblies移除、HybridCLR.Editor命名空间取消、HybridCLRSettings.instance、BuildDLLCommand、ObfuzConfigWindow、BuildPipelineWindow、UpdateSettingEditor、CS0234、dnlib共存实验、sync-*-local.sh、il2cpp重装
+  - 结论：三包升 9.0.1/4.0.0/4.0.0、迁移 4 脚本并彻底移除 WaterMark/EvalStack 后 MCP 复检 0 错；dnlib 可共存；剩 il2cpp 重装。
 
 ## 2026-09-24
 - [TEngine 打包工具 Obfuz 与 AOT 元数据审查](./2026-09-24-obfuz-packaging-aot-audit.md)
