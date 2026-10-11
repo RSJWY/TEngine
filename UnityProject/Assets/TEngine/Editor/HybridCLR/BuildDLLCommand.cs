@@ -395,6 +395,53 @@ public static class BuildDLLCommand
 #endif
     }
 
+    /// <summary>
+    /// 生成裁剪后的 AOT 补充元数据 DLL（等价 HybridCLR/Generate/StrippedAotDlls）。
+    /// 注意：内部会以 buildScriptsOnly 触发一次 Player 构建，耗时较长；
+    /// 产物在 HybridCLRData/AssembliesPostIl2CppStrip/&lt;target&gt;，供运行时 LoadMetadataForAOTAssembly 使用。
+    /// </summary>
+    public static void GenerateStrippedAOTDllsForTarget(BuildTarget target)
+    {
+#if ENABLE_HYBRIDCLR
+        if (EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            throw new InvalidOperationException($"目标平台 {target} 与编辑器当前平台 {EditorUserBuildSettings.activeBuildTarget} 不一致，请先对齐平台再生成 AOT DLL。");
+        }
+        StripAOTDllCommand.GenerateStripedAOTDlls(target);
+#else
+        throw new InvalidOperationException("需要启用 ENABLE_HYBRIDCLR 后才能生成 AOT DLL。");
+#endif
+    }
+
+    /// <summary>
+    /// 生成 AOT 泛型引用列表（等价 HybridCLR/Generate/AOTGenericReference，产出 AOTGenericReferences.cs
+    /// 及其 PatchedAOTAssemblyList）。
+    /// Obfuz 开启时热更 DLL 会被混淆改名，AOT 引用分析必须基于“混淆后”的热更 DLL，
+    /// 因此这里先编译并混淆，再调用 Obfuz4HybridCLR 的分析入口；未开启 Obfuz 时走 HybridCLR 原生入口。
+    /// </summary>
+    public static void GenerateAOTGenericReferenceForTarget(BuildTarget target)
+    {
+#if ENABLE_HYBRIDCLR
+        if (EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            throw new InvalidOperationException($"目标平台 {target} 与编辑器当前平台 {EditorUserBuildSettings.activeBuildTarget} 不一致，请先对齐平台再生成 AOT 列表。");
+        }
+#if OBFUZ_INSTALLED
+        if (IsObfuzActive)
+        {
+            CompileDllCommand.CompileDll(target);
+            string obfuscatedHotUpdateDllPath = PrebuildCommandExt.GetObfuscatedHotUpdateAssemblyOutputPath(target);
+            ObfuscateUtil.ObfuscateHotUpdateAssemblies(target, obfuscatedHotUpdateDllPath);
+            PrebuildCommandExt.GenerateAOTGenericReference(target, obfuscatedHotUpdateDllPath);
+            return;
+        }
+#endif
+        AOTReferenceGeneratorCommand.CompileAndGenerateAOTGenericReference();
+#else
+        throw new InvalidOperationException("需要启用 ENABLE_HYBRIDCLR 后才能生成 AOT 列表。");
+#endif
+    }
+
     public static void ActivateBuildTarget(BuildTarget target)
     {
         if (EditorUserBuildSettings.activeBuildTarget == target)

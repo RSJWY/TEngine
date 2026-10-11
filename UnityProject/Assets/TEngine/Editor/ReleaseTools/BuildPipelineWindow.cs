@@ -330,31 +330,6 @@ namespace TEngine
         [SerializeField]
         private bool _buildHotFixDll = true;
 
-        [TabGroup("Pages", "高级")]
-        [FoldoutGroup("Pages/高级/热更 DLL")]
-        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
-        [Button("编译并拷贝热更DLL", ButtonSizes.Medium)]
-        private void BuildHotFixDllNow()
-        {
-            BuildDLLCommand.BuildAndCopyDlls(_buildTarget);
-        }
-
-        [TabGroup("Pages", "高级")]
-        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
-        [Button("同步 AOT 元数据清单", ButtonSizes.Medium)]
-        private void SyncAOTMetadataManifestNow()
-        {
-            BuildDLLCommand.SyncAOTMetadataManifest();
-        }
-
-        [TabGroup("Pages", "高级")]
-        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
-        [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Medium)]
-        private void CopyAOTAssembliesNow()
-        {
-            BuildDLLCommand.CopyAOTAssembliesToAssetPath(_buildTarget);
-        }
-
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("构建 Player")]
@@ -715,30 +690,54 @@ namespace TEngine
         }
 
         [PropertySpace(8)]
-        [TitleGroup("热更DLL")]
-        [ButtonGroup("热更DLL/Actions")]
+        [TitleGroup("热更 DLL", "日常热更只需此项")]
+        [ButtonGroup("热更 DLL/Actions")]
         [Button("编译并拷贝热更DLL", ButtonSizes.Large)]
+        [Tooltip("编译热更程序集并拷贝到热更资源目录；随后自动同步 AOT 元数据清单并拷贝 AOT/热更 DLL 的 .bytes")]
         private void BuildHotFixDllFromOperations()
         {
-            BuildHotFixDllNow();
+            BuildDLLCommand.BuildAndCopyDlls(_buildTarget);
         }
 
-        [ButtonGroup("热更DLL/Actions")]
-        [Button("同步 AOT 元数据清单", ButtonSizes.Large)]
+        [PropertySpace(8)]
+        [TitleGroup("AOT", "AOT 产物维护；GenerateAll 已含本区①②，出包请用下方 GenerateAll")]
+        [ButtonGroup("AOT/生成")]
+        [Button("① 生成 AOT DLL", ButtonSizes.Large)]
+        [Tooltip("= GenerateAll 的第4步。HybridCLR/Generate/StrippedAotDlls：仅首包构建/重建主包时使用；会以 buildScriptsOnly 跑一次 Player 构建，且会【覆盖】AssembliesPostIl2CppStrip 下已冻结的 AOT dll。单独点它不含 Il2CppDef/MethodBridge，不能替代出包前的 GenerateAll。")]
+        private void GenerateStrippedAOTDllsFromOperations()
+        {
+            BuildDLLCommand.GenerateStrippedAOTDllsForTarget(_buildTarget);
+        }
+
+        [ButtonGroup("AOT/生成")]
+        [Button("② 生成 AOT 列表", ButtonSizes.Large)]
+        [Tooltip("= GenerateAll 的第6步。HybridCLR/Generate/AOTGenericReference：产出 AOTGenericReferences.cs 的 PatchedAOTAssemblyList；需先有 ① 的 AOT DLL；Obfuz 开启时基于混淆后热更 DLL 分析。")]
+        private void GenerateAOTGenericReferenceFromOperations()
+        {
+            BuildDLLCommand.GenerateAOTGenericReferenceForTarget(_buildTarget);
+        }
+
+        [ButtonGroup("AOT/落地")]
+        [Button("③ 同步 AOT 元数据清单", ButtonSizes.Large)]
+        [Tooltip("工程自有步骤：解析 AOTGenericReferences.cs 的 PatchedAOTAssemblyList，写入 AOTMetadataManifest.asset")]
         private void SyncAOTMetadataManifestFromOperations()
         {
-            SyncAOTMetadataManifestNow();
+            BuildDLLCommand.SyncAOTMetadataManifest();
         }
 
-        [ButtonGroup("热更DLL/Actions")]
-        [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Large)]
+        [ButtonGroup("AOT/落地")]
+        [Button("④ 拷贝 AOT 元数据 DLL", ButtonSizes.Large)]
+        [Tooltip("工程自有步骤：把裁剪后的 AOT DLL 拷贝到热更资源目录（.bytes）")]
         private void CopyAOTAssembliesFromOperations()
         {
-            CopyAOTAssembliesNow();
+            BuildDLLCommand.CopyAOTAssembliesToAssetPath(_buildTarget);
         }
 
-        [ButtonGroup("热更DLL/Generate")]
-        [Button("GenerateAll（构建首包时使用）", ButtonSizes.Large)]
+        [PropertySpace(8)]
+        [TitleGroup("出包前生成", "构建 Player 前必须；已含 AOT 区①②，另含 Il2CppDef/MethodBridge")]
+        [ButtonGroup("出包前生成/Actions")]
+        [Button("GenerateAll", ButtonSizes.Large)]
+        [Tooltip("官方『一键执行打包前必须的生成操作』：编译热更 DLL → Il2CppDef → LinkXml → 生成 AOT DLL → MethodBridge → 生成 AOT 列表（Obfuz 开启时走混淆链路）。已完整包含 AOT 区的 ①②，出包时只需点它即可。AOT 侧代码 / link.xml / HybridCLR 版本 / development 开关变化后也需重跑。")]
         private void GenerateAllFromOperations()
         {
             BuildDLLCommand.GenerateAllForTarget(_buildTarget);

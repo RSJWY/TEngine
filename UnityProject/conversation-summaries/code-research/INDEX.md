@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-10-11
+- [HybridCLR v8 → v9 API 变动清单](./2026-10-11-hybridclr-v8-v9-api-diff-research.md)
+  - 关键词：HybridCLR v9.0.1、v8.15.0、命名空间重构、HybridCLR.Editor取消、HybridCLR.CodeGen、HybridCLR.Mod、HybridCLR.Utils、Analyzer改名、MethodBridgeAnalyzer、AOTReferenceAnalyzer、AOTGenericReferenceWriter、GenerateMethodBridgeCppFile转public、CleanIl2CppBuildCache移除、PInvokeAnalyzer移除、HybridCLRSettings改ScriptableSingleton、Instance→instance、patchAOTAssemblies移除、linkPreserveLevel、SettingsUtil成员删减、RuntimeApi不变、SevenZip/UnityFS移除
+  - 结论：破坏面集中在 Editor 侧命名空间与少量类改名/设置字段删减，Runtime 与命令 API 稳定。
 - [Obfuz v4 + HybridCLR v9 升级影响研究](./2026-10-11-obfuz-v4-hybridclr-v9-migration-research.md)
   - 关键词：Obfuz v4、HybridCLR v9.0.1、obfuz4hybridclr v4、PolymorphicDll移除、WaterMark禁用、EvalStackObfus失效、WaterMark彻底移除、enabledPasses掩码、SanitizePassMask、PresetAll、patchAOTAssemblies移除、HybridCLR.Editor命名空间取消、HybridCLRSettings.instance、BuildDLLCommand、ObfuzConfigWindow、BuildPipelineWindow、UpdateSettingEditor、CS0234、dnlib共存实验、sync-*-local.sh、il2cpp重装
   - 结论：三包升 9.0.1/4.0.0/4.0.0、迁移 4 脚本并彻底移除 WaterMark/EvalStack 后 MCP 复检 0 错；dnlib 可共存；剩 il2cpp 重装。
