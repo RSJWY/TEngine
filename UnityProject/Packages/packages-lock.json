@@ -13,11 +13,10 @@
       "dependencies": {}
     },
     "com.code-philosophy.obfuz4hybridclr": {
-      "version": "https://github.com/focus-creative-games/obfuz4hybridclr.git",
+      "version": "file:com.code-philosophy.obfuz4hybridclr",
       "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "40c8b6c1a8cfab893a02d95ceffc7e7a4a6919cd"
+      "source": "embedded",
+      "dependencies": {}
     },
     "com.coffee.softmask-for-ugui": {
       "version": "3.6.5",
@@ -55,11 +54,10 @@
       "hash": "30d22075093d1d35dfb0091c1c7550e9ad948577"
     },
     "com.cysharp.unitask": {
-      "version": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
+      "version": "file:com.cysharp.unitask",
       "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "ceac8d6946b1125fe782cd171fbcb245b567dbf9"
+      "source": "embedded",
+      "dependencies": {}
     },
     "com.github-glitchenzo.nugetforunity": {
       "version": "4.5.0",

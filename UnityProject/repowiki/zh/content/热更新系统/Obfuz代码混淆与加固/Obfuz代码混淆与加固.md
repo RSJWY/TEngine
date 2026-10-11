@@ -91,7 +91,7 @@ Obfuz 是基于 dnlib 的 .NET/Unity IL 重写器。它不仅改名，还会重�
 | `RandomSeed` | `0` | 未做版本随机化策略 |
 | symbol mapping | 路径已配置，文件不存在 | 尚无可验证的稳定映射 |
 | 多态 DLL | 配置为启用，但生成代码和产物未核实 | 仅配置，不能视为生效 |
-| 包依赖 | `Packages/manifest.json` 未显式声明 Obfuz 包 | 需确认包来源、锁定方式与 CI 可复现性 |
+| 包依赖 | `Packages/manifest.json` 以 `file:` 引用本地包 `com.code-philosophy.obfuz` / `com.code-philosophy.obfuz4hybridclr` / `com.code-philosophy.hybridclr` | 已锁定为 `Packages/` 下提交入库的 embedded 包，升级走 `sync-*-local.sh`，来源可复现 |
 
 ## 推荐实施顺序
 

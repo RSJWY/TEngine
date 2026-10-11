@@ -69,6 +69,7 @@ GameModule.Resource.UnloadAsset(raw);
 
 ### HybridCLR 与 Obfuz
 
+- 包已本地化：`com.code-philosophy.hybridclr` / `com.code-philosophy.obfuz` / `com.code-philosophy.obfuz4hybridclr` 从 Git URL 转为 `Packages/` 下的本地（embedded）包，配套一键同步脚本 `sync-hybridclr-local.sh` / `sync-obfuz-local.sh` / `sync-obfuz4hybridclr-local.sh`；同类本地化的还有 `com.cysharp.unitask`（`sync-unitask-local.sh`），详见 [本地化第三方包](../../../../../Books/Fork/local-packages.md)。
 - 构建前同步 `AOTMetadataManifest`，缺少补充元数据程序集时中断构建。
 - 静态 Obfuz 密钥在 `AfterAssembliesLoaded` 初始化，动态密钥在 `Assembly.Load` 前初始化。
 - 多态热更 DLL 的构建顺序为：编译 -> 混淆 -> `GeneratePolymorphicDll` -> 拷贝 `.dll.bytes`。
@@ -143,6 +144,7 @@ Releases/
 | 热更新 | [hot-update.md](../../../../../Books/Fork/hot-update.md) |
 | 资源构建与发布 | [resource-build.md](../../../../../Books/Fork/resource-build.md) |
 | 代码混淆 | [obfuscation.md](../../../../../Books/Fork/obfuscation.md) |
+| 本地化第三方包 | [local-packages.md](../../../../../Books/Fork/local-packages.md) |
 | 运行时配置 | [runtime-config.md](../../../../../Books/Fork/runtime-config.md) |
 | 场景系统 | [scene-system.md](../../../../../Books/Fork/scene-system.md) |
 | 窗口管理 | [window-management.md](../../../../../Books/Fork/window-management.md) |

@@ -19,7 +19,7 @@
 
 ## 🛠️ 本 Fork 的定制改动
 
-> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、数据绑定、存档与数据中心、日志工具、窗口控制、代码混淆、运行时工具、计时器模块、UI 组件扩展、运行时工具合并、帧动画模块、GameObject 对象池、3D 动画图、桌面多开、模块级自定义异步操作、第三方 UI 效果插件**做了定制改造。
+> 本仓库 fork 自上游 [ALEXTANGXIAO/TEngine](https://github.com/ALEXTANGXIAO/TEngine)，在其基础上围绕**热更新、资源打包、运行时配置、场景加载、数据绑定、存档与数据中心、日志工具、窗口控制、代码混淆、第三方包本地化、运行时工具、计时器模块、UI 组件扩展、运行时工具合并、帧动画模块、GameObject 对象池、3D 动画图、桌面多开、模块级自定义异步操作、第三方 UI 效果插件**做了定制改造。
 
 | 主题 | 主要改动 |
 | --- | --- |
@@ -33,6 +33,7 @@
 | 场景系统 | DynamicSpawn 通用化、加载进度下沉到 `GameSceneModule` |
 | 窗口管理 | Windows Standalone 多显示器窗口布局控制 `ScreenModule` |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、多态 DLL 热更产物 |
+| 第三方包本地化 | HybridCLR/Obfuz/Obfuz4HybridCLR/UniTask 转本地包，一键同步脚本（自动解析最新稳定 tag、支持指定版本、gitee 镜像） |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） |
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 |
 | 存档与数据中心 | `ClientSaveDataMgr` 存档框架（Nino 二进制序列化）、`DataCenterSys` 玩家数据中枢 |

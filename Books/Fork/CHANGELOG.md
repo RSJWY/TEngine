@@ -2,6 +2,11 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-10-11
+
+- 第三方包本地化补齐：`com.code-philosophy.obfuz4hybridclr`、`com.cysharp.unitask` 从 Git URL 依赖转为 `UnityProject/Packages/` 下的本地（embedded）包（`manifest.json` 改为 `file:` 引用，包内容随版本库提交，保留自带 `.meta` GUID），消除浮动依赖、提升可复现与 CI/内网可用性。
+- 新增一键同步脚本 `Packages/sync-obfuz4hybridclr-local.sh` / `sync-unitask-local.sh` 及对应 `.bat` 双击包装，与既有 `sync-hybridclr-local.sh` / `sync-obfuz-local.sh` 同一套约定：不传参自动解析上游最新稳定 tag，支持指定 tag/分支/完整 commit，环境变量切 gitee 镜像，幂等重同步并改写 manifest。Obfuz4HybridCLR 包根即仓库根、不含 dnlib；UniTask 包根为仓库子目录 `src/UniTask/Assets/Plugins/UniTask`（脚本以 `SUBDIR` 标记并在缺失时显式报错）。详见 [local-packages.md](local-packages.md)、[obfuscation.md](obfuscation.md)。
+
 ## 2026-09-26
 
 - `BuildCLI` 新增批量执行（多步骤队列 + 分段合并）：预设保持纯表单快照不动，新增独立的批量任务（`BuildCLI/batches/*.json`，有序动作队列 + 绑定预设 + 失败即停）；`generateAll` / `switchPlatform` 触发域重载各自独立成段（单独 Unity 进程），其余动作合并到同一进程内顺序执行（C# 侧 `CLIBridge.BuildRequestDTO` 新增 `actions[]`，`Run()` 循环调用 `Execute`，`BuildResultDTO` 新增 `steps`/`executedActions` 按步记录）。首包 4 步从 4 次冷启动降到 2 次，日常热更 3 步降到 1 次。GUI 新增「批量执行」标签页（任务管理 + `BatchStepsDialog` 步骤编辑器 + 进度横幅）；CLI 新增 `--batch` 与可重复 `--action`。单 `action` 请求向后兼容。详见 [resource-build.md](resource-build.md)。
