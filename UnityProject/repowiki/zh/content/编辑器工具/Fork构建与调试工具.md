@@ -110,19 +110,22 @@ Releases/
 
 ## SceneEnumConfig
 
-菜单：`TEngine/场景枚举配置`。
+菜单：`TEngine/场景枚举配置`，打开 Odin 配置窗口 `SceneEnumConfigWindow` 直接编辑配置（无需再去 Assets 里找 .asset 资源）；窗口「体检」页列出阻断性错误与警告。
+
+配置资产固定存放 `Assets/Editor/SceneTools/SceneEnumGenerator/SceneEnumConfig.asset`（与工具代码同目录，Editor-only，不落 `Resources`、不进 Player 包）。引用方统一走 `SceneEnumConfig.Load()` / `LoadOrCreate()`，路径常量 `SceneEnumConfig.ConfigAssetPath`。
 
 工作流：
 
 1. 同步 YooAsset `Scenes` Group 收集目录。
 2. 检查场景新增、改名和删除。
 3. 编辑稳定的 `EnumName`、`EnumValue` 和备注。
-4. 生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
+4. 生成 `SceneType.g.cs`、`SceneConstName.g.cs`、`SceneTypeMapping.g.cs` 和 `SceneTypeDisplayName.g.cs`（落盘到 `Module/GameScene/Generated/`）。
 
 约束：
 
 - 场景使用 GUID 跟踪，改名不改变已经发布的枚举值。
-- 新值按 `max + 1` 分配；删除的枚举值不复用。
+- 枚举值由场景 GUID 确定性派生（非本地计数器），多人各自新增场景不会撞值；删除的枚举值不会被复用（值随身份固定）。
+- 合并他人的场景改动后，需点一次「同步场景资源」+「生成枚举代码」再提交。
 - 生成前确认场景位于 YooAsset 收集范围内。
 - 修改生成器后等待 Editor 程序集重编译完成，再执行生成。
 

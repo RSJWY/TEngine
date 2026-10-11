@@ -13,10 +13,9 @@ MonoBehaviour:
   m_Name: SceneEnumConfig
   m_EditorClassIdentifier: 
   SceneFolder: Assets/AssetRaw/Scenes
-  OutputFolder: Assets/GameScripts/HotFix/GameLogic/Module/GameScene
+  OutputFolder: Assets/GameScripts/HotFix/GameLogic/Module/GameScene/Generated
   Scenes:
   - SceneAsset: {fileID: 102900000, guid: c48868a3ea4925547a6a5627f0693d1f, type: 3}
-    EnumValue: 0
     SceneGuid: c48868a3ea4925547a6a5627f0693d1f
     EnumName: MainScene
     ChineseName: "UI\u573A\u666F"

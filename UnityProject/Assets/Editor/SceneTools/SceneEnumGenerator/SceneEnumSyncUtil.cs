@@ -13,8 +13,8 @@ namespace TEngine.SceneTools
     {
         /// <summary>
         /// 扫描配置目录，同步场景列表：
-        /// <para>① 新增场景追加（枚举名默认=文件名清洗，枚举值=max+1）；</para>
-        /// <para>② 已删除/移出目录的场景标记 Active=false（枚举值保留占位）；</para>
+        /// <para>① 新增场景追加（枚举名默认=文件名清洗，冲突时加 GUID 短后缀；枚举值由 GUID 确定性派生）；</para>
+        /// <para>② 已删除/移出目录的场景标记 Active=false（枚举值随身份固定，无需占位）；</para>
         /// <para>③ 改名场景按 GUID 识别，刷新 SceneAsset 引用，枚举名/值不变（资源地址自动跟随）。</para>
         /// </summary>
         public static void SyncScenes(SceneEnumConfig config)
@@ -65,7 +65,7 @@ namespace TEngine.SceneTools
                     if (entry.Active)
                     {
                         entry.Active = false;
-                        Debug.Log($"[场景枚举] 场景已删除或移出目录：{entry.EnumName}（GUID={entry.SceneGuid}），标记停用，枚举值 {entry.EnumValue} 保留占位");
+                        Debug.Log($"[场景枚举] 场景已删除或移出目录：{entry.EnumName}（GUID={entry.SceneGuid}），标记停用（枚举值由 GUID 派生，无需保留占位）");
                     }
                     continue;
                 }
@@ -87,7 +87,7 @@ namespace TEngine.SceneTools
             }
 
             // 2. 追加新场景：目录有但配置无
-            int maxEnumValue = entries.Count > 0 ? entries.Max(e => e.EnumValue) : -1;
+            //    枚举值不在此分配：SceneEntry.EnumValue 按场景 GUID 确定性派生，多人协同不会撞值。
             HashSet<string> usedEnumNames = new HashSet<string>(entries.Where(e => !string.IsNullOrEmpty(e.EnumName)).Select(e => e.EnumName));
 
             foreach (SceneInfo dirScene in dirScenes)
@@ -97,20 +97,19 @@ namespace TEngine.SceneTools
                     continue;
                 }
 
-                maxEnumValue++;
-                string enumName = EnsureUnique(CleanEnumName(dirScene.name), usedEnumNames);
+                string enumName = EnsureUnique(CleanEnumName(dirScene.name), usedEnumNames, dirScene.guid);
                 usedEnumNames.Add(enumName);
 
-                entries.Add(new SceneEnumConfig.SceneEntry
+                SceneEnumConfig.SceneEntry entry = new SceneEnumConfig.SceneEntry
                 {
                     SceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(dirScene.path),
                     SceneGuid = dirScene.guid,
                     EnumName = enumName,
                     DisplayName = dirScene.name,
-                    EnumValue = maxEnumValue,
                     Active = true,
-                });
-                Debug.Log($"[场景枚举] 新增场景：{dirScene.name} -> 枚举 {enumName} = {maxEnumValue}");
+                };
+                entries.Add(entry);
+                Debug.Log($"[场景枚举] 新增场景：{dirScene.name} -> 枚举 {enumName} = {entry.EnumValue}（GUID 派生）");
             }
 
             EditorUtility.SetDirty(config);
@@ -177,18 +176,26 @@ namespace TEngine.SceneTools
             return result;
         }
 
-        private static string EnsureUnique(string name, HashSet<string> used)
+        private static string EnsureUnique(string name, HashSet<string> used, string guid)
         {
             if (!used.Contains(name))
             {
                 return name;
             }
+
+            // 冲突时用 GUID 短后缀确定性去重：多分支合并后同一场景得到相同后缀，不会漂移。
+            string withSuffix = $"{name}_{SceneEnumIdentity.NameSuffix(guid)}";
+            if (!used.Contains(withSuffix))
+            {
+                return withSuffix;
+            }
+
             int i = 2;
-            while (used.Contains($"{name}_{i}"))
+            while (used.Contains($"{withSuffix}_{i}"))
             {
                 i++;
             }
-            return $"{name}_{i}";
+            return $"{withSuffix}_{i}";
         }
 
         public class SceneInfo

@@ -4,6 +4,9 @@
 
 ## 2026-10-11
 
+- 场景枚举协同冲突修复（B：身份派生化）：枚举值不再用「本地计数器 `max+1`」分配（两分支各加一个场景必然撞值），改为由场景 GUID 确定性派生（`SceneEnumIdentity.DeriveValue`，FNV-1a，31 位、避开 0）——不同场景在任何分支/机器算出的值都不同，合并后不会撞值；`SceneEntry.EnumValue` 由序列化字段改为计算属性，配置资产不再存该字段。新增场景撞名时加 GUID 短后缀，窗口「体检」页新增「修复重复枚举名」（按冲突 + 自身 GUID 确定性加 `_<GUID4>`，多分支合并后收敛）；生成前校验保留为哈希碰撞兜底（31 位下约 100 场景碰撞概率 2.3e-6）。删除场景不再需要「枚举值保留占位」。详见 [scene-system.md](scene-system.md)。
+- 场景枚举生成代码隔离到 `Generated/` 子目录：`DefaultOutputFolder` 与配置 `OutputFolder` 改为 `Assets/GameScripts/HotFix/GameLogic/Module/GameScene/Generated`，生成产物与手写代码分开放；生成器改为输出目录缺失时自动创建（原先直接报错）。详见 [scene-system.md](scene-system.md)。
+- 场景枚举配置改造：`SceneEnumConfig` 资产从 `Assets/Resources/` 迁到 `Assets/Editor/SceneTools/SceneEnumGenerator/`（与工具代码同目录，避免 Editor-only 资产被 Player 打包），GUID 保持不变；菜单 `TEngine/场景枚举配置` 由「选中 .asset」改为打开新的 Odin 窗口 `SceneEnumConfigWindow`（「配置」页内联编辑 + 「体检」页列出场景引用缺失、枚举名非法/重复、枚举值碰撞等阻断错误与 YooAsset 收集范围警告）；新增 `SceneEnumConfig.ConfigAssetPath` 单一路径常量与 `Load()` / `LoadOrCreate()`，`SceneEnumConfigSceneSource` 等引用方统一复用；修复体检页每帧重算导致的窗口卡顿（结果缓存 + 1s 节流，`YooAssetCollectorReader` 缓存 `BundleCollectorSetting` 查找）。详见 [scene-system.md](scene-system.md)。
 - 第三方包本地化补齐：`com.code-philosophy.obfuz4hybridclr`、`com.cysharp.unitask` 从 Git URL 依赖转为 `UnityProject/Packages/` 下的本地（embedded）包（`manifest.json` 改为 `file:` 引用，包内容随版本库提交，保留自带 `.meta` GUID），消除浮动依赖、提升可复现与 CI/内网可用性。
 - 新增一键同步脚本 `Packages/sync-obfuz4hybridclr-local.sh` / `sync-unitask-local.sh` 及对应 `.bat` 双击包装，与既有 `sync-hybridclr-local.sh` / `sync-obfuz-local.sh` 同一套约定：不传参自动解析上游最新稳定 tag，支持指定 tag/分支/完整 commit，环境变量切 gitee 镜像，幂等重同步并改写 manifest。Obfuz4HybridCLR 包根即仓库根、不含 dnlib；UniTask 包根为仓库子目录 `src/UniTask/Assets/Plugins/UniTask`（脚本以 `SUBDIR` 标记并在缺失时显式报错）。详见 [local-packages.md](local-packages.md)、[obfuscation.md](obfuscation.md)。
 

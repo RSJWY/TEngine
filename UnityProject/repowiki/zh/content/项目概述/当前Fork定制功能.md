@@ -132,7 +132,7 @@ Releases/
 
 所有平台 Player 产物统一归到 `Releases/{平台}/build/`。Player 输出路径使用项目根相对路径（`./` 前缀），由构建链路在使用处转为绝对路径；旧的 `Output/Player/` 路径会自动迁移。AssetBundle 或 Player 构建失败时，安装包阶段必须停止，不能复用旧产物。
 
-场景枚举使用 `TEngine/场景枚举配置` 维护，通过 GUID 跟踪场景并生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
+场景枚举使用 `TEngine/场景枚举配置` 打开 Odin 配置窗口维护（配置资产在 `Assets/Editor/SceneTools/SceneEnumGenerator/` 下，Editor-only），通过 GUID 跟踪场景并生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
 
 场景内动态装饰物使用 DynamicSpawn 占位点加载：占位点序列化 `prefabRef` 弱引用（包裹名 + GUID），运行时 GUID 优先寻址，`location` 字符串保留为回落与代码动态寻址通道；`DefaultPackage` 收集器需开启 `Include Asset GUID`。
 

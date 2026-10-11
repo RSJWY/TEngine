@@ -11,8 +11,6 @@ namespace TEngine
     /// </summary>
     internal static class SceneEnumConfigSceneSource
     {
-        private const string ConfigAssetPath = "Assets/Resources/SceneEnumConfig.asset";
-
         /// <summary>
         /// 读取配置中 Active==true 且 SceneAsset 非空的场景条目。
         /// </summary>
@@ -21,7 +19,7 @@ namespace TEngine
         {
             var result = new List<(string sceneName, string scenePath)>();
 
-            var config = AssetDatabase.LoadAssetAtPath<SceneEnumConfig>(ConfigAssetPath);
+            var config = SceneEnumConfig.Load();
             if (config == null || config.Scenes == null)
             {
                 return result;

@@ -12,15 +12,36 @@ namespace TEngine.SceneTools
     {
         public const string DefaultScenesGroupName = "Scenes";
 
+        private static BundleCollectorSetting _cachedSetting;
+        private static string _cachedSettingPath;
+
         /// <summary>
         /// 加载 BundleCollectorSetting 资产（项目内应有且仅有一份）。
+        /// <para>缓存解析结果：避免在 Inspector 重绘/多场景循环中反复做
+        /// <c>AssetDatabase.FindAssets</c> 全工程搜索（实测每次约 15~19ms）。</para>
+        /// <para>资产被删除/改名导致缓存路径失效时会自动重新扫描。</para>
         /// </summary>
         public static BundleCollectorSetting LoadSetting()
         {
-            string[] guids = AssetDatabase.FindAssets("t:BundleCollectorSetting");
-            if (guids.Length == 0) return null;
-            string path = AssetDatabase.GUIDToAssetPath(guids[0]);
-            return AssetDatabase.LoadAssetAtPath<BundleCollectorSetting>(path);
+            if (_cachedSetting != null)
+            {
+                return _cachedSetting;
+            }
+
+            if (string.IsNullOrEmpty(_cachedSettingPath))
+            {
+                string[] guids = AssetDatabase.FindAssets("t:BundleCollectorSetting");
+                if (guids.Length == 0) return null;
+                _cachedSettingPath = AssetDatabase.GUIDToAssetPath(guids[0]);
+            }
+
+            _cachedSetting = AssetDatabase.LoadAssetAtPath<BundleCollectorSetting>(_cachedSettingPath);
+            if (_cachedSetting == null)
+            {
+                // 路径已失效，下次调用重新扫描
+                _cachedSettingPath = null;
+            }
+            return _cachedSetting;
         }
 
         /// <summary>
