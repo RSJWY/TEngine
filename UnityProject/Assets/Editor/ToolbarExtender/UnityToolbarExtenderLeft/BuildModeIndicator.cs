@@ -1,5 +1,6 @@
 #if !UNITY_6000_3_OR_NEWER
 
+using System.Text;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -7,15 +8,15 @@ using UnityEngine;
 namespace TEngine
 {
     /// <summary>
-    /// 主工具栏构建模式指示：在 yooasset 资源模式切换的右侧实时显示 dev/release、Obfuz 与 pdb 状态，点击弹出快捷切换菜单。
+    /// 左侧工具栏构建模式指示：在左区最左端（工具按钮右侧的空白处）实时显示 dev/release、Obfuz 与 pdb 状态，点击弹出快捷切换菜单。
+    /// 放置在左区是因为右区已被"场景切换 + 资源模式下拉"占满，窗口变窄时会被裁切；左区左侧本来是大片空白。
+    /// 标签采用紧凑英文缩写（DEV/REL │ OBF:ON/OFF │ PDB:ON/OFF），完整语义与说明放在 tooltip 与菜单里，避免占用过多工具栏宽度。
     /// 模式状态由 ENABLE_RELEASE 宏表达，切换会触发重编译与域重载，指示随之自动刷新，
     /// 因此模式状态在类加载时读取一次即可（静态字段随域重载重新初始化）。
     /// pdb 开关是 UpdateSetting 的序列化配置，切换不触发域重载，因此实时读取，并在值变化时主动重绘工具栏。
     /// </summary>
-    public partial class UnityToolbarExtenderRight
+    public partial class UnityToolbarExtenderLeft
     {
-        private const float ToolbarButtonHeight = 22f;
-
         private static readonly bool IsReleaseBuildMode = BuildDLLCommand.IsReleaseModeActive;
         private static readonly bool IsObfuzBuildMode = BuildDLLCommand.IsObfuzActiveSafe;
 
@@ -23,9 +24,12 @@ namespace TEngine
         private static UpdateSetting _updateSetting;
         private static bool _lastPdbEnabled;
 
-        // 与 BuildModeWindow 的状态配色保持一致：dev 绿色、release 橙色
-        private static readonly Color ReleaseModeColor = new Color(0.95f, 0.7f, 0.25f);
-        private static readonly Color DevModeColor = new Color(0.45f, 0.85f, 0.45f);
+        // 与 BuildModeWindow 的状态配色保持一致：dev 绿色、release 橙色；ON 高亮、OFF 灰化
+        private const string DevLabelColor = "#74D97A";
+        private const string ReleaseLabelColor = "#F2B33D";
+        private const string OnLabelColor = "#E8C34A";
+        private const string OffLabelColor = "#8C8C8C";
+        private const string SeparatorLabelColor = "#5A5A5A";
 
         private static GUIStyle _buildModeButtonStyle;
 
@@ -63,32 +67,52 @@ namespace TEngine
 
         private static void OnToolbarGUI_BuildMode()
         {
-            _buildModeButtonStyle ??= new GUIStyle(BUTTON_STYLE_NAME)
+            _buildModeButtonStyle ??= new GUIStyle(ButtonStyleName)
             {
                 padding = new RectOffset(4, 4, 2, 2),
                 alignment = TextAnchor.MiddleCenter,
                 fontStyle = FontStyle.Bold,
-                fixedHeight = ToolbarButtonHeight
+                fixedHeight = ToolbarButtonHeight,
+                richText = true
             };
 
             GUILayout.Space(8);
 
-            var prevColor = GUI.color;
-            GUI.color = IsReleaseBuildMode ? ReleaseModeColor : DevModeColor;
-            string label = IsReleaseBuildMode ? "模式: release" : "模式: dev";
-            if (BuildDLLCommand.IsObfuzInstalled)
-            {
-                label += $" | Obfuz: {(IsObfuzBuildMode ? "开" : "关")}";
-            }
-            label += $" | pdb: {PdbStatusText}";
             if (GUILayout.Button(
-                    new GUIContent(label, BuildModeTooltip()),
+                    new GUIContent(BuildModeLabel(), BuildModeTooltip()),
                     _buildModeButtonStyle))
             {
                 ShowBuildModeMenu();
             }
+        }
 
-            GUI.color = prevColor;
+        /// <summary>
+        /// 紧凑标签：DEV/REL 用模式色，Obfuz 与 pdb 用 ON 高亮 / OFF 灰化，中间以分隔符连接。
+        /// Obfuz 未安装时省略该段；release 模式等价于不含 pdb，直接显示 PDB:OFF。
+        /// </summary>
+        private static string BuildModeLabel()
+        {
+            var builder = new StringBuilder();
+            builder.Append(IsReleaseBuildMode
+                ? $"<color={ReleaseLabelColor}>REL</color>"
+                : $"<color={DevLabelColor}>DEV</color>");
+
+            string separator = $" <color={SeparatorLabelColor}>│</color> ";
+
+            if (BuildDLLCommand.IsObfuzInstalled)
+            {
+                builder.Append(separator);
+                builder.Append(IsObfuzBuildMode
+                    ? $"<color={OnLabelColor}>OBF:ON</color>"
+                    : $"<color={OffLabelColor}>OBF:OFF</color>");
+            }
+
+            builder.Append(separator);
+            builder.Append(IsPdbEnabled && !IsReleaseBuildMode
+                ? $"<color={OnLabelColor}>PDB:ON</color>"
+                : $"<color={OffLabelColor}>PDB:OFF</color>");
+
+            return builder.ToString();
         }
 
         private static string BuildModeTooltip()

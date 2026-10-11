@@ -12,7 +12,6 @@ namespace TEngine
     /// </summary>
     public partial class UnityToolbarExtenderRight
     {
-        private const string BUTTON_STYLE_NAME = "Tab middle";
         private const string RESOURCE_MODE_PREFS_KEY = "EditorPlayMode";
         private const string RESOURCE_MODE_PREFS_VERSION_KEY = "TEngine.EditorPlayModePrefsVersion";
         private const int RESOURCE_MODE_PREFS_VERSION = 1;
