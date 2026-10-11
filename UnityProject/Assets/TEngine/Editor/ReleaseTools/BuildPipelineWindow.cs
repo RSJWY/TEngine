@@ -745,71 +745,6 @@ namespace TEngine
         }
 
         [PropertySpace(8)]
-#if OBFUZ_INSTALLED
-        [TitleGroup("Obfuz")]
-        [ButtonGroup("Obfuz/Actions")]
-        [GUIColor(0.95f, 0.7f, 0.25f)]
-        [EnableIf(nameof(IsPolymorphicInjectedButDisabled))]
-        [Button("清理多态注入并重新生成", ButtonSizes.Large)]
-        private void CleanupPolymorphicAndGenerateAll()
-        {
-            BuildDLLCommand.GenerateAllForTarget(_buildTarget, cleanupPolymorphicInjection: true);
-        }
-
-        private bool IsPolymorphicNotInjected()
-        {
-#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
-            try
-            {
-                if (!BuildDLLCommand.IsObfuzActive ||
-                    !Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
-                    return false;
-                return !BuildDLLCommand.IsPolymorphicInjected;
-            }
-            catch
-            {
-                return false;
-            }
-#else
-            return false;
-#endif
-        }
-
-        private bool IsPolymorphicInjectedButDisabled()
-        {
-#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
-            try
-            {
-                if (BuildDLLCommand.IsObfuzActive &&
-                    Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
-                    return false;
-                return BuildDLLCommand.IsPolymorphicInjected;
-            }
-            catch
-            {
-                return false;
-            }
-#else
-            return false;
-#endif
-        }
-
-        /// <summary>Obfuz 区提示文本；非空时在 OnImGUI 中以 HelpBox 绘制（高度自适应，不被单元格裁剪）。</summary>
-        private string PolymorphicInjectionHint()
-        {
-            if (IsPolymorphicNotInjected())
-            {
-                return "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先在「热更DLL」执行 GenerateAll，否则运行时热更 DLL 加载会 BadImageFormatException。";
-            }
-            if (IsPolymorphicInjectedButDisabled())
-            {
-                return "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。\n点击「清理多态注入并重新生成」后，再重新打 Player。";
-            }
-            return null;
-        }
-#endif
-
-        [PropertySpace(8)]
         [TitleGroup("设置")]
         [ButtonGroup("设置/Actions")]
         [Button("刷新设置", ButtonSizes.Large)]
@@ -881,15 +816,6 @@ namespace TEngine
             GUILayout.EndHorizontal();
 
             SirenixEditorGUI.DrawThickHorizontalSeparator();
-
-#if OBFUZ_INSTALLED
-            string polymorphicHint = PolymorphicInjectionHint();
-            if (!string.IsNullOrEmpty(polymorphicHint))
-            {
-                bool isError = IsPolymorphicNotInjected();
-                EditorGUILayout.HelpBox(polymorphicHint, isError ? MessageType.Error : MessageType.Warning);
-            }
-#endif
 
             base.OnImGUI();
         }

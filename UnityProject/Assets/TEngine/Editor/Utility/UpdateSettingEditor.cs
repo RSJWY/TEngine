@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using HybridCLR.Editor.Settings;
+using HybridCLR.Settings;
 
 namespace TEngine.Editor
 {
@@ -61,25 +61,26 @@ namespace TEngine.Editor
                 bool isAOTChanged = !AOTMetaAssemblies.SequenceEqual(updateSetting.AOTMetaAssemblies);
                 if (isHotChanged)
                 {
-                    HybridCLRSettings.Instance.hotUpdateAssemblies = updateSetting.HotUpdateAssemblies.ToArray();
+                    HybridCLRSettings.instance.hotUpdateAssemblies = updateSetting.HotUpdateAssemblies.ToArray();
                     for (int i = 0; i < updateSetting.HotUpdateAssemblies.Count; i++)
                     {
                         var assemblyName = updateSetting.HotUpdateAssemblies[i];
                         string assemblyNameWithoutExtension = assemblyName.Substring(0, assemblyName.LastIndexOf('.'));
-                        HybridCLRSettings.Instance.hotUpdateAssemblies[i] = assemblyNameWithoutExtension;
+                        HybridCLRSettings.instance.hotUpdateAssemblies[i] = assemblyNameWithoutExtension;
                     }
                     Debug.Log("HotUpdateAssemblies changed");
                 }
                 if (isAOTChanged)
                 {
-                    HybridCLRSettings.Instance.patchAOTAssemblies = updateSetting.AOTMetaAssemblies.ToArray();
+                    // HybridCLR v9 起移除 HybridCLRSettings.patchAOTAssemblies，
+                    // AOT 补充元数据列表以 UpdateSetting.AOTMetaAssemblies + AOTMetadataManifest 为准。
                     Debug.Log("AOTMetaAssemblies changed");
                 }
 
                 if (isAOTChanged || isHotChanged)
                 {
                     // 在修改HybridCLRSettings后添加
-                    EditorUtility.SetDirty(HybridCLRSettings.Instance);
+                    EditorUtility.SetDirty(HybridCLRSettings.instance);
                     HybridCLRSettings.Save();
                     AssetDatabase.SaveAssets();
                 }
@@ -130,17 +131,16 @@ namespace TEngine.Editor
                 return;
             }
             
-            HybridCLRSettings.Instance.hotUpdateAssemblies = updateSetting.HotUpdateAssemblies.ToArray();
+            HybridCLRSettings.instance.hotUpdateAssemblies = updateSetting.HotUpdateAssemblies.ToArray();
             for (int i = 0; i < updateSetting.HotUpdateAssemblies.Count; i++)
             {
                 var assemblyName = updateSetting.HotUpdateAssemblies[i];
                 string assemblyNameWithoutExtension = assemblyName.Substring(0, assemblyName.LastIndexOf('.'));
-                HybridCLRSettings.Instance.hotUpdateAssemblies[i] = assemblyNameWithoutExtension;
+                HybridCLRSettings.instance.hotUpdateAssemblies[i] = assemblyNameWithoutExtension;
             }
             
-            HybridCLRSettings.Instance.patchAOTAssemblies = updateSetting.AOTMetaAssemblies.ToArray();
             HybridCLRSettings.Save();
-            EditorUtility.SetDirty(HybridCLRSettings.Instance);
+            EditorUtility.SetDirty(HybridCLRSettings.instance);
             AssetDatabase.SaveAssets();
             
             Debug.Log("HotUpdateAssemblies changed");

@@ -19,8 +19,7 @@
 // SOFTWARE.
 
 ﻿using dnlib.DotNet;
-using dnlib.DotNet.PolymorphicWriter;
-using HybridCLR.Editor;
+using HybridCLR;
 using Obfuz;
 using Obfuz.Settings;
 using Obfuz.Unity;
@@ -100,39 +99,6 @@ namespace Obfuz4HybridCLR
 
             Obfuscator obfuz = builder.Build();
             obfuz.Run();
-        }
-
-        public static void GeneratePolymorphicDll(string originalDllPath, string outputDllPath)
-        {
-            ModuleDef oldMod = ModuleDefMD.Load(originalDllPath);
-            var obfuzSettings = ObfuzSettings.Instance;
-
-            var opt = new NewDllModuleWriterOptions(oldMod)
-            {
-                MetadataWriter = new PolymorphicMetadataWriter(obfuzSettings.polymorphicDllSettings.codeGenerationSecretKey),
-            };
-            PolymorphicModuleWriter writer = new PolymorphicModuleWriter(oldMod, opt);
-            writer.Write(outputDllPath);
-            Debug.Log($"GeneratePolymorphicDll {originalDllPath} => {outputDllPath}");
-        }
-
-        public static void GeneratePolymorphicCodes(string libil2cppDir)
-        {
-            PolymorphicDllSettings settings = ObfuzSettings.Instance.polymorphicDllSettings;
-            if (!settings.enable)
-            {
-                UnityEngine.Debug.LogWarning("Polymorphic code generation is disabled in Obfuz settings.");
-                return;
-            }
-            var options = new PolymorphicCodeGenerator.Options
-            {
-                GenerationSecretKey = settings.codeGenerationSecretKey,
-                Libil2cppDir = libil2cppDir,
-                TemplateDir = ObfuscateUtil.TemplatePathInPackage,
-                DisableLoadStandardDll = settings.disableLoadStandardDll,
-            };
-            var generator = new PolymorphicCodeGenerator(options);
-            generator.Generate();
         }
     }
 }
