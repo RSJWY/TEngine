@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-10-11
+- [Obfuz 介入 HybridCLR 热更流程的时机与冗余分析](./2026-10-11-obfuz-hybridclr-integration-research.md)
+  - 关键词：Obfuz热更介入、ObfuscationProcess、IPostBuildPlayerScriptDLLs、ObfuscateUtil、ObfuscateHotUpdateAssemblies、PrebuildCommandExt、GenerateAll编排、CompileAndObfuscateDll、混淆时机、StripAOTDlls之后MethodBridge之前、ValidateReferences、ObfuscatedHotUpdateAssemblies、BuildAndCopyDlls冗余、CompileDll两次、热更dll拷贝两次、pdb与Obfuz互斥、CopyPdbToAssetPath、CleanStalePdbFiles
+  - 结论：Obfuz 分「Player构建期混淆AOT」与「热更dll独立混淆」两入口；热更混淆须在 StripAOTDlls 后、MethodBridge/AOTGenericReference 前；已删除重复编译与重复拷贝，pdb 路径不变。
 - [HybridCLR v8 → v9 API 变动清单](./2026-10-11-hybridclr-v8-v9-api-diff-research.md)
   - 关键词：HybridCLR v9.0.1、v8.15.0、命名空间重构、HybridCLR.Editor取消、HybridCLR.CodeGen、HybridCLR.Mod、HybridCLR.Utils、Analyzer改名、MethodBridgeAnalyzer、AOTReferenceAnalyzer、AOTGenericReferenceWriter、GenerateMethodBridgeCppFile转public、CleanIl2CppBuildCache移除、PInvokeAnalyzer移除、HybridCLRSettings改ScriptableSingleton、Instance→instance、patchAOTAssemblies移除、linkPreserveLevel、SettingsUtil成员删减、RuntimeApi不变、SevenZip/UnityFS移除
   - 结论：破坏面集中在 Editor 侧命名空间与少量类改名/设置字段删减，Runtime 与命令 API 稳定。

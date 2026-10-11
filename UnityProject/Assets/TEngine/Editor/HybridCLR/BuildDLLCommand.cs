@@ -460,24 +460,36 @@ public static class BuildDLLCommand
     public static void CopyAOTHotUpdateDlls(BuildTarget target)
     {
         CopyAOTAssembliesToAssetPath(target);
+#if ENABLE_HYBRIDCLR && ENABLE_OBFUZ
+        // Obfuz 开启：热更 DLL 需先混淆再落地，走专门的混淆链路，不再重复走原始拷贝。
+        CopyObfuscatedHotUpdateDlls(target);
+#elif ENABLE_HYBRIDCLR
         CopyHotUpdateAssembliesToAssetPath(target);
+#endif
+    }
 
 #if ENABLE_HYBRIDCLR && ENABLE_OBFUZ
-        CompileDllCommand.CompileDll(target, Settings.UpdateSetting.WillGeneratePdb);
-
+    /// <summary>
+    /// Obfuz 链路的热更 DLL 落地：
+    /// 1) 混淆热更 DLL（ObfuscateHotUpdateAssemblies，官方要求热更代码必须额外混淆）；
+    /// 2) 将“混淆后 / 未混淆”的热更 DLL 统一拷为 .bytes（覆盖原始拷贝，故不再单独走原始拷贝）；
+    /// 3) 处理 pdb（Obfuz 与 pdb 互斥，此处通常为清理历史残留）。
+    /// 注意：热更 DLL 需由调用方（BuildAndCopyDlls）先行编译，本方法不再重复编译。
+    /// </summary>
+    private static void CopyObfuscatedHotUpdateDlls(BuildTarget target)
+    {
+        string hotUpdateDllPath = SettingsUtil.GetHotUpdateDllsOutputDirByTarget(target);
         string obfuscatedHotUpdateDllPath = PrebuildCommandExt.GetObfuscatedHotUpdateAssemblyOutputPath(target);
         ObfuscateUtil.ObfuscateHotUpdateAssemblies(target, obfuscatedHotUpdateDllPath);
 
-        Directory.CreateDirectory(Application.streamingAssetsPath);
-
-        string hotUpdateDllPath = $"{SettingsUtil.GetHotUpdateDllsOutputDirByTarget(target)}";
+        string dstDir = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.HotUpdateAssemblySubPath;
         List<string> obfuscationRelativeAssemblyNames = ObfuzSettings.Instance.assemblySettings.GetObfuscationRelativeAssemblyNames();
 
         foreach (string assName in SettingsUtil.HotUpdateAssemblyNamesIncludePreserved)
         {
             string srcDir = obfuscationRelativeAssemblyNames.Contains(assName) ? obfuscatedHotUpdateDllPath : hotUpdateDllPath;
             string srcFile = $"{srcDir}/{assName}.dll";
-            string dstFile = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.HotUpdateAssemblySubPath + $"/{assName}.dll.bytes";
+            string dstFile = $"{dstDir}/{assName}.dll.bytes";
             if (!File.Exists(srcFile))
             {
                 continue;
@@ -485,9 +497,11 @@ public static class BuildDLLCommand
             File.Copy(srcFile, dstFile, true);
             Debug.Log($"[CompileAndObfuscate] Copy {srcFile} to {dstFile}");
         }
-#endif
-        
+
+        CopyPdbToAssetPath(hotUpdateDllPath, target);
+        AssetDatabase.Refresh();
     }
+#endif
 
     public static void CopyAOTAssembliesToAssetPath()
     {
