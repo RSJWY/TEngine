@@ -129,7 +129,7 @@ namespace RockeyArm
             if (_watchdogRunning)
                 return;
 
-#if !UNITY_EDITOR
+#if UNITY_EDITOR
             // UNITY_EDITOR 宏短路：编辑器无狗环境不启动看门狗；打包后本分支不参与编译，恒走真实循环。
             Info(Tag("Editor 下跳过看门狗（UNITY_EDITOR 宏控制）"));
             await UniTask.CompletedTask;
@@ -201,7 +201,7 @@ namespace RockeyArm
         /// <inheritdoc />
         public void CheckPermissions(Action onSuccess)
         {
-#if !UNITY_EDITOR
+#if UNITY_EDITOR
             // UNITY_EDITOR 宏短路：编辑器无狗环境默认放行；联调真狗请临时注释本段。
             // 打包后本分支不参与编译，恒走真实校验。
             IsLicensed = true;
@@ -229,7 +229,7 @@ namespace RockeyArm
         /// <inheritdoc />
         public async UniTask<bool> CheckPermissionsAsync(CancellationToken cancellationToken = default)
         {
-#if !UNITY_EDITOR
+#if UNITY_EDITOR
             // UNITY_EDITOR 宏短路：编辑器无狗环境默认放行；联调真狗请临时注释本段。
             // 打包后本分支不参与编译，恒走真实校验。
             IsLicensed = true;
