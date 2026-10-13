@@ -70,7 +70,7 @@ namespace RockeyArm.Bare
         // 2) 线程约束：FindMyDog/RunGuard 可能在线程池跑，禁止在其内部触碰 Unity API；
         //    指纹计算（SystemInfo）必须留主线程（CheckPermissionsAsync 已如此处理）。
         // 3) 平台：仅 Windows / Linux x86_64；其它平台会直接报 UnsupportedPlatform。
-        //    记得把 Assets/Plugins/ROCKEY/<平台>/x86_64 下的原生库随包带上。
+        //    记得把 Assets/RockeyARM/Plugins/ROCKEY/<平台>/x86_64 下的原生库随包带上。
         // 4) 生命周期：这是与 TEngine 版最大的坑——没人再帮你调 Release，
         //    必须在宿主销毁/切场景时手动调用，否则看门狗与狗句柄会泄漏。
         //    参考 RockeyArmBareBootstrap.OnDestroy 的标准写法。

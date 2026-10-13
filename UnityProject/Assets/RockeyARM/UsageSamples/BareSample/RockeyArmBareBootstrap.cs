@@ -2,7 +2,7 @@
 // RockeyArmBareBootstrap.cs —— 可直接使用的裸接入 MonoBehaviour（空场景即可跑）
 // ============================================================================================
 // 用法：任意空场景新建一个 GameObject，把本脚本挂上去，直接进 Play 即可。
-//   - 依赖只需 Assets/RockeyARM 目录（核心 + UI/prefab）与 Assets/Plugins/ROCKEY 原生库；
+//   - 依赖只需 Assets/RockeyARM 目录（核心 + UI/prefab + Plugins 原生库，整包拷贝即可）；
 //   - 场景不需要 UIRoot/UICanvas/Camera/EventSystem：弹窗 prefab 自带 Canvas，
 //     EventSystem 由 RockeyUIMgr 自动补；
 //   - Editor 默认走 #if UNITY_EDITOR 短路（跳过真狗校验直接放行），打包后恒真实校验；

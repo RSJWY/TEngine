@@ -30,10 +30,10 @@
 | `UsageSamples/BareSample/` | 裸使用调用示例（直调核心，不依赖 TEngine；`RockeyArmBareBootstrap` 空场景可跑） |
 | `UsageSamples/TEngineSample/` | TEngine 使用调用示例（注册适配层模块，含热更入口/结构化监听完整用法） |
 
-原生插件（不在本模块内，需自行部署）：
+原生插件（已随包内置，位于 `Plugins/` 特殊文件夹，平台/CPU 导入设置随 .meta 保留）：
 
-- Windows：`Assets/Plugins/ROCKEY/Windows/x86_64/Dongle_d.dll`（StdCall）
-- Linux：`Assets/Plugins/ROCKEY/Linux/x86_64/libRockeyARM.so`（Cdecl）
+- Windows：`Assets/RockeyARM/Plugins/ROCKEY/Windows/x86_64/Dongle_d.dll`（StdCall）
+- Linux：`Assets/RockeyARM/Plugins/ROCKEY/Linux/x86_64/libRockeyARM.so`（Cdecl）
 
 ## 分层设计（核心零框架依赖）
 

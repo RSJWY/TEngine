@@ -3,8 +3,8 @@
 // 搭配文件：IRockeyArm.cs（接口与诊断类型）、RockeyArmManager.cs、RockeyArmManager.Consts.cs
 //
 // 平台差异（API 签名、错误码、结构体在两个平台完全一致，均以厂商 Dongle_API.h 为准）：
-// - Windows：Dongle_d.dll，StdCall 调用约定，插件位于 Assets/Plugins/ROCKEY/Windows/x86_64/。
-// - Linux  ：libRockeyARM.so，Cdecl 调用约定，插件位于 Assets/Plugins/ROCKEY/Linux/x86_64/；
+// - Windows：Dongle_d.dll，StdCall 调用约定，插件位于 Assets/RockeyARM/Plugins/ROCKEY/Windows/x86_64/。
+// - Linux  ：libRockeyARM.so，Cdecl 调用约定，插件位于 Assets/RockeyARM/Plugins/ROCKEY/Linux/x86_64/；
 //            目标机使用前必须以 root 运行 ROCKEY-ARM_SDK_LINUX/base/inst 安装 udev 规则，
 //            否则 Dongle_Enum 返回 NOT_FOUND / COMM_ERROR。
 // - DllImport 传 "RockeyARM"，Mono/Igor 运行时会自动尝试 libRockeyARM.so（lib 前缀 + .so 后缀）。
