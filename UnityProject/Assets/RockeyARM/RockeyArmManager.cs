@@ -1,14 +1,14 @@
 // RockeyArmManager.cs
-// 作用：ROCKEY-ARM 客户端主逻辑（Windows / Linux 双平台）。
-// 搭配文件：IRockeyArmModule.cs（接口与诊断类型）、RockeyArmManager.Consts.cs（常量与协议）、RockeyArmManager.Platform.cs（平台 P/Invoke 网关）
+// 作用：ROCKEY-ARM 客户端主逻辑（Windows / Linux 双平台），【零框架依赖】核心实现。
+// 搭配文件：IRockeyArm.cs（接口与诊断类型）、RockeyArmManager.Consts.cs（常量与协议）、RockeyArmManager.Platform.cs（平台 P/Invoke 网关）
 // 平台：Windows 加载 Dongle_d.dll（StdCall）；Linux 加载 libRockeyARM.so（Cdecl，需先 root 运行 SDK ./inst 装 udev 规则）。
 //       两平台 Dongle_* API 签名与错误码完全一致，主逻辑无平台分支；锁内程序（0x0002）与狗通用，不区分平台。
 //
-// 框架适配说明（TEngine Module 规范）：
-// - 本类为 TEngine.Module，通过 ModuleSystem.RegisterModule<IRockeyArmModule>(new RockeyArmManager()) 注册；
-// - 生命周期由框架接管：OnInit 注册时机调用，Shutdown 负责取消看门狗、关闭狗句柄（幂等，可重复调用）；
-// - 日志统一走 TEngine.Log（TouchSocket 桥接 + 落盘），不再直用 Debug.Log；
-// - 授权错误通过 GameEvent 广播（事件 ID 见 LICENSE_ERROR_EVENT_ID），结构化诊断读 LastError。
+// 宿主接入说明（本类不依赖任何游戏框架，日志与错误事件全部走注入）：
+// - 创建：new RockeyArmManager()；初始化 Init()；销毁（关狗句柄、停看门狗，幂等）：Release()；
+// - 日志：把 InfoLogger / WarningLogger / ErrorLogger 接到宿主日志（TEngine 见 TEngine/RockeyArmModule，裸环境接 Debug.Log）；
+// - 授权错误：订阅 LicenseError 事件（结构化 LicenseErrorInfo）；UI 提示用 UserMessage，完整诊断见 LastError；
+// - TEngine 工程请改用适配层 RockeyArmModule（继承 Module、桥接 TEngine.Log 与 GameEvent），不要直接注册本类。
 
 using System;
 using System.Security.Cryptography;
@@ -17,7 +17,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-namespace TEngine
+namespace RockeyArm
 {
     /// <summary>
     /// RockeyArmManager（锁内程序版 v2.1，零 PIN、零匿名读账本、UUID 会话、完整错误诊断）
@@ -32,13 +32,11 @@ namespace TEngine
     /// 3. 区分“Dongle API 调用失败”和“锁内程序返回内部错误”；
     /// 4. 支持锁内诊断包，能解析 0x6A83 这类锁内系统错误码。
     ///
-    /// v2.2（TEngine 框架适配）：
-    /// 1. 改造为 TEngine.Module，生命周期由 ModuleSystem 接管（Shutdown 关句柄、停看门狗）；
-    /// 2. 新增 CheckPermissionsAsync 异步验证（锁内 IO 在线程池，指纹仍在主线程算）；
-    /// 3. 授权错误统一 GameEvent 广播 + LastError 实例属性，移除旧静态 C# 事件；
-    /// 4. 日志统一走 TEngine.Log；
-    /// 5. Editor 下默认跳过真实校验（开发机无狗），打包后恒为真实校验；
-    /// 6. 不支持平台（非 Windows / Linux x86_64）入口守卫，不再线程池抛异常。
+    /// v2.3（去框架化）：
+    /// 1. 不再继承 TEngine.Module：生命周期改为 Init() / Release()（Release 幂等，可重复调用）；
+    /// 2. 日志改为委托注入（InfoLogger / WarningLogger / ErrorLogger），不再直用 TEngine.Log；
+    /// 3. 授权错误改为普通 C# 事件 LicenseError（结构化 LicenseErrorInfo），不再走 GameEvent；
+    /// 4. TEngine 适配层见 TEngine/RockeyArmModule.cs（桥接 Module 生命周期、TEngine.Log、GameEvent）。
     ///
     /// 调用内部EXE前填写的数据
     /// 0~31  指纹 SHA256(deviceUniqueIdentifier)
@@ -46,19 +44,25 @@ namespace TEngine
     /// 36~51 会话 UUID（软件启动时生成一次，全程固定）
     /// 52~55 APP_ID（写死，如 0xA101）
     /// </summary>
-    public sealed partial class RockeyArmManager : Module, IRockeyArmModule
+    public sealed partial class RockeyArmManager : IRockeyArm
     {
         // 原生 API 声明与平台选择见 RockeyArmManager.Platform.cs（RockeyArmNative）。
 
-#if UNITY_EDITOR
-        /// <summary>
-        /// 编辑器下默认跳过真实校验（开发机通常无狗）；
-        /// 需要编辑器联调真狗时置为 false。打包后此字段不参与编译，恒为真实校验。
-        /// </summary>
-        public static bool SkipValidationInEditor = true;
-#endif
-
         IntPtr _hDongle = IntPtr.Zero;
+
+        // ==================== 宿主注入点（日志 / 错误事件） ====================
+
+        /// <summary>普通信息日志注入：宿主接到各自日志系统（TEngine 适配层接 TEngine.Log，裸环境接 Debug.Log）。未注入则静默丢弃。</summary>
+        public Action<string> InfoLogger { get; set; }
+
+        /// <summary>警告日志注入，同 <see cref="InfoLogger"/>。</summary>
+        public Action<string> WarningLogger { get; set; }
+
+        /// <summary>错误日志注入，同 <see cref="InfoLogger"/>。</summary>
+        public Action<string> ErrorLogger { get; set; }
+
+        /// <summary>授权错误事件：结构化诊断（UI 提示用 UserMessage，排障读完整字段或 LastError）。</summary>
+        public event Action<LicenseErrorInfo> LicenseError;
 
         /// <inheritdoc />
         public bool IsLicensed { get; private set; }
@@ -80,16 +84,19 @@ namespace TEngine
         /// <summary>看门狗防重入标记。</summary>
         bool _watchdogRunning;
 
-        public override void OnInit()
+        /// <summary>
+        /// 初始化（当前无前置资源，保留给宿主对称的调用时机；与 Release 配对）。
+        /// </summary>
+        public void Init()
         {
         }
 
         /// <summary>
-        /// 关闭并清理模块：停止看门狗、关闭加密锁句柄。幂等，可安全重复调用。
-        /// <remarks>由 ModuleSystem.Shutdown 或 Utility.Unity.AddDestroyListener 触发；
+        /// 关闭并清理：停止看门狗、关闭加密锁句柄。幂等，可安全重复调用。
+        /// <remarks>由宿主在销毁/切场景时调用（TEngine 版由 RockeyArmModule.Shutdown 触发）；
         /// 此处只取消不 Dispose CTS，避免与在途的看门狗 await 产生竞态。</remarks>
         /// </summary>
-        public override void Shutdown()
+        public void Release()
         {
             if (!_lifetimeCts.IsCancellationRequested)
                 _lifetimeCts.Cancel();
@@ -122,13 +129,11 @@ namespace TEngine
             if (_watchdogRunning)
                 return;
 
-#if UNITY_EDITOR
-            if (SkipValidationInEditor)
-            {
-                Log.Info("[ROCKEY-ARM] Editor 下跳过看门狗（SkipValidationInEditor = true）");
-                return;
-            }
-#endif
+#if !UNITY_EDITOR
+            // UNITY_EDITOR 宏短路：编辑器无狗环境不启动看门狗；打包后本分支不参与编译，恒走真实循环。
+            Info(Tag("Editor 下跳过看门狗（UNITY_EDITOR 宏控制）"));
+            await UniTask.CompletedTask;
+#else
 
             if (!IsPlatformSupported(out LicenseErrorInfo platformError))
             {
@@ -190,21 +195,19 @@ namespace TEngine
             {
                 _watchdogRunning = false;
             }
+#endif
         }
 
         /// <inheritdoc />
         public void CheckPermissions(Action onSuccess)
         {
-#if UNITY_EDITOR
-            if (SkipValidationInEditor)
-            {
-                IsLicensed = true;
-                Log.Info("[ROCKEY-ARM] Editor 下跳过加密锁校验（SkipValidationInEditor = true）");
-                onSuccess?.Invoke();
-                return;
-            }
-#endif
-
+#if !UNITY_EDITOR
+            // UNITY_EDITOR 宏短路：编辑器无狗环境默认放行；联调真狗请临时注释本段。
+            // 打包后本分支不参与编译，恒走真实校验。
+            IsLicensed = true;
+            Info(Tag("Editor 下跳过加密锁校验（UNITY_EDITOR 宏控制）"));
+            onSuccess?.Invoke();
+#else
             if (!IsPlatformSupported(out LicenseErrorInfo platformError))
             {
                 IsLicensed = false;
@@ -220,20 +223,20 @@ namespace TEngine
 
             GuardResult result = FindMyDog("启动授权验证");
             CompleteStartupCheck(result, onSuccess);
+#endif
         }
 
         /// <inheritdoc />
         public async UniTask<bool> CheckPermissionsAsync(CancellationToken cancellationToken = default)
         {
-#if UNITY_EDITOR
-            if (SkipValidationInEditor)
-            {
-                IsLicensed = true;
-                Log.Info("[ROCKEY-ARM] Editor 下跳过加密锁校验（SkipValidationInEditor = true）");
-                return true;
-            }
-#endif
-
+#if !UNITY_EDITOR
+            // UNITY_EDITOR 宏短路：编辑器无狗环境默认放行；联调真狗请临时注释本段。
+            // 打包后本分支不参与编译，恒走真实校验。
+            IsLicensed = true;
+            Info(Tag("Editor 下跳过加密锁校验（UNITY_EDITOR 宏控制）"));
+            await UniTask.CompletedTask;
+            return true;
+#else
             if (!IsPlatformSupported(out LicenseErrorInfo platformError))
             {
                 IsLicensed = false;
@@ -252,6 +255,7 @@ namespace TEngine
                 () => FindMyDog("启动授权验证"), cancellationToken: cancellationToken);
 
             return CompleteStartupCheck(result, null);
+#endif
         }
 
         /// <summary>应用启动验证结果并广播：成功记通行证，失败报结构化错误。回主线程执行。</summary>
@@ -269,9 +273,9 @@ namespace TEngine
             IsLicensed = true;
 
             if (result.Ret == RET_FIRST_BIND)
-                Log.Info("[ROCKEY-ARM] 首次使用，本机绑定成功");
+                Info(Tag("<color=green>首次使用，本机绑定成功</color>"));
 
-            Log.Info("[ROCKEY-ARM] 授权验证通过");
+            Info(Tag("<color=green>授权验证通过</color>"));
             PrintLicenseDeadline(result.Deadline);
             onSuccess?.Invoke();
             return true;
@@ -333,16 +337,16 @@ namespace TEngine
         {
             if (deadline == DEADLINE_PERMANENT)
             {
-                Log.Info("[ROCKEY-ARM] 授权有效期: 永久");
+                Info(Tag("<color=green>授权有效期: 永久</color>"));
                 return;
             }
 
             DateTime expiry = DateTimeOffset.FromUnixTimeSeconds(deadline).ToLocalTime().DateTime;
             TimeSpan remain = expiry - DateTime.Now;
             if (remain.TotalSeconds <= 0)
-                Log.Warning($"[ROCKEY-ARM] 授权有效期至: {expiry:yyyy-MM-dd HH:mm:ss}（已到期）");
+                Warning(Tag($"<color=red>授权有效期至: {expiry:yyyy-MM-dd HH:mm:ss}（已到期）</color>"));
             else
-                Log.Info($"[ROCKEY-ARM] 授权有效期至: {expiry:yyyy-MM-dd HH:mm:ss}（剩余 {remain.Days} 天 {remain.Hours} 小时）");
+                Info(Tag($"<color=green>授权有效期至: {expiry:yyyy-MM-dd HH:mm:ss}（剩余 {remain.Days} 天 {remain.Hours} 小时）</color>"));
         }
 
         /// <summary>
@@ -418,6 +422,15 @@ namespace TEngine
         {
             using (var sha = SHA256.Create())
                 return sha.ComputeHash(Encoding.UTF8.GetBytes(SystemInfo.deviceUniqueIdentifier));
+        }
+
+        /// <summary>
+        /// 统一模块日志前缀：橙色 [ROCKEY-ARM] 标签（颜色见 Consts.LOG_TAG_COLOR），
+        /// 便于在 Console / LogViewer 中一眼区分加密锁日志；需要强调结果时由调用方在正文内嵌 green/red。
+        /// </summary>
+        static string Tag(string message)
+        {
+            return $"<color={LOG_TAG_COLOR}>[ROCKEY-ARM]</color> {message}";
         }
 
         /// <summary>入口平台守卫：ROCKEY-ARM 原生库仅支持 Windows / Linux x86_64，其余平台直接给结构化错误，不进线程池。</summary>
@@ -652,12 +665,20 @@ namespace TEngine
 
             LastError = info;
 
-            // 先打印完整日志，确保就算 GameEvent 订阅方异常/没接，也能在日志里看到错误码。
-            Log.Error("[ROCKEY-ARM 授权错误] " + info);
+            // 先打印完整日志，确保就算事件订阅方异常/没接，也能在日志里看到错误码。
+            // Error 级别由 Console 标红，正文不再嵌套颜色。
+            Error(Tag("[授权错误] " + info));
 
-            // 再发游戏事件。用户界面只拿短提示；完整诊断已经先写入日志，也可随时读 LastError。
-            string gameEventMessage = SEND_FULL_ERROR_TO_GAME_EVENT ? info.ToString() : info.UserMessage;
-            GameEvent.Send<string>(RuntimeId.ToRuntimeId(LICENSE_ERROR_EVENT_ID), gameEventMessage);
+            // 再发授权错误事件（结构化）。用户界面只拿短提示；完整诊断已先写入日志，也可随时读 LastError。
+            LicenseError?.Invoke(info);
         }
+
+        // ==================== 日志内部入口（走宿主注入，未注入则静默） ====================
+
+        void Info(string message) => InfoLogger?.Invoke(message);
+
+        void Warning(string message) => WarningLogger?.Invoke(message);
+
+        void Error(string message) => ErrorLogger?.Invoke(message);
     }
 }

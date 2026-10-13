@@ -1,6 +1,6 @@
 // RockeyArmManager.Platform.cs
 // 作用：ROCKEY-ARM 原生库（Dongle_* API）平台网关，Windows / Linux 双平台 P/Invoke 声明。
-// 搭配文件：IRockeyArmModule.cs（接口与诊断类型）、RockeyArmManager.cs、RockeyArmManager.Consts.cs
+// 搭配文件：IRockeyArm.cs（接口与诊断类型）、RockeyArmManager.cs、RockeyArmManager.Consts.cs
 //
 // 平台差异（API 签名、错误码、结构体在两个平台完全一致，均以厂商 Dongle_API.h 为准）：
 // - Windows：Dongle_d.dll，StdCall 调用约定，插件位于 Assets/Plugins/ROCKEY/Windows/x86_64/。
@@ -12,7 +12,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace TEngine
+namespace RockeyArm
 {
     public sealed partial class RockeyArmManager
     {

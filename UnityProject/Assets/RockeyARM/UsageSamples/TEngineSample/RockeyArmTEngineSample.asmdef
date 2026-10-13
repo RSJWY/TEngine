@@ -1,0 +1,23 @@
+{
+    "name": "RockeyArmTEngineSample",
+    "rootNamespace": "RockeyArm.TEngineSample",
+    "references": [
+        "GUID:1386b0aeee0925a4180649424cb8f0a0",
+        "GUID:7ff8dfe72e284133a1de97c68ab4de4b",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:24c092aee38482f4e80715eaa8148782"
+    ],
+    "includePlatforms": [
+        "Editor",
+        "LinuxStandalone64",
+        "WindowsStandalone64"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

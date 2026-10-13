@@ -1,20 +1,11 @@
-﻿// RockeyArmManager.Consts.cs
+// RockeyArmManager.Consts.cs
 // 作用：只放 RockeyArmManager 用到的常量、协议偏移、错误码（Windows / Linux 双平台通用，错误码同厂商 Dongle_API.h）。
-// 搭配文件：IRockeyArmModule.cs（接口与诊断类型）、RockeyArmManager.cs（主逻辑）、RockeyArmManager.Platform.cs（平台 P/Invoke 网关）。
+// 搭配文件：IRockeyArm.cs（接口与诊断类型）、RockeyArmManager.cs（主逻辑）、RockeyArmManager.Platform.cs（平台 P/Invoke 网关）。
 
-namespace TEngine
+namespace RockeyArm
 {
     public sealed partial class RockeyArmManager
     {
-        // ==================== 对外事件 ====================
-
-        /// <summary>
-        /// 授权错误 GameEvent 事件 ID。
-        /// 订阅：GameEvent.AddEventListener&lt;string&gt;(RuntimeId.ToRuntimeId(RockeyArmManager.LICENSE_ERROR_EVENT_ID), handler)。
-        /// 注：旧 ViKey 时代的 "SYSYTEM_VIKEYERROR" 已废弃。
-        /// </summary>
-        public const string LICENSE_ERROR_EVENT_ID = "ROCKEY_ARM_LICENSE_ERROR";
-
         // ==================== 基础协议 ====================
 
         const uint DONGLE_SUCCESS = 0x00000000;
@@ -86,8 +77,9 @@ namespace TEngine
 
         // ==================== 本地配置 ====================
 
-        // 用户只看简短提示，完整诊断留给 Console / OnLicenseErrorDetail / LastError。
-        // true：GameEvent 发完整诊断字符串；false：GameEvent 只发用户可读短提示。
-        const bool SEND_FULL_ERROR_TO_GAME_EVENT = false;
+        /// <summary>
+        /// 日志标签颜色（Unity Console / LogViewer 富文本渲染，便于区分加密锁日志；落盘日志保留标签原文）。
+        /// </summary>
+        internal const string LOG_TAG_COLOR = "#FF9F43";
     }
 }

@@ -1,7 +1,8 @@
 {
-    "name": "RockeyARM",
+    "name": "RockeyARM.TEngine",
     "rootNamespace": "TEngine",
     "references": [
+        "GUID:1386b0aeee0925a4180649424cb8f0a0",
         "GUID:24c092aee38482f4e80715eaa8148782",
         "GUID:f51ebe6a0ceec4240a699833d6309b23"
     ],
