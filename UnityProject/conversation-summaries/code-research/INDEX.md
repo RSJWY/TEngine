@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-10-13
+- [ROCKEY-ARM Linux SDK 与 Win API 一致性研究及双平台接入实施](./2026-10-13-rockey-arm-linux-win-api-parity-research.md)
+  - 关键词：RockeyArmManager、RockeyArmNative、RockeyArmManager.Platform.cs、libRockeyARM.so、Dongle_d.dll、StdCall、Cdecl、Dongle_API.h、API一致性、Dongle_RunExeFile、锁内程序版、UNITY_EDITOR_WIN、UNITY_STANDALONE_LINUX、Plugins/ROCKEY平台子目录、udev规则inst、RockeyARM_Linux删除、ARMLicenseData缺失、MSBuild验证
+  - 结论：Linux 与 Win 的 Dongle_* API/错误码/结构体完全一致，仅库名与调用约定不同；已内建平台网关双平台共用锁内程序版主逻辑。
+
 ## 2026-10-11
 - [Obfuz 介入 HybridCLR 热更流程的时机与冗余分析](./2026-10-11-obfuz-hybridclr-integration-research.md)
   - 关键词：Obfuz热更介入、ObfuscationProcess、IPostBuildPlayerScriptDLLs、ObfuscateUtil、ObfuscateHotUpdateAssemblies、PrebuildCommandExt、GenerateAll编排、CompileAndObfuscateDll、混淆时机、StripAOTDlls之后MethodBridge之前、ValidateReferences、ObfuscatedHotUpdateAssemblies、BuildAndCopyDlls冗余、CompileDll两次、热更dll拷贝两次、pdb与Obfuz互斥、CopyPdbToAssetPath、CleanStalePdbFiles
