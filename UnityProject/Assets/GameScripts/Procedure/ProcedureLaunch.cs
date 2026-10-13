@@ -2,6 +2,7 @@ using System;
 using Cysharp.Threading.Tasks;
 using Launcher;
 using TEngine;
+using UnityEngine;
 using YooAsset;
 using ProcedureOwner = TEngine.IFsm<TEngine.IProcedureModule>;
 
@@ -17,6 +18,12 @@ namespace Procedure
         private IAudioModule _audioModule;
 
         private bool _deployConfigLoaded;
+
+        private bool _licenseChecked;
+
+        private bool _licenseChecking;
+
+        private RockeyArmModule _rockeyArm;
 
         protected override void OnInit(ProcedureOwner procedureOwner)
         {
@@ -67,7 +74,49 @@ namespace Procedure
                 return;
             }
 
+            // 加密锁授权闸门：验证通过（并启动看门狗）后才放行进入 Splash
+            if (!_licenseChecked)
+            {
+                if (!_licenseChecking)
+                {
+                    _licenseChecking = true;
+                    CheckLicenseAsync().Forget();
+                }
+                return;
+            }
+
             ChangeState<ProcedureSplash>(procedureOwner);
+        }
+
+        /// <summary>
+        /// 加密锁授权验证：通过后启动看门狗并放行流程；失败弹启动器消息框（确定重试 / 取消退出）。
+        /// 注册的是 TEngine 适配层 RockeyArmModule（Assets/RockeyARM/TEngine，包装零框架核心 RockeyArm.RockeyArmManager），
+        /// 模块实例注册进 ModuleSystem，热更域后续通过 GameModule.RockeyArm 访问同一实例。
+        /// </summary>
+        private async UniTaskVoid CheckLicenseAsync()
+        {
+            if (_rockeyArm == null)
+            {
+                _rockeyArm = new RockeyArmModule();
+                ModuleSystem.RegisterModule<IRockeyArmModule>(_rockeyArm);
+            }
+
+            bool pass = await _rockeyArm.CheckPermissionsAsync();
+            if (pass)
+            {
+                _rockeyArm.StartWatchdog().Forget();
+                _licenseChecked = true;
+                return;
+            }
+
+            // 失败后保持 _licenseChecking = true，流程停在本状态、不再自动重试；
+            // 仅当用户在消息框点「确定」时解锁，由 OnUpdate 下一拍重新发起验证。
+            string message = _rockeyArm.LastError?.UserMessage ?? "未知授权错误!";
+            Log.Warning("[ProcedureLaunch] 授权验证失败：{0}", message);
+            LauncherMgr.ShowMessageBox(
+                $"{message}\n\n请插入加密锁后点击确定重试，点击取消退出应用。",
+                onConfirm: () => _licenseChecking = false,
+                onCancel: Application.Quit);
         }
 
         private async UniTaskVoid LoadDeployConfigAsync()

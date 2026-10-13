@@ -1,4 +1,4 @@
-﻿using GameLogic;
+using GameLogic;
 using TEngine;
 using Object = UnityEngine.Object;
 
@@ -141,7 +141,8 @@ public class GameModule
     /// <summary>
     /// 获取加密锁授权模块。
     /// <para>ROCKEY-ARM 加密狗授权：验证 / 看门狗 / 结构化诊断。需先在启动入口
-    /// ModuleSystem.RegisterModule&lt;IRockeyArmModule&gt;(new RockeyArmManager()) 注册。</para>
+    /// ModuleSystem.RegisterModule&lt;IRockeyArmModule&gt;(new RockeyArmModule()) 注册
+    ///（主包 ProcedureLaunch 已注册；RockeyArmModule 为适配层，核心实现零框架依赖）。</para>
     /// </summary>
     public static IRockeyArmModule RockeyArm => _rockeyArm ??= Get<IRockeyArmModule>();
 

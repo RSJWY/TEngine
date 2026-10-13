@@ -4,6 +4,11 @@
 > 新增会话总结时，按日期倒序在本文件顶部追加条目；禁止另建按日期拆分的索引文件。
 > 代码研究类文档不收录在此，见 [code-research/INDEX.md](./code-research/INDEX.md)。
 
+## 2026-10-13
+- [RockeyARM 模块去框架化改造（包化 + TEngine 消费侧适配）](./2026-10-13-rockey-arm-deframework-summary.md)
+  - 关键词：RockeyArmManager、IRockeyArm、RockeyArmModule、RockeyARM.TEngine.asmdef、RockeyUIMgr、ExitErrorUI、Resources/UIWindow、LicenseError 事件、Logger 注入、Init/Release、ProcedureLaunch、GameApp、Unity MCP 验证
+  - 结论：核心零框架依赖可裸用/TEngine 双接入，消费侧完成适配并经 Unity 编译验证 0 错误。
+
 ## 2026-09-23
 - [UI 脚本生成器集成自研 UI 组件扩展](./2026-09-23-ui-script-generator-fork-components-summary.md)
   - 关键词：UIScriptGenerator、UIComponentName、ScriptGenerateRuler、ScriptGeneratorSetting.asset、GetComponentTypeFromEnumName、UIButton、UIText、UITMPText、UIImage、UIRawImage、m_uiBtn、前缀并存
