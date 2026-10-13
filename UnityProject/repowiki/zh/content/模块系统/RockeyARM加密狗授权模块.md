@@ -24,7 +24,8 @@
 | `RockeyArmManager.Consts.cs` | 协议常量、偏移、错误码 |
 | `RockeyArmManager.Platform.cs` | Windows / Linux P/Invoke 网关（`RockeyArmNative`）与平台守卫 |
 | `UI/RockeyUIBase.cs` / `UI/RockeyUIMgr.cs` | 零框架依赖轻量 UI 外壳（仿 `Assets/Launcher`：纯 C# UI 类 + `Resources.Load`） |
-| `UI/ExitErrorUI.cs` | 授权错误弹窗（驱动 `Resources/UIWindow/ExitErrorUI.prefab`，prefab 根自带 Canvas） |
+| `UI/ExitErrorUI.cs` | 授权错误弹窗（驱动 `Resources/UIWindow/ExitErrorUI.prefab`，prefab 根自带 Canvas；TMP 字体引用包内 `Resources/Fonts/RockeyErrorFont SDF`，Dynamic 模式任意中文消息均可显示） |
+| `Resources/Fonts/` | 包内字体：`SourceHanSansSC-Normal.otf`（OFL 可再分发）+ 动态 SDF 字体资产（约 2MB，运行时按需渲染字形，源字体随包） |
 | `TEngine/IRockeyArmModule.cs` | TEngine 门面接口（等价 `RockeyArm.IRockeyArm`） |
 | `TEngine/RockeyArmModule.cs` | TEngine 适配层：`Module` 生命周期桥、日志桥（`TEngine.Log`）、错误事件转 GameEvent |
 | `UsageSamples/BareSample/` | 裸使用调用示例（直调核心，不依赖 TEngine；`RockeyArmBareBootstrap` 空场景可跑） |
