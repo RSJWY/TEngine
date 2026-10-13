@@ -1,8 +1,14 @@
 // RockeyArmManager.cs
 // 作用：ROCKEY-ARM 客户端主逻辑（Windows / Linux 双平台）。
-// 搭配文件：RockeyArmManager.Consts.cs（常量与协议）、RockeyArmManager.Platform.cs（平台 P/Invoke 网关）
+// 搭配文件：IRockeyArmModule.cs（接口与诊断类型）、RockeyArmManager.Consts.cs（常量与协议）、RockeyArmManager.Platform.cs（平台 P/Invoke 网关）
 // 平台：Windows 加载 Dongle_d.dll（StdCall）；Linux 加载 libRockeyARM.so（Cdecl，需先 root 运行 SDK ./inst 装 udev 规则）。
 //       两平台 Dongle_* API 签名与错误码完全一致，主逻辑无平台分支；锁内程序（0x0002）与狗通用，不区分平台。
+//
+// 框架适配说明（TEngine Module 规范）：
+// - 本类为 TEngine.Module，通过 ModuleSystem.RegisterModule<IRockeyArmModule>(new RockeyArmManager()) 注册；
+// - 生命周期由框架接管：OnInit 注册时机调用，Shutdown 负责取消看门狗、关闭狗句柄（幂等，可重复调用）；
+// - 日志统一走 TEngine.Log（TouchSocket 桥接 + 落盘），不再直用 Debug.Log；
+// - 授权错误通过 GameEvent 广播（事件 ID 见 LICENSE_ERROR_EVENT_ID），结构化诊断读 LastError。
 
 using System;
 using System.Security.Cryptography;
@@ -22,25 +28,46 @@ namespace TEngine
     ///
     /// v2.1：
     /// 1. 厂商 API 错误码完整翻译；
-    /// 2. 新增 LicenseErrorInfo / OnLicenseErrorDetail / LastError；
+    /// 2. 新增 LicenseErrorInfo / LastError；
     /// 3. 区分“Dongle API 调用失败”和“锁内程序返回内部错误”；
     /// 4. 支持锁内诊断包，能解析 0x6A83 这类锁内系统错误码。
-    /// 
+    ///
+    /// v2.2（TEngine 框架适配）：
+    /// 1. 改造为 TEngine.Module，生命周期由 ModuleSystem 接管（Shutdown 关句柄、停看门狗）；
+    /// 2. 新增 CheckPermissionsAsync 异步验证（锁内 IO 在线程池，指纹仍在主线程算）；
+    /// 3. 授权错误统一 GameEvent 广播 + LastError 实例属性，移除旧静态 C# 事件；
+    /// 4. 日志统一走 TEngine.Log；
+    /// 5. Editor 下默认跳过真实校验（开发机无狗），打包后恒为真实校验；
+    /// 6. 不支持平台（非 Windows / Linux x86_64）入口守卫，不再线程池抛异常。
+    ///
     /// 调用内部EXE前填写的数据
     /// 0~31  指纹 SHA256(deviceUniqueIdentifier)
     /// 32~35 UTC 秒，低字节在前
     /// 36~51 会话 UUID（软件启动时生成一次，全程固定）
     /// 52~55 APP_ID（写死，如 0xA101）
     /// </summary>
-    public partial class RockeyArmManager
+    public sealed partial class RockeyArmManager : Module, IRockeyArmModule
     {
         // 原生 API 声明与平台选择见 RockeyArmManager.Platform.cs（RockeyArmNative）。
 
-        IntPtr hDongle = IntPtr.Zero;
-        public bool isLicensed = false;
+#if UNITY_EDITOR
+        /// <summary>
+        /// 编辑器下默认跳过真实校验（开发机通常无狗）；
+        /// 需要编辑器联调真狗时置为 false。打包后此字段不参与编译，恒为真实校验。
+        /// </summary>
+        public static bool SkipValidationInEditor = true;
+#endif
 
-        /// <summary>狗发回来的通行证（32 字节），验证通过后才有值。</summary>
+        IntPtr _hDongle = IntPtr.Zero;
+
+        /// <inheritdoc />
+        public bool IsLicensed { get; private set; }
+
+        /// <inheritdoc />
         public byte[] SessionToken { get; private set; }
+
+        /// <inheritdoc />
+        public LicenseErrorInfo LastError { get; private set; }
 
         /// <summary>设备指纹缓存：CheckPermissions（主线程）算一次，之后线程池直接用。</summary>
         byte[] _fp;
@@ -50,93 +77,31 @@ namespace TEngine
 
         readonly CancellationTokenSource _lifetimeCts = new CancellationTokenSource();
 
-        /// <summary>兼容旧逻辑：只发短文案。</summary>
-        public delegate void LicenseErrorEvent(string error);
+        /// <summary>看门狗防重入标记。</summary>
+        bool _watchdogRunning;
 
-        public static event LicenseErrorEvent OnLicenseError;
-
-        /// <summary>新诊断事件：给日志系统 / 客服排障界面用。</summary>
-        public delegate void LicenseErrorDetailEvent(LicenseErrorInfo error);
-
-        public static event LicenseErrorDetailEvent OnLicenseErrorDetail;
-
-        /// <summary>最近一次授权错误，供任意界面随时读取。</summary>
-        public static LicenseErrorInfo LastError { get; private set; }
-
-        public enum RockeyErrorKind
+        public override void OnInit()
         {
-            Unknown = 0,
-            DongleNotFound,
-            DongleOpenFailed,
-            DongleApiFailed,
-            LockInternalError,
-            WrongDevice,
-            TimeBack,
-            Expired,
-            NotAuthorized, // 本产品未授权（锁内返回6）
-            UnknownLockResult
         }
 
-        /// <summary>授权错误完整诊断信息。</summary>
-        public sealed class LicenseErrorInfo
+        /// <summary>
+        /// 关闭并清理模块：停止看门狗、关闭加密锁句柄。幂等，可安全重复调用。
+        /// <remarks>由 ModuleSystem.Shutdown 或 Utility.Unity.AddDestroyListener 触发；
+        /// 此处只取消不 Dispose CTS，避免与在途的看门狗 await 产生竞态。</remarks>
+        /// </summary>
+        public override void Shutdown()
         {
-            public RockeyErrorKind Kind = RockeyErrorKind.Unknown;
-            public string Stage = string.Empty;
-            public string UserMessage = string.Empty;
-            public string Detail = string.Empty;
+            if (!_lifetimeCts.IsCancellationRequested)
+                _lifetimeCts.Cancel();
 
-            public bool HasApiCode;
-            public string ApiName = string.Empty;
-            public uint ApiCode;
-            public string ApiMeaning = string.Empty;
-
-            public bool HasMainRet;
-            public int MainRet;
-            public string MainRetMeaning = string.Empty;
-
-            public bool HasLockDiag;
-            public byte LockStage;
-            public string LockStageMeaning = string.Empty;
-            public ushort LockApiCode;
-            public string LockApiMeaning = string.Empty;
-
-            public DateTime UtcTime = DateTime.UtcNow;
-
-            public override string ToString()
+            if (_hDongle != IntPtr.Zero)
             {
-                StringBuilder sb = new StringBuilder();
-                sb.Append(string.IsNullOrEmpty(UserMessage) ? "未知授权错误" : UserMessage);
-
-                if (!string.IsNullOrEmpty(Stage))
-                    sb.Append(" [阶段: ").Append(Stage).Append(']');
-
-                if (HasApiCode)
-                {
-                    sb.Append(" [厂商API: ").Append(ApiName)
-                        .Append(" = 0x").Append(ApiCode.ToString("X8"))
-                        .Append(' ').Append(ApiMeaning).Append(']');
-                }
-
-                if (HasMainRet)
-                {
-                    sb.Append(" [锁内返回值: ").Append(MainRet)
-                        .Append(' ').Append(MainRetMeaning).Append(']');
-                }
-
-                if (HasLockDiag)
-                {
-                    sb.Append(" [锁内诊断: 阶段 ").Append(LockStage)
-                        .Append('(').Append(LockStageMeaning).Append(')')
-                        .Append(", 系统API = 0x").Append(LockApiCode.ToString("X4"))
-                        .Append(' ').Append(LockApiMeaning).Append(']');
-                }
-
-                if (!string.IsNullOrEmpty(Detail))
-                    sb.Append(" [说明: ").Append(Detail).Append(']');
-
-                sb.Append(" [UTC: ").Append(UtcTime.ToString("yyyy-MM-dd HH:mm:ss")).Append(']');
-                return sb.ToString();
+                RockeyArmNative.Dongle_Close(_hDongle);
+                _hDongle = IntPtr.Zero;
             }
+
+            IsLicensed = false;
+            SessionToken = null;
         }
 
         sealed class GuardResult
@@ -154,85 +119,168 @@ namespace TEngine
 
         public async UniTaskVoid StartWatchdog(CancellationToken cancellationToken = default)
         {
-            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                       cancellationToken, _lifetimeCts.Token))
+            if (_watchdogRunning)
+                return;
+
+#if UNITY_EDITOR
+            if (SkipValidationInEditor)
             {
-                while (!linkedCts.Token.IsCancellationRequested && hDongle != IntPtr.Zero)
+                Log.Info("[ROCKEY-ARM] Editor 下跳过看门狗（SkipValidationInEditor = true）");
+                return;
+            }
+#endif
+
+            if (!IsPlatformSupported(out LicenseErrorInfo platformError))
+            {
+                ReportError(platformError);
+                return;
+            }
+
+            _watchdogRunning = true;
+            try
+            {
+                using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                           cancellationToken, _lifetimeCts.Token))
                 {
-                    if (await UniTask.WaitForSeconds(2f, cancellationToken: linkedCts.Token)
-                            .SuppressCancellationThrow())
+                    while (!linkedCts.Token.IsCancellationRequested && _hDongle != IntPtr.Zero)
+                    {
+                        if (await UniTask.WaitForSeconds(2f, cancellationToken: linkedCts.Token)
+                                .SuppressCancellationThrow())
+                            break;
+
+                        GuardResult result = await UniTask.RunOnThreadPool(
+                            () => RunGuard("看门狗授权复查"), cancellationToken: linkedCts.Token);
+
+                        if (result.Ret == RET_OK || result.Ret == RET_FIRST_BIND)
+                        {
+                            if (result.Token != null) SessionToken = result.Token;
+                            IsLicensed = true;
+                            continue;
+                        }
+
+                        // 狗回答了但拒绝（2~6）：立即锁死
+                        if (result.Ret >= RET_WRONG_DEVICE)
+                        {
+                            IsLicensed = false;
+                            ReportError(result.Error);
+                            break;
+                        }
+
+                        // 调用失败（狗被拔/通信异常）：同一拍重扫一圈，找到就换句柄静默继续
+                        GuardResult rescan = await UniTask.RunOnThreadPool(
+                            () => FindMyDog("看门狗授权复查"), cancellationToken: linkedCts.Token);
+
+                        if (rescan.Ret == RET_OK || rescan.Ret == RET_FIRST_BIND)
+                        {
+                            if (rescan.Token != null) SessionToken = rescan.Token;
+                            IsLicensed = true;
+                            continue;
+                        }
+
+                        IsLicensed = false;
+                        ReportError(rescan.Error ?? MakeSimpleError(
+                            RockeyErrorKind.DongleNotFound, "看门狗授权复查",
+                            "检测到加密狗已拔出! 请插入加密狗后重启应用!",
+                            "重扫后仍未找到本产品的加密锁"));
                         break;
-
-                    GuardResult result = await UniTask.RunOnThreadPool(
-                        () => RunGuard("看门狗授权复查"), cancellationToken: linkedCts.Token);
-
-                    if (result.Ret == RET_OK || result.Ret == RET_FIRST_BIND)
-                    {
-                        if (result.Token != null) SessionToken = result.Token;
-                        isLicensed = true;
-                        continue;
                     }
-
-                    // 狗回答了但拒绝（2~6）：立即锁死
-                    if (result.Ret >= RET_WRONG_DEVICE)
-                    {
-                        isLicensed = false;
-                        ReportError(result.Error);
-                        break;
-                    }
-
-                    // 调用失败（狗被拔/通信异常）：同一拍重扫一圈，找到就换句柄静默继续
-                    GuardResult rescan = await UniTask.RunOnThreadPool(
-                        () => FindMyDog("看门狗授权复查"), cancellationToken: linkedCts.Token);
-
-                    if (rescan.Ret == RET_OK || rescan.Ret == RET_FIRST_BIND)
-                    {
-                        if (rescan.Token != null) SessionToken = rescan.Token;
-                        isLicensed = true;
-                        continue;
-                    }
-
-                    isLicensed = false;
-                    ReportError(rescan.Error ?? MakeSimpleError(
-                        RockeyErrorKind.DongleNotFound, "看门狗授权复查",
-                        "检测到加密狗已拔出! 请插入加密狗后重启应用!",
-                        "重扫后仍未找到本产品的加密锁"));
-                    break;
                 }
             }
+            finally
+            {
+                _watchdogRunning = false;
+            }
         }
-        
+
+        /// <inheritdoc />
         public void CheckPermissions(Action onSuccess)
         {
-            isLicensed = false;
+#if UNITY_EDITOR
+            if (SkipValidationInEditor)
+            {
+                IsLicensed = true;
+                Log.Info("[ROCKEY-ARM] Editor 下跳过加密锁校验（SkipValidationInEditor = true）");
+                onSuccess?.Invoke();
+                return;
+            }
+#endif
+
+            if (!IsPlatformSupported(out LicenseErrorInfo platformError))
+            {
+                IsLicensed = false;
+                ReportError(platformError);
+                return;
+            }
+
+            IsLicensed = false;
             SessionToken = null;
 
             _fp = GetDeviceFingerprint();
             _sessionUuid = Guid.NewGuid().ToByteArray();
 
             GuardResult result = FindMyDog("启动授权验证");
+            CompleteStartupCheck(result, onSuccess);
+        }
+
+        /// <inheritdoc />
+        public async UniTask<bool> CheckPermissionsAsync(CancellationToken cancellationToken = default)
+        {
+#if UNITY_EDITOR
+            if (SkipValidationInEditor)
+            {
+                IsLicensed = true;
+                Log.Info("[ROCKEY-ARM] Editor 下跳过加密锁校验（SkipValidationInEditor = true）");
+                return true;
+            }
+#endif
+
+            if (!IsPlatformSupported(out LicenseErrorInfo platformError))
+            {
+                IsLicensed = false;
+                ReportError(platformError);
+                return false;
+            }
+
+            IsLicensed = false;
+            SessionToken = null;
+
+            // 指纹依赖 SystemInfo API，必须在主线程计算；会话 UUID 全程固定。
+            _fp = GetDeviceFingerprint();
+            _sessionUuid = Guid.NewGuid().ToByteArray();
+
+            GuardResult result = await UniTask.RunOnThreadPool(
+                () => FindMyDog("启动授权验证"), cancellationToken: cancellationToken);
+
+            return CompleteStartupCheck(result, null);
+        }
+
+        /// <summary>应用启动验证结果并广播：成功记通行证，失败报结构化错误。回主线程执行。</summary>
+        bool CompleteStartupCheck(GuardResult result, Action onSuccess)
+        {
             if (result.Ret != RET_OK && result.Ret != RET_FIRST_BIND)
             {
-                isLicensed = false;
+                IsLicensed = false;
                 SessionToken = null;
                 ReportError(result.Error);
-                return;
+                return false;
             }
 
             SessionToken = result.Token;
-            isLicensed = true;
+            IsLicensed = true;
 
             if (result.Ret == RET_FIRST_BIND)
-                Debug.Log("<color=green>首次使用，本机绑定成功</color>");
+                Log.Info("[ROCKEY-ARM] 首次使用，本机绑定成功");
 
-            Debug.Log("<color=green>ROCKEY-ARM 授权验证通过</color>");
+            Log.Info("[ROCKEY-ARM] 授权验证通过");
             PrintLicenseDeadline(result.Deadline);
             onSuccess?.Invoke();
+            return true;
         }
 
         /// <summary>
         /// 扫圈找本软件的狗：逐只打开试 RunExeFile，返回 0/1 的记住句柄。
         /// 全部被拒时，优先报"非6"的严重错误（如到期/换机）；全是6报未授权；一只都没有报未找到。
+        /// 可能被看门狗从线程池调用，严禁在这里碰 Unity API。
         /// </summary>
         GuardResult FindMyDog(string stage)
         {
@@ -256,8 +304,8 @@ namespace TEngine
                 if (RockeyArmNative.Dongle_Open(out h, i) != DONGLE_SUCCESS || h == IntPtr.Zero)
                     continue;
 
-                IntPtr oldHandle = hDongle;
-                hDongle = h;
+                IntPtr oldHandle = _hDongle;
+                _hDongle = h;
                 GuardResult result = RunGuard(stage);
 
                 if (result.Ret == RET_OK || result.Ret == RET_FIRST_BIND)
@@ -267,7 +315,7 @@ namespace TEngine
                 }
 
                 RockeyArmNative.Dongle_Close(h);
-                hDongle = oldHandle; // 还原
+                _hDongle = oldHandle; // 还原
 
                 if (result.Ret != RET_NOT_AUTHORIZED && firstSeriousError == null)
                     firstSeriousError = result.Error; // 记下非6的错误，优先报它
@@ -285,16 +333,16 @@ namespace TEngine
         {
             if (deadline == DEADLINE_PERMANENT)
             {
-                Debug.Log("<color=green>授权有效期: 永久</color>");
+                Log.Info("[ROCKEY-ARM] 授权有效期: 永久");
                 return;
             }
 
             DateTime expiry = DateTimeOffset.FromUnixTimeSeconds(deadline).ToLocalTime().DateTime;
             TimeSpan remain = expiry - DateTime.Now;
             if (remain.TotalSeconds <= 0)
-                Debug.Log($"<color=red>授权有效期至: {expiry:yyyy-MM-dd HH:mm:ss}（已到期）</color>");
+                Log.Warning($"[ROCKEY-ARM] 授权有效期至: {expiry:yyyy-MM-dd HH:mm:ss}（已到期）");
             else
-                Debug.Log($"<color=green>授权有效期至: {expiry:yyyy-MM-dd HH:mm:ss}（剩余 {remain.Days} 天 {remain.Hours} 小时）</color>");
+                Log.Info($"[ROCKEY-ARM] 授权有效期至: {expiry:yyyy-MM-dd HH:mm:ss}（剩余 {remain.Days} 天 {remain.Hours} 小时）");
         }
 
         /// <summary>
@@ -321,7 +369,7 @@ namespace TEngine
                     "会话 UUID 为空，必须先调用 CheckPermissions"));
             }
 
-            if (hDongle == IntPtr.Zero)
+            if (_hDongle == IntPtr.Zero)
             {
                 return GuardResult.FromError(RET_API_FAILED, MakeSimpleError(
                     RockeyErrorKind.DongleApiFailed,
@@ -338,7 +386,7 @@ namespace TEngine
             Array.Copy(_sessionUuid, 0, buf, OFF_UUID, 16);
             Array.Copy(BitConverter.GetBytes(APP_ID), 0, buf, OFF_APPID, 4);
 
-            uint apiRes = RockeyArmNative.Dongle_RunExeFile(hDongle, EXE_FILE_ID, buf, IO_LEN, out int mainRet);
+            uint apiRes = RockeyArmNative.Dongle_RunExeFile(_hDongle, EXE_FILE_ID, buf, IO_LEN, out int mainRet);
             if (apiRes != DONGLE_SUCCESS)
             {
                 return GuardResult.FromError(RET_API_FAILED, MakeApiError(
@@ -370,6 +418,23 @@ namespace TEngine
         {
             using (var sha = SHA256.Create())
                 return sha.ComputeHash(Encoding.UTF8.GetBytes(SystemInfo.deviceUniqueIdentifier));
+        }
+
+        /// <summary>入口平台守卫：ROCKEY-ARM 原生库仅支持 Windows / Linux x86_64，其余平台直接给结构化错误，不进线程池。</summary>
+        static bool IsPlatformSupported(out LicenseErrorInfo error)
+        {
+            if (RockeyArmNative.IsSupportedPlatform)
+            {
+                error = null;
+                return true;
+            }
+
+            error = MakeSimpleError(
+                RockeyErrorKind.UnsupportedPlatform,
+                "平台检查",
+                "当前平台不支持加密锁!",
+                "ROCKEY-ARM 仅支持 Windows / Linux x86_64 平台");
+            return false;
         }
 
         static LicenseErrorInfo MakeSimpleError(RockeyErrorKind kind, string stage, string userMessage, string detail = "")
@@ -588,28 +653,11 @@ namespace TEngine
             LastError = info;
 
             // 先打印完整日志，确保就算 GameEvent 订阅方异常/没接，也能在日志里看到错误码。
-            Debug.LogError("[ROCKEY-ARM 授权错误] " + info);
+            Log.Error("[ROCKEY-ARM 授权错误] " + info);
 
-            // 再通知外部。旧事件只发短文案，新事件发结构化完整信息。
-            OnLicenseError?.Invoke(info.UserMessage);
-            OnLicenseErrorDetail?.Invoke(info);
-
-            // 最后发游戏事件。用户界面只拿短提示；完整诊断已经先写入日志。
+            // 再发游戏事件。用户界面只拿短提示；完整诊断已经先写入日志，也可随时读 LastError。
             string gameEventMessage = SEND_FULL_ERROR_TO_GAME_EVENT ? info.ToString() : info.UserMessage;
-            GameEvent.Send<string>(RuntimeId.ToRuntimeId("SYSYTEM_VIKEYERROR"), gameEventMessage);
-        }
-
-        void ReportError(string msg)
-        {
-            ReportError(MakeSimpleError(RockeyErrorKind.Unknown, "未分类错误", msg));
-        }
-
-        public void OnApplicationQuit()
-        {
-            if (!_lifetimeCts.IsCancellationRequested) _lifetimeCts.Cancel();
-            if (hDongle != IntPtr.Zero) RockeyArmNative.Dongle_Close(hDongle);
-            hDongle = IntPtr.Zero;
-            _lifetimeCts.Dispose();
+            GameEvent.Send<string>(RuntimeId.ToRuntimeId(LICENSE_ERROR_EVENT_ID), gameEventMessage);
         }
     }
 }

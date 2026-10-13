@@ -23,6 +23,7 @@
 - [模块系统/模块间通信.md](repowiki/zh/content/模块系统/模块间通信.md) - 模块通信
 - [模块系统/自定义模块开发.md](repowiki/zh/content/模块系统/自定义模块开发.md) - 自定义模块
 - [模块系统/Fork运行时模块.md](repowiki/zh/content/模块系统/Fork运行时模块.md) - RuntimeConfig、Timer、GameObjectPool、Anim、GameScene、Screen
+- [模块系统/RockeyARM加密狗授权模块.md](repowiki/zh/content/模块系统/RockeyARM加密狗授权模块.md) - 加密狗授权：验证、看门狗、错误诊断
 
 **资源管理**：
 - [资源管理/](repowiki/zh/content/资源管理/) - 资源管理（YooAsset）

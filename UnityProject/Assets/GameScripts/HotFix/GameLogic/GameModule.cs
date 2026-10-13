@@ -137,6 +137,15 @@ public class GameModule
     public static IAsyncOperationModule AsyncOperation => _asyncOperation ??= Get<IAsyncOperationModule>();
 
     private static IAsyncOperationModule _asyncOperation;
+
+    /// <summary>
+    /// 获取加密锁授权模块。
+    /// <para>ROCKEY-ARM 加密狗授权：验证 / 看门狗 / 结构化诊断。需先在启动入口
+    /// ModuleSystem.RegisterModule&lt;IRockeyArmModule&gt;(new RockeyArmManager()) 注册。</para>
+    /// </summary>
+    public static IRockeyArmModule RockeyArm => _rockeyArm ??= Get<IRockeyArmModule>();
+
+    private static IRockeyArmModule _rockeyArm;
     #endregion
     
     
@@ -175,5 +184,6 @@ public class GameModule
         _gameObjectPool = null;
         _anim = null;
         _asyncOperation = null;
+        _rockeyArm = null;
     }
 }

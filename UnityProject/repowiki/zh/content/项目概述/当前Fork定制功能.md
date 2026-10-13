@@ -85,6 +85,7 @@ GameModule.Resource.UnloadAsset(raw);
 | `GameModule.Screen` | Windows 多显示器窗口布局 | 仅 Windows Standalone 打包后生效，Editor 下 no-op；配置 `Enabled=false` 可整体禁用 |
 | `GameModule.GameObjectPool` | 基于 YooAsset location 的 GameObject 实例池 | 与逻辑对象 `ObjectPoolModule` 不同 |
 | `GameModule.Anim` | 基于 PlayableGraph 的代码驱动 3D 动画 | 创建后必须显式销毁 `IAnimPlayable` |
+| `GameModule.RockeyArm` | ROCKEY-ARM 加密狗授权（验证 / 看门狗 / 诊断） | 主包独立程序集；Editor 默认跳过校验；失败统一 GameEvent `ROCKEY_ARM_LICENSE_ERROR`，详见 [RockeyARM加密狗授权模块](../模块系统/RockeyARM加密狗授权模块.md) |
 
 `TimerModule` 保留旧 API，并新增 `AddLoopCountTimer`。坏帧补触发单帧最多执行 10 次，业务对象销毁时仍需主动移除计时器。
 

@@ -1,6 +1,6 @@
 // RockeyArmManager.Platform.cs
 // 作用：ROCKEY-ARM 原生库（Dongle_* API）平台网关，Windows / Linux 双平台 P/Invoke 声明。
-// 搭配文件：RockeyArmManager.cs、RockeyArmManager.Consts.cs
+// 搭配文件：IRockeyArmModule.cs（接口与诊断类型）、RockeyArmManager.cs、RockeyArmManager.Consts.cs
 //
 // 平台差异（API 签名、错误码、结构体在两个平台完全一致，均以厂商 Dongle_API.h 为准）：
 // - Windows：Dongle_d.dll，StdCall 调用约定，插件位于 Assets/Plugins/ROCKEY/Windows/x86_64/。
@@ -14,7 +14,7 @@ using System.Runtime.InteropServices;
 
 namespace TEngine
 {
-    public partial class RockeyArmManager
+    public sealed partial class RockeyArmManager
     {
         /// <summary>
         /// 原生 Dongle_* API 网关：按编译目标平台选择库名与调用约定。
@@ -22,6 +22,14 @@ namespace TEngine
         /// </summary>
         static class RockeyArmNative
         {
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_EDITOR_LINUX || UNITY_STANDALONE_LINUX
+            /// <summary>当前编译目标是否带有原生库支持（入口平台守卫用）。</summary>
+            public static bool IsSupportedPlatform => true;
+#else
+            /// <summary>当前编译目标是否带有原生库支持（入口平台守卫用）。</summary>
+            public static bool IsSupportedPlatform => false;
+#endif
+
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             const string LIB = "Dongle_d";
             const CallingConvention CC = CallingConvention.StdCall;
