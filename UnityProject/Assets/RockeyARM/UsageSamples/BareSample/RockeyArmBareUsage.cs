@@ -1,8 +1,9 @@
 // ============================================================================================
-// RockeyArmBareUsage.cs —— 示例：不依赖 TEngine 的“裸使用”调用参考
+// RockeyArmBareUsage.cs —— 示例：不依赖 TEngine 的“裸使用”调用参考（纯 C# 流程）
 // ============================================================================================
 // 本文件不参与任何业务逻辑，仅演示在没有 TEngine 的环境里如何调用核心 RockeyArmManager；
 // 方法不会被自动调用，可整块复制到新工程。
+// 想直接跑？用同目录的 RockeyArmBareBootstrap.cs：空场景挂一个 GameObject 即可。
 //
 // 与 TEngine 用法（见 ../TEngineSample/RockeyArmTEngineUsage.cs）的唯一区别是宿主接入方式：
 //   - 没有 ModuleSystem / GameModule：直接 new RockeyArmManager()，生命周期自己管（Release）；
@@ -58,58 +59,11 @@ namespace RockeyArm.Bare
             // 6) 宿主销毁时务必 Release（TEngine 版这一步由 RockeyArmModule.Shutdown 自动做）
             // arm.Release();
         }
-    }
-
-    /// <summary>
-    /// 示例：把授权模块挂到 MonoBehaviour，用 Unity 生命周期托管 Release，避免忘记取消/关句柄。
-    /// </summary>
-    public sealed class RockeyArmBareBootstrap : MonoBehaviour
-    {
-        RockeyArmManager _arm;
-
-        async void Start()
-        {
-            // UI 根节点可选：场景有 "UIRoot/UICanvas" 则挂其下，没有则 ExitErrorUI prefab 自带 Canvas 独立显示。
-            RockeyUIMgr.Initialize();
-
-            _arm = new RockeyArmManager();
-            _arm.Init();
-            _arm.InfoLogger = Debug.Log;
-            _arm.WarningLogger = Debug.LogWarning;
-            _arm.ErrorLogger = Debug.LogError;
-            _arm.LicenseError += OnLicenseError;
-
-            bool pass = await _arm.CheckPermissionsAsync();
-            if (pass)
-            {
-                _arm.StartWatchdog().Forget();
-            }
-            else
-            {
-                RockeyUIMgr.ShowError(_arm.LastError?.UserMessage ?? "未知授权错误!");
-            }
-        }
-
-        void OnLicenseError(LicenseErrorInfo info)
-        {
-            RockeyUIMgr.ShowError(info.UserMessage); // 退出由弹窗内置（冻结时间 + 编辑器停播放 / 打包 Quit）
-        }
-
-        void OnDestroy()
-        {
-            // C# 事件成对注销 + 关闭狗句柄/停看门狗
-            if (_arm != null)
-            {
-                _arm.LicenseError -= OnLicenseError;
-                _arm.Release();
-                _arm = null;
-            }
-        }
 
         // -----------------------------------------------------------------------------------
         // 使用提示（Tips）
         // -----------------------------------------------------------------------------------
-        // 1) 依赖：本程序集引用核心 RockeyARM（其内部只依赖 UniTask + UnityEngine），
+        // 1) 依赖：本程序集引用核心 RockeyARM（其内部只依赖 UniTask + UnityEngine + uGUI/TMP），
         //    不引用 TEngine（见 RockeyArmBareSample.asmdef）。若目标环境连 UniTask 都没有：
         //    把 UniTask 换成 Task / 协程 / 自定义主线程调度即可，核心枚举与锁内 IO 均为同步阻塞调用，
         //    异步只是为了避免卡主线程。
@@ -119,9 +73,10 @@ namespace RockeyArm.Bare
         //    记得把 Assets/Plugins/ROCKEY/<平台>/x86_64 下的原生库随包带上。
         // 4) 生命周期：这是与 TEngine 版最大的坑——没人再帮你调 Release，
         //    必须在宿主销毁/切场景时手动调用，否则看门狗与狗句柄会泄漏。
+        //    参考 RockeyArmBareBootstrap.OnDestroy 的标准写法。
         // 5) Editor 短路：RockeyArmManager 内部带 #if UNITY_EDITOR 宏，编辑器默认跳过真实校验直接放行；
         //    打包后该分支不参与编译，恒走真实校验。编辑器联调真狗需临时改代码。
-        // 6) UI：授权模块本身不含 UI；RockeyUIMgr 只是“脱框架弹窗”的一个可用范例，
-        //    你可以换成任何自己的 UI 方案，模块与 UI 保持解耦。
+        // 6) UI：授权模块本身不含 UI；RockeyUIMgr 只是“脱框架弹窗”的一个可用范例
+        //    （自动补 EventSystem，空场景可用），你可以换成任何自己的 UI 方案，模块与 UI 保持解耦。
     }
 }

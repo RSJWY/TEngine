@@ -27,8 +27,8 @@
 | `UI/ExitErrorUI.cs` | 授权错误弹窗（驱动 `Resources/UIWindow/ExitErrorUI.prefab`，prefab 根自带 Canvas） |
 | `TEngine/IRockeyArmModule.cs` | TEngine 门面接口（等价 `RockeyArm.IRockeyArm`） |
 | `TEngine/RockeyArmModule.cs` | TEngine 适配层：`Module` 生命周期桥、日志桥（`TEngine.Log`）、错误事件转 GameEvent |
-| `UsageSamples/BareSample/` | 裸使用调用示例（直调核心，不依赖 TEngine） |
-| `UsageSamples/TEngineSample/` | TEngine 使用调用示例（注册适配层模块） |
+| `UsageSamples/BareSample/` | 裸使用调用示例（直调核心，不依赖 TEngine；`RockeyArmBareBootstrap` 空场景可跑） |
+| `UsageSamples/TEngineSample/` | TEngine 使用调用示例（注册适配层模块，含热更入口/结构化监听完整用法） |
 
 原生插件（不在本模块内，需自行部署）：
 

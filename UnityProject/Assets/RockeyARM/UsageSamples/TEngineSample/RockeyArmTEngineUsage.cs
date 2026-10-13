@@ -88,6 +88,45 @@ namespace RockeyArm.TEngineSample
             GameEvent.RemoveEventListener<string>(ErrorEventId, OnLicenseError);
         }
 
+        /// <summary>
+        /// 示例：热更入口的标准接入——注册在主包完成的前提下，热更侧只做“拦截 + 订阅 + 注销”，
+        /// 对应本工程 GameApp.StartGameLogic / Release 的写法。
+        /// （热更程序集里可用 GameModule.RockeyArm 代替 GetModule，效果一致；本示例不引用热更程序集。）
+        /// </summary>
+        public static void HotfixEntranceUsage()
+        {
+            // 1) 拦截：主包 ProcedureLaunch 已验证并启动看门狗；若验证通过后、热更加载前
+            //    看门狗已失效（狗被拔/被锁拒绝），在此拦截，不进入游戏场景。
+            IRockeyArmModule rockeyArm = ModuleSystem.GetModule<IRockeyArmModule>();
+            if (rockeyArm != null && !rockeyArm.IsLicensed)
+            {
+                // 弹窗后退出；ExitErrorUI 退出动作内置（冻结时间 + 编辑器停播放 / 打包 Quit，UI 不关闭）
+                RockeyUIMgr.ShowError(rockeyArm.LastError?.UserMessage ?? "加密锁授权已失效!");
+                return;
+            }
+
+            // 2) 订阅运行期授权失败（看门狗复查失败统一弹 ExitErrorUI）
+            GameEvent.AddEventListener<string>(ErrorEventId, OnLicenseError);
+
+            // 3) 热更域释放时（如 GameApp.Release）成对注销：
+            //    Unsubscribe();
+        }
+
+        /// <summary>
+        /// 示例：不注册模块、只想订阅结构化错误的纯监听写法（主包程序集 / 编辑器工具适用）。
+        /// </summary>
+        public static void StructuredListenerUsage()
+        {
+            // 经 ModuleSystem 拿到模块后可直接订核心的结构化事件（不经过 GameEvent 的 string）：
+            // IRockeyArmModule module = ModuleSystem.GetModule<IRockeyArmModule>();
+            // module.LicenseError += info =>
+            // {
+            //     // info 为 LicenseErrorInfo：Kind / Stage / ApiCode / LockDiag 等完整诊断
+            //     Log.Error("[RockeyArmSample] 结构化授权错误：{0}", info);
+            // };
+            // 注销务必成对：module.LicenseError -= handler;
+        }
+
         // ---------------------------------------------------------------------------------------
         // 使用提示（Tips）
         // ---------------------------------------------------------------------------------------

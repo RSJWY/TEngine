@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using Object = UnityEngine.Object;
 
 namespace RockeyArm
@@ -22,6 +23,19 @@ namespace RockeyArm
         public static void Initialize()
         {
             m_uiRoot = GameObject.Find(UI_ROOT_PATH)?.transform;
+        }
+
+        /// <summary>空场景兜底：没有 EventSystem 时按钮无法点击，自动补一个。</summary>
+        static void EnsureEventSystem()
+        {
+            if (EventSystem.current != null)
+            {
+                return;
+            }
+
+            var go = new GameObject("EventSystem");
+            go.AddComponent<EventSystem>();
+            go.AddComponent<StandaloneInputModule>();
         }
 
         public static void ShowUI<T>(object param = null) where T : RockeyUIBase, new()
@@ -41,6 +55,8 @@ namespace RockeyArm
                     Debug.LogWarning($"======== 未找到 UI prefab：Resources/{UI_WINDOW_PATH}{uiName} ========");
                     return;
                 }
+
+                EnsureEventSystem();
 
                 var uiWindow = Object.Instantiate(obj) as GameObject;
                 if (uiWindow == null)
