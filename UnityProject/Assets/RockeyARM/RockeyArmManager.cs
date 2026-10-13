@@ -291,14 +291,26 @@ namespace RockeyArm
             int count = 0;
             uint enumRes = RockeyArmNative.Dongle_Enum(IntPtr.Zero, ref count);
             if (enumRes != DONGLE_SUCCESS)
+            {
+                // 未找到设备 = 狗未插入（含被拔出）；其余错误码多为驱动/通信问题，用户文案区分开，细节留在 Detail/ApiMeaning 排障。
+                bool notInserted = enumRes == DONGLE_NOT_FOUND;
                 return GuardResult.FromError(RET_API_FAILED, MakeApiError(
-                    RockeyErrorKind.DongleApiFailed, stage + "：枚举加密锁",
-                    "Dongle_Enum", enumRes, "加密锁枚举失败，请检查加密锁连接"));
+                    notInserted ? RockeyErrorKind.DongleNotFound : RockeyErrorKind.DongleApiFailed,
+                    stage + "：枚举加密锁",
+                    "Dongle_Enum", enumRes,
+                    notInserted
+                        ? "未检测到加密锁，请插入加密狗后重启应用!"
+                        : "加密锁通信失败，请检查加密狗连接或驱动!",
+                    notInserted
+                        ? "Dongle_Enum 返回未找到设备（狗未插入或已被拔出）"
+                        : "Dongle_Enum 调用失败，常见原因：驱动未安装、USB 通信异常"));
+            }
 
             if (count == 0)
                 return GuardResult.FromError(RET_DONGLE_GONE, MakeSimpleError(
                     RockeyErrorKind.DongleNotFound, stage + "：枚举加密锁",
-                    "未找到加密锁!", "Dongle_Enum 执行成功，但设备数 = 0"));
+                    "未检测到加密锁，请插入加密狗后重启应用!",
+                    "Dongle_Enum 执行成功，但设备数 = 0（狗未插入或已被拔出）"));
 
             LicenseErrorInfo firstSeriousError = null;
 

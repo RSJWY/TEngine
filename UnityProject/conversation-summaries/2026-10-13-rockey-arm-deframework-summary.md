@@ -66,3 +66,9 @@ Assets/RockeyARM/
 - 运行期 PlayMode 冒烟（Editor 短路放行路径 + 弹窗显示）未跑；
 - 下次真实构建时需确认 `AOTMetadataManifest` 中包含 `RockeyARM.TEngine.dll`；
 - origin（github）远端始终未推送。
+
+## 补充（当日第二轮）：退出语义 + 拔出文案
+
+- ExitErrorUI 退出按钮改内置退出：冻结 `Time.timeScale=0` → onConfirm 钩子 → 编辑器 `EditorApplication.isPlaying=false` / 打包 `Application.Quit()`；UI 永不 Close；防重复点击守卫。`RockeyUIMgr.ShowError` 不再默认 `Application.Quit`（onConfirm 降为附加钩子），示例同步简化。
+- 启动期枚举错误按错误码分流文案：`DONGLE_NOT_FOUND` / count=0 → “未检测到加密锁，请插入加密狗后重启应用!”；其他错误码 → “加密锁通信失败，请检查加密狗连接或驱动!”；技术细节留 `LastError.Detail/ApiMeaning`。看门狗运行期拔出保留专属文案“检测到加密狗已拔出!…”。依据：`Dongle_Enum` 的 `NOT_FOUND(0xF0000001)` 语义是“未找到指定设备”（未插入/拔出），与驱动/通信故障（其他错误码）成因不同，统一显示“拔出”会误导。
+- 运行期证据：用户 Play 实测无狗环境，启动验证与看门狗复查均输出新文案（`Dongle_Enum = 0xF0000001 未找到指定的设备`）。

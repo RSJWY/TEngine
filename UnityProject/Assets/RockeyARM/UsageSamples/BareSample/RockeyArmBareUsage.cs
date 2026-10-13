@@ -40,14 +40,14 @@ namespace RockeyArm.Bare
             arm.LicenseError += info =>
             {
                 Debug.LogError($"[Bare] 授权错误：{info}");
-                RockeyUIMgr.ShowError(info.UserMessage, onConfirm: Application.Quit);
+                RockeyUIMgr.ShowError(info.UserMessage); // 退出由弹窗内置（冻结时间 + 编辑器停播放 / 打包 Quit）
             };
 
             // 4) 异步验证（失败原因已写入 LastError 并经 LicenseError 事件抛出）
             bool pass = await arm.CheckPermissionsAsync();
             if (!pass)
             {
-                RockeyUIMgr.ShowError(arm.LastError?.UserMessage ?? "未知授权错误!", onConfirm: Application.Quit);
+                RockeyUIMgr.ShowError(arm.LastError?.UserMessage ?? "未知授权错误!");
                 return;
             }
 
@@ -86,13 +86,13 @@ namespace RockeyArm.Bare
             }
             else
             {
-                RockeyUIMgr.ShowError(_arm.LastError?.UserMessage ?? "未知授权错误!", onConfirm: Application.Quit);
+                RockeyUIMgr.ShowError(_arm.LastError?.UserMessage ?? "未知授权错误!");
             }
         }
 
         void OnLicenseError(LicenseErrorInfo info)
         {
-            RockeyUIMgr.ShowError(info.UserMessage, onConfirm: Application.Quit);
+            RockeyUIMgr.ShowError(info.UserMessage); // 退出由弹窗内置（冻结时间 + 编辑器停播放 / 打包 Quit）
         }
 
         void OnDestroy()

@@ -127,6 +127,8 @@ GameEvent.RemoveEventListener<string>(
 
 看门狗行为：复查通过则静默续期通行证；狗被拔出（API 调用失败）同一拍重扫一圈，找到即换句柄继续；锁内明确拒绝（返回值 ≥ 2）或重扫失败则 `IsLicensed = false`、广播错误事件并停止循环。
 
+ExitErrorUI 退出语义：点击“退出应用”先冻结 `Time.timeScale = 0`（退出过程画面/逻辑完全静止，不影响 `Application.Quit` 与编辑器停止播放），随后编辑器下 `EditorApplication.isPlaying = false`、打包下 `Application.Quit()`；弹窗自身永不 Close，置顶覆盖整个退出过程。`ExitPanelData.onConfirm` 仅为退出前附加钩子，退出动作由弹窗内置，宿主无需再传 `Application.Quit`。
+
 ## Editor 跳过与平台守卫
 
 - Editor 下跳过真实校验由 `UNITY_EDITOR` **编译宏**直接控制（方法体内二分，无运行时变量）：Editor 编译只有放行路径、打包编译只有真实校验路径，不可运行时篡改。需要编辑器联调真狗时，临时注释三处入口（`CheckPermissions` / `CheckPermissionsAsync` / `StartWatchdog`）内的 `#if UNITY_EDITOR` 短路段即可。
@@ -160,7 +162,8 @@ TEngine 侧：适配层继承 `TEngine.Module`，生命周期由 `ModuleSystem` 
 
 | 现象 | 原因与处理 |
 | --- | --- |
-| `未找到加密锁` | 狗未插入或驱动未识别；Linux 下还需以 root 运行 SDK 的 `./inst` 安装 udev 规则，否则 `Dongle_Enum` 返回 `NOT_FOUND / COMM_ERROR` |
+| `未检测到加密锁，请插入加密狗后重启应用` | `Dongle_Enum` 返回 `NOT_FOUND` 或设备数 = 0：狗未插入或已被拔出；Linux 下还需以 root 运行 SDK 的 `./inst` 安装 udev 规则，否则 `Dongle_Enum` 返回 `NOT_FOUND / COMM_ERROR` |
+| `加密锁通信失败，请检查加密狗连接或驱动` | `Dongle_Enum` 其他错误码（驱动未装 / USB 通信异常等），具体厂商错误码看 `LastError.ApiCode / ApiMeaning` |
 | `本加密锁已绑定其他电脑` | 锁内绑定标志指向其他设备指纹，属硬件级防盗，需供应商处理 |
 | `检测到系统时间异常` | 锁内记录的最晚时间大于当前时间（时间回退），按设计锁定 |
 | `调用锁内授权程序失败` | 狗被拔出、句柄失效、锁内程序未烧录或运行权限配置错误；看 `LastError` 中厂商 API 错误码 |

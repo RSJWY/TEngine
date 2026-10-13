@@ -75,7 +75,8 @@ namespace RockeyArm.TEngineSample
 
             // UI 二选一（授权模块本身不持有任何 UI）：
             //   - 启动器阶段：Launcher.LauncherMgr.ShowMessageBox(message, onConfirm, onCancel);
-            //   - 任意阶段：  RockeyUIMgr.ShowError(message, onConfirm: Application.Quit);
+            //   - 任意阶段：  RockeyUIMgr.ShowError(message);
+            //     （退出动作内置：冻结时间 + 编辑器停播放 / 打包 Application.Quit，UI 不关闭）
             //     （ExitErrorUI prefab 位于 Assets/RockeyARM/Resources/UIWindow/，自带 Canvas）
         }
 

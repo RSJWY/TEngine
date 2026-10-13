@@ -109,7 +109,7 @@ namespace RockeyArm
             m_uiMapDict.Clear();
         }
 
-        /// <summary>便捷入口：弹授权错误框（数据为 ExitPanelData，确认默认退出应用）。</summary>
+        /// <summary>便捷入口：弹授权错误框（数据为 ExitPanelData）。退出动作由 ExitErrorUI 内置，onConfirm 仅为退出前附加钩子。</summary>
         public static void ShowError(string content, Action onConfirm = null)
         {
             ShowUI<ExitErrorUI>(new ExitPanelData
@@ -117,7 +117,7 @@ namespace RockeyArm
                 title = "授权验证失败",
                 contenet = content,
                 buttonText = "退出",
-                onConfirm = onConfirm ?? Application.Quit
+                onConfirm = onConfirm
             });
         }
 
