@@ -58,7 +58,6 @@ namespace TEngine
         // InnoSetup 安装包设置（仅 Windows）
         public bool BuildInstaller;
         public BuildTarget InstallerPlatform = BuildTarget.StandaloneWindows64;
-        public string InstallerVersion = "";
         public string IsccPath = "";
         // 应用显示名(中文软件名),回写 setup.iss MyAppName;默认取 PlayerSettings.productName
         public string InstallerAppName = "";

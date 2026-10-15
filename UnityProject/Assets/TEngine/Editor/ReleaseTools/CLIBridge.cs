@@ -80,8 +80,8 @@ namespace TEngine
             public string playerOutputPath = "";
 
             // InnoSetup 安装包（action=buildInstaller 或 build+buildInstaller 时使用）
+            // 安装包版本固定跟随 UpdateSetting.Version，不下发也不可覆盖
             public bool buildInstaller;
-            public string installerVersion = "";
             public string isccPath = "";
             public string installerAppName = "";
             public string installerAppEnglishName = "";
@@ -403,7 +403,6 @@ namespace TEngine
                 {
                     AppName = request.installerAppName,
                     AppEnglishName = request.installerAppEnglishName,
-                    InstallerVersion = request.installerVersion,
                     Publisher = request.installerPublisher,
                     ExeName = exeName,
                     Password = request.installerPassword,

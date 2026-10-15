@@ -130,6 +130,7 @@ namespace TEngine
         private const string DefaultPackageName = "DefaultPackage";
         private const string DefaultGameVersionKey = "GAME_VERSION";
         private const string DefaultCodeVersionKey = "CODE_VERSION";
+        private const string DefaultVersion = "1.0";
 
         /// <summary>
         /// 项目名称。
@@ -142,6 +143,13 @@ namespace TEngine
         /// </summary>
         [SerializeField]
         private string companyName = "DefaultCompany";
+
+        /// <summary>
+        /// 项目版本号（同步到 PlayerSettings.bundleVersion，即 ProjectSettings 的 Version；
+        /// 同时作为安装包「安装包版本」的默认来源）。
+        /// </summary>
+        [SerializeField]
+        private string version = DefaultVersion;
 
         public bool Enable
         {
@@ -539,6 +547,14 @@ namespace TEngine
         public string GetCompanyName()
         {
             return string.IsNullOrWhiteSpace(companyName) ? "DefaultCompany" : companyName.Trim();
+        }
+
+        /// <summary>
+        /// 获取项目版本号（同步目标：PlayerSettings.bundleVersion / ProjectSettings 的 Version）。
+        /// </summary>
+        public string GetVersion()
+        {
+            return string.IsNullOrWhiteSpace(version) ? DefaultVersion : version.Trim();
         }
 
         public string GetResDownLoadPath()

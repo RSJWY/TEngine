@@ -371,15 +371,16 @@ namespace TEngine
         [SerializeField]
         private bool _buildInstaller;
 
+        // 安装包版本不可在此覆盖：固定取 UpdateSetting.Version（已同步到 ProjectSettings 的 Version），
+        // 构建时写入 setup.iss 的 MyAppVersion。改版本请改 UpdateSetting。
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
         [LabelText("安装包版本")]
-        [Tooltip("对应 setup.iss 的 MyAppVersion，影响安装包文件名；为空则沿用 iss 现有值")]
+        [Tooltip("固定取 UpdateSetting 的 Version（同步自 ProjectSettings 的 Version），构建时写入 setup.iss 的 MyAppVersion；要改版本请改 UpdateSetting")]
         [ShowIf(nameof(IsInstallerEnabled))]
-        [DelayedProperty]
-        [OnValueChanged(nameof(OnSettingsChanged))]
-        [SerializeField]
-        private string _installerVersion = string.Empty;
+        private string InstallerVersionText => InnoSetupBuilder.ResolveInstallerVersion(_cachedUpdateSetting);
 
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
@@ -1104,7 +1105,6 @@ namespace TEngine
                 {
                     AppName = config.InstallerAppName,
                     AppEnglishName = config.InstallerAppEnglishName,
-                    InstallerVersion = config.InstallerVersion,
                     Publisher = config.InstallerPublisher,
                     ExeName = exeName,
                     Password = config.InstallerPassword,
@@ -1112,6 +1112,7 @@ namespace TEngine
                 };
 
                 AddLog("========== 编译 InnoSetup 安装包 ==========");
+                AddLog($"安装包版本: {InnoSetupBuilder.ResolveInstallerVersion()}");
                 InnoSetupBuilder.BuildInstaller(issConfig, config.IsccPath);
                 AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
                 AddLog("========== 安装包构建完成 ==========");
@@ -1230,7 +1231,6 @@ namespace TEngine
             _installerPlatform = Array.IndexOf(PlatformTargets, setting.InstallerPlatform) >= 0
                 ? setting.InstallerPlatform
                 : BuildTarget.StandaloneWindows64;
-            _installerVersion = setting.InstallerVersion;
             _isccPath = setting.IsccPath;
             _installerAppName = setting.InstallerAppName;
             _installerAppEnglishName = setting.InstallerAppEnglishName;
@@ -1440,7 +1440,6 @@ namespace TEngine
             _setting.PlayerOutputPath = _playerOutputPath;
             _setting.BuildInstaller = _buildInstaller;
             _setting.InstallerPlatform = _installerPlatform;
-            _setting.InstallerVersion = _installerVersion;
             _setting.IsccPath = _isccPath;
             _setting.InstallerAppName = _installerAppName;
             _setting.InstallerAppEnglishName = _installerAppEnglishName;
@@ -1824,7 +1823,6 @@ namespace TEngine
             _playerOutputPath = config.PlayerOutputPath;
             _buildInstaller = config.BuildInstaller;
             _installerPlatform = config.InstallerPlatform;
-            _installerVersion = config.InstallerVersion;
             _isccPath = config.IsccPath;
             _installerAppName = config.InstallerAppName;
             _installerAppEnglishName = config.InstallerAppEnglishName;
@@ -1863,7 +1861,6 @@ namespace TEngine
                 PlayerOutputPath = _playerOutputPath,
                 BuildInstaller = _buildInstaller,
                 InstallerPlatform = _installerPlatform,
-                InstallerVersion = _installerVersion,
                 IsccPath = _isccPath,
                 InstallerAppName = _installerAppName,
                 InstallerAppEnglishName = _installerAppEnglishName,
@@ -2135,7 +2132,6 @@ namespace TEngine
             {
                 AppName = _installerAppName,
                 AppEnglishName = _installerAppEnglishName,
-                InstallerVersion = _installerVersion,
                 Publisher = _installerPublisher,
                 ExeName = exeName,
                 Password = _installerPassword,

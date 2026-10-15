@@ -471,10 +471,6 @@ class MainWindow(QMainWindow):
         self.installer_check = QCheckBox("一键构建后串联编译安装包")
         self.installer_check.toggled.connect(lambda v: self._set_state("buildInstaller", v))
         inst_form.addRow(self.installer_check)
-        self.installer_version_edit = QLineEdit()
-        self.installer_version_edit.setPlaceholderText("安装包版本号（空 = 使用 setup.iss 现值）")
-        self.installer_version_edit.textChanged.connect(lambda v: self._set_state("installerVersion", v))
-        inst_form.addRow("安装包版本：", self.installer_version_edit)
         self.iscc_edit = QLineEdit()
         self.iscc_edit.setPlaceholderText("ISCC.exe 路径（空 = 自动定位注册表/PATH）")
         self.iscc_edit.textChanged.connect(lambda v: self._set_state("isccPath", v))
@@ -797,7 +793,6 @@ class MainWindow(QMainWindow):
         self.build_player_check.setChecked(s.buildPlayer)
         self.player_output_edit.setText(s.playerOutputPath)
         self.installer_check.setChecked(s.buildInstaller)
-        self.installer_version_edit.setText(s.installerVersion)
         self.iscc_edit.setText(s.isccPath)
         self.timeout_spin.setValue(s.buildTimeoutMinutes)
 

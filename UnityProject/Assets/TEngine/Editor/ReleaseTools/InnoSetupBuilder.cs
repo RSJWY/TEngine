@@ -110,12 +110,38 @@ namespace TEngine
             return matches[0].Groups[1].Value.Replace("\"\"", "\"");
         }
 
+        /// <summary>
+        /// 解析安装包版本（回写 setup.iss 的 MyAppVersion）：
+        /// 固定取 <see cref="UpdateSetting.GetVersion"/>（即 ProjectSettings 的 Version），
+        /// UpdateSetting 缺失/为空时回退 PlayerSettings.bundleVersion。安装包版本不可单独覆盖。
+        /// </summary>
+        public static string ResolveInstallerVersion()
+        {
+            return ResolveInstallerVersion(Settings.UpdateSetting);
+        }
+
+        /// <summary>
+        /// 从指定 UpdateSetting 解析安装包版本（供已缓存 UpdateSetting 的调用方避免重复查资产）。
+        /// </summary>
+        public static string ResolveInstallerVersion(UpdateSetting updateSetting)
+        {
+            var version = updateSetting != null ? updateSetting.GetVersion() : null;
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                version = PlayerSettings.bundleVersion;
+            }
+
+            return string.IsNullOrWhiteSpace(version) ? string.Empty : version.Trim();
+        }
+
         private static void SyncIssDefines(IssInstallerConfig config)
         {
             string content = File.ReadAllText(GeneratedIssPath);
             content = ReplaceIssDefine(content, "MyAppName", config.AppName ?? string.Empty);
             content = ReplaceIssDefine(content, "MyAppEnglishName", !string.IsNullOrWhiteSpace(config.AppEnglishName) ? config.AppEnglishName : (config.AppName ?? string.Empty));
-            if (!string.IsNullOrWhiteSpace(config.InstallerVersion)) content = ReplaceIssDefine(content, "MyAppVersion", config.InstallerVersion);
+            // 安装包版本固定跟随 UpdateSetting.Version（同步自 ProjectSettings 的 Version），窗口/CLI 均不可覆盖
+            var installerVersion = ResolveInstallerVersion();
+            if (!string.IsNullOrWhiteSpace(installerVersion)) content = ReplaceIssDefine(content, "MyAppVersion", installerVersion);
             content = ReplaceIssDefine(content, "MyAppPublisher", config.Publisher ?? string.Empty);
             content = ReplaceIssDefine(content, "MyAppExeName", config.ExeName ?? string.Empty);
             content = ReplaceIssDefine(content, "MyAppPassword", config.Password ?? string.Empty);
@@ -223,7 +249,6 @@ namespace TEngine
     {
         public string AppName;
         public string AppEnglishName;
-        public string InstallerVersion;
         public string Publisher;
         public string ExeName;
         public string Password;

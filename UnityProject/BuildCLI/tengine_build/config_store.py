@@ -94,8 +94,8 @@ class BuildFormState:
     buildPlayer: bool = False
     playerOutputPath: str = ""
     # InnoSetup 安装包（action=buildInstaller，或 action=build 勾选 buildInstaller 串联）
+    # 安装包版本不在表单里：固定跟随 UpdateSetting 的 Version，由 Unity 侧解析
     buildInstaller: bool = False
-    installerVersion: str = ""
     isccPath: str = ""
     installerAppName: str = ""
     installerAppEnglishName: str = ""
