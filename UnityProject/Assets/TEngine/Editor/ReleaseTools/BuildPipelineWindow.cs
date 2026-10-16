@@ -382,6 +382,93 @@ namespace TEngine
         [ShowIf(nameof(IsInstallerEnabled))]
         private string InstallerVersionText => InnoSetupBuilder.ResolveInstallerVersion(_cachedUpdateSetting);
 
+        /// <summary>「从脚本提取」的读取来源。</summary>
+        private enum IssExtractSource
+        {
+            /// <summary>手工维护的模板 Releases/Windows/setup.iss。</summary>
+            Template,
+
+            /// <summary>实际编译脚本 Releases/Windows/setup.generated.iss，可能含手工微调。</summary>
+            Generated,
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [HorizontalGroup("Pages/安装包配置/InnoSetup 安装包/Extract")]
+        [LabelText("提取来源")]
+        [Tooltip("「从脚本提取」读取哪个 iss 脚本的 #define 值")]
+        [ValueDropdown(nameof(IssExtractSourceOptions))]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private IssExtractSource _issExtractSource = IssExtractSource.Template;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [HorizontalGroup("Pages/安装包配置/InnoSetup 安装包/Extract")]
+        [Button("从脚本提取", ButtonSizes.Small)]
+        [Tooltip("读取 iss 脚本中填写的 #define 值,回填下方配置字段(应用名称/软件英文名/发布者/安装密码/发布者水印)")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private void ExtractInstallerConfigFromIss()
+        {
+            var issPath = _issExtractSource == IssExtractSource.Generated
+                ? InnoSetupBuilder.GeneratedIssPath
+                : InnoSetupBuilder.IssPath;
+
+            if (!File.Exists(issPath))
+            {
+                Debug.LogWarning($"[InnoSetup] 脚本不存在，无法提取：{issPath}");
+                return;
+            }
+
+            IssInstallerConfig extracted;
+            var warnings = new List<string>();
+            try
+            {
+                extracted = InnoSetupBuilder.ExtractIssConfig(issPath, warnings);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                return;
+            }
+
+            foreach (var warning in warnings)
+            {
+                Debug.LogWarning($"[InnoSetup] 提取 {Path.GetFileName(issPath)}：{warning}");
+            }
+
+            // 只覆盖脚本中确实读到的键；未读到的字段保持现有配置不变
+            var preview = new List<string>();
+            AppendExtractChange(preview, "应用名称", _installerAppName, extracted.AppName);
+            AppendExtractChange(preview, "软件英文名", _installerAppEnglishName, extracted.AppEnglishName);
+            AppendExtractChange(preview, "发布者", _installerPublisher, extracted.Publisher);
+            AppendExtractChange(preview, "安装密码", _installerPassword, extracted.Password, true);
+            AppendExtractChange(preview, "发布者水印", _installerWatermark, extracted.Watermark);
+
+            if (preview.Count == 0)
+            {
+                Debug.Log($"[InnoSetup] 已解析 {Path.GetFileName(issPath)}，配置字段无变化。");
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("从脚本提取安装包配置",
+                    $"来源：{issPath}\n\n将更新：\n{string.Join("\n", preview)}\n\n是否填充到配置？", "填充", "取消"))
+            {
+                return;
+            }
+
+            if (extracted.AppName != null) _installerAppName = extracted.AppName;
+            if (extracted.AppEnglishName != null) _installerAppEnglishName = extracted.AppEnglishName;
+            if (extracted.Publisher != null) _installerPublisher = extracted.Publisher;
+            if (extracted.Password != null) _installerPassword = extracted.Password;
+            if (extracted.Watermark != null) _installerWatermark = extracted.Watermark;
+
+            OnSettingsChanged();
+            Repaint();
+            Debug.Log($"[InnoSetup] 已从 {Path.GetFileName(issPath)} 提取安装包配置：{string.Join("；", preview)}");
+        }
+
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [LabelText("应用名称")]
@@ -572,6 +659,17 @@ namespace TEngine
         {
             SaveSettings();
             ExecuteBuildInstallerOnly();
+        }
+
+        /// <summary>收集「脚本值 → 配置字段」的差异行；脚本未读到该键或值相同则不记录。</summary>
+        private static void AppendExtractChange(List<string> preview, string label, string current, string extracted, bool maskValue = false)
+        {
+            if (extracted == null) return;
+            if (string.Equals(current ?? string.Empty, extracted, StringComparison.Ordinal)) return;
+
+            var oldText = string.IsNullOrEmpty(current) ? "(空)" : (maskValue ? "******" : current);
+            var newText = string.IsNullOrEmpty(extracted) ? "(空)" : (maskValue ? "******" : extracted);
+            preview.Add($"{label}：{oldText} → {newText}");
         }
 
         [TabGroup("Pages", "快速构建")]
@@ -2260,6 +2358,12 @@ namespace TEngine
         {
             { "Windows 64-bit", BuildTarget.StandaloneWindows64 },
             // 后续 Linux 安装包配置扩展位
+        };
+
+        private static ValueDropdownList<IssExtractSource> IssExtractSourceOptions => new ValueDropdownList<IssExtractSource>
+        {
+            { "模板脚本 (setup.iss)", IssExtractSource.Template },
+            { "实际编译脚本 (setup.generated.iss)", IssExtractSource.Generated },
         };
 
         private static ValueDropdownList<BuildTarget> BuildTargetOptions => new ValueDropdownList<BuildTarget>

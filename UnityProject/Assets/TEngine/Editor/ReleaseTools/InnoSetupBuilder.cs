@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -108,6 +109,53 @@ namespace TEngine
             var matches = Regex.Matches(content, "(?m)^\\s*#define\\s+" + Regex.Escape(key) + "\\s+\"((?:[^\"]|\"\")*)\"\\s*$");
             if (matches.Count != 1) throw new Exception($"{Path.GetFileName(issPath)} 中 #define {key} 应存在且只能存在一次，实际为 {matches.Count} 次。");
             return matches[0].Groups[1].Value.Replace("\"\"", "\"");
+        }
+
+        /// <summary>
+        /// 尝试读取 iss 脚本中的 #define 值（供窗口「从脚本提取」使用）。
+        /// 键不存在或出现多次时返回 false，不抛异常。
+        /// </summary>
+        public static bool TryGetIssDefine(string issPath, string key, out string value)
+        {
+            value = null;
+            if (string.IsNullOrEmpty(issPath) || !File.Exists(issPath)) return false;
+
+            string content = File.ReadAllText(issPath);
+            var matches = Regex.Matches(content, "(?m)^\\s*#define\\s+" + Regex.Escape(key) + "\\s+\"((?:[^\"]|\"\")*)\"\\s*$");
+            if (matches.Count != 1) return false;
+            value = matches[0].Groups[1].Value.Replace("\"\"", "\"");
+            return true;
+        }
+
+        /// <summary>
+        /// 从 iss 脚本提取安装包配置（<see cref="SyncIssDefines"/> 的反向操作）。
+        /// 只提取有对应窗口字段的键；MyAppVersion/MyAppExeName 由构建流程按 PlayerSettings 自动推导，不参与提取；
+        /// MyAppId 按设计以 iss 文件为准，既不回写也不提取。
+        /// 缺失/重复的键不阻断提取：对应字段返回 null，并在 warnings 中记录（warnings 可为 null）。
+        /// </summary>
+        public static IssInstallerConfig ExtractIssConfig(string issPath, List<string> warnings = null)
+        {
+            if (!File.Exists(issPath))
+            {
+                throw new FileNotFoundException($"未找到 Inno Setup 脚本：{issPath}", issPath);
+            }
+
+            return new IssInstallerConfig
+            {
+                AppName = ReadExtractDefine(issPath, "MyAppName", warnings),
+                AppEnglishName = ReadExtractDefine(issPath, "MyAppEnglishName", warnings),
+                Publisher = ReadExtractDefine(issPath, "MyAppPublisher", warnings),
+                Password = ReadExtractDefine(issPath, "MyAppPassword", warnings),
+                Watermark = ReadExtractDefine(issPath, "BrandWatermark", warnings),
+            };
+        }
+
+        private static string ReadExtractDefine(string issPath, string key, List<string> warnings)
+        {
+            if (TryGetIssDefine(issPath, key, out var value)) return value;
+
+            warnings?.Add($"#define {key} 不存在或出现多次，已跳过该项");
+            return null;
         }
 
         /// <summary>
