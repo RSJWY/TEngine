@@ -96,6 +96,18 @@ begin
   BrandLabel.Top := WizardForm.Bevel.Top + ScaleY(5);
 end;
 
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  { 许可页默认勾选“我同意”(modern 样式为勾选框,经典样式为单选钮) }
+  if CurPageID = wpLicense then
+  begin
+    if WizardForm.LicenseAcceptedCheck <> nil then
+      WizardForm.LicenseAcceptedCheck.Checked := True
+    else
+      WizardForm.LicenseAcceptedRadio.Checked := True;
+  end;
+end;
+
 function GetDefaultDir(Param: string): string;
 begin
   { 默认安装目录用软件英文名(MyAppEnglishName)而非中文名/发布者名;中文 MyAppName 仅用于显示 }
