@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-10-17
+- [构建产物不可发布目录（BackUpThisFolder/DoNotShip）处置研究](./2026-10-17-build-output-unshippable-folders-research.md)
+  - 关键词：BackUpThisFolder_ButDontShipItWithYourGame、IL2CPP增量编译缓存、il2cppOutput、GameAssembly.pdb、BurstDebugInformation_DoNotShip、Releases/Windows/build、setup.iss、Source: "build\*"、InnoSetupBuilder、Excludes排除、ValidatePlayerBuild兜底、孤儿缓存清理、BuildImp
+  - 结论：备份目录实为 IL2CPP 增量缓存，删除/搬走会致全量重编；正解是原地保留并在 iss 加 Excludes，ValidatePlayerBuild 加兜底校验。
+
 ## 2026-10-11
 - [Obfuz 介入 HybridCLR 热更流程的时机与冗余分析](./2026-10-11-obfuz-hybridclr-integration-research.md)
   - 关键词：Obfuz热更介入、ObfuscationProcess、IPostBuildPlayerScriptDLLs、ObfuscateUtil、ObfuscateHotUpdateAssemblies、PrebuildCommandExt、GenerateAll编排、CompileAndObfuscateDll、混淆时机、StripAOTDlls之后MethodBridge之前、ValidateReferences、ObfuscatedHotUpdateAssemblies、BuildAndCopyDlls冗余、CompileDll两次、热更dll拷贝两次、pdb与Obfuz互斥、CopyPdbToAssetPath、CleanStalePdbFiles

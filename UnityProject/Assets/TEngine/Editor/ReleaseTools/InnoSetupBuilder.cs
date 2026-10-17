@@ -23,6 +23,13 @@ namespace TEngine
         public static string PlayerBuildDir => Path.Combine(WindowsDir, "build");
         public static string InstallerOutputDir => Path.Combine(WindowsDir, "setup");
 
+        /// <summary>Unity 生成于 Player 输出目录、不可随包发布的目录名后缀。</summary>
+        private static readonly string[] UnshippableDirectorySuffixes =
+        {
+            "_BackUpThisFolder_ButDontShipItWithYourGame",
+            "_BurstDebugInformation_DoNotShip",
+        };
+
         public static bool EnsureGeneratedIss(IssInstallerConfig config = null)
         {
             if (!File.Exists(IssPath))
@@ -93,6 +100,32 @@ namespace TEngine
             var exePath = Path.Combine(PlayerBuildDir, exeName);
             if (!File.Exists(exePath))
                 throw new FileNotFoundException($"未找到主程序 EXE：{exePath}\n请确认 Player 输出目录与安装包配置一致。", exePath);
+            ValidateUnshippableFoldersExcluded();
+        }
+
+        /// <summary>
+        /// 校验构建目录中的 Unity 不可发布目录（IL2CPP 增量缓存备份 / Burst 调试信息）已被生成的 iss 脚本排除。
+        /// 这些目录体积大且不可随包发布，未排除时会被 <c>Source: "build\*"</c> 原样打进安装包。
+        /// </summary>
+        private static void ValidateUnshippableFoldersExcluded()
+        {
+            foreach (var suffix in UnshippableDirectorySuffixes)
+            {
+                var unshippableDirs = Directory.GetDirectories(PlayerBuildDir, "*" + suffix, SearchOption.TopDirectoryOnly);
+                if (unshippableDirs.Length <= 0)
+                {
+                    continue;
+                }
+
+                // 生成的 iss 脚本未提及该目录特征串即视为未配置 Excludes，拦截打包并给出修复指引。
+                if (!File.Exists(GeneratedIssPath) || !File.ReadAllText(GeneratedIssPath).Contains(suffix))
+                {
+                    throw new Exception(
+                        $"Windows Player 构建目录存在不可发布目录：{Path.GetFileName(unshippableDirs[0])}\n" +
+                        "该目录是 IL2CPP 增量缓存备份 / Burst 调试信息，会被原样打进安装包，不应随包发布。\n" +
+                        $"请在 setup.iss 的 build\\* 条目追加 Excludes: \"*{suffix}\" 后重试。");
+                }
+            }
         }
 
         public static string ResolveIscc(string isccPathOverride = null)
