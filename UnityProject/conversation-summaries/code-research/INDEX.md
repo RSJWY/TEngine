@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-10-17
+- [BuildCLI 与 TEngine 打包工具对齐核查](./2026-10-17-buildcli-clibridge-alignment-check.md)
+  - 关键词：BuildCLI、CLIBridge、BuildRequestDTO、BuildFormState、tengineConfig、tengineResult、日志哨兵、BUILD_TARGET_NAMES、BuildTarget=19/20/24、EBuildPipeline、ArchiveFileBuildPipeline=5、_map_enum_name、BuiltinBuildPipeline不存在、BundleName_HashName2不存在、静默回退
+  - 结论：请求/结果/哨兵/动作/分段协议全对齐；4 处枚举映射问题（BuildTarget int 错乱、int→name 缺失、两处旧版 YooAsset 选项名）已于同日修复并通过 28 项断言验证。
 - [YooAsset registry 包转本地 embedded 包研究](./2026-10-17-yooasset-embedded-package-conversion-research.md)
   - 关键词：com.tuyoogame.yooasset、openupm registry、embedded本地包、sync-yooasset-local.sh、SUBDIR=Assets/YooAsset、tag纯数字3.0.6、commit 3b4cfb36、asmdef按GUID引用、YooAsset.asmdef GUID、YooAsset.Editor GUID、packages-lock.json embedded、幂等重同步、镜像SYNC_YOOASSET_REPO
   - 结论：包根为仓库子目录 Assets/YooAsset；上游自带 .meta 且两个 asmdef GUID 与工程引用一致，转本地包零断引用零行为变化，锁 3.0.6。

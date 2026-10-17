@@ -31,10 +31,12 @@ SUPPORTED_BUILD_TARGETS = [
     "WebGL",
 ]
 
-BUILD_PIPELINES = ["ScriptableBuildPipeline", "BuiltinBuildPipeline", "RawFileBuildPipeline", "ArchiveFileBuildPipeline"]
+# 与 TEngine 打包窗口（BuildPipelineWindow）及本项目 YooAsset 3.x 枚举对齐；
+# 下发的名字必须能被 CLIBridge.ParseEnum（Enum.TryParse）解析，否则会静默回退默认值
+BUILD_PIPELINES = ["ScriptableBuildPipeline", "RawFileBuildPipeline", "ArchiveFileBuildPipeline"]
 COMPRESS_OPTIONS = ["Uncompressed", "LZMA", "LZ4"]
 BUNDLED_COPY_OPTIONS = ["None", "ClearAndCopyAll", "ClearAndCopyByTags", "OnlyCopyAll", "OnlyCopyByTags"]
-FILE_NAME_STYLES = ["None", "HashName", "BundleName_HashName", "BundleName_HashName2"]
+FILE_NAME_STYLES = ["HashName", "BundleName", "BundleName_HashName"]
 
 
 def platform_dir_name(build_target: str) -> str:
