@@ -1,6 +1,9 @@
 # 代码研究索引
 
 ## 2026-10-17
+- [YooAsset registry 包转本地 embedded 包研究](./2026-10-17-yooasset-embedded-package-conversion-research.md)
+  - 关键词：com.tuyoogame.yooasset、openupm registry、embedded本地包、sync-yooasset-local.sh、SUBDIR=Assets/YooAsset、tag纯数字3.0.6、commit 3b4cfb36、asmdef按GUID引用、YooAsset.asmdef GUID、YooAsset.Editor GUID、packages-lock.json embedded、幂等重同步、镜像SYNC_YOOASSET_REPO
+  - 结论：包根为仓库子目录 Assets/YooAsset；上游自带 .meta 且两个 asmdef GUID 与工程引用一致，转本地包零断引用零行为变化，锁 3.0.6。
 - [构建产物不可发布目录（BackUpThisFolder/DoNotShip）处置研究](./2026-10-17-build-output-unshippable-folders-research.md)
   - 关键词：BackUpThisFolder_ButDontShipItWithYourGame、IL2CPP增量编译缓存、il2cppOutput、GameAssembly.pdb、BurstDebugInformation_DoNotShip、Releases/Windows/build、setup.iss、Source: "build\*"、InnoSetupBuilder、Excludes排除、ValidatePlayerBuild兜底、孤儿缓存清理、BuildImp
   - 结论：备份目录实为 IL2CPP 增量缓存，删除/搬走会致全量重编；正解是原地保留并在 iss 加 Excludes，ValidatePlayerBuild 加兜底校验。

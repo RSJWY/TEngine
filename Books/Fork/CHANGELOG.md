@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-10-17
+
+- YooAsset 本地化：`com.tuyoogame.yooasset` 从 openupm registry 依赖转为 `Packages/` 下的本地（embedded）包，锁定原版本 `3.0.6`（tag 即 package.json 记录的 commit `3b4cfb36…`，内容与原 registry 包一致，零行为变化）。新增一键同步脚本 `Packages/sync-yooasset-local.sh` / `.bat`（与前四个本地包脚本同一套约定：不传参自动解析最新稳定 tag，可指定 tag/分支/commit，`SYNC_YOOASSET_REPO` 切镜像，幂等重同步并改写 manifest）。YooAsset 包根为仓库子目录 `Assets/YooAsset`；上游自带 `.meta` 且 `YooAsset` / `YooAsset.Editor` 两个 asmdef GUID 与工程一致，`TEngine.Runtime` / `TEngine.Editor` / `GameLogic` / `RuntimeTools` / `YooAsset.Custom.Editor` 五个按 GUID 引用的程序集不受影响。详见 [local-packages.md](local-packages.md)。
+
 ## 2026-10-11
 
 - 场景枚举协同冲突修复（B：身份派生化）：枚举值不再用「本地计数器 `max+1`」分配（两分支各加一个场景必然撞值），改为由场景 GUID 确定性派生（`SceneEnumIdentity.DeriveValue`，FNV-1a，31 位、避开 0）——不同场景在任何分支/机器算出的值都不同，合并后不会撞值；`SceneEntry.EnumValue` 由序列化字段改为计算属性，配置资产不再存该字段。新增场景撞名时加 GUID 短后缀，窗口「体检」页新增「修复重复枚举名」（按冲突 + 自身 GUID 确定性加 `_<GUID4>`，多分支合并后收敛）；生成前校验保留为哈希碰撞兜底（31 位下约 100 场景碰撞概率 2.3e-6）。删除场景不再需要「枚举值保留占位」。详见 [scene-system.md](scene-system.md)。
