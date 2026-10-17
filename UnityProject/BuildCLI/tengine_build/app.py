@@ -464,6 +464,10 @@ class MainWindow(QMainWindow):
         player_wrap.setLayout(player_out_row)
         player_form.addRow("输出路径：", player_wrap)
         self.player_output_edit.textChanged.connect(lambda v: self._set_state("playerOutputPath", v))
+
+        self.clean_player_output_check = QCheckBox("构建前清空输出目录（避免残留文件混入产物）")
+        self.clean_player_output_check.toggled.connect(lambda v: self._set_state("cleanPlayerOutputDirectory", v))
+        player_form.addRow(self.clean_player_output_check)
         layout.addWidget(player)
 
         installer = QGroupBox("InnoSetup 安装包（仅 Windows）")
@@ -792,6 +796,7 @@ class MainWindow(QMainWindow):
         self.hotfix_check.setChecked(s.buildHotFixDll)
         self.build_player_check.setChecked(s.buildPlayer)
         self.player_output_edit.setText(s.playerOutputPath)
+        self.clean_player_output_check.setChecked(s.cleanPlayerOutputDirectory)
         self.installer_check.setChecked(s.buildInstaller)
         self.iscc_edit.setText(s.isccPath)
         self.timeout_spin.setValue(s.buildTimeoutMinutes)

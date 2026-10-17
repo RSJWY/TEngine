@@ -93,6 +93,8 @@ class BuildFormState:
     # Player
     buildPlayer: bool = False
     playerOutputPath: str = ""
+    # 构建 Player 前清空输出目录（与 CLIBridge.BuildRequestDTO.cleanPlayerOutputDirectory 对应）
+    cleanPlayerOutputDirectory: bool = True
     # InnoSetup 安装包（action=buildInstaller，或 action=build 勾选 buildInstaller 串联）
     # 安装包版本不在表单里：固定跟随 UpdateSetting 的 Version，由 Unity 侧解析
     buildInstaller: bool = False
@@ -319,6 +321,7 @@ def load_form_from_build_pipeline_setting(project_dir: Path | None = None) -> Bu
     state.buildHotFixDll = bool(fields.get("BuildHotFixDll", True))
     state.buildPlayer = bool(fields.get("BuildPlayer", False))
     state.playerOutputPath = str(fields.get("PlayerOutputPath", "") or "")
+    state.cleanPlayerOutputDirectory = bool(fields.get("CleanPlayerOutputDirectory", True))
     return state
 
 

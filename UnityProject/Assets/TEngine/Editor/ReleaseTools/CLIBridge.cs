@@ -78,6 +78,8 @@ namespace TEngine
             // 已废弃：Player 平台统一取 buildTarget；保留字段仅为兼容旧调用方（发送后会被忽略）。
             public string playerPlatform = "StandaloneWindows64";
             public string playerOutputPath = "";
+            // 构建 Player 前清空输出目录（与 BuildConfig.CleanPlayerOutputDirectory 对应）
+            public bool cleanPlayerOutputDirectory = true;
 
             // InnoSetup 安装包（action=buildInstaller 或 build+buildInstaller 时使用）
             // 安装包版本固定跟随 UpdateSetting.Version，不下发也不可覆盖
@@ -328,7 +330,8 @@ namespace TEngine
                     if (!ReleaseTools.BuildImp(
                             BuildConfig.GetBuildTargetGroup(playerTarget),
                             playerTarget,
-                            request.playerOutputPath))
+                            request.playerOutputPath,
+                            request.cleanPlayerOutputDirectory))
                     {
                         Debug.LogError("[TEngineCLI] Player 构建失败。");
                         return false;
@@ -494,6 +497,7 @@ namespace TEngine
                 BuildHotFixDll = request.buildHotFixDll,
                 BuildPlayer = request.buildPlayer,
                 PlayerOutputPath = request.playerOutputPath ?? string.Empty,
+                CleanPlayerOutputDirectory = request.cleanPlayerOutputDirectory,
                 HeadlessMode = Application.isBatchMode,
             };
 

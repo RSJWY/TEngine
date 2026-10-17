@@ -341,6 +341,14 @@ namespace TEngine
 
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/Player 设置")]
+        [LabelText("构建前清空输出目录")]
+        [Tooltip("构建 Player（含\"仅构建 Player\"）前清空输出目录（如 Releases/Windows/build），避免上一版残留文件混入产物或安装包。iOS/WebGL 等输出为目录的平台清目录本身，其余清输出文件所在目录。")]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _cleanPlayerOutputDirectory = true;
+
+        [TabGroup("Pages", "发布与Player")]
+        [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("输出路径")]
         [InlineButton(nameof(ChoosePlayerOutputPath), "浏览")]
         [InlineButton(nameof(SyncPlayerOutputName), "同步名字")]
@@ -1128,7 +1136,8 @@ namespace TEngine
                 if (!ReleaseTools.BuildImp(
                     BuildConfig.GetBuildTargetGroup(config.BuildTarget),
                     config.BuildTarget,
-                    config.PlayerOutputPath
+                    config.PlayerOutputPath,
+                    config.CleanPlayerOutputDirectory
                 ))
                     throw new Exception("Player 构建失败。");
 
@@ -1324,6 +1333,7 @@ namespace TEngine
             _playerOutputPath = string.IsNullOrWhiteSpace(setting.PlayerOutputPath)
                 ? BuildConfig.GetDefaultPlayerOutputPath(_buildTarget)
                 : setting.PlayerOutputPath;
+            _cleanPlayerOutputDirectory = setting.CleanPlayerOutputDirectory;
 
             _buildInstaller = setting.BuildInstaller;
             _installerPlatform = Array.IndexOf(PlatformTargets, setting.InstallerPlatform) >= 0
@@ -1536,6 +1546,7 @@ namespace TEngine
             _setting.BuildHotFixDll = _buildHotFixDll;
             _setting.BuildPlayer = _buildPlayer;
             _setting.PlayerOutputPath = _playerOutputPath;
+            _setting.CleanPlayerOutputDirectory = _cleanPlayerOutputDirectory;
             _setting.BuildInstaller = _buildInstaller;
             _setting.InstallerPlatform = _installerPlatform;
             _setting.IsccPath = _isccPath;
@@ -1845,7 +1856,9 @@ namespace TEngine
 
             AddFlowStep(config.BuildPlayer,
                 "构建 Player",
-                $"平台 {config.BuildTarget} | 输出 {config.PlayerOutputPath}",
+                config.CleanPlayerOutputDirectory
+                    ? $"平台 {config.BuildTarget} | 输出 {config.PlayerOutputPath} | 构建前清空输出目录"
+                    : $"平台 {config.BuildTarget} | 输出 {config.PlayerOutputPath}",
                 "Player 构建未启用，跳过");
 
             // 安装包构建已与 Player 解耦:改由「安装包配置」tab 的「一键构建安装包」按钮单独触发
@@ -1919,6 +1932,7 @@ namespace TEngine
             _buildHotFixDll = config.BuildHotFixDll;
             _buildPlayer = config.BuildPlayer;
             _playerOutputPath = config.PlayerOutputPath;
+            _cleanPlayerOutputDirectory = config.CleanPlayerOutputDirectory;
             _buildInstaller = config.BuildInstaller;
             _installerPlatform = config.InstallerPlatform;
             _isccPath = config.IsccPath;
@@ -1957,6 +1971,7 @@ namespace TEngine
                 BuildHotFixDll = _buildHotFixDll,
                 BuildPlayer = _buildPlayer,
                 PlayerOutputPath = _playerOutputPath,
+                CleanPlayerOutputDirectory = _cleanPlayerOutputDirectory,
                 BuildInstaller = _buildInstaller,
                 InstallerPlatform = _installerPlatform,
                 IsccPath = _isccPath,

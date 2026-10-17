@@ -52,6 +52,7 @@ namespace TEngine
         // 打包Player设置（Player 平台统一使用 BuildTarget）
         public bool BuildPlayer;
         public string PlayerOutputPath = "";
+        public bool CleanPlayerOutputDirectory = true;
 
         // InnoSetup 安装包设置（仅 Windows）
         public bool BuildInstaller;
@@ -93,6 +94,7 @@ namespace TEngine
             BuildHotFixDll = config.BuildHotFixDll;
             BuildPlayer = config.BuildPlayer;
             PlayerOutputPath = config.PlayerOutputPath;
+            CleanPlayerOutputDirectory = config.CleanPlayerOutputDirectory;
             BuildInstaller = config.BuildInstaller;
             InstallerPlatform = config.InstallerPlatform;
             IsccPath = config.IsccPath;

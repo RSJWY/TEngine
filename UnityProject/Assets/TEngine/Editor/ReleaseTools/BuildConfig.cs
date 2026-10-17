@@ -54,6 +54,8 @@ namespace TEngine
         // 打包Player设置（Player 平台统一使用 BuildTarget，不再单独配置）
         public bool BuildPlayer;
         public string PlayerOutputPath = "";
+        // 构建 Player 前清空输出目录（输出文件所在目录），避免上一版残留文件混入产物/安装包
+        public bool CleanPlayerOutputDirectory = true;
 
         // InnoSetup 安装包设置（仅 Windows）
         public bool BuildInstaller;
