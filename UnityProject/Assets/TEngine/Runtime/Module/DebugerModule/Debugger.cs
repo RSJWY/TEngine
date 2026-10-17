@@ -98,7 +98,8 @@ namespace TEngine
             set
             {
                 _debuggerModule.ActiveWindow = value;
-                enabled = value;
+                // 快捷键切换模式下保持组件启用，关闭状态仍需响应 ToggleHotkey 重新打开。
+                enabled = value || activeWindow == DebuggerActiveWindowType.HotkeyToggle;
             }
         }
 
@@ -265,6 +266,10 @@ namespace TEngine
                     ActiveWindow = Application.isEditor;
                     break;
 
+                case DebuggerActiveWindowType.HotkeyToggle:
+                    ActiveWindow = false;
+                    break;
+
                 default:
                     ActiveWindow = false;
                     break;
@@ -275,25 +280,46 @@ namespace TEngine
         {
             _fpsCounter.Update(Time.deltaTime, Time.unscaledDeltaTime);
 
-            if (_debuggerModule != null && _debuggerModule.ActiveWindow && _toggleHotkey != KeyCode.None)
+            if (_debuggerModule == null || _toggleHotkey == KeyCode.None)
             {
-                bool modifiersOk = true;
-                if (_toggleModifierKeys != null)
+                return;
+            }
+
+            bool modifiersOk = true;
+            if (_toggleModifierKeys != null)
+            {
+                foreach (var key in _toggleModifierKeys)
                 {
-                    foreach (var key in _toggleModifierKeys)
+                    if (!Input.GetKey(key))
                     {
-                        if (!Input.GetKey(key))
-                        {
-                            modifiersOk = false;
-                            break;
-                        }
+                        modifiersOk = false;
+                        break;
                     }
                 }
+            }
 
-                if (modifiersOk && Input.GetKeyDown(_toggleHotkey))
+            if (!modifiersOk || !Input.GetKeyDown(_toggleHotkey))
+            {
+                return;
+            }
+
+            if (activeWindow == DebuggerActiveWindowType.HotkeyToggle)
+            {
+                // 整体开/关调试器：关闭前先收起完整窗口以还原 EventSystem，打开时直接进入完整窗口。
+                if (_debuggerModule.ActiveWindow)
                 {
-                    ShowFullWindow = !ShowFullWindow;
+                    ShowFullWindow = false;
+                    ActiveWindow = false;
                 }
+                else
+                {
+                    ActiveWindow = true;
+                    ShowFullWindow = true;
+                }
+            }
+            else if (_debuggerModule.ActiveWindow)
+            {
+                ShowFullWindow = !ShowFullWindow;
             }
         }
 
