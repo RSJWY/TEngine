@@ -72,6 +72,10 @@ crashlytics-build.properties
 [Aa]ssets/AATemp/
 [Aa]ssets/AATemp.meta
 
+#Unity 崩溃恢复目录（编辑器异常退出时自动生成，非工程资产）
+[Aa]ssets/_Recovery/
+[Aa]ssets/_Recovery.meta
+
 [Aa]ssets/StreamingAssets/*
 ![Aa]ssets/StreamingAssets/Configs/
 ![Aa]ssets/StreamingAssets/Configs.meta
