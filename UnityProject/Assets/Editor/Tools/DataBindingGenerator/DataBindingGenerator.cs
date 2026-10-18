@@ -56,7 +56,7 @@ namespace TEngine.Editor.Tools.DataBinding
             "void", "volatile", "while"
         };
 
-        [MenuItem("Tools/数据绑定/生成")]
+        [MenuItem("TEngine/数据绑定/生成")]
         public static void Generate()
         {
             GenerateAll(DefaultOutputDirectory);

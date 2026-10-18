@@ -30,7 +30,7 @@ MonoBehaviour:
     additionalAssemblySearchPaths: []
     obfuscateObfuzRuntime: 1
   obfuscationPassSettings:
-    enabledPasses: 3149059
+    enabledPasses: 1051907
     ruleFiles:
     - Assets/Obfuz/Rules/symbol-preserve-purrnet.xml
   secretSettings:

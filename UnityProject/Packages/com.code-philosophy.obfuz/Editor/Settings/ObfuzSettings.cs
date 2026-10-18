@@ -76,9 +76,6 @@ namespace Obfuz.Settings
         [Tooltip("watermark settings")]
         public WatermarkSettings watermarkSettings;
 
-        [Tooltip("polymorphic dll settings")]
-        public PolymorphicDllSettings polymorphicDllSettings;
-
         public string ObfuzRootDir => $"Library/Obfuz";
 
         public string GetObfuscatedAssemblyOutputPath(BuildTarget target)

@@ -3,11 +3,13 @@
 # sync-hybridclr-local.sh
 #
 # Installs/upgrades HybridCLR as a local (embedded) package at
-# Packages/com.code-philosophy.hybridclr, and removes its bundled
-# Plugins/dnlib.dll to resolve the dnlib conflict with Obfuz.
-# (Obfuz's dnlib is a feature superset of upstream dnlib and is shared
-#  by the whole project; obfuz4hybridclr depends on its custom types
-#  such as PolymorphicWriter.)
+# Packages/com.code-philosophy.hybridclr.
+#
+# NOTE (Obfuz v4 / HybridCLR v9): Plugins/dnlib.dll is now KEPT.
+# Since Obfuz v4 removed the polymorphic-DLL feature, Obfuz no longer
+# ships a customized dnlib superset; both packages bundle the same
+# upstream dnlib build (byte-identical), so they coexist without the
+# old duplicate-assembly conflict. The previous removal step is dropped.
 #
 # Usage:
 #   ./sync-hybridclr-local.sh               install/upgrade to the latest stable tag
@@ -56,8 +58,7 @@ mkdir -p "$TARGET"
 cp -r "$TMP_DIR/repo/." "$TARGET/"
 rm -rf "$TARGET/.git"
 
-echo "==> Removing bundled dnlib.dll (Obfuz's custom dnlib is kept) ..."
-rm -f "$TARGET/Plugins/dnlib.dll" "$TARGET/Plugins/dnlib.dll.meta"
+echo "==> Keeping bundled dnlib.dll (byte-identical to Obfuz v4's upstream dnlib; coexistence verified) ..."
 
 echo "==> Updating $MANIFEST to the local file reference ..."
 sed -i 's#"com\.code-philosophy\.hybridclr":[[:space:]]*"[^"]*"#"com.code-philosophy.hybridclr": "file:com.code-philosophy.hybridclr"#' "$MANIFEST"
@@ -65,5 +66,5 @@ sed -i 's#"com\.code-philosophy\.hybridclr":[[:space:]]*"[^"]*"#"com.code-philos
 VERSION="$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$TARGET/package.json" | head -1)"
 echo
 echo "Done: HybridCLR ${VERSION:-unknown} (ref: $REF) installed as a local package at $TARGET"
-echo "      dnlib.dll removed, manifest.json now points to the local package."
+echo "      dnlib.dll kept, manifest.json now points to the local package."
 echo "      Switch back to Unity and wait for recompilation."

@@ -25,7 +25,7 @@ namespace TEngine.Editor
         private string _errorMessage;
         private int _visiblePoolRowIndex;
 
-        [MenuItem("TEngine Tools/Debugger/GameObject Pool")]
+        [MenuItem("TEngine/Debugger/GameObject Pool")]
         internal static void Open()
         {
             var window = GetWindow<GameObjectPoolModuleDebuggerWindow>();

@@ -427,23 +427,25 @@ public class MainToolbarBuildModeDropdown
     const string kElementPath = "TEngine/Build Mode";
 
     // 模式状态由 ENABLE_RELEASE 宏表达，切换会触发重编译与域重载，工具栏随之重建，无需手动刷新
-    [MainToolbarElement(kElementPath, defaultDockPosition = MainToolbarDockPosition.Middle, defaultDockIndex = 52)]
+    // 放在左区（DockPosition.Left）：与旧版工具栏一致，避免右区被场景选择/资源模式下拉挤满；
+    // 标签同样使用紧凑缩写（DEV/REL │ OBF:ON/OFF │ PDB:ON/OFF），完整说明见 tooltip 与菜单
+    [MainToolbarElement(kElementPath, defaultDockPosition = MainToolbarDockPosition.Left, defaultDockIndex = 10)]
     public static MainToolbarElement CreateBuildModeDropdown()
     {
         bool isRelease = BuildDLLCommand.IsReleaseModeActive;
-        bool pdbOn = BuildDLLCommand.IsPdbEnabled;
+        bool pdbOn = !isRelease && BuildDLLCommand.IsPdbEnabled;
         string pdbText = isRelease ? "禁用" : (pdbOn ? "开" : "关");
-        string label = isRelease ? "模式: release" : "模式: dev";
+        string label = isRelease ? "REL" : "DEV";
         string tooltip = isRelease
             ? "当前构建模式：release（发布：不生成/不加载 pdb）"
             : "当前构建模式：dev（开发：pdb 有则加载）";
         if (BuildDLLCommand.IsObfuzInstalled)
         {
             bool obfuzOn = BuildDLLCommand.IsObfuzActiveSafe;
-            label += $" | Obfuz: {(obfuzOn ? "开" : "关")}";
+            label += $" │ OBF:{(obfuzOn ? "ON" : "OFF")}";
             tooltip += $"\nObfuz 混淆：{(obfuzOn ? "开" : "关")}";
         }
-        label += $" | pdb: {pdbText}";
+        label += $" │ PDB:{(pdbOn ? "ON" : "OFF")}";
         tooltip += $"\npdb 符号：{pdbText}";
         tooltip += "\n点击弹出快捷切换菜单";
         var content = new MainToolbarContent(label, null, tooltip);

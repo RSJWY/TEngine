@@ -81,7 +81,6 @@ namespace TEngine
             config.BuildTarget = BuildTarget.StandaloneWindows64;
             config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
-            config.PlayerPlatform = BuildTarget.StandaloneWindows64;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.StandaloneWindows64);
             BuildWithConfig(config, buildPlayer: true);
         }
@@ -93,7 +92,6 @@ namespace TEngine
             config.BuildTarget = BuildTarget.Android;
             config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
-            config.PlayerPlatform = BuildTarget.Android;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.Android);
             BuildWithConfig(config, buildPlayer: true);
         }
@@ -105,7 +103,6 @@ namespace TEngine
             config.BuildTarget = BuildTarget.iOS;
             config.OutputRoot = Application.dataPath + "/../Releases/Bundles";
             config.BuildPlayer = true;
-            config.PlayerPlatform = BuildTarget.iOS;
             config.PlayerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.iOS);
             BuildWithConfig(config, buildPlayer: true);
         }
@@ -128,12 +125,6 @@ namespace TEngine
 
             if (config.BuildHotFixDll && runtimePackages.Any(runtimePackage => IsAssemblyPackage(runtimePackage.PackageName)))
             {
-                if ((buildPlayer || config.BuildPlayer) && config.PlayerPlatform != config.BuildTarget)
-                {
-                    Debug.LogError($"[BuildWithConfig] Player 平台 {config.PlayerPlatform} 与代码资源包平台 {config.BuildTarget} 不一致。");
-                    return false;
-                }
-
                 BuildDLLCommand.ActivateBuildTarget(config.BuildTarget);
             }
 
@@ -183,10 +174,11 @@ namespace TEngine
             if (buildPlayer || config.BuildPlayer)
             {
                 return BuildImp(
-                    BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
-                    config.PlayerPlatform,
+                    BuildConfig.GetBuildTargetGroup(config.BuildTarget),
+                    config.BuildTarget,
                     config.PlayerOutputPath,
-                    config.subtarget
+                    config.subtarget,
+                    config.CleanPlayerOutputDirectory
                 );
             }
 
@@ -836,7 +828,7 @@ namespace TEngine
 
         #region Player 构建
 
-        public static bool BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget buildTarget, string locationPathName, string subtarget = "")
+        public static bool BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget buildTarget, string locationPathName, string subtarget = "", bool cleanOutputDirectory = false)
         {
             var prevSubtarget = EditorUserBuildSettings.standaloneBuildSubtarget;
             try
@@ -861,6 +853,11 @@ namespace TEngine
                 if (!string.IsNullOrWhiteSpace(locationPathName) && !Path.IsPathRooted(locationPathName))
                 {
                     locationPathName = Path.GetFullPath(Path.Combine(Application.dataPath, "..", locationPathName));
+                }
+
+                if (cleanOutputDirectory)
+                {
+                    CleanPlayerOutputDirectory(locationPathName);
                 }
 
                 BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
@@ -934,6 +931,55 @@ namespace TEngine
                     $"冲突场景：{string.Join(", ", conflictScenes)}\n" +
                     "请在场景中禁用或移除 Debugger 组件后重新构建（Log 系统不受影响，走 DebuggerModule）。");
             }
+        }
+
+        /// <summary>
+        /// 清空 Player 输出目录：输出路径指向文件（.exe/.apk/.app）时清其所在目录，
+        /// 指向目录（iOS XCode 工程、WebGL 输出）时清该目录本身；目录不存在则跳过。
+        /// </summary>
+        private static void CleanPlayerOutputDirectory(string locationPathName)
+        {
+            if (string.IsNullOrWhiteSpace(locationPathName))
+            {
+                return;
+            }
+
+            // 输出末段带扩展名（.exe/.apk/.app）视为文件、清父目录；否则视为目录（XCode 工程/WebGL）清自身
+            var hasExtension = !string.IsNullOrEmpty(Path.GetExtension(locationPathName));
+            var targetDirectory = hasExtension
+                ? Path.GetDirectoryName(locationPathName)
+                : locationPathName;
+
+            if (string.IsNullOrWhiteSpace(targetDirectory))
+            {
+                return;
+            }
+
+            targetDirectory = Path.GetFullPath(targetDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            // 安全兜底：项目根与磁盘根不允许清空
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."))
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (string.Equals(targetDirectory, projectRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.LogWarning($"[Player清理] 输出目录为项目根，跳过清空：{targetDirectory}");
+                return;
+            }
+
+            if (string.Equals(targetDirectory, Path.GetPathRoot(targetDirectory), StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.LogWarning($"[Player清理] 输出目录为磁盘根，跳过清空：{targetDirectory}");
+                return;
+            }
+
+            if (!Directory.Exists(targetDirectory))
+            {
+                Debug.Log($"[Player清理] 输出目录不存在，无需清空：{targetDirectory}");
+                return;
+            }
+
+            Directory.Delete(targetDirectory, true);
+            Debug.Log($"[Player清理] 已清空 Player 输出目录：{targetDirectory}");
         }
 
         #endregion

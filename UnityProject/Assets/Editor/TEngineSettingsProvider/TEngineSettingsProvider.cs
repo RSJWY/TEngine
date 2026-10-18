@@ -21,7 +21,9 @@ public static class TEngineSettingsProvider
                 var settings = Settings.UpdateSetting;  
                 var serializedObject = new SerializedObject(settings);  
 
+                EditorGUI.BeginChangeCheck();
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("projectName"));  
+                EditorGUILayout.PropertyField(serializedObject.FindProperty("version"));  
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("HotUpdateAssemblies"));  
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("AOTMetaAssemblies"));  
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("LogicMainDllName"));  
@@ -31,6 +33,12 @@ public static class TEngineSettingsProvider
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("ResDownLoadPath"));  
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("FallbackResDownLoadPath"));  
                 serializedObject.ApplyModifiedProperties();  
+
+                // projectName / version 以 UpdateSetting 为数据源，改动后同步到 ProjectSettings（PlayerSettings）
+                if (EditorGUI.EndChangeCheck())
+                {
+                    TEngine.Editor.UpdateSettingEditor.SyncProjectInfoToPlayerSettings(settings);
+                }
             },  
             keywords = new[] { "TEngine", "Settings", "Custom" }  
         };  

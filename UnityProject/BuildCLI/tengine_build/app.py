@@ -449,11 +449,6 @@ class MainWindow(QMainWindow):
         self.build_player_check.toggled.connect(lambda v: self._set_state("buildPlayer", v))
         player_form.addRow(self.build_player_check)
 
-        self.player_platform_combo = QComboBox()
-        self.player_platform_combo.addItems(unity_locator.SUPPORTED_BUILD_TARGETS)
-        self.player_platform_combo.currentTextChanged.connect(lambda v: self._set_state("playerPlatform", v))
-        player_form.addRow("Player 平台：", self.player_platform_combo)
-
         self.subtarget_combo = QComboBox()
         self.subtarget_combo.addItem("默认（普通客户端）", "")
         self.subtarget_combo.addItem("Server（专用服务器）", "Server")
@@ -477,6 +472,10 @@ class MainWindow(QMainWindow):
         player_wrap.setLayout(player_out_row)
         player_form.addRow("输出路径：", player_wrap)
         self.player_output_edit.textChanged.connect(lambda v: self._set_state("playerOutputPath", v))
+
+        self.clean_player_output_check = QCheckBox("构建前清空输出目录（避免残留文件混入产物）")
+        self.clean_player_output_check.toggled.connect(lambda v: self._set_state("cleanPlayerOutputDirectory", v))
+        player_form.addRow(self.clean_player_output_check)
         layout.addWidget(player)
 
         installer = QGroupBox("InnoSetup 安装包（仅 Windows）")
@@ -484,10 +483,6 @@ class MainWindow(QMainWindow):
         self.installer_check = QCheckBox("一键构建后串联编译安装包")
         self.installer_check.toggled.connect(lambda v: self._set_state("buildInstaller", v))
         inst_form.addRow(self.installer_check)
-        self.installer_version_edit = QLineEdit()
-        self.installer_version_edit.setPlaceholderText("安装包版本号（空 = 使用 setup.iss 现值）")
-        self.installer_version_edit.textChanged.connect(lambda v: self._set_state("installerVersion", v))
-        inst_form.addRow("安装包版本：", self.installer_version_edit)
         self.iscc_edit = QLineEdit()
         self.iscc_edit.setPlaceholderText("ISCC.exe 路径（空 = 自动定位注册表/PATH）")
         self.iscc_edit.textChanged.connect(lambda v: self._set_state("isccPath", v))
@@ -808,12 +803,11 @@ class MainWindow(QMainWindow):
         self.catalog_check.setChecked(s.generateCatalogInOutput)
         self.hotfix_check.setChecked(s.buildHotFixDll)
         self.build_player_check.setChecked(s.buildPlayer)
-        self.player_platform_combo.setCurrentText(s.playerPlatform)
         subtarget_idx = self.subtarget_combo.findData(s.subtarget or "")
         self.subtarget_combo.setCurrentIndex(max(subtarget_idx, 0))
         self.player_output_edit.setText(s.playerOutputPath)
+        self.clean_player_output_check.setChecked(s.cleanPlayerOutputDirectory)
         self.installer_check.setChecked(s.buildInstaller)
-        self.installer_version_edit.setText(s.installerVersion)
         self.iscc_edit.setText(s.isccPath)
         self.timeout_spin.setValue(s.buildTimeoutMinutes)
 
@@ -1205,10 +1199,6 @@ class MainWindow(QMainWindow):
             self.state.packageVersion = config_store.default_package_version()
             self.version_edit.setText(self.state.packageVersion)
             self._append_log(f"[BuildCLI] 版本号为空，自动生成：{self.state.packageVersion}")
-
-        if action == "build" and self.state.buildPlayer and self.state.playerPlatform != self.state.buildTarget:
-            QMessageBox.warning(self, "平台不一致", f"Player 平台 {self.state.playerPlatform} 与资源包平台 {self.state.buildTarget} 不一致，Unity 侧会拒绝构建。")
-            return
 
         self.log_view.clear()
         self._append_log(f"[BuildCLI] ====== {action_names.get(action, action)} ======")

@@ -15,7 +15,7 @@ namespace TEngine.Editor.Tools.DataBinding
     /// </remarks>
     public sealed class DataBindingGeneratorWindow : EditorWindow
     {
-        private const string MenuPath = "Tools/数据绑定/生成器面板";
+        private const string MenuPath = "TEngine/数据绑定/生成器面板";
         private const float ModelListMinWidth = 1120f;
         private const float ModelListMinHeight = 100f;
         private const float ModelListMaxHeight = 420f;

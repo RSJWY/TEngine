@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Sirenix.OdinInspector;
 using UnityEditor;
@@ -17,7 +18,7 @@ namespace TEngine.SceneTools
     public class SceneEnumConfig : ScriptableObject
     {
         public const string DefaultSceneFolder = "Assets/AssetRaw/Scenes";
-        public const string DefaultOutputFolder = "Assets/GameScripts/HotFix/GameLogic/Module/GameScene";
+        public const string DefaultOutputFolder = "Assets/GameScripts/HotFix/GameLogic/Module/GameScene/Generated";
         public const string CodeNamespace = "GameLogic";
 
         [FolderPath(RequireExistingPath = true)]
@@ -76,28 +77,46 @@ namespace TEngine.SceneTools
             return false;
         }
 
-        private const string ConfigAssetPath = "Assets/Resources/SceneEnumConfig.asset";
+        /// <summary>
+        /// 配置资产固定路径：与工具代码同目录，避免落入 Resources 被误打进包体
+        /// （本资产仅 Editor 使用，且含 <see cref="UnityEditor.SceneAsset"/> 引用）。
+        /// </summary>
+        public const string ConfigAssetPath = "Assets/Editor/SceneTools/SceneEnumGenerator/SceneEnumConfig.asset";
+
+        private const string ConfigFolderPath = "Assets/Editor/SceneTools/SceneEnumGenerator";
 
         /// <summary>
-        /// 菜单：创建或打开配置资产（统一存放在 Assets/Resources/ 下）。
+        /// 仅加载配置资产；不存在返回 null（只读场景用，不产生副作用）。
         /// </summary>
-        [MenuItem("TEngine/场景枚举配置")]
-        public static void OpenConfig()
+        public static SceneEnumConfig Load()
         {
-            SceneEnumConfig config = AssetDatabase.LoadAssetAtPath<SceneEnumConfig>(ConfigAssetPath);
-            if (config == null)
+            return AssetDatabase.LoadAssetAtPath<SceneEnumConfig>(ConfigAssetPath);
+        }
+
+        /// <summary>
+        /// 加载配置资产，缺失时按固定路径创建。入口见
+        /// <see cref="SceneEnumConfigWindow"/>（菜单 TEngine &gt; 场景枚举配置）。
+        /// </summary>
+        public static SceneEnumConfig LoadOrCreate()
+        {
+            SceneEnumConfig config = Load();
+            if (config != null)
             {
-                if (!AssetDatabase.IsValidFolder("Assets/Resources"))
-                {
-                    AssetDatabase.CreateFolder("Assets", "Resources");
-                }
-                config = ScriptableObject.CreateInstance<SceneEnumConfig>();
-                AssetDatabase.CreateAsset(config, ConfigAssetPath);
-                AssetDatabase.SaveAssets();
-                Debug.Log($"[场景枚举] 已创建配置资产：{ConfigAssetPath}");
+                return config;
             }
-            Selection.activeObject = config;
-            EditorGUIUtility.PingObject(config);
+
+            if (!AssetDatabase.IsValidFolder(ConfigFolderPath))
+            {
+                Directory.CreateDirectory(ConfigFolderPath);
+                AssetDatabase.ImportAsset(ConfigFolderPath, ImportAssetOptions.ForceUpdate);
+            }
+
+            config = CreateInstance<SceneEnumConfig>();
+            AssetDatabase.CreateAsset(config, ConfigAssetPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log($"[场景枚举] 已创建配置资产：{ConfigAssetPath}");
+            return config;
         }
 
         /// <summary>
@@ -124,11 +143,12 @@ namespace TEngine.SceneTools
                 : "<缺失>";
 
             [HorizontalGroup("行1", 0.2f)]
+            [ShowInInspector]
             [LabelText("枚举值")]
             [LabelWidth(50)]
             [ReadOnly]
-            [Tooltip("固定整数值，保证顺序稳定：新增追加、删除保留空缺。")]
-            public int EnumValue;
+            [Tooltip("由场景 GUID 确定性派生（非本地计数器）：多人协同各自新增场景不会撞值，且随场景身份固定、改名不变；无需占位。")]
+            public int EnumValue => SceneEnumIdentity.DeriveValue(SceneGuid);
 
             /// <summary>冗余存 GUID，SceneAsset 变 missing 时仍可追踪身份（删除/改名识别）。</summary>
             [HideInInspector]
@@ -149,7 +169,7 @@ namespace TEngine.SceneTools
             [HorizontalGroup("行2", 0.2f)]
             [LabelText("启用")]
             [LabelWidth(40)]
-            [Tooltip("关闭后该场景不生成枚举，但枚举值保留占位。")]
+            [Tooltip("关闭后该场景不生成枚举；枚举值由 GUID 派生，无需保留占位。")]
             public bool Active = true;
 
             [HorizontalGroup("行3", 0.8f)]

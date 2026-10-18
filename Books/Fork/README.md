@@ -22,6 +22,7 @@
 | 场景系统 | DynamicSpawn 通用化与 GUID 弱引用寻址、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、运行时静态密钥初始化、多态 DLL 热更产物 | [obfuscation.md](obfuscation.md) |
+| 本地化第三方包 | HybridCLR/Obfuz/Obfuz4HybridCLR/UniTask 转 `Packages/` 本地包，一键同步脚本 | [local-packages.md](local-packages.md) |
 | 运行时工具 | `GameTickWatcher` 逻辑计时器（独立 `RuntimeTools` 程序集） | [runtime-tools.md](runtime-tools.md) |
 | 计时器模块 | `TimerModule` 链表化、坏帧安全、限定循环次数 | [timer-module.md](timer-module.md) |
 | 存档与数据中心 | `ClientSaveDataMgr` 存档框架（Nino 二进制序列化）、`DataCenterSys` 玩家数据中枢 | [save-data.md](save-data.md) |
@@ -38,6 +39,7 @@
 
 ## 最近重点
 
+- 第三方包本地化补齐：`com.code-philosophy.obfuz4hybridclr` 与 `com.cysharp.unitask` 从 Git URL 依赖转为 `Packages/` 本地包，新增配套一键同步脚本 `sync-obfuz4hybridclr-local.sh` / `sync-unitask-local.sh`（及 `.bat` 包装），与既有 `sync-hybridclr-local.sh` / `sync-obfuz-local.sh` 同一套约定（自动解析最新稳定 tag、支持指定 tag/分支/commit、gitee 镜像切换、幂等重同步）。详见 [local-packages.md](local-packages.md)。
 - 新增模块级自定义异步操作 `AsyncOperationModule`：借鉴 YooAsset 3.0.6 `CustomAsyncOperation` 体系抽成 TEngine 框架自有模块，不依赖 YooAsset 运行时。`GameAsyncOperation` 基类提供状态机/`Completed` 事件/优先级/进度/子任务树/协程/awaiter/同步等待；`OperationScheduler` 双队列+时间切片预算；多调度器管理绑定业务域生命周期；abort-on-cancel 重载（`StartOperation(op, token)` 取消即中止操作，注明独占要求）；UniTask 完整支持（`ToUniTask`/`WithCancellation`/进度上报/池化零分配）；`AsyncOperationMonitor` 编辑器可视化监控组件（`#if UNITY_EDITOR` 打包剥离）；热更 `GameModule` 新增 `AsyncOperation` 访问器。
 - `CodePackage` 接入 YooAsset 3.0.5 `ArchiveFileBuildPipeline`：构建类型改为 `ArchiveBundle`，编辑器模拟使用 `VirtualArchiveBundle`；运行时文件系统注册归档内存解密器，DLL/PDB/AOT 元数据和 Obfuz 动态密钥按归档语义读取 `RawFileObject`；修复 ChaCha20 变换与密钥配置 Player 编译问题。上游 TEngine 支持 YooAsset 3.x 后继续收敛资源模块和二进制加载抽象。
 - 热更构建链路接入 Obfuz 多态 DLL：`CopyAOTHotUpdateDlls` 在混淆后按 `polymorphicDllSettings.enable` 调 `GeneratePolymorphicDll` 转多态格式再拷 `.bytes`，产物目录 `Obfuz/{target}/PolymorphicHotUpdateAssemblies/`；运行时加载零改动，补充元数据暂维持标准格式（`disableLoadStandardDll: 0` 混用合法）。
@@ -59,7 +61,7 @@
 - 场景系统将加载进度状态机从 UI 下沉到 `GameSceneModule`，DynamicSpawn 示例脚本通用化，阶段 1 超时改为双门槛（停滞 60s + 绝对 180s）修复大场景冷启动误杀。
 - 场景系统新增 `SceneEnumConfig` 自动生成工具，扫描场景资源生成 `SceneType`/`SceneConstName`/`SceneTypeMapping`，免去手工同步枚举/常量/映射。
 - Windows Standalone 新增 `ScreenModule`，用于控制窗口位置、尺寸、置顶和无边框。
-- 接入 Obfuz 代码混淆与 `obfuz4hybridclr`，HybridCLR/Obfuz 本地化解决 dnlib 冲突，配套一键同步脚本支持版本升级。
+- 接入 Obfuz 代码混淆与 `obfuz4hybridclr`，HybridCLR/Obfuz/Obfuz4HybridCLR/UniTask 本地化，配套一键同步脚本支持版本升级（详见 [local-packages.md](local-packages.md)）。
 
 ## 维护规则
 

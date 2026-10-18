@@ -25,8 +25,10 @@ namespace TEngine.SceneTools
             string outputFolder = string.IsNullOrEmpty(config.OutputFolder) ? SceneEnumConfig.DefaultOutputFolder : config.OutputFolder;
             if (!AssetDatabase.IsValidFolder(outputFolder))
             {
-                EditorUtility.DisplayDialog("生成失败", $"代码输出目录不存在：{outputFolder}", "确定");
-                return;
+                // 输出目录不存在时自动创建（含缺失的中间目录），避免换目录后生成失败。
+                Directory.CreateDirectory(outputFolder);
+                AssetDatabase.ImportAsset(outputFolder, ImportAssetOptions.ForceUpdate);
+                Debug.Log($"[场景枚举] 已创建代码输出目录：{outputFolder}");
             }
 
             List<SceneEnumConfig.SceneEntry> activeEntries = config.Scenes
@@ -38,16 +40,18 @@ namespace TEngine.SceneTools
             if (duplicateGroups.Count > 0)
             {
                 EditorUtility.DisplayDialog("生成失败",
-                    $"存在重复的枚举名：{string.Join(", ", duplicateGroups.Select(g => g.Key))}", "确定");
+                    "存在重复的枚举名：" + string.Join("、", duplicateGroups.Select(g => g.Key)) +
+                    "\n\n多分支合并后可能撞名。打开 TEngine > 场景枚举配置 的「体检」页，点「修复重复枚举名」可一键追加 GUID 短后缀。", "确定");
                 return;
             }
 
-            // 规则1：校验枚举值唯一（防止 _toName 字典初始化器重复 key 抛异常）
+            // 规则1：校验枚举值唯一。枚举值现由场景 GUID 确定性派生，正常不会重复；
+            //        此处保留为哈希碰撞兜底（防止 _toName 字典初始化器重复 key 抛异常）。
             var duplicateValues = activeEntries.GroupBy(e => e.EnumValue).Where(g => g.Count() > 1).ToList();
             if (duplicateValues.Count > 0)
             {
                 EditorUtility.DisplayDialog("生成失败",
-                    $"存在重复的枚举值：{string.Join(", ", duplicateValues.Select(g => $"{g.Key}（{string.Join("/", g.Select(e => e.EnumName))}）"))}", "确定");
+                    "存在枚举值哈希碰撞（极罕见）：" + string.Join(", ", duplicateValues.Select(g => $"{g.Key}（{string.Join("/", g.Select(e => e.EnumName))}）")), "确定");
                 return;
             }
 
@@ -300,7 +304,10 @@ namespace TEngine.SceneTools
             return Path.GetFileNameWithoutExtension(path);
         }
 
-        private static bool IsValidEnumName(string name)
+        /// <summary>
+        /// 校验字符串是否为合法 C# 标识符（供生成前校验与配置面板体检复用）。
+        /// </summary>
+        public static bool IsValidEnumName(string name)
         {
             if (string.IsNullOrEmpty(name))
             {

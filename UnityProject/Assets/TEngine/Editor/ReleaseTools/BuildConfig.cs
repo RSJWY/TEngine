@@ -52,18 +52,18 @@ namespace TEngine
         // 热更DLL设置
         public bool BuildHotFixDll = true;
 
-        // 打包Player设置
+        // 打包Player设置（Player 平台统一使用 BuildTarget，不再单独配置）
         public bool BuildPlayer;
-        public BuildTarget PlayerPlatform;
         public string PlayerOutputPath = "";
         /// <summary>Standalone 构建子目标（"Server"=专用服务器，"Player"=普通客户端，""=默认）。
         /// 仅对 Standalone 平台生效，Unity 6+ 通过 EditorUserBuildSettings.standaloneBuildSubtarget 设置。</summary>
         public string subtarget = "";
+        // 构建 Player 前清空输出目录（输出文件所在目录），避免上一版残留文件混入产物/安装包
+        public bool CleanPlayerOutputDirectory = true;
 
         // InnoSetup 安装包设置（仅 Windows）
         public bool BuildInstaller;
         public BuildTarget InstallerPlatform = BuildTarget.StandaloneWindows64;
-        public string InstallerVersion = "";
         public string IsccPath = "";
         // 应用显示名(中文软件名),回写 setup.iss MyAppName;默认取 PlayerSettings.productName
         public string InstallerAppName = "";
@@ -87,7 +87,6 @@ namespace TEngine
             return new BuildConfig
             {
                 BuildTarget = EditorUserBuildSettings.activeBuildTarget,
-                PlayerPlatform = EditorUserBuildSettings.activeBuildTarget,
                 PackageVersion = GetDefaultPackageVersion(),
                 OutputRoot = "./Releases/Bundles/",
                 PublishRoot = "./Releases/Publish/",

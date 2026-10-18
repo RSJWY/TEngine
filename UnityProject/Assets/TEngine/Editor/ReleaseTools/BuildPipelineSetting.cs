@@ -49,16 +49,15 @@ namespace TEngine
         // 热更DLL设置
         public bool BuildHotFixDll = true;
 
-        // 打包Player设置
+        // 打包Player设置（Player 平台统一使用 BuildTarget）
         public bool BuildPlayer;
-        public BuildTarget PlayerPlatform;
         public string PlayerOutputPath = "";
         public string subtarget = "";
+        public bool CleanPlayerOutputDirectory = true;
 
         // InnoSetup 安装包设置（仅 Windows）
         public bool BuildInstaller;
         public BuildTarget InstallerPlatform = BuildTarget.StandaloneWindows64;
-        public string InstallerVersion = "";
         public string IsccPath = "";
         // 应用显示名(中文软件名),回写 MyAppName
         public string InstallerAppName = "";
@@ -95,12 +94,11 @@ namespace TEngine
             GenerateCatalogInOutput = config.GenerateCatalogInOutput;
             BuildHotFixDll = config.BuildHotFixDll;
             BuildPlayer = config.BuildPlayer;
-            PlayerPlatform = config.PlayerPlatform;
             PlayerOutputPath = config.PlayerOutputPath;
             subtarget = config.subtarget;
+            CleanPlayerOutputDirectory = config.CleanPlayerOutputDirectory;
             BuildInstaller = config.BuildInstaller;
             InstallerPlatform = config.InstallerPlatform;
-            InstallerVersion = config.InstallerVersion;
             IsccPath = config.IsccPath;
             InstallerAppName = config.InstallerAppName;
             InstallerAppEnglishName = config.InstallerAppEnglishName;

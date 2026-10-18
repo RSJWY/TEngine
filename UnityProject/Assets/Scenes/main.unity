@@ -305,6 +305,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 11400000, guid: b38f904eb09e4bd48a46a63750942109, type: 2}
     - target: {fileID: 7696541953913300371, guid: e38c712e7904fdf42bd0458b769718dd, type: 3}
+      propertyPath: activeWindow
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 7696541953913300371, guid: e38c712e7904fdf42bd0458b769718dd, type: 3}
       propertyPath: _toggleHotkey
       value: 286
       objectReference: {fileID: 0}

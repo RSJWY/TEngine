@@ -90,23 +90,28 @@ namespace Obfuz
 
         public static List<string> BuildUnityAssemblySearchPaths(bool searchPathIncludeUnityEditorDll = false)
         {
+#if UNITY_6000_3_OR_NEWER && UNITY_EDITOR_OSX
+            string monoBleedingEdgePath = "Resources/Scripting/MonoBleedingEdge";
+#else
+            string monoBleedingEdgePath = "MonoBleedingEdge";
+#endif
             string applicationContentsPath = EditorApplication.applicationContentsPath;
             var searchPaths = new List<string>
                 {
 #if UNITY_2021_1_OR_NEWER
-#if UNITY_STANDALONE_WIN || (UNITY_EDITOR_WIN && UNITY_SERVER) || UNITY_WSA || UNITY_LUMIN
-                "MonoBleedingEdge/lib/mono/unityaot-win32",
-                "MonoBleedingEdge/lib/mono/unityaot-win32/Facades",
-#elif UNITY_STANDALONE_OSX || (UNITY_EDITOR_OSX && UNITY_SERVER) || UNITY_IOS || UNITY_TVOS
-                "MonoBleedingEdge/lib/mono/unityaot-macos",
-                "MonoBleedingEdge/lib/mono/unityaot-macos/Facades",
+    #if UNITY_STANDALONE_WIN || (UNITY_EDITOR_WIN && UNITY_SERVER) || UNITY_WSA || UNITY_LUMIN
+                $"{monoBleedingEdgePath}/lib/mono/unityaot-win32",
+                $"{monoBleedingEdgePath}/lib/mono/unityaot-win32/Facades",
+    #elif UNITY_STANDALONE_OSX || (UNITY_EDITOR_OSX && UNITY_SERVER) || UNITY_IOS || UNITY_TVOS || UNITY_VISIONOS
+                $"{monoBleedingEdgePath}/lib/mono/unityaot-macos",
+                $"{monoBleedingEdgePath}/lib/mono/unityaot-macos/Facades",
+    #else
+                $"{monoBleedingEdgePath}/lib/mono/unityaot-linux",
+                $"{monoBleedingEdgePath}/lib/mono/unityaot-linux/Facades",
+    #endif
 #else
-                "MonoBleedingEdge/lib/mono/unityaot-linux",
-                "MonoBleedingEdge/lib/mono/unityaot-linux/Facades",
-#endif
-#else
-                "MonoBleedingEdge/lib/mono/unityaot",
-                "MonoBleedingEdge/lib/mono/unityaot/Facades",
+                $"{monoBleedingEdgePath}/lib/mono/unityaot",
+                $"{monoBleedingEdgePath}/lib/mono/unityaot/Facades",
 #endif
 
 #if UNITY_STANDALONE_WIN || (UNITY_EDITOR_WIN && UNITY_SERVER)
@@ -135,6 +140,8 @@ namespace Obfuz
                 "PlaybackEngines/WSASupport/Variations/il2cpp/Managed",
 #elif UNITY_LUMIN
                 "PlaybackEngines/LuminSupport/Variations/il2cpp/Managed",
+#elif UNITY_PS5
+                "PlaybackEngines/PS5Player/Variations/il2cpp/Managed",
 #else
 #error "Unsupported platform, please report to us"
 #endif
@@ -240,10 +247,10 @@ namespace Obfuz
             {
                 builder.AddPass(new ControlFlowObfusPass(settings.controlFlowObfusSettings.ToFacade()));
             }
-            if (obfuscationPasses.HasFlag(ObfuscationPassType.WaterMark))
-            {
-                builder.AddPass(new WatermarkPass(settings.watermarkSettings.ToFacade()));
-            }
+            // if (obfuscationPasses.HasFlag(ObfuscationPassType.WaterMark))
+            // {
+            //     builder.AddPass(new WatermarkPass(settings.watermarkSettings.ToFacade()));
+            // }
             if (obfuscationPasses.HasFlag(ObfuscationPassType.SymbolObfus))
             {
                 builder.AddPass(new SymbolObfusPass(settings.symbolObfusSettings.ToFacade()));

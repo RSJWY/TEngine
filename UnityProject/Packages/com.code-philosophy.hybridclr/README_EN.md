@@ -86,7 +86,7 @@ LeanCLR can be embedded independently into any app or game project and published
 
 ## About the Author
 
-**walon**: Founder of **Code Philosophy (代码哲学)**
+**walon**: Founder of **Code Philosophy**
 
 Graduated from the Department of Physics at Tsinghua University, gold medalist of the 2006 CMO, member of the National Mathematical Olympiad Training Team, and sent to the Basic Science Class of Tsinghua. Focused on game technology, proficient in development architecture and basic technical infrastructure.
 

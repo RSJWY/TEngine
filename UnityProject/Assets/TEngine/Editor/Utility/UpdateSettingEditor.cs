@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using HybridCLR.Editor.Settings;
+using HybridCLR.Settings;
 
 namespace TEngine.Editor
 {
@@ -30,10 +30,11 @@ namespace TEngine.Editor
             // 记录对象修改前的状态
             EditorGUI.BeginChangeCheck();
 
-            // 记录 projectName / companyName 修改前的值，用于检测是否被改动
+            // 记录 projectName / companyName / version 修改前的值，用于检测是否被改动
             UpdateSetting updateSetting = (UpdateSetting)target;
             string projectNameBefore = updateSetting != null ? updateSetting.GetProjectName() : null;
             string companyNameBefore = updateSetting != null ? updateSetting.GetCompanyName() : null;
+            string versionBefore = updateSetting != null ? updateSetting.GetVersion() : null;
 
             // 绘制默认的 Inspector 界面
             base.OnInspectorGUI();
@@ -49,48 +50,57 @@ namespace TEngine.Editor
                 // 标记对象为“已修改”，确保修改能被保存
                 EditorUtility.SetDirty(updateSetting);
 
-                // projectName / companyName 以 UpdateSetting 为数据源，改动时自动同步到 PlayerSettings
+                // projectName / companyName / version 以 UpdateSetting 为数据源，改动时自动同步到 PlayerSettings
                 bool isProjectNameChanged = !string.Equals(projectNameBefore, updateSetting.GetProjectName(), StringComparison.Ordinal);
                 bool isCompanyNameChanged = !string.Equals(companyNameBefore, updateSetting.GetCompanyName(), StringComparison.Ordinal);
-                if (isProjectNameChanged || isCompanyNameChanged)
+                bool isVersionChanged = !string.Equals(versionBefore, updateSetting.GetVersion(), StringComparison.Ordinal);
+                if (isProjectNameChanged || isCompanyNameChanged || isVersionChanged)
                 {
-                    SyncProjectAndCompanyNameToPlayerSettings(updateSetting);
+                    SyncProjectInfoToPlayerSettings(updateSetting);
                 }
 
                 bool isHotChanged = !HotUpdateAssemblies.SequenceEqual(updateSetting.HotUpdateAssemblies);
                 bool isAOTChanged = !AOTMetaAssemblies.SequenceEqual(updateSetting.AOTMetaAssemblies);
                 if (isHotChanged)
                 {
-                    HybridCLRSettings.Instance.hotUpdateAssemblies = updateSetting.HotUpdateAssemblies.ToArray();
+                    HybridCLRSettings.instance.hotUpdateAssemblies = updateSetting.HotUpdateAssemblies.ToArray();
                     for (int i = 0; i < updateSetting.HotUpdateAssemblies.Count; i++)
                     {
                         var assemblyName = updateSetting.HotUpdateAssemblies[i];
                         string assemblyNameWithoutExtension = assemblyName.Substring(0, assemblyName.LastIndexOf('.'));
-                        HybridCLRSettings.Instance.hotUpdateAssemblies[i] = assemblyNameWithoutExtension;
+                        HybridCLRSettings.instance.hotUpdateAssemblies[i] = assemblyNameWithoutExtension;
                     }
                     Debug.Log("HotUpdateAssemblies changed");
                 }
                 if (isAOTChanged)
                 {
-                    HybridCLRSettings.Instance.patchAOTAssemblies = updateSetting.AOTMetaAssemblies.ToArray();
+                    // HybridCLR v9 起移除 HybridCLRSettings.patchAOTAssemblies，
+                    // AOT 补充元数据列表以 UpdateSetting.AOTMetaAssemblies + AOTMetadataManifest 为准。
                     Debug.Log("AOTMetaAssemblies changed");
                 }
 
                 if (isAOTChanged || isHotChanged)
                 {
                     // 在修改HybridCLRSettings后添加
-                    EditorUtility.SetDirty(HybridCLRSettings.Instance);
+                    EditorUtility.SetDirty(HybridCLRSettings.instance);
                     HybridCLRSettings.Save();
                     AssetDatabase.SaveAssets();
                 }
             }
         }
+#endif
 
         /// <summary>
-        /// 把 UpdateSetting 的 projectName / companyName 同步到 PlayerSettings（UpdateSetting 为数据源）。
+        /// 把 UpdateSetting 的 projectName / companyName / version 同步到 PlayerSettings（UpdateSetting 为数据源）。
+        /// version 对应 ProjectSettings 的 Version（PlayerSettings.bundleVersion）。
         /// </summary>
-        private static void SyncProjectAndCompanyNameToPlayerSettings(UpdateSetting updateSetting)
+        public static void SyncProjectInfoToPlayerSettings(UpdateSetting updateSetting)
         {
+            if (updateSetting == null)
+            {
+                return;
+            }
+
             bool changed = false;
 
             var projectName = updateSetting.GetProjectName();
@@ -107,12 +117,18 @@ namespace TEngine.Editor
                 changed = true;
             }
 
+            var version = updateSetting.GetVersion();
+            if (!string.Equals(PlayerSettings.bundleVersion, version, StringComparison.Ordinal))
+            {
+                PlayerSettings.bundleVersion = version;
+                changed = true;
+            }
+
             if (changed)
             {
-                Debug.Log($"[UpdateSetting] 已同步到 PlayerSettings：productName={projectName}，companyName={companyName}");
+                Debug.Log($"[UpdateSetting] 已同步到 PlayerSettings：productName={projectName}，companyName={companyName}，bundleVersion={version}");
             }
         }
-#endif
 
         public static void ForceUpdateAssemblies()
         {
@@ -130,17 +146,16 @@ namespace TEngine.Editor
                 return;
             }
             
-            HybridCLRSettings.Instance.hotUpdateAssemblies = updateSetting.HotUpdateAssemblies.ToArray();
+            HybridCLRSettings.instance.hotUpdateAssemblies = updateSetting.HotUpdateAssemblies.ToArray();
             for (int i = 0; i < updateSetting.HotUpdateAssemblies.Count; i++)
             {
                 var assemblyName = updateSetting.HotUpdateAssemblies[i];
                 string assemblyNameWithoutExtension = assemblyName.Substring(0, assemblyName.LastIndexOf('.'));
-                HybridCLRSettings.Instance.hotUpdateAssemblies[i] = assemblyNameWithoutExtension;
+                HybridCLRSettings.instance.hotUpdateAssemblies[i] = assemblyNameWithoutExtension;
             }
             
-            HybridCLRSettings.Instance.patchAOTAssemblies = updateSetting.AOTMetaAssemblies.ToArray();
             HybridCLRSettings.Save();
-            EditorUtility.SetDirty(HybridCLRSettings.Instance);
+            EditorUtility.SetDirty(HybridCLRSettings.instance);
             AssetDatabase.SaveAssets();
             
             Debug.Log("HotUpdateAssemblies changed");

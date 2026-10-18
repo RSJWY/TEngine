@@ -34,12 +34,11 @@ MonoBehaviour:
   GenerateCatalogInOutput: 0
   BuildHotFixDll: 1
   BuildPlayer: 1
-  PlayerPlatform: 19
   PlayerOutputPath: ./Releases/Windows_DS/build/hotUnitydemo.exe
   subtarget: Server
+  CleanPlayerOutputDirectory: 1
   BuildInstaller: 1
   InstallerPlatform: 19
-  InstallerVersion: 
   IsccPath: 
   InstallerAppName: hotUnitydemo
   InstallerAppEnglishName: hotUnitydemo

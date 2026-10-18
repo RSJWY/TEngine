@@ -30,18 +30,35 @@ def build_pipeline_setting_asset(project_dir: Path | None = None) -> Path:
 def update_setting_asset(project_dir: Path | None = None) -> Path:
     return _project_settings_dir(project_dir) / "UpdateSetting.asset"
 
-# BuildTarget 枚举值（Unity 2022.3）：用于 .asset 中数字 → 名称
+# BuildTarget 枚举值（Unity 官方源码核实，2022.3 一致）：用于 .asset 中数字 → 名称
 BUILD_TARGET_NAMES = {
-    2: "StandaloneWindows64",   # 实际 NoTarget=1, StandaloneWindows64=19，见下
-    19: "StandaloneWindows64",
-    8: "StandaloneLinux64",
-    9: "StandaloneOSX",
+    2: "StandaloneOSX",
+    9: "iOS",
     13: "Android",
-    24: "Windows",  # 兼容占位
-    4: "Android",
-    25: "WebGL",
-    11: "iOS",
+    19: "StandaloneWindows64",
+    20: "WebGL",
+    24: "StandaloneLinux64",
 }
+
+# YooAsset 枚举 int → 名称（值定义见内嵌包 Packages/com.tuyoogame.yooasset 源码）。
+# BuildPipelineSetting.asset 中枚举一律序列化为 int，读取时映射回 CLIBridge 可解析的名字
+BUILD_PIPELINE_NAMES = {
+    0: "EditorSimulateBuildPipeline",
+    1: "LegacyBuildPipeline",
+    2: "ScriptableBuildPipeline",
+    3: "RawFileBuildPipeline",
+    4: "InstantAssetBuildPipeline",
+    5: "ArchiveFileBuildPipeline",
+}
+COMPRESS_OPTION_NAMES = {0: "Uncompressed", 1: "LZMA", 2: "LZ4"}
+BUNDLED_COPY_OPTION_NAMES = {
+    0: "None",
+    1: "ClearAndCopyAll",
+    2: "ClearAndCopyByTags",
+    3: "OnlyCopyAll",
+    4: "OnlyCopyByTags",
+}
+FILE_NAME_STYLE_NAMES = {0: "HashName", 1: "BundleName", 2: "BundleName_HashName"}
 
 
 @dataclass
@@ -92,14 +109,15 @@ class BuildFormState:
     buildHotFixDll: bool = True
     # Player
     buildPlayer: bool = False
-    playerPlatform: str = "StandaloneWindows64"
     playerOutputPath: str = ""
     # Standalone 构建子目标（"Server"=专用服务器，"Player"=普通客户端，""=默认）
     # Unity 6+ 通过 EditorUserBuildSettings.standaloneBuildSubtarget 设置
     subtarget: str = ""
+    # 构建 Player 前清空输出目录（与 CLIBridge.BuildRequestDTO.cleanPlayerOutputDirectory 对应）
+    cleanPlayerOutputDirectory: bool = True
     # InnoSetup 安装包（action=buildInstaller，或 action=build 勾选 buildInstaller 串联）
+    # 安装包版本不在表单里：固定跟随 UpdateSetting 的 Version，由 Unity 侧解析
     buildInstaller: bool = False
-    installerVersion: str = ""
     isccPath: str = ""
     installerAppName: str = ""
     installerAppEnglishName: str = ""
@@ -302,8 +320,10 @@ def load_form_from_build_pipeline_setting(project_dir: Path | None = None) -> Bu
 
     state = BuildFormState()
     state.buildTarget = _map_build_target(fields.get("BuildTarget"))
-    state.buildPipeline = _map_enum_name(fields.get("BuildPipeline"), "ScriptableBuildPipeline")
-    state.compressOption = _map_enum_name(fields.get("CompressOption"), "LZ4")
+    state.buildPipeline = _map_enum_name(fields.get("BuildPipeline"), "ScriptableBuildPipeline",
+                                         BUILD_PIPELINE_NAMES, unity_locator.BUILD_PIPELINES)
+    state.compressOption = _map_enum_name(fields.get("CompressOption"), "LZ4",
+                                          COMPRESS_OPTION_NAMES, unity_locator.COMPRESS_OPTIONS)
     state.packageVersion = str(fields.get("PackageVersion", "") or "")
     state.packageVersionMode = "PerPackage" if fields.get("PackageVersionMode") in (1, "PerPackage") else "Unified"
     state.outputRoot = str(fields.get("OutputRoot", "") or "./Releases/Bundles/")
@@ -317,13 +337,15 @@ def load_form_from_build_pipeline_setting(project_dir: Path | None = None) -> Bu
     state.useAssetDependencyDB = bool(fields.get("UseAssetDependencyDB", True))
     state.clearBuildCache = bool(fields.get("ClearBuildCache", False))
     state.verifyBuildingResult = bool(fields.get("VerifyBuildingResult", True))
-    state.buildinFileCopyOption = _map_enum_name(fields.get("BuildinFileCopyOption"), "ClearAndCopyAll")
-    state.fileNameStyle = _map_enum_name(fields.get("FileNameStyle"), "BundleName_HashName")
+    state.buildinFileCopyOption = _map_enum_name(fields.get("BuildinFileCopyOption"), "ClearAndCopyAll",
+                                                 BUNDLED_COPY_OPTION_NAMES, unity_locator.BUNDLED_COPY_OPTIONS)
+    state.fileNameStyle = _map_enum_name(fields.get("FileNameStyle"), "BundleName_HashName",
+                                         FILE_NAME_STYLE_NAMES, unity_locator.FILE_NAME_STYLES)
     state.generateCatalogInOutput = bool(fields.get("GenerateCatalogInOutput", False))
     state.buildHotFixDll = bool(fields.get("BuildHotFixDll", True))
     state.buildPlayer = bool(fields.get("BuildPlayer", False))
-    state.playerPlatform = _map_build_target(fields.get("PlayerPlatform"))
     state.playerOutputPath = str(fields.get("PlayerOutputPath", "") or "")
+    state.cleanPlayerOutputDirectory = bool(fields.get("CleanPlayerOutputDirectory", True))
     return state
 
 
@@ -335,10 +357,17 @@ def _map_build_target(value: object) -> str:
     return "StandaloneWindows64"
 
 
-def _map_enum_name(value: object, fallback: str) -> str:
+def _map_enum_name(value: object, fallback: str, int_names: dict[int, str],
+                   valid_names: list[str] | None = None) -> str:
+    """枚举字段读取：字符串原样采用，int 查表映射为名字；结果不在 valid_names 时兜底回默认值。"""
+    name = fallback
     if isinstance(value, str) and value:
-        return value
-    return fallback
+        name = value
+    elif isinstance(value, int) and not isinstance(value, bool) and value in int_names:
+        name = int_names[value]
+    if valid_names is not None and name not in valid_names:
+        return fallback
+    return name
 
 
 # ============ 版本号读取（与 ReleaseTools.GetPackageVersionDirectories 语义一致） ============

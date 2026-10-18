@@ -1,5 +1,27 @@
 # 代码研究索引
 
+## 2026-10-17
+- [BuildCLI 与 TEngine 打包工具对齐核查](./2026-10-17-buildcli-clibridge-alignment-check.md)
+  - 关键词：BuildCLI、CLIBridge、BuildRequestDTO、BuildFormState、tengineConfig、tengineResult、日志哨兵、BUILD_TARGET_NAMES、BuildTarget=19/20/24、EBuildPipeline、ArchiveFileBuildPipeline=5、_map_enum_name、BuiltinBuildPipeline不存在、BundleName_HashName2不存在、静默回退
+  - 结论：请求/结果/哨兵/动作/分段协议全对齐；4 处枚举映射问题（BuildTarget int 错乱、int→name 缺失、两处旧版 YooAsset 选项名）已于同日修复并通过 28 项断言验证。
+- [YooAsset registry 包转本地 embedded 包研究](./2026-10-17-yooasset-embedded-package-conversion-research.md)
+  - 关键词：com.tuyoogame.yooasset、openupm registry、embedded本地包、sync-yooasset-local.sh、SUBDIR=Assets/YooAsset、tag纯数字3.0.6、commit 3b4cfb36、asmdef按GUID引用、YooAsset.asmdef GUID、YooAsset.Editor GUID、packages-lock.json embedded、幂等重同步、镜像SYNC_YOOASSET_REPO
+  - 结论：包根为仓库子目录 Assets/YooAsset；上游自带 .meta 且两个 asmdef GUID 与工程引用一致，转本地包零断引用零行为变化，锁 3.0.6。
+- [构建产物不可发布目录（BackUpThisFolder/DoNotShip）处置研究](./2026-10-17-build-output-unshippable-folders-research.md)
+  - 关键词：BackUpThisFolder_ButDontShipItWithYourGame、IL2CPP增量编译缓存、il2cppOutput、GameAssembly.pdb、BurstDebugInformation_DoNotShip、Releases/Windows/build、setup.iss、Source: "build\*"、InnoSetupBuilder、Excludes排除、ValidatePlayerBuild兜底、孤儿缓存清理、BuildImp
+  - 结论：备份目录实为 IL2CPP 增量缓存，删除/搬走会致全量重编；正解是原地保留并在 iss 加 Excludes，ValidatePlayerBuild 加兜底校验。
+
+## 2026-10-11
+- [Obfuz 介入 HybridCLR 热更流程的时机与冗余分析](./2026-10-11-obfuz-hybridclr-integration-research.md)
+  - 关键词：Obfuz热更介入、ObfuscationProcess、IPostBuildPlayerScriptDLLs、ObfuscateUtil、ObfuscateHotUpdateAssemblies、PrebuildCommandExt、GenerateAll编排、CompileAndObfuscateDll、混淆时机、StripAOTDlls之后MethodBridge之前、ValidateReferences、ObfuscatedHotUpdateAssemblies、BuildAndCopyDlls冗余、CompileDll两次、热更dll拷贝两次、pdb与Obfuz互斥、CopyPdbToAssetPath、CleanStalePdbFiles
+  - 结论：Obfuz 分「Player构建期混淆AOT」与「热更dll独立混淆」两入口；热更混淆须在 StripAOTDlls 后、MethodBridge/AOTGenericReference 前；已删除重复编译与重复拷贝，pdb 路径不变。
+- [HybridCLR v8 → v9 API 变动清单](./2026-10-11-hybridclr-v8-v9-api-diff-research.md)
+  - 关键词：HybridCLR v9.0.1、v8.15.0、命名空间重构、HybridCLR.Editor取消、HybridCLR.CodeGen、HybridCLR.Mod、HybridCLR.Utils、Analyzer改名、MethodBridgeAnalyzer、AOTReferenceAnalyzer、AOTGenericReferenceWriter、GenerateMethodBridgeCppFile转public、CleanIl2CppBuildCache移除、PInvokeAnalyzer移除、HybridCLRSettings改ScriptableSingleton、Instance→instance、patchAOTAssemblies移除、linkPreserveLevel、SettingsUtil成员删减、RuntimeApi不变、SevenZip/UnityFS移除
+  - 结论：破坏面集中在 Editor 侧命名空间与少量类改名/设置字段删减，Runtime 与命令 API 稳定。
+- [Obfuz v4 + HybridCLR v9 升级影响研究](./2026-10-11-obfuz-v4-hybridclr-v9-migration-research.md)
+  - 关键词：Obfuz v4、HybridCLR v9.0.1、obfuz4hybridclr v4、PolymorphicDll移除、WaterMark禁用、EvalStackObfus失效、WaterMark彻底移除、enabledPasses掩码、SanitizePassMask、PresetAll、patchAOTAssemblies移除、HybridCLR.Editor命名空间取消、HybridCLRSettings.instance、BuildDLLCommand、ObfuzConfigWindow、BuildPipelineWindow、UpdateSettingEditor、CS0234、dnlib共存实验、sync-*-local.sh、il2cpp重装
+  - 结论：三包升 9.0.1/4.0.0/4.0.0、迁移 4 脚本并彻底移除 WaterMark/EvalStack 后 MCP 复检 0 错；dnlib 可共存；剩 il2cpp 重装。
+
 ## 2026-09-24
 - [TEngine 打包工具 Obfuz 与 AOT 元数据审查](./2026-09-24-obfuz-packaging-aot-audit.md)
   - 关键词：Obfuz、BuildAndCopyDlls、CodePackage、HotDll、AOTMetadataManifest、PolymorphicDll、BuildTarget、ENABLE_OBFUZ、LoadMetadataForAOTAssembly、GenerateAll、SessionState、程序集重载、YooAsset BuildParameters、AssembliesPostIl2CppStrip、ObfuscationProcess

@@ -4,9 +4,9 @@
 #
 # Installs/upgrades Obfuz as a local (embedded) package at
 # Packages/com.code-philosophy.obfuz.
-# NOTE: unlike HybridCLR, Obfuz's bundled custom dnlib.dll MUST be kept
-# (the whole project shares this single copy; the HybridCLR copy is removed
-#  by sync-hybridclr-local.sh).
+# NOTE: Obfuz's bundled dnlib.dll is kept. Since Obfuz v4 removed the
+# polymorphic-DLL feature, its dnlib is byte-identical to HybridCLR v9's
+# upstream dnlib; both packages keep their own copy and coexist.
 #
 # Usage:
 #   ./sync-obfuz-local.sh               install/upgrade to the latest stable tag

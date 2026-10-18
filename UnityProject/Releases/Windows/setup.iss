@@ -63,7 +63,8 @@ Name: "autostart"; Description: "开机自动启动本程序"; GroupDescription:
 
 [Files]
 Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Excludes: 跳过 Unity 生成于 build 下的不可发布目录（IL2CPP 增量缓存备份 / Burst 调试信息）；缓存留在磁盘以加速下次构建
+Source: "build\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*_BackUpThisFolder_ButDontShipItWithYourGame,*_BurstDebugInformation_DoNotShip"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"
@@ -94,6 +95,18 @@ begin
   BrandLabel.Parent := WizardForm;
   BrandLabel.Left := ScaleX(12);
   BrandLabel.Top := WizardForm.Bevel.Top + ScaleY(5);
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  { 许可页默认勾选“我同意”(modern 样式为勾选框,经典样式为单选钮) }
+  if CurPageID = wpLicense then
+  begin
+    if WizardForm.LicenseAcceptedCheck <> nil then
+      WizardForm.LicenseAcceptedCheck.Checked := True
+    else
+      WizardForm.LicenseAcceptedRadio.Checked := True;
+  end;
 end;
 
 function GetDefaultDir(Param: string): string;

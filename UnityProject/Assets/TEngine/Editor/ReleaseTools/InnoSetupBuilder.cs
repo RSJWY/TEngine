@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -21,6 +22,13 @@ namespace TEngine
         public static string GeneratedIssPath => Path.Combine(WindowsDir, "setup.generated.iss");
         public static string PlayerBuildDir => Path.Combine(WindowsDir, "build");
         public static string InstallerOutputDir => Path.Combine(WindowsDir, "setup");
+
+        /// <summary>Unity 生成于 Player 输出目录、不可随包发布的目录名后缀。</summary>
+        private static readonly string[] UnshippableDirectorySuffixes =
+        {
+            "_BackUpThisFolder_ButDontShipItWithYourGame",
+            "_BurstDebugInformation_DoNotShip",
+        };
 
         public static bool EnsureGeneratedIss(IssInstallerConfig config = null)
         {
@@ -92,6 +100,32 @@ namespace TEngine
             var exePath = Path.Combine(PlayerBuildDir, exeName);
             if (!File.Exists(exePath))
                 throw new FileNotFoundException($"未找到主程序 EXE：{exePath}\n请确认 Player 输出目录与安装包配置一致。", exePath);
+            ValidateUnshippableFoldersExcluded();
+        }
+
+        /// <summary>
+        /// 校验构建目录中的 Unity 不可发布目录（IL2CPP 增量缓存备份 / Burst 调试信息）已被生成的 iss 脚本排除。
+        /// 这些目录体积大且不可随包发布，未排除时会被 <c>Source: "build\*"</c> 原样打进安装包。
+        /// </summary>
+        private static void ValidateUnshippableFoldersExcluded()
+        {
+            foreach (var suffix in UnshippableDirectorySuffixes)
+            {
+                var unshippableDirs = Directory.GetDirectories(PlayerBuildDir, "*" + suffix, SearchOption.TopDirectoryOnly);
+                if (unshippableDirs.Length <= 0)
+                {
+                    continue;
+                }
+
+                // 生成的 iss 脚本未提及该目录特征串即视为未配置 Excludes，拦截打包并给出修复指引。
+                if (!File.Exists(GeneratedIssPath) || !File.ReadAllText(GeneratedIssPath).Contains(suffix))
+                {
+                    throw new Exception(
+                        $"Windows Player 构建目录存在不可发布目录：{Path.GetFileName(unshippableDirs[0])}\n" +
+                        "该目录是 IL2CPP 增量缓存备份 / Burst 调试信息，会被原样打进安装包，不应随包发布。\n" +
+                        $"请在 setup.iss 的 build\\* 条目追加 Excludes: \"*{suffix}\" 后重试。");
+                }
+            }
         }
 
         public static string ResolveIscc(string isccPathOverride = null)
@@ -110,12 +144,85 @@ namespace TEngine
             return matches[0].Groups[1].Value.Replace("\"\"", "\"");
         }
 
+        /// <summary>
+        /// 尝试读取 iss 脚本中的 #define 值（供窗口「从脚本提取」使用）。
+        /// 键不存在或出现多次时返回 false，不抛异常。
+        /// </summary>
+        public static bool TryGetIssDefine(string issPath, string key, out string value)
+        {
+            value = null;
+            if (string.IsNullOrEmpty(issPath) || !File.Exists(issPath)) return false;
+
+            string content = File.ReadAllText(issPath);
+            var matches = Regex.Matches(content, "(?m)^\\s*#define\\s+" + Regex.Escape(key) + "\\s+\"((?:[^\"]|\"\")*)\"\\s*$");
+            if (matches.Count != 1) return false;
+            value = matches[0].Groups[1].Value.Replace("\"\"", "\"");
+            return true;
+        }
+
+        /// <summary>
+        /// 从 iss 脚本提取安装包配置（<see cref="SyncIssDefines"/> 的反向操作）。
+        /// 只提取有对应窗口字段的键；MyAppVersion/MyAppExeName 由构建流程按 PlayerSettings 自动推导，不参与提取；
+        /// MyAppId 按设计以 iss 文件为准，既不回写也不提取。
+        /// 缺失/重复的键不阻断提取：对应字段返回 null，并在 warnings 中记录（warnings 可为 null）。
+        /// </summary>
+        public static IssInstallerConfig ExtractIssConfig(string issPath, List<string> warnings = null)
+        {
+            if (!File.Exists(issPath))
+            {
+                throw new FileNotFoundException($"未找到 Inno Setup 脚本：{issPath}", issPath);
+            }
+
+            return new IssInstallerConfig
+            {
+                AppName = ReadExtractDefine(issPath, "MyAppName", warnings),
+                AppEnglishName = ReadExtractDefine(issPath, "MyAppEnglishName", warnings),
+                Publisher = ReadExtractDefine(issPath, "MyAppPublisher", warnings),
+                Password = ReadExtractDefine(issPath, "MyAppPassword", warnings),
+                Watermark = ReadExtractDefine(issPath, "BrandWatermark", warnings),
+            };
+        }
+
+        private static string ReadExtractDefine(string issPath, string key, List<string> warnings)
+        {
+            if (TryGetIssDefine(issPath, key, out var value)) return value;
+
+            warnings?.Add($"#define {key} 不存在或出现多次，已跳过该项");
+            return null;
+        }
+
+        /// <summary>
+        /// 解析安装包版本（回写 setup.iss 的 MyAppVersion）：
+        /// 固定取 <see cref="UpdateSetting.GetVersion"/>（即 ProjectSettings 的 Version），
+        /// UpdateSetting 缺失/为空时回退 PlayerSettings.bundleVersion。安装包版本不可单独覆盖。
+        /// </summary>
+        public static string ResolveInstallerVersion()
+        {
+            return ResolveInstallerVersion(Settings.UpdateSetting);
+        }
+
+        /// <summary>
+        /// 从指定 UpdateSetting 解析安装包版本（供已缓存 UpdateSetting 的调用方避免重复查资产）。
+        /// </summary>
+        public static string ResolveInstallerVersion(UpdateSetting updateSetting)
+        {
+            var version = updateSetting != null ? updateSetting.GetVersion() : null;
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                version = PlayerSettings.bundleVersion;
+            }
+
+            return string.IsNullOrWhiteSpace(version) ? string.Empty : version.Trim();
+        }
+
         private static void SyncIssDefines(IssInstallerConfig config)
         {
             string content = File.ReadAllText(GeneratedIssPath);
             content = ReplaceIssDefine(content, "MyAppName", config.AppName ?? string.Empty);
             content = ReplaceIssDefine(content, "MyAppEnglishName", !string.IsNullOrWhiteSpace(config.AppEnglishName) ? config.AppEnglishName : (config.AppName ?? string.Empty));
-            if (!string.IsNullOrWhiteSpace(config.InstallerVersion)) content = ReplaceIssDefine(content, "MyAppVersion", config.InstallerVersion);
+            // 安装包版本固定跟随 UpdateSetting.Version（同步自 ProjectSettings 的 Version），窗口/CLI 均不可覆盖
+            var installerVersion = ResolveInstallerVersion();
+            if (!string.IsNullOrWhiteSpace(installerVersion)) content = ReplaceIssDefine(content, "MyAppVersion", installerVersion);
             content = ReplaceIssDefine(content, "MyAppPublisher", config.Publisher ?? string.Empty);
             content = ReplaceIssDefine(content, "MyAppExeName", config.ExeName ?? string.Empty);
             content = ReplaceIssDefine(content, "MyAppPassword", config.Password ?? string.Empty);
@@ -223,7 +330,6 @@ namespace TEngine
     {
         public string AppName;
         public string AppEnglishName;
-        public string InstallerVersion;
         public string Publisher;
         public string ExeName;
         public string Password;

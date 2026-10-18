@@ -13,11 +13,10 @@
       "dependencies": {}
     },
     "com.code-philosophy.obfuz4hybridclr": {
-      "version": "https://github.com/focus-creative-games/obfuz4hybridclr.git",
+      "version": "file:com.code-philosophy.obfuz4hybridclr",
       "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "40c8b6c1a8cfab893a02d95ceffc7e7a4a6919cd"
+      "source": "embedded",
+      "dependencies": {}
     },
     "com.coffee.softmask-for-ugui": {
       "version": "3.6.5",
@@ -55,11 +54,10 @@
       "hash": "30d22075093d1d35dfb0091c1c7550e9ad948577"
     },
     "com.cysharp.unitask": {
-      "version": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
+      "version": "file:com.cysharp.unitask",
       "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "ceac8d6946b1125fe782cd171fbcb245b567dbf9"
+      "source": "embedded",
+      "dependencies": {}
     },
     "com.github-glitchenzo.nugetforunity": {
       "version": "4.5.0",
@@ -76,16 +74,15 @@
       "url": "https://package.openupm.com"
     },
     "com.tuyoogame.yooasset": {
-      "version": "3.0.6",
+      "version": "file:com.tuyoogame.yooasset",
       "depth": 0,
-      "source": "registry",
+      "source": "embedded",
       "dependencies": {
+        "com.unity.scriptablebuildpipeline": "1.21.25",
         "com.unity.modules.assetbundle": "1.0.0",
         "com.unity.modules.unitywebrequest": "1.0.0",
-        "com.unity.modules.unitywebrequestassetbundle": "1.0.0",
-        "com.unity.scriptablebuildpipeline": "1.21.25"
-      },
-      "url": "https://package.openupm.com"
+        "com.unity.modules.unitywebrequestassetbundle": "1.0.0"
+      }
     },
     "com.unity.ai.navigation": {
       "version": "2.0.14",
@@ -178,19 +175,6 @@
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
-    },
-    "com.unity.pipeline": {
-      "version": "file:com.unity.pipeline",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {
-        "com.unity.test-framework": "1.1.33",
-        "com.unity.modules.jsonserialize": "1.0.0",
-        "com.unity.nuget.newtonsoft-json": "3.0.2",
-        "com.unity.nuget.mono-cecil": "1.11.6",
-        "com.unity.modules.uielements": "1.0.0",
-        "com.unity.modules.screencapture": "1.0.0"
-      }
     },
     "com.unity.scriptablebuildpipeline": {
       "version": "2.6.2",

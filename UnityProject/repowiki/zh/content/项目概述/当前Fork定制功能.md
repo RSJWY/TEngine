@@ -69,6 +69,7 @@ GameModule.Resource.UnloadAsset(raw);
 
 ### HybridCLR 与 Obfuz
 
+- 包已本地化：`com.code-philosophy.hybridclr` / `com.code-philosophy.obfuz` / `com.code-philosophy.obfuz4hybridclr` 从 Git URL 转为 `Packages/` 下的本地（embedded）包，配套一键同步脚本 `sync-hybridclr-local.sh` / `sync-obfuz-local.sh` / `sync-obfuz4hybridclr-local.sh`；同类本地化的还有 `com.cysharp.unitask`（`sync-unitask-local.sh`）与 `com.tuyoogame.yooasset`（原 openupm registry 依赖，`sync-yooasset-local.sh`，锁 `3.0.6`，上游自带 `.meta` 保证工程侧按 GUID 的 asmdef 引用不受影响），详见 [本地化第三方包](../../../../../Books/Fork/local-packages.md)。
 - 构建前同步 `AOTMetadataManifest`，缺少补充元数据程序集时中断构建。
 - 静态 Obfuz 密钥在 `AfterAssembliesLoaded` 初始化，动态密钥在 `Assembly.Load` 前初始化。
 - 多态热更 DLL 的构建顺序为：编译 -> 混淆 -> `GeneratePolymorphicDll` -> 拷贝 `.dll.bytes`。
@@ -132,7 +133,7 @@ Releases/
 
 所有平台 Player 产物统一归到 `Releases/{平台}/build/`。Player 输出路径使用项目根相对路径（`./` 前缀），由构建链路在使用处转为绝对路径；旧的 `Output/Player/` 路径会自动迁移。AssetBundle 或 Player 构建失败时，安装包阶段必须停止，不能复用旧产物。
 
-场景枚举使用 `TEngine/场景枚举配置` 维护，通过 GUID 跟踪场景并生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
+场景枚举使用 `TEngine/场景枚举配置` 打开 Odin 配置窗口维护（配置资产在 `Assets/Editor/SceneTools/SceneEnumGenerator/` 下，Editor-only），通过 GUID 跟踪场景并生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
 
 场景内动态装饰物使用 DynamicSpawn 占位点加载：占位点序列化 `prefabRef` 弱引用（包裹名 + GUID），运行时 GUID 优先寻址，`location` 字符串保留为回落与代码动态寻址通道；`DefaultPackage` 收集器需开启 `Include Asset GUID`。
 
@@ -144,6 +145,7 @@ Releases/
 | 热更新 | [hot-update.md](../../../../../Books/Fork/hot-update.md) |
 | 资源构建与发布 | [resource-build.md](../../../../../Books/Fork/resource-build.md) |
 | 代码混淆 | [obfuscation.md](../../../../../Books/Fork/obfuscation.md) |
+| 本地化第三方包 | [local-packages.md](../../../../../Books/Fork/local-packages.md) |
 | 运行时配置 | [runtime-config.md](../../../../../Books/Fork/runtime-config.md) |
 | 场景系统 | [scene-system.md](../../../../../Books/Fork/scene-system.md) |
 | 窗口管理 | [window-management.md](../../../../../Books/Fork/window-management.md) |

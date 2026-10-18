@@ -1,7 +1,7 @@
 #if ENABLE_HYBRIDCLR
-using HybridCLR.Editor;
-using HybridCLR.Editor.Commands;
-using HybridCLR.Editor.Settings;
+using HybridCLR;
+using HybridCLR.Commands;
+using HybridCLR.Settings;
 #endif
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ using HybridCLR.Editor;
 using Obfuz.Settings;
 using Obfuz4HybridCLR;
 #endif
-using HybridCLR.Editor.Installer;
+using HybridCLR.Installer;
 using TEngine;
 using TEngine.Editor;
 using UnityEditor;
@@ -33,7 +33,7 @@ public static class BuildDLLCommand
     public static void DisableHybridCLR()
     {
         ScriptingDefineSymbols.RemoveScriptingDefineSymbol(EnableHybridClrScriptingDefineSymbol);
-        HybridCLR.Editor.SettingsUtil.Enable = false;
+        HybridCLR.SettingsUtil.Enable = false;
 #if ENABLE_HYBRIDCLR
         UpdateSettingEditor.ForceUpdateAssemblies();
 #endif
@@ -52,9 +52,9 @@ public static class BuildDLLCommand
             controller.InstallDefaultHybridCLR();
         }
 
-        if (!HybridCLR.Editor.SettingsUtil.Enable)
+        if (!HybridCLR.SettingsUtil.Enable)
         {
-            HybridCLR.Editor.SettingsUtil.Enable = true;
+            HybridCLR.SettingsUtil.Enable = true;
 #if ENABLE_HYBRIDCLR
             UpdateSettingEditor.ForceUpdateAssemblies();
 #endif
@@ -280,86 +280,6 @@ public static class BuildDLLCommand
     [MenuItem("Obfuz/Define Symbols/Enable Obfuz", false, 31)]
     public static void EnableObfuz() => SetObfuz(true);
     #endregion
-
-    #region Obfuz/多态注入清理
-    /// <summary>libil2cpp 中多态注入标记文件（存在即视为已注入）。</summary>
-    public static string PolymorphicInjectionMarkerFile =>
-        $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata/PolymorphicRawImage.cpp";
-
-    /// <summary>libil2cpp 当前是否已注入多态加载支持。</summary>
-    public static bool IsPolymorphicInjected =>
-        File.Exists(PolymorphicInjectionMarkerFile);
-
-    /// <summary>
-    /// 清理 libil2cpp 中的多态注入产物：删除 Polymorphic 系列文件并将 Image.cpp 注入区还原为标准加载逻辑。
-    /// HybridCLR/Generate/All 本身不会移除这些文件，必须显式清理。
-    /// </summary>
-    public static void CleanupPolymorphicInjection()
-    {
-        string metadataDir = $"{HybridCLR.Editor.SettingsUtil.LocalIl2CppDir}/libil2cpp/hybridclr/metadata";
-        string[] polymorphicFiles =
-        {
-            $"{metadataDir}/PolymorphicRawImage.cpp",
-            $"{metadataDir}/PolymorphicRawImage.h",
-            $"{metadataDir}/PolymorphicDatas.h",
-            $"{metadataDir}/PolymorphicDefs.h",
-        };
-        bool removed = false;
-        foreach (string file in polymorphicFiles)
-        {
-            if (File.Exists(file))
-            {
-                File.Delete(file);
-                removed = true;
-            }
-        }
-
-        string imageCpp = $"{metadataDir}/Image.cpp";
-        if (File.Exists(imageCpp))
-        {
-            string content = File.ReadAllText(imageCpp);
-            string cleaned = RestoreRegion(content, "INCLUDE_RAW_IMAGE_HEADERS", "\t\t");
-            cleaned = RestoreRegion(cleaned, "INIT_RAW_IMAGE",
-                "\t\t\t_rawImage = new RawImage();\n\t\t\treturn LoadImageErrorCode::OK;");
-            if (cleaned != content)
-            {
-                File.WriteAllText(imageCpp, cleaned);
-                removed = true;
-            }
-        }
-
-        if (removed)
-        {
-            Debug.Log("[Obfuz] 已清理 libil2cpp 多态注入产物，重新打 Player 前需按当前混淆状态执行 GenerateAll。");
-        }
-    }
-
-    /// <summary>将 FileRegionReplace 风格的注入区还原为指定默认内容，region 标记行保留。</summary>
-    private static string RestoreRegion(string content, string region, string defaultBody)
-    {
-        string startMark = $"//!!!{{{{{region}";
-        string endMark = $"//!!!}}}}{region}";
-        int startIndex = content.IndexOf(startMark, StringComparison.Ordinal);
-        int endIndex = content.IndexOf(endMark, StringComparison.Ordinal);
-        if (startIndex == -1 || endIndex == -1 || endIndex <= startIndex)
-        {
-            return content;
-        }
-        int bodyStart = content.IndexOf('\n', startIndex);
-        int bodyEnd = content.LastIndexOf('\n', endIndex);
-        if (bodyStart == -1 || bodyEnd == -1 || bodyEnd < bodyStart)
-        {
-            return content;
-        }
-        string current = content.Substring(bodyStart, bodyEnd - bodyStart);
-        string replacement = "\n" + defaultBody + "\n";
-        if (current == replacement)
-        {
-            return content;
-        }
-        return content.Substring(0, bodyStart) + replacement + content.Substring(bodyEnd);
-    }
-    #endregion
 #endif
 
     #region TEngine/Define Symbols
@@ -450,7 +370,7 @@ public static class BuildDLLCommand
 #endif
     }
 
-    public static void GenerateAllForTarget(BuildTarget target, bool cleanupPolymorphicInjection = false)
+    public static void GenerateAllForTarget(BuildTarget target)
     {
 #if ENABLE_HYBRIDCLR
         if (EditorUserBuildSettings.activeBuildTarget != target)
@@ -464,28 +384,62 @@ public static class BuildDLLCommand
         {
             throw new InvalidOperationException("ENABLE_OBFUZ 与 Obfuz Player 构建混淆开关不一致，请先统一设置再执行 GenerateAll。");
         }
-        if (cleanupPolymorphicInjection)
-        {
-            if (obfuzEnabled && ObfuzSettings.Instance.polymorphicDllSettings.enable)
-            {
-                throw new InvalidOperationException("多态 DLL 仍已启用，请先关闭多态再清理注入代码。");
-            }
-            CleanupPolymorphicInjection();
-        }
         if (obfuzEnabled)
         {
             PrebuildCommandExt.GenerateAll();
             return;
         }
-#else
-        if (cleanupPolymorphicInjection)
-        {
-            throw new InvalidOperationException("未安装 Obfuz，无法清理多态注入代码。");
-        }
 #endif
         PrebuildCommand.GenerateAll();
 #else
         throw new InvalidOperationException("需要启用 ENABLE_HYBRIDCLR 后才能执行 GenerateAll。");
+#endif
+    }
+
+    /// <summary>
+    /// 生成裁剪后的 AOT 补充元数据 DLL（等价 HybridCLR/Generate/StrippedAotDlls）。
+    /// 注意：内部会以 buildScriptsOnly 触发一次 Player 构建，耗时较长；
+    /// 产物在 HybridCLRData/AssembliesPostIl2CppStrip/&lt;target&gt;，供运行时 LoadMetadataForAOTAssembly 使用。
+    /// </summary>
+    public static void GenerateStrippedAOTDllsForTarget(BuildTarget target)
+    {
+#if ENABLE_HYBRIDCLR
+        if (EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            throw new InvalidOperationException($"目标平台 {target} 与编辑器当前平台 {EditorUserBuildSettings.activeBuildTarget} 不一致，请先对齐平台再生成 AOT DLL。");
+        }
+        StripAOTDllCommand.GenerateStripedAOTDlls(target);
+#else
+        throw new InvalidOperationException("需要启用 ENABLE_HYBRIDCLR 后才能生成 AOT DLL。");
+#endif
+    }
+
+    /// <summary>
+    /// 生成 AOT 泛型引用列表（等价 HybridCLR/Generate/AOTGenericReference，产出 AOTGenericReferences.cs
+    /// 及其 PatchedAOTAssemblyList）。
+    /// Obfuz 开启时热更 DLL 会被混淆改名，AOT 引用分析必须基于“混淆后”的热更 DLL，
+    /// 因此这里先编译并混淆，再调用 Obfuz4HybridCLR 的分析入口；未开启 Obfuz 时走 HybridCLR 原生入口。
+    /// </summary>
+    public static void GenerateAOTGenericReferenceForTarget(BuildTarget target)
+    {
+#if ENABLE_HYBRIDCLR
+        if (EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            throw new InvalidOperationException($"目标平台 {target} 与编辑器当前平台 {EditorUserBuildSettings.activeBuildTarget} 不一致，请先对齐平台再生成 AOT 列表。");
+        }
+#if OBFUZ_INSTALLED
+        if (IsObfuzActive)
+        {
+            CompileDllCommand.CompileDll(target);
+            string obfuscatedHotUpdateDllPath = PrebuildCommandExt.GetObfuscatedHotUpdateAssemblyOutputPath(target);
+            ObfuscateUtil.ObfuscateHotUpdateAssemblies(target, obfuscatedHotUpdateDllPath);
+            PrebuildCommandExt.GenerateAOTGenericReference(target, obfuscatedHotUpdateDllPath);
+            return;
+        }
+#endif
+        AOTReferenceGeneratorCommand.CompileAndGenerateAOTGenericReference();
+#else
+        throw new InvalidOperationException("需要启用 ENABLE_HYBRIDCLR 后才能生成 AOT 列表。");
 #endif
     }
 
@@ -507,58 +461,46 @@ public static class BuildDLLCommand
     public static void CopyAOTHotUpdateDlls(BuildTarget target)
     {
         CopyAOTAssembliesToAssetPath(target);
+#if ENABLE_HYBRIDCLR && ENABLE_OBFUZ
+        // Obfuz 开启：热更 DLL 需先混淆再落地，走专门的混淆链路，不再重复走原始拷贝。
+        CopyObfuscatedHotUpdateDlls(target);
+#elif ENABLE_HYBRIDCLR
         CopyHotUpdateAssembliesToAssetPath(target);
+#endif
+    }
 
 #if ENABLE_HYBRIDCLR && ENABLE_OBFUZ
-        CompileDllCommand.CompileDll(target, Settings.UpdateSetting.WillGeneratePdb);
-
+    /// <summary>
+    /// Obfuz 链路的热更 DLL 落地：
+    /// 1) 混淆热更 DLL（ObfuscateHotUpdateAssemblies，官方要求热更代码必须额外混淆）；
+    /// 2) 将“混淆后 / 未混淆”的热更 DLL 统一拷为 .bytes（覆盖原始拷贝，故不再单独走原始拷贝）；
+    /// 3) 处理 pdb（Obfuz 与 pdb 互斥，此处通常为清理历史残留）。
+    /// 注意：热更 DLL 需由调用方（BuildAndCopyDlls）先行编译，本方法不再重复编译。
+    /// </summary>
+    private static void CopyObfuscatedHotUpdateDlls(BuildTarget target)
+    {
+        string hotUpdateDllPath = SettingsUtil.GetHotUpdateDllsOutputDirByTarget(target);
         string obfuscatedHotUpdateDllPath = PrebuildCommandExt.GetObfuscatedHotUpdateAssemblyOutputPath(target);
         ObfuscateUtil.ObfuscateHotUpdateAssemblies(target, obfuscatedHotUpdateDllPath);
 
-        Directory.CreateDirectory(Application.streamingAssetsPath);
-
-        string hotUpdateDllPath = $"{SettingsUtil.GetHotUpdateDllsOutputDirByTarget(target)}";
+        string dstDir = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.HotUpdateAssemblySubPath;
         List<string> obfuscationRelativeAssemblyNames = ObfuzSettings.Instance.assemblySettings.GetObfuscationRelativeAssemblyNames();
-        bool polymorphicEnabled = ObfuzSettings.Instance.polymorphicDllSettings.enable;
-        string polymorphicHotUpdateDllPath = GetPolymorphicHotUpdateAssemblyOutputPath(target);
 
         foreach (string assName in SettingsUtil.HotUpdateAssemblyNamesIncludePreserved)
         {
             string srcDir = obfuscationRelativeAssemblyNames.Contains(assName) ? obfuscatedHotUpdateDllPath : hotUpdateDllPath;
             string srcFile = $"{srcDir}/{assName}.dll";
-            string dstFile = Application.dataPath + "/" + TEngine.Settings.UpdateSetting.AssemblyTextAssetPath + "/" + TEngine.Settings.UpdateSetting.HotUpdateAssemblySubPath + $"/{assName}.dll.bytes";
+            string dstFile = $"{dstDir}/{assName}.dll.bytes";
             if (!File.Exists(srcFile))
             {
                 continue;
             }
-            if (polymorphicEnabled)
-            {
-                srcFile = GeneratePolymorphicHotUpdateDll(srcFile, polymorphicHotUpdateDllPath, assName);
-            }
             File.Copy(srcFile, dstFile, true);
             Debug.Log($"[CompileAndObfuscate] Copy {srcFile} to {dstFile}");
         }
-#endif
-        
-    }
 
-#if ENABLE_HYBRIDCLR && ENABLE_OBFUZ
-    /// <summary>多态热更 dll 输出目录，与混淆产物目录平行，避免标准/多态两种格式混写。</summary>
-    private static string GetPolymorphicHotUpdateAssemblyOutputPath(BuildTarget target)
-    {
-        return $"{ObfuzSettings.Instance.ObfuzRootDir}/{target}/PolymorphicHotUpdateAssemblies";
-    }
-
-    /// <summary>
-    /// 将混淆/原始 dll 转为多态格式（结构由 polymorphicDllSettings.codeGenerationSecretKey 决定）。
-    /// 转换失败直接抛异常中断构建，避免静默回退标准格式产物。
-    /// </summary>
-    private static string GeneratePolymorphicHotUpdateDll(string srcFile, string outputDir, string assemblyName)
-    {
-        Directory.CreateDirectory(outputDir);
-        string dstFile = $"{outputDir}/{assemblyName}.dll";
-        ObfuscateUtil.GeneratePolymorphicDll(srcFile, dstFile);
-        return dstFile;
+        CopyPdbToAssetPath(hotUpdateDllPath, target);
+        AssetDatabase.Refresh();
     }
 #endif
 
@@ -727,7 +669,7 @@ public static class BuildDLLCommand
 
     private static string GetAOTGenericReferenceFilePath()
     {
-        string referenceFile = HybridCLRSettings.Instance.outputAOTGenericReferenceFile;
+        string referenceFile = HybridCLRSettings.instance.outputAOTGenericReferenceFile;
         if (string.IsNullOrEmpty(referenceFile))
         {
             return string.Empty;

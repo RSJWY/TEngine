@@ -82,6 +82,10 @@ namespace GameLogic
                         _enableErrorLog = Application.isEditor;
                         break;
 
+                    case DebuggerActiveWindowType.HotkeyToggle:
+                        _enableErrorLog = true;
+                        break;
+
                     default:
                         _enableErrorLog = false;
                         break;

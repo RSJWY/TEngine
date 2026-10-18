@@ -75,13 +75,16 @@ namespace TEngine
 
             // Player
             public bool buildPlayer;
+            // 已废弃：Player 平台统一取 buildTarget；保留字段仅为兼容旧调用方（发送后会被忽略）。
             public string playerPlatform = "StandaloneWindows64";
             public string playerOutputPath = "";
             public string subtarget = "";
+            // 构建 Player 前清空输出目录（与 BuildConfig.CleanPlayerOutputDirectory 对应）
+            public bool cleanPlayerOutputDirectory = true;
 
             // InnoSetup 安装包（action=buildInstaller 或 build+buildInstaller 时使用）
+            // 安装包版本固定跟随 UpdateSetting.Version，不下发也不可覆盖
             public bool buildInstaller;
-            public string installerVersion = "";
             public string isccPath = "";
             public string installerAppName = "";
             public string installerAppEnglishName = "";
@@ -324,12 +327,13 @@ namespace TEngine
                 case "buildPlayer":
                 {
                     var config = ToBuildConfig(request);
-                    var playerTarget = ParseBuildTarget(request.playerPlatform);
+                    var playerTarget = ParseBuildTarget(request.buildTarget);
                     if (!ReleaseTools.BuildImp(
                             BuildConfig.GetBuildTargetGroup(playerTarget),
                             playerTarget,
                             request.playerOutputPath,
-                            config.subtarget))
+                            config.subtarget,
+                            request.cleanPlayerOutputDirectory))
                     {
                         Debug.LogError("[TEngineCLI] Player 构建失败。");
                         return false;
@@ -404,7 +408,6 @@ namespace TEngine
                 {
                     AppName = request.installerAppName,
                     AppEnglishName = request.installerAppEnglishName,
-                    InstallerVersion = request.installerVersion,
                     Publisher = request.installerPublisher,
                     ExeName = exeName,
                     Password = request.installerPassword,
@@ -442,7 +445,7 @@ namespace TEngine
         private static void FillPlayerRecord(BuildConfig config, BuildResultDTO result)
         {
             var outputPath = string.IsNullOrWhiteSpace(config.PlayerOutputPath)
-                ? BuildConfig.GetDefaultPlayerOutputPath(config.PlayerPlatform, config.subtarget)
+                ? BuildConfig.GetDefaultPlayerOutputPath(config.BuildTarget, config.subtarget)
                 : config.PlayerOutputPath;
             if (!Path.IsPathRooted(outputPath))
             {
@@ -495,8 +498,8 @@ namespace TEngine
                 GenerateCatalogInOutput = request.generateCatalogInOutput,
                 BuildHotFixDll = request.buildHotFixDll,
                 BuildPlayer = request.buildPlayer,
-                PlayerPlatform = ParseBuildTarget(request.playerPlatform),
                 PlayerOutputPath = request.playerOutputPath ?? string.Empty,
+                CleanPlayerOutputDirectory = request.cleanPlayerOutputDirectory,
                 HeadlessMode = Application.isBatchMode,
                 subtarget = request.subtarget ?? string.Empty,
             };

@@ -48,6 +48,9 @@ namespace TEngine
 
         protected override void OnImGUI()
         {
+            // Obfuz v4 起 WaterMark / EvalStackObfus 已失效，打开窗口即剔除历史残留的无效通道位。
+            EnsureUnsupportedPassesRemoved();
+
             bool refreshed = false;
             GUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
@@ -190,18 +193,13 @@ namespace TEngine
             {
                 Add("警告", $"动态密钥文件不存在：{secret.dynamicSecretKeyOutputPath}");
             }
-            if (passMask == (ObfuzPassType)(-1))
+            if (SanitizePassMask(passMask) == SanitizePassMask((ObfuzPassType)(-1)))
             {
                 Add("警告", "混淆通道为全部启用（All），生产建议按成本显式选择通道（混淆通道页有预设）");
             }
             if (!S.assemblySettings.obfuscateObfuzRuntime)
             {
                 Add("警告", "未混淆 Obfuz.Runtime，官方强烈建议开启以避免暴露解密基础设施");
-            }
-            if (S.polymorphicDllSettings.enable &&
-                (string.IsNullOrEmpty(S.polymorphicDllSettings.codeGenerationSecretKey) || S.polymorphicDllSettings.codeGenerationSecretKey == "obfuz-polymorphic-key"))
-            {
-                Add("警告", "多态 DLL 密钥仍为官方默认值，启用多态 DLL 前必须替换（高级页）");
             }
             if (secret.randomSeed == 0)
             {
@@ -308,7 +306,7 @@ namespace TEngine
             var list = new ValueDropdownList<string> { { "(无候选)", "" } };
 #if ENABLE_HYBRIDCLR
             list.Clear();
-            foreach (var name in HybridCLR.Editor.SettingsUtil.HotUpdateAssemblyNamesIncludePreserved)
+            foreach (var name in HybridCLR.SettingsUtil.HotUpdateAssemblyNamesIncludePreserved)
             {
                 list.Add(name, name);
             }
@@ -326,7 +324,7 @@ namespace TEngine
 #if ENABLE_HYBRIDCLR
             var current = new HashSet<string>(AssembliesToObfuscate, StringComparer.Ordinal);
             int added = 0;
-            foreach (var name in HybridCLR.Editor.SettingsUtil.HotUpdateAssemblyNamesIncludePreserved)
+            foreach (var name in HybridCLR.SettingsUtil.HotUpdateAssemblyNamesIncludePreserved)
             {
                 if (current.Add(name))
                 {
@@ -436,16 +434,42 @@ namespace TEngine
         [Button("全部", ButtonSizes.Medium), GUIColor(nameof(WarnColor))]
         private void PresetAll()
         {
-            S.obfuscationPassSettings.enabledPasses = (ObfuzPassType)(-1);
+            S.obfuscationPassSettings.enabledPasses = SanitizePassMask((ObfuzPassType)(-1));
             MarkDirty();
+        }
+
+        /// <summary>
+        /// Obfuz v4 起 WaterMark 与 EvalStackObfus 两个 Pass 已失效（开与不开均无任何效果），
+        /// 本项目不再使用：既不在界面暴露开关，也从通道掩码中统一剔除，避免残留无效位。
+        /// </summary>
+        private const ObfuzPassType UnsupportedPasses = ObfuzPassType.WaterMark | ObfuzPassType.EvalStackObfus;
+
+        private static ObfuzPassType SanitizePassMask(ObfuzPassType mask) => mask & ~UnsupportedPasses;
+
+        /// <summary>剔除已失效通道；返回是否发生变更（用于决定是否落盘）。</summary>
+        private bool EnsureUnsupportedPassesRemoved()
+        {
+            var current = S.obfuscationPassSettings.enabledPasses;
+            var sanitized = SanitizePassMask(current);
+            if (sanitized == current)
+            {
+                return false;
+            }
+            S.obfuscationPassSettings.enabledPasses = sanitized;
+            MarkDirty();
+            return true;
         }
 
         private bool GetPass(ObfuzPassType flag) => S.obfuscationPassSettings.enabledPasses.HasFlag(flag);
 
         private void SetPass(ObfuzPassType flag, bool value)
         {
+            if (UnsupportedPasses.HasFlag(flag))
+            {
+                return;
+            }
             var current = S.obfuscationPassSettings.enabledPasses;
-            S.obfuscationPassSettings.enabledPasses = value ? current | flag : current & ~flag;
+            S.obfuscationPassSettings.enabledPasses = SanitizePassMask(value ? current | flag : current & ~flag);
             MarkDirty();
         }
 
@@ -499,27 +523,11 @@ namespace TEngine
 
         [TabGroup("Pages", "混淆通道")]
         [BoxGroup("Pages/混淆通道/通道开关")]
-        [LabelText("执行栈混淆 EvalStackObfus"), ToggleLeft]
-        [Tooltip("执行栈与临时值扰动；当前 Obfuz 版本默认 Builder 未注册该 Pass")]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private bool PassEvalStack { get => GetPass(ObfuzPassType.EvalStackObfus); set => SetPass(ObfuzPassType.EvalStackObfus, value); }
-
-        [TabGroup("Pages", "混淆通道")]
-        [BoxGroup("Pages/混淆通道/通道开关")]
         [LabelText("移除常量字段 RemoveConstField"), ToggleLeft]
         [Tooltip("移除可内联的 const 元数据字段，成本很低")]
         [OnValueChanged(nameof(MarkDirty))]
         [ShowInInspector]
         private bool PassRemoveConst { get => GetPass(ObfuzPassType.RemoveConstField); set => SetPass(ObfuzPassType.RemoveConstField, value); }
-
-        [TabGroup("Pages", "混淆通道")]
-        [BoxGroup("Pages/混淆通道/通道开关")]
-        [LabelText("水印 WaterMark"), ToggleLeft]
-        [Tooltip("注入元数据/RVA/指令水印，成本低到中")]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private bool PassWatermark { get => GetPass(ObfuzPassType.WaterMark); set => SetPass(ObfuzPassType.WaterMark, value); }
 
         [TabGroup("Pages", "混淆通道")]
         [FoldoutGroup("Pages/混淆通道/参数与规则", Expanded = false)]
@@ -738,21 +746,6 @@ namespace TEngine
             }
         }
 
-        [TabGroup("Pages", "混淆通道")]
-        [FoldoutGroup("Pages/混淆通道/参数与规则")]
-        [LabelText("执行栈混淆规则")]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private string[] EvalStackRuleFiles
-        {
-            get => S.evalStackObfusSettings.ruleFiles ?? Array.Empty<string>();
-            set
-            {
-                S.evalStackObfusSettings.ruleFiles = value ?? Array.Empty<string>();
-                MarkDirty();
-            }
-        }
-
         #endregion
 
         #region 加密与密钥
@@ -808,11 +801,6 @@ namespace TEngine
             () => S.secretSettings.defaultDynamicSecretKey,
             value => S.secretSettings.defaultDynamicSecretKey = value,
             "动态密钥", false);
-
-        private void RandomizePolymorphicKey() => RandomizeSecret(
-            () => S.polymorphicDllSettings.codeGenerationSecretKey,
-            value => S.polymorphicDllSettings.codeGenerationSecretKey = value,
-            "多态 DLL 密钥", true);
 
         [TabGroup("Pages", "加密与密钥")]
         [BoxGroup("Pages/加密与密钥/加密 VM")]
@@ -1392,127 +1380,6 @@ namespace TEngine
             set
             {
                 S.compatibilitySettings.targetRuntime = value;
-                MarkDirty();
-            }
-        }
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/多态 DLL")]
-        [InfoBox("依赖 HybridCLR 8.4.0+ 自定义 DLL 结构；密钥与主包结构强绑定，主包发布后不可变更。", InfoMessageType.None)]
-        [LabelText("启用多态 DLL"), ToggleLeft]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private bool PolymorphicEnable
-        {
-            get => S.polymorphicDllSettings.enable;
-            set
-            {
-                S.polymorphicDllSettings.enable = value;
-                MarkDirty();
-            }
-        }
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/多态 DLL")]
-        [ShowInInspector, ReadOnly, HideLabel, DisplayAsString]
-        [InfoBox(
-            "多态加载支持未注入！请在「TEngine 打包工具 → 热更DLL」执行 GenerateAll，再构建 Player，否则运行时 Assembly.Load 会 BadImageFormatException。",
-            InfoMessageType.Error,
-            VisibleIf = nameof(ShouldWarnPolymorphicNotInjected))]
-        [InfoBox(
-            "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。点击「清理多态注入并重新生成」，之后需重新打 Player。",
-            InfoMessageType.Warning,
-            VisibleIf = nameof(ShouldWarnPolymorphicInjectedButDisabled))]
-        private string PolymorphicInjectionHint => string.Empty;
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/多态 DLL")]
-        [GUIColor(0.95f, 0.7f, 0.25f)]
-        [Button("清理多态注入并重新生成", ButtonSizes.Medium)]
-        [EnableIf(nameof(ShouldWarnPolymorphicInjectedButDisabled))]
-        private void CleanupPolymorphicAndGenerateAll()
-        {
-            FlushSave();
-            BuildDLLCommand.GenerateAllForTarget(EditorUserBuildSettings.activeBuildTarget, cleanupPolymorphicInjection: true);
-        }
-
-        private bool ShouldWarnPolymorphicNotInjected()
-        {
-            if (!BuildDLLCommand.IsObfuzActive || !S.polymorphicDllSettings.enable)
-                return false;
-            return !BuildDLLCommand.IsPolymorphicInjected;
-        }
-
-        private bool ShouldWarnPolymorphicInjectedButDisabled()
-        {
-            if (BuildDLLCommand.IsObfuzActive && S.polymorphicDllSettings.enable)
-                return false;
-            return BuildDLLCommand.IsPolymorphicInjected;
-        }
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/多态 DLL")]
-        [LabelText("多态 DLL 密钥")]
-        [DelayedProperty]
-        [InlineButton(nameof(RandomizePolymorphicKey), "随机")]
-        [InfoBox("仍为官方默认值，启用多态 DLL 前必须替换。", InfoMessageType.Error, VisibleIf = nameof(PolymorphicKeyIsDefault))]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private string PolymorphicKey
-        {
-            get => S.polymorphicDllSettings.codeGenerationSecretKey;
-            set
-            {
-                S.polymorphicDllSettings.codeGenerationSecretKey = value;
-                MarkDirty();
-            }
-        }
-
-        private bool PolymorphicKeyIsDefault => string.IsNullOrEmpty(S.polymorphicDllSettings.codeGenerationSecretKey) || S.polymorphicDllSettings.codeGenerationSecretKey == "obfuz-polymorphic-key";
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/多态 DLL")]
-        [LabelText("禁用标准 DLL 加载"), ToggleLeft]
-        [Tooltip("初期保持关闭更利于调试与回滚，成熟后再评估")]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private bool PolymorphicDisableStandardDll
-        {
-            get => S.polymorphicDllSettings.disableLoadStandardDll;
-            set
-            {
-                S.polymorphicDllSettings.disableLoadStandardDll = value;
-                MarkDirty();
-            }
-        }
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/水印")]
-        [LabelText("水印文本")]
-        [DelayedProperty]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private string WatermarkText
-        {
-            get => S.watermarkSettings.text;
-            set
-            {
-                S.watermarkSettings.text = value;
-                MarkDirty();
-            }
-        }
-
-        [TabGroup("Pages", "高级")]
-        [BoxGroup("Pages/高级/水印")]
-        [LabelText("签名字节长度"), MinValue(1)]
-        [OnValueChanged(nameof(MarkDirty))]
-        [ShowInInspector]
-        private int WatermarkSignatureLength
-        {
-            get => S.watermarkSettings.signatureLength;
-            set
-            {
-                S.watermarkSettings.signatureLength = Mathf.Max(1, value);
                 MarkDirty();
             }
         }

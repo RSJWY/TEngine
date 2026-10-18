@@ -24,5 +24,10 @@
         /// 总是关闭。
         /// </summary>
         AlwaysClose,
+
+        /// <summary>
+        /// 默认关闭，可通过切换快捷键（ToggleHotkey + 修饰键）开/关调试器。
+        /// </summary>
+        HotkeyToggle,
     }
 }

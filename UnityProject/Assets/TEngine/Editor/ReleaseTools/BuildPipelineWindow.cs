@@ -53,8 +53,9 @@ namespace TEngine
         [TabGroup("Pages", "快速构建")]
         [BoxGroup("Pages/快速构建/基础设置")]
         [LabelText("目标平台")]
+        [Tooltip("资源包与 Player 的统一目标平台（Player 不再单独配置）")]
         [ValueDropdown(nameof(BuildTargetOptions))]
-        [OnValueChanged(nameof(OnSettingsChanged))]
+        [OnValueChanged(nameof(OnBuildTargetChanged))]
         [SerializeField]
         private BuildTarget _buildTarget;
 
@@ -330,31 +331,6 @@ namespace TEngine
         [SerializeField]
         private bool _buildHotFixDll = true;
 
-        [TabGroup("Pages", "高级")]
-        [FoldoutGroup("Pages/高级/热更 DLL")]
-        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
-        [Button("编译并拷贝热更DLL", ButtonSizes.Medium)]
-        private void BuildHotFixDllNow()
-        {
-            BuildDLLCommand.BuildAndCopyDlls(_buildTarget);
-        }
-
-        [TabGroup("Pages", "高级")]
-        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
-        [Button("同步 AOT 元数据清单", ButtonSizes.Medium)]
-        private void SyncAOTMetadataManifestNow()
-        {
-            BuildDLLCommand.SyncAOTMetadataManifest();
-        }
-
-        [TabGroup("Pages", "高级")]
-        [HorizontalGroup("Pages/高级/热更 DLL/Actions")]
-        [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Medium)]
-        private void CopyAOTAssembliesNow()
-        {
-            BuildDLLCommand.CopyAOTAssembliesToAssetPath(_buildTarget);
-        }
-
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/Player 设置")]
         [LabelText("构建 Player")]
@@ -365,12 +341,11 @@ namespace TEngine
 
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/Player 设置")]
-        [LabelText("Player平台")]
-        [ValueDropdown(nameof(BuildTargetOptions))]
-        [ShowIf(nameof(_buildPlayer))]
-        [OnValueChanged(nameof(OnPlayerPlatformChanged))]
+        [LabelText("构建前清空输出目录")]
+        [Tooltip("构建 Player（含\"仅构建 Player\"）前清空输出目录（如 Releases/Windows/build），避免上一版残留文件混入产物或安装包。iOS/WebGL 等输出为目录的平台清目录本身，其余清输出文件所在目录。")]
+        [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
-        private BuildTarget _playerPlatform;
+        private bool _cleanPlayerOutputDirectory = true;
 
         [TabGroup("Pages", "发布与Player")]
         [BoxGroup("Pages/发布与Player/Player 设置")]
@@ -396,8 +371,8 @@ namespace TEngine
         private string _playerOutputPath = string.Empty;
 
         // ============ 安装包配置（独立 Tab，为后续 Linux 安装包留位） ============
-        // 平台选择：决定下方显示哪类安装包配置；与「发布与Player」的 Player 平台独立，
-        // 默认跟随当前 Player 平台，便于在 Windows 上独立配置 InnoSetup。
+        // 平台选择：决定下方显示哪类安装包配置；与 Player/资源包的目标平台（快速构建页）解耦，
+        // 便于在任意目标平台下独立配置 InnoSetup。
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/平台选择")]
         [LabelText("安装包平台")]
@@ -410,20 +385,108 @@ namespace TEngine
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
         [LabelText("构建安装包")]
         [ToggleLeft]
-        [ShowIf(nameof(IsWindowsPlayerPlatform))]
+        [ShowIf(nameof(IsWindowsInstallerPlatform))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _buildInstaller;
 
+        // 安装包版本不可在此覆盖：固定取 UpdateSetting.Version（已同步到 ProjectSettings 的 Version），
+        // 构建时写入 setup.iss 的 MyAppVersion。改版本请改 UpdateSetting。
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
         [LabelText("安装包版本")]
-        [Tooltip("对应 setup.iss 的 MyAppVersion，影响安装包文件名；为空则沿用 iss 现有值")]
+        [Tooltip("固定取 UpdateSetting 的 Version（同步自 ProjectSettings 的 Version），构建时写入 setup.iss 的 MyAppVersion；要改版本请改 UpdateSetting")]
         [ShowIf(nameof(IsInstallerEnabled))]
-        [DelayedProperty]
+        private string InstallerVersionText => InnoSetupBuilder.ResolveInstallerVersion(_cachedUpdateSetting);
+
+        /// <summary>「从脚本提取」的读取来源。</summary>
+        private enum IssExtractSource
+        {
+            /// <summary>手工维护的模板 Releases/Windows/setup.iss。</summary>
+            Template,
+
+            /// <summary>实际编译脚本 Releases/Windows/setup.generated.iss，可能含手工微调。</summary>
+            Generated,
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [HorizontalGroup("Pages/安装包配置/InnoSetup 安装包/Extract")]
+        [LabelText("提取来源")]
+        [Tooltip("「从脚本提取」读取哪个 iss 脚本的 #define 值")]
+        [ValueDropdown(nameof(IssExtractSourceOptions))]
+        [ShowIf(nameof(IsInstallerEnabled))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
-        private string _installerVersion = string.Empty;
+        private IssExtractSource _issExtractSource = IssExtractSource.Template;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [HorizontalGroup("Pages/安装包配置/InnoSetup 安装包/Extract")]
+        [Button("从脚本提取", ButtonSizes.Small)]
+        [Tooltip("读取 iss 脚本中填写的 #define 值,回填下方配置字段(应用名称/软件英文名/发布者/安装密码/发布者水印)")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private void ExtractInstallerConfigFromIss()
+        {
+            var issPath = _issExtractSource == IssExtractSource.Generated
+                ? InnoSetupBuilder.GeneratedIssPath
+                : InnoSetupBuilder.IssPath;
+
+            if (!File.Exists(issPath))
+            {
+                Debug.LogWarning($"[InnoSetup] 脚本不存在，无法提取：{issPath}");
+                return;
+            }
+
+            IssInstallerConfig extracted;
+            var warnings = new List<string>();
+            try
+            {
+                extracted = InnoSetupBuilder.ExtractIssConfig(issPath, warnings);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                return;
+            }
+
+            foreach (var warning in warnings)
+            {
+                Debug.LogWarning($"[InnoSetup] 提取 {Path.GetFileName(issPath)}：{warning}");
+            }
+
+            // 只覆盖脚本中确实读到的键；未读到的字段保持现有配置不变
+            var preview = new List<string>();
+            AppendExtractChange(preview, "应用名称", _installerAppName, extracted.AppName);
+            AppendExtractChange(preview, "软件英文名", _installerAppEnglishName, extracted.AppEnglishName);
+            AppendExtractChange(preview, "发布者", _installerPublisher, extracted.Publisher);
+            AppendExtractChange(preview, "安装密码", _installerPassword, extracted.Password, true);
+            AppendExtractChange(preview, "发布者水印", _installerWatermark, extracted.Watermark);
+
+            if (preview.Count == 0)
+            {
+                Debug.Log($"[InnoSetup] 已解析 {Path.GetFileName(issPath)}，配置字段无变化。");
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("从脚本提取安装包配置",
+                    $"来源：{issPath}\n\n将更新：\n{string.Join("\n", preview)}\n\n是否填充到配置？", "填充", "取消"))
+            {
+                return;
+            }
+
+            if (extracted.AppName != null) _installerAppName = extracted.AppName;
+            if (extracted.AppEnglishName != null) _installerAppEnglishName = extracted.AppEnglishName;
+            if (extracted.Publisher != null) _installerPublisher = extracted.Publisher;
+            if (extracted.Password != null) _installerPassword = extracted.Password;
+            if (extracted.Watermark != null) _installerWatermark = extracted.Watermark;
+
+            OnSettingsChanged();
+            Repaint();
+            Debug.Log($"[InnoSetup] 已从 {Path.GetFileName(issPath)} 提取安装包配置：{string.Join("；", preview)}");
+        }
 
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
@@ -617,6 +680,17 @@ namespace TEngine
             ExecuteBuildInstallerOnly();
         }
 
+        /// <summary>收集「脚本值 → 配置字段」的差异行；脚本未读到该键或值相同则不记录。</summary>
+        private static void AppendExtractChange(List<string> preview, string label, string current, string extracted, bool maskValue = false)
+        {
+            if (extracted == null) return;
+            if (string.Equals(current ?? string.Empty, extracted, StringComparison.Ordinal)) return;
+
+            var oldText = string.IsNullOrEmpty(current) ? "(空)" : (maskValue ? "******" : current);
+            var newText = string.IsNullOrEmpty(extracted) ? "(空)" : (maskValue ? "******" : extracted);
+            preview.Add($"{label}：{oldText} → {newText}");
+        }
+
         [TabGroup("Pages", "快速构建")]
         [BoxGroup("Pages/快速构建/构建流程预览")]
         [TableList(ShowIndexLabels = false, AlwaysExpanded = true, IsReadOnly = true)]
@@ -644,7 +718,7 @@ namespace TEngine
         }
 
         [ButtonGroup("构建/MainBuild")]
-        [Button("一键构建 (AB + Player)", ButtonSizes.Large)]
+        [Button("构建 AssetBundle + Player", ButtonSizes.Large)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         private void FullBuildButton()
         {
@@ -655,7 +729,7 @@ namespace TEngine
 
         // 安装包构建已与 Player 解耦,这里单独触发;仅 Windows 且勾选「构建安装包」时可用
         [ButtonGroup("构建/MainBuild")]
-        [Button("一键构建安装包", ButtonSizes.Medium)]
+        [Button("构建 AssetBundle + Player + 安装包", ButtonSizes.Medium)]
         [GUIColor(0.35f, 0.95f, 0.55f)]
         [EnableIf(nameof(IsInstallerEnabled))]
         private void MainBuildInstallerButton()
@@ -664,7 +738,7 @@ namespace TEngine
             var config = CreateConfig();
             var expectedPlayerPath = Path.GetFullPath(BuildConfig.GetDefaultPlayerOutputPath(BuildTarget.StandaloneWindows64));
             var actualPlayerPath = Path.GetFullPath(ToAbsolutePath(config.PlayerOutputPath));
-            if (config.PlayerPlatform != BuildTarget.StandaloneWindows64 ||
+            if (config.BuildTarget != BuildTarget.StandaloneWindows64 ||
                 !actualPlayerPath.Equals(expectedPlayerPath, StringComparison.OrdinalIgnoreCase))
             {
                 AddLog($"[中断] 一键构建安装包要求 Windows Player 输出到：{expectedPlayerPath}\n当前输出：{actualPlayerPath}\n可点击 Player 输出路径旁的\"规范化路径\"后再试。");
@@ -684,7 +758,7 @@ namespace TEngine
 
         [TitleGroup("构建")]
         [ButtonGroup("构建/SubActions")]
-        [Button("构建 Player", ButtonSizes.Large)]
+        [Button("仅构建 Player", ButtonSizes.Large)]
         private void BuildPlayerButton()
         {
             SaveSettings();
@@ -726,99 +800,58 @@ namespace TEngine
         }
 
         [PropertySpace(8)]
-        [TitleGroup("热更DLL")]
-        [ButtonGroup("热更DLL/Actions")]
+        [TitleGroup("热更 DLL", "日常热更只需此项")]
+        [ButtonGroup("热更 DLL/Actions")]
         [Button("编译并拷贝热更DLL", ButtonSizes.Large)]
+        [Tooltip("编译热更程序集并拷贝到热更资源目录；随后自动同步 AOT 元数据清单并拷贝 AOT/热更 DLL 的 .bytes")]
         private void BuildHotFixDllFromOperations()
         {
-            BuildHotFixDllNow();
+            BuildDLLCommand.BuildAndCopyDlls(_buildTarget);
         }
 
-        [ButtonGroup("热更DLL/Actions")]
-        [Button("同步 AOT 元数据清单", ButtonSizes.Large)]
+        [PropertySpace(8)]
+        [TitleGroup("AOT", "AOT 产物维护；GenerateAll 已含本区①②，出包请用下方 GenerateAll")]
+        [ButtonGroup("AOT/生成")]
+        [Button("① 生成 AOT DLL", ButtonSizes.Large)]
+        [Tooltip("= GenerateAll 的第4步。HybridCLR/Generate/StrippedAotDlls：仅首包构建/重建主包时使用；会以 buildScriptsOnly 跑一次 Player 构建，且会【覆盖】AssembliesPostIl2CppStrip 下已冻结的 AOT dll。单独点它不含 Il2CppDef/MethodBridge，不能替代出包前的 GenerateAll。")]
+        private void GenerateStrippedAOTDllsFromOperations()
+        {
+            BuildDLLCommand.GenerateStrippedAOTDllsForTarget(_buildTarget);
+        }
+
+        [ButtonGroup("AOT/生成")]
+        [Button("② 生成 AOT 列表", ButtonSizes.Large)]
+        [Tooltip("= GenerateAll 的第6步。HybridCLR/Generate/AOTGenericReference：产出 AOTGenericReferences.cs 的 PatchedAOTAssemblyList；需先有 ① 的 AOT DLL；Obfuz 开启时基于混淆后热更 DLL 分析。")]
+        private void GenerateAOTGenericReferenceFromOperations()
+        {
+            BuildDLLCommand.GenerateAOTGenericReferenceForTarget(_buildTarget);
+        }
+
+        [ButtonGroup("AOT/落地")]
+        [Button("③ 同步 AOT 元数据清单", ButtonSizes.Large)]
+        [Tooltip("工程自有步骤：解析 AOTGenericReferences.cs 的 PatchedAOTAssemblyList，写入 AOTMetadataManifest.asset")]
         private void SyncAOTMetadataManifestFromOperations()
         {
-            SyncAOTMetadataManifestNow();
+            BuildDLLCommand.SyncAOTMetadataManifest();
         }
 
-        [ButtonGroup("热更DLL/Actions")]
-        [Button("拷贝 AOT 元数据 DLL", ButtonSizes.Large)]
+        [ButtonGroup("AOT/落地")]
+        [Button("④ 拷贝 AOT 元数据 DLL", ButtonSizes.Large)]
+        [Tooltip("工程自有步骤：把裁剪后的 AOT DLL 拷贝到热更资源目录（.bytes）")]
         private void CopyAOTAssembliesFromOperations()
         {
-            CopyAOTAssembliesNow();
+            BuildDLLCommand.CopyAOTAssembliesToAssetPath(_buildTarget);
         }
 
-        [ButtonGroup("热更DLL/Generate")]
-        [Button("GenerateAll（构建首包时使用）", ButtonSizes.Large)]
+        [PropertySpace(8)]
+        [TitleGroup("出包前生成", "构建 Player 前必须；已含 AOT 区①②，另含 Il2CppDef/MethodBridge")]
+        [ButtonGroup("出包前生成/Actions")]
+        [Button("GenerateAll", ButtonSizes.Large)]
+        [Tooltip("官方『一键执行打包前必须的生成操作』：编译热更 DLL → Il2CppDef → LinkXml → 生成 AOT DLL → MethodBridge → 生成 AOT 列表（Obfuz 开启时走混淆链路）。已完整包含 AOT 区的 ①②，出包时只需点它即可。AOT 侧代码 / link.xml / HybridCLR 版本 / development 开关变化后也需重跑。")]
         private void GenerateAllFromOperations()
         {
             BuildDLLCommand.GenerateAllForTarget(_buildTarget);
         }
-
-        [PropertySpace(8)]
-#if OBFUZ_INSTALLED
-        [TitleGroup("Obfuz")]
-        [ButtonGroup("Obfuz/Actions")]
-        [GUIColor(0.95f, 0.7f, 0.25f)]
-        [EnableIf(nameof(IsPolymorphicInjectedButDisabled))]
-        [Button("清理多态注入并重新生成", ButtonSizes.Large)]
-        private void CleanupPolymorphicAndGenerateAll()
-        {
-            BuildDLLCommand.GenerateAllForTarget(_buildTarget, cleanupPolymorphicInjection: true);
-        }
-
-        private bool IsPolymorphicNotInjected()
-        {
-#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
-            try
-            {
-                if (!BuildDLLCommand.IsObfuzActive ||
-                    !Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
-                    return false;
-                return !BuildDLLCommand.IsPolymorphicInjected;
-            }
-            catch
-            {
-                return false;
-            }
-#else
-            return false;
-#endif
-        }
-
-        private bool IsPolymorphicInjectedButDisabled()
-        {
-#if ENABLE_HYBRIDCLR && OBFUZ_INSTALLED
-            try
-            {
-                if (BuildDLLCommand.IsObfuzActive &&
-                    Obfuz.Settings.ObfuzSettings.Instance.polymorphicDllSettings.enable)
-                    return false;
-                return BuildDLLCommand.IsPolymorphicInjected;
-            }
-            catch
-            {
-                return false;
-            }
-#else
-            return false;
-#endif
-        }
-
-        /// <summary>Obfuz 区提示文本；非空时在 OnImGUI 中以 HelpBox 绘制（高度自适应，不被单元格裁剪）。</summary>
-        private string PolymorphicInjectionHint()
-        {
-            if (IsPolymorphicNotInjected())
-            {
-                return "Obfuz 多态 DLL 已开启但 libil2cpp 未注入多态加载支持！\n请先在「热更DLL」执行 GenerateAll，否则运行时热更 DLL 加载会 BadImageFormatException。";
-            }
-            if (IsPolymorphicInjectedButDisabled())
-            {
-                return "Obfuz 混淆或多态 DLL 已关闭，但 libil2cpp 仍含多态注入代码。\n点击「清理多态注入并重新生成」后，再重新打 Player。";
-            }
-            return null;
-        }
-#endif
 
         [PropertySpace(8)]
         [TitleGroup("设置")]
@@ -892,15 +925,6 @@ namespace TEngine
             GUILayout.EndHorizontal();
 
             SirenixEditorGUI.DrawThickHorizontalSeparator();
-
-#if OBFUZ_INSTALLED
-            string polymorphicHint = PolymorphicInjectionHint();
-            if (!string.IsNullOrEmpty(polymorphicHint))
-            {
-                bool isError = IsPolymorphicNotInjected();
-                EditorGUILayout.HelpBox(polymorphicHint, isError ? MessageType.Error : MessageType.Warning);
-            }
-#endif
 
             base.OnImGUI();
         }
@@ -1115,16 +1139,17 @@ namespace TEngine
             var config = CreateConfig();
             _buildLogs.Clear();
             AddLog("========== 仅构建 Player ==========");
-            AddLog($"平台: {config.PlayerPlatform} | 输出: {config.PlayerOutputPath}");
+            AddLog($"平台: {config.BuildTarget} | 输出: {config.PlayerOutputPath}");
 
             try
             {
                 Application.logMessageReceived += OnBuildLogReceived;
                 if (!ReleaseTools.BuildImp(
-                    BuildConfig.GetBuildTargetGroup(config.PlayerPlatform),
-                    config.PlayerPlatform,
+                    BuildConfig.GetBuildTargetGroup(config.BuildTarget),
+                    config.BuildTarget,
                     config.PlayerOutputPath,
-                    config.subtarget
+                    config.subtarget,
+                    config.CleanPlayerOutputDirectory
                 ))
                     throw new Exception("Player 构建失败。");
 
@@ -1199,7 +1224,6 @@ namespace TEngine
                 {
                     AppName = config.InstallerAppName,
                     AppEnglishName = config.InstallerAppEnglishName,
-                    InstallerVersion = config.InstallerVersion,
                     Publisher = config.InstallerPublisher,
                     ExeName = exeName,
                     Password = config.InstallerPassword,
@@ -1207,6 +1231,7 @@ namespace TEngine
                 };
 
                 AddLog("========== 编译 InnoSetup 安装包 ==========");
+                AddLog($"安装包版本: {InnoSetupBuilder.ResolveInstallerVersion()}");
                 InnoSetupBuilder.BuildInstaller(issConfig, config.IsccPath);
                 AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
                 AddLog("========== 安装包构建完成 ==========");
@@ -1317,19 +1342,16 @@ namespace TEngine
             _buildHotFixDll = setting.BuildHotFixDll;
             _buildPlayer = setting.BuildPlayer;
 
-            _playerPlatform = Array.IndexOf(PlatformTargets, setting.PlayerPlatform) >= 0
-                ? setting.PlayerPlatform
-                : GetActiveSupportedBuildTarget();
             _subtarget = setting.subtarget ?? string.Empty;
             _playerOutputPath = string.IsNullOrWhiteSpace(setting.PlayerOutputPath)
-                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget)
+                ? BuildConfig.GetDefaultPlayerOutputPath(_buildTarget, _subtarget)
                 : setting.PlayerOutputPath;
+            _cleanPlayerOutputDirectory = setting.CleanPlayerOutputDirectory;
 
             _buildInstaller = setting.BuildInstaller;
             _installerPlatform = Array.IndexOf(PlatformTargets, setting.InstallerPlatform) >= 0
                 ? setting.InstallerPlatform
                 : BuildTarget.StandaloneWindows64;
-            _installerVersion = setting.InstallerVersion;
             _isccPath = setting.IsccPath;
             _installerAppName = setting.InstallerAppName;
             _installerAppEnglishName = setting.InstallerAppEnglishName;
@@ -1368,7 +1390,7 @@ namespace TEngine
                     normalizedPlayer.StartsWith(legacyPlayerBaseRel + "/", StringComparison.OrdinalIgnoreCase) ||
                     normalizedPlayer.StartsWith(legacyPlayerBaseV2Rel + "/", StringComparison.OrdinalIgnoreCase))
                 {
-                    _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget);
+                    _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_buildTarget, _subtarget);
                     migratedLegacyPaths = true;
                 }
             }
@@ -1437,10 +1459,6 @@ namespace TEngine
             setting.BuildHotFixDll = EditorPrefs.GetBool("TEngine_BP_BuildDll", true);
             setting.BuildPlayer = EditorPrefs.GetBool("TEngine_BP_BuildPlayer", false);
 
-            var playerPlatformIndex = EditorPrefs.GetInt("TEngine_BP_PlayerPlatform", -1);
-            setting.PlayerPlatform = IsValidPlatformIndex(playerPlatformIndex)
-                ? PlatformTargets[playerPlatformIndex]
-                : defaultConfig.PlayerPlatform;
             setting.PlayerOutputPath = EditorPrefs.GetString("TEngine_BP_PlayerOutput", string.Empty);
             setting.subtarget = EditorPrefs.GetString("TEngine_BP_Subtarget", string.Empty);
         }
@@ -1493,7 +1511,7 @@ namespace TEngine
             }
 
             var currentName = Path.GetFileName(_playerOutputPath);
-            var newName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget));
+            var newName = Path.GetFileName(BuildConfig.GetDefaultPlayerOutputPath(_buildTarget, _subtarget));
             if (string.Equals(currentName, newName, StringComparison.Ordinal))
             {
                 return false;
@@ -1509,7 +1527,7 @@ namespace TEngine
 
             var dir = Path.GetDirectoryName(_playerOutputPath);
             _playerOutputPath = string.IsNullOrWhiteSpace(dir)
-                ? BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget)
+                ? BuildConfig.GetDefaultPlayerOutputPath(_buildTarget, _subtarget)
                 : Path.Combine(dir, newName);
             return true;
         }
@@ -1542,12 +1560,11 @@ namespace TEngine
             _setting.GenerateCatalogInOutput = _generateCatalogInOutput;
             _setting.BuildHotFixDll = _buildHotFixDll;
             _setting.BuildPlayer = _buildPlayer;
-            _setting.PlayerPlatform = _playerPlatform;
             _setting.PlayerOutputPath = _playerOutputPath;
             _setting.subtarget = _subtarget ?? string.Empty;
+            _setting.CleanPlayerOutputDirectory = _cleanPlayerOutputDirectory;
             _setting.BuildInstaller = _buildInstaller;
             _setting.InstallerPlatform = _installerPlatform;
-            _setting.InstallerVersion = _installerVersion;
             _setting.IsccPath = _isccPath;
             _setting.InstallerAppName = _installerAppName;
             _setting.InstallerAppEnglishName = _installerAppEnglishName;
@@ -1585,10 +1602,10 @@ namespace TEngine
             Repaint();
         }
 
-        private void OnPlayerPlatformChanged()
+        private void OnBuildTargetChanged()
         {
-            // 切平台时重新生成输出路径，确保可执行文件名跟随当前平台与 productName
-            _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget);
+            // 平台统一后 Player 跟随目标平台；切平台时重算默认输出路径，确保可执行文件名跟随当前平台与 productName
+            _playerOutputPath = BuildConfig.GetDefaultPlayerOutputPath(_buildTarget, _subtarget);
             OnSettingsChanged();
         }
 
@@ -1598,8 +1615,8 @@ namespace TEngine
         /// </summary>
         private void OnSubtargetChanged()
         {
-            var prevDefault = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, string.Empty);
-            var newDefault = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget);
+            var prevDefault = BuildConfig.GetDefaultPlayerOutputPath(_buildTarget, string.Empty);
+            var newDefault = BuildConfig.GetDefaultPlayerOutputPath(_buildTarget, _subtarget);
             if (string.IsNullOrWhiteSpace(_playerOutputPath)
                 || string.Equals(NormalizePath(_playerOutputPath), NormalizePath(prevDefault), StringComparison.OrdinalIgnoreCase))
             {
@@ -1614,7 +1631,7 @@ namespace TEngine
         /// </summary>
         private void SyncPlayerOutputName()
         {
-            var defaultPath = BuildConfig.GetDefaultPlayerOutputPath(_playerPlatform, _subtarget);
+            var defaultPath = BuildConfig.GetDefaultPlayerOutputPath(_buildTarget, _subtarget);
             var newName = Path.GetFileName(defaultPath);
 
             if (string.IsNullOrWhiteSpace(_playerOutputPath))
@@ -1642,11 +1659,6 @@ namespace TEngine
             if (Array.IndexOf(PlatformTargets, _buildTarget) < 0)
             {
                 _buildTarget = GetActiveSupportedBuildTarget();
-            }
-
-            if (Array.IndexOf(PlatformTargets, _playerPlatform) < 0)
-            {
-                _playerPlatform = GetActiveSupportedBuildTarget();
             }
         }
 
@@ -1876,7 +1888,9 @@ namespace TEngine
 
             AddFlowStep(config.BuildPlayer,
                 "构建 Player",
-                $"平台 {config.PlayerPlatform} | 输出 {config.PlayerOutputPath}",
+                config.CleanPlayerOutputDirectory
+                    ? $"平台 {config.BuildTarget} | 输出 {config.PlayerOutputPath} | 构建前清空输出目录"
+                    : $"平台 {config.BuildTarget} | 输出 {config.PlayerOutputPath}",
                 "Player 构建未启用，跳过");
 
             // 安装包构建已与 Player 解耦:改由「安装包配置」tab 的「一键构建安装包」按钮单独触发
@@ -1949,11 +1963,10 @@ namespace TEngine
             _generateCatalogInOutput = config.GenerateCatalogInOutput;
             _buildHotFixDll = config.BuildHotFixDll;
             _buildPlayer = config.BuildPlayer;
-            _playerPlatform = config.PlayerPlatform;
             _playerOutputPath = config.PlayerOutputPath;
+            _cleanPlayerOutputDirectory = config.CleanPlayerOutputDirectory;
             _buildInstaller = config.BuildInstaller;
             _installerPlatform = config.InstallerPlatform;
-            _installerVersion = config.InstallerVersion;
             _isccPath = config.IsccPath;
             _installerAppName = config.InstallerAppName;
             _installerAppEnglishName = config.InstallerAppEnglishName;
@@ -1989,12 +2002,11 @@ namespace TEngine
                 GenerateCatalogInOutput = _generateCatalogInOutput,
                 BuildHotFixDll = _buildHotFixDll,
                 BuildPlayer = _buildPlayer,
-                PlayerPlatform = _playerPlatform,
                 PlayerOutputPath = _playerOutputPath,
                 subtarget = _subtarget ?? string.Empty,
+                CleanPlayerOutputDirectory = _cleanPlayerOutputDirectory,
                 BuildInstaller = _buildInstaller,
                 InstallerPlatform = _installerPlatform,
-                InstallerVersion = _installerVersion,
                 IsccPath = _isccPath,
                 InstallerAppName = _installerAppName,
                 InstallerAppEnglishName = _installerAppEnglishName,
@@ -2266,7 +2278,6 @@ namespace TEngine
             {
                 AppName = _installerAppName,
                 AppEnglishName = _installerAppEnglishName,
-                InstallerVersion = _installerVersion,
                 Publisher = _installerPublisher,
                 ExeName = exeName,
                 Password = _installerPassword,
@@ -2282,7 +2293,7 @@ namespace TEngine
                 return;
             }
 
-            var platformName = GetPlayerPlatformDirectoryName(_playerPlatform);
+            var platformName = GetPlayerPlatformDirectoryName(_buildTarget);
             var normalized = NormalizePlatformPath(_playerOutputPath, platformName);
             if (normalized == null)
             {
@@ -2388,13 +2399,19 @@ namespace TEngine
 
         // 安装包配置独立 tab：Windows 平台下显示 InnoSetup 配置，后续可扩展 Linux 安装包
         // 注意：仅控制 UI 显隐；实际编译仍由 ExecuteBuild 在 Player 构建成功后按 Windows 平台触发
-        private bool IsWindowsPlayerPlatform => _installerPlatform == BuildTarget.StandaloneWindows64;
-        private bool IsInstallerEnabled => IsWindowsPlayerPlatform && _buildInstaller;
+        private bool IsWindowsInstallerPlatform => _installerPlatform == BuildTarget.StandaloneWindows64;
+        private bool IsInstallerEnabled => IsWindowsInstallerPlatform && _buildInstaller;
 
         private static ValueDropdownList<BuildTarget> InstallerPlatformOptions => new ValueDropdownList<BuildTarget>
         {
             { "Windows 64-bit", BuildTarget.StandaloneWindows64 },
             // 后续 Linux 安装包配置扩展位
+        };
+
+        private static ValueDropdownList<IssExtractSource> IssExtractSourceOptions => new ValueDropdownList<IssExtractSource>
+        {
+            { "模板脚本 (setup.iss)", IssExtractSource.Template },
+            { "实际编译脚本 (setup.generated.iss)", IssExtractSource.Generated },
         };
 
         private static ValueDropdownList<BuildTarget> BuildTargetOptions => new ValueDropdownList<BuildTarget>
