@@ -36,6 +36,7 @@ CLI 为 `Tools/unity.exe`，不是 Unity Editor 自身的同名可执行文件�
 | 编译、测试、构建 | `commands/build-and-compilation.md` |
 | 资源、对象、Prefab | `commands/assets-and-files.md`、`commands/gameobjects-and-components.md`、`commands/prefabs.md` |
 | 视觉、场景、设置 | `commands/capture.md`、`commands/scenes.md`、`commands/project-settings.md` |
+| 通道选择与写入纪律（CLI vs MCP） | `references/channels.md` |
 | 新增项目命令 | `creating-commands.md` |
 
 实时命令描述优先于复制的示例。Pipeline 更新后重新验证契约，不假定版本兼容。

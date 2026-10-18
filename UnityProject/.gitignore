@@ -134,5 +134,6 @@ yoo/
 # Local workflow evidence, approvals, and Python caches
 /.codex/runs/
 /.codex/.venv/
+/.codex/tmp/
 /.codex/**/__pycache__/
 /.codex/**/*.pyc

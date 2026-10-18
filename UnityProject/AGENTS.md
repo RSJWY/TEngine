@@ -99,7 +99,7 @@ Pipeline 描述文件含鉴权信息，禁止读出到日志、提交或分享�
 上级目录是整个我fork的项目的根目录，readme也在这里；当前目录为unity项目目录。
 一般情况下，新功能不需要开分支，除非特大变动，也必须经过用户同意才行！
 
-如果添加了新的 fork 定制功能，经用户同意后，在上级目录（git 仓库根目录）按分层文档规则更新说明：README.md 的「🛠️ 本 Fork 的定制改动」只维护简短概览；Books/Fork-定制改动说明.md 只作为兼容索引入口；详细说明写入Books/Fork/ 下对应专题文档，并同步更新 Books/Fork/CHANGELOG.md；具体写法遵循 .claude/skills/fork-docs/SKILL.md 或 .codex/skills/fork-docs/SKILL.md（根据你属于哪个cli工具claude还是codex，两个skill是一样的）。
+如果添加了新的 fork 定制功能，经用户同意后，在上级目录（git 仓库根目录）按分层文档规则更新说明：README.md 的「🛠️ 本 Fork 的定制改动」只维护简短概览；Books/Fork-定制改动说明.md 只作为兼容索引入口；详细说明写入Books/Fork/ 下对应专题文档，并同步更新 Books/Fork/CHANGELOG.md；具体写法遵循 `.codex/skills/fork-docs/SKILL.md`（技能唯一源，任何 CLI 工具都读这一份）。
 
 commit提交时，以中文为主，英文为辅。如果用户让你写总结，则记得同时推送到远端。
 用户让你存储记忆时，是存储在项目级的记忆里，跟随仓库走。
@@ -160,6 +160,7 @@ commit提交时，以中文为主，英文为辅。如果用户让你写总结�
 21. **窗口布局走 `ScreenModule`**：Windows Standalone 多显示器窗口布局控制走 `ScreenModule`，不要用 `Screen.SetResolution` 或原生 `Screen` API 替代
 22. **事件批量移除**：`GameEvent.RemoveAllListeners` 支持按事件 ID 批量移除监听，优先使用批量接口，不要逐个 RemoveListener
 23. **日志走 TouchSocket 桥接**：日志统一走 TouchSocket 日志桥接 + Unity 日志落盘 + LogViewer，不要用 `Debug.Log` 直接做业务日志输出
+24. **Unity 操作通道分工**：探索性查询与 API 反射走 Unity MCP，交付验证与留证走 `workflow.py`（doctor/check/verify），源码一律用文件工具改；MCP 无审批链、不产生 `.codex/runs` 证据，其返回结果不能作为验收结论；两条通道禁止并发写入。详见 `.codex/skills/unity-cli/references/channels.md`
 
 ## 资源加载与释放规则：
 通过 TEngine 封装的 API 加载资源时必须遵守引用计数配对：

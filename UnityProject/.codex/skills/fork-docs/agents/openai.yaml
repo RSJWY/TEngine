@@ -1,0 +1,6 @@
+interface:
+  display_name: "Fork Docs"
+  short_description: "Maintain layered fork customization documentation"
+  default_prompt: "Use $fork-docs to record a fork customization in the layered README, Books/Fork and CHANGELOG set."
+policy:
+  allow_implicit_invocation: true

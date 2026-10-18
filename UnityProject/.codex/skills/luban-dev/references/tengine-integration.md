@@ -1,8 +1,8 @@
 # TEngine 集成与分片
 
 权威输入：[luban.conf](../../../../../Configs/GameConfig/luban.conf)、
-[加载器模板](../../../../../Configs/GameConfig/CustomTemplate/ConfigSystem.cs)、
-[分片说明](../../../../../Configs/GameConfig/CustomTemplate/SHARDED_TABLES.md)。
+[加载器模板](../../../../../Configs/GameConfig/CustomTemplate/ConfigSystem.cs)。
+分片契约见下方「分片契约」一节。
 路径从 Unity 项目出发为 `../Configs/GameConfig`。
 
 | 模式 | 现有脚本 | 产物 |

@@ -1,6 +1,7 @@
 """Offline structure checks and verification profiles."""
 
 import importlib.util
+import os
 from pathlib import Path
 import re
 import shutil
@@ -12,13 +13,19 @@ from .core import WorkflowError, blocked, project_lock, require_success
 from .unity import Unity
 
 
-SKILLS = ("tengine-dev", "unity-cli", "luban-dev", "html-to-ugui")
+SKILLS = ("tengine-dev", "unity-cli", "luban-dev", "html-to-ugui", "fork-docs")
 
 
 def dependencies(*names):
     missing = [name for name in names if importlib.util.find_spec(name) is None]
     if missing:
-        blocked("Missing optional dependencies: " + ", ".join(missing) + ". Install explicitly from the documented requirements.")
+        venv = Path(__file__).resolve().parents[2] / ".venv"
+        hint = (f" A project-local environment already exists at {venv}; run "
+                f"{venv / 'Scripts' / 'python.exe' if os.name == 'nt' else venv / 'bin' / 'python'} instead.")
+        if not venv.is_dir():
+            hint = ""
+        blocked("Missing optional dependencies: " + ", ".join(missing)
+                + ". Install explicitly from .codex/scripts/requirements.txt." + hint)
 
 
 def structure(context):
@@ -52,7 +59,7 @@ def structure(context):
         context.repo / "Books" / "AI-Development-Workflow.md",
     ]
     parser = MarkdownIt()
-    banned = re.compile(r"/opsx:|\.claude/|mcp-tools\.md|mcp-visual\.md|manage_script|manage_scene|"
+    banned = re.compile(r"/opsx:|\.claude/|mcp-tools\.md|mcp-visual\.md|"
                         r"mcp__unity|unity-mcp-orchestrator|openspec/(?:specs|changes)|openspec (?:init|apply)")
     machine_path = re.compile(r"(?:[A-Za-z]:[\\/](?:Users|WorkSpace)[\\/]|/Users/[^/]+/)")
     docs.append(context.repo / "README.md")
@@ -61,7 +68,7 @@ def structure(context):
             errors.append(f"Missing document: {path}")
             continue
         text = path.read_text(encoding="utf-8-sig")
-        if path.name == "README.md":
+        if path.resolve() == (context.repo / "README.md").resolve():
             # Only this task's workflow section; unrelated legacy product links are out of scope.
             match = re.search(r"^## .*AI.*(?:\n.*)*", text, re.M)
             text = match[0].split("\n## ", 1)[0] if match else ""
@@ -148,11 +155,14 @@ def doctor(run):
     context = run.context
 
     def tools():
-        from .core import read_json
-        package = read_json(context.project / "Packages" / "com.unity.pipeline" / "package.json")
+        from .core import unity_package
+        package = unity_package(context, "com.unity.pipeline")
         version = (context.project / "ProjectSettings" / "ProjectVersion.txt").read_text(encoding="utf-8")
-        if not context.cli.is_file() or not context.solution.is_file():
-            blocked("CLI or generated solution missing; see project instructions.")
+        if not context.cli.is_file():
+            blocked(f"Unity CLI is missing: install it at {context.cli} or explicitly on PATH. "
+                    f"com.unity.pipeline {package['version']} ({package['source']}) is a package, not the CLI entrypoint.")
+        if not context.solution.is_file():
+            blocked(f"Generated solution is missing: {context.solution}. Regenerate project files in this Unity Editor.")
         missing = [name for name in ("dotnet", "git") if not shutil.which(name)]
         if missing:
             blocked("Required tools missing: " + ", ".join(missing))
@@ -160,7 +170,9 @@ def doctor(run):
         require_success(result, "CLI version")
         dotnet = require_success(run.execute(["dotnet", "--version"], timeout=15), ".NET version").strip()
         return {"python": sys.version, "dotnet": shutil.which("dotnet"), "git": shutil.which("git"),
-                "unity": version.strip(), "pipeline": package["version"], "cli": result.stdout.strip(), "dotnetVersion": dotnet,
+                "unity": version.strip(), "pipeline": package["version"], "pipelineSource": package["source"],
+                "pipelinePath": package["path"], "cli": result.stdout.strip(), "cliPath": str(context.cli),
+                "cliSource": context.cliSource, "dotnetVersion": dotnet,
                 "optionalDependencies": {name: importlib.util.find_spec(name) is not None
                                          for name in ("yaml", "markdown_it", "openpyxl", "playwright")}}
 

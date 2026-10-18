@@ -15,6 +15,7 @@ READ_ONLY = frozenset({
     "get_player_settings", "get_audio_settings", "get_graphics_settings", "get_input_settings",
     "get_physics_settings", "get_quality_settings", "get_tags_layers", "get_time_settings",
     "get_console_logs", "get_performance_stats", "get_authoring_root", "get_selection",
+    "console", "console_status",
     "find_assets", "find_gameobjects", "get_component_properties", "get_serialized_fields",
     "get_import_settings", "get_material_properties", "list_shaders", "get_shader_properties",
     "get_animation_clip", "get_animator_controller", "get_timeline", "get_lighting_settings",
@@ -40,6 +41,31 @@ STATUS_QUERIES = frozenset({
     "package_status", "lighting_bake_status", "navmesh_bake_status", "occlusion_bake_status",
     "get_console_logs",
 })
+
+
+def transport_failure(text):
+    """True when the CLI reported a transport problem rather than a rejected operation.
+
+    Entering Play Mode, a domain reload, or a busy Editor drops the HTTP connection to the
+    Pipeline server. The CLI surfaces that as COMMAND_FAILED with a "Network error" message,
+    which must stay retryable: treating it as a hard failure aborts a valid polling loop.
+    """
+    lowered = (text or "").lower()
+    markers = ("no_instances", "unreachable", "econnrefused", "econnreset", "epipe",
+               "network error", "connection", "socket hang up", "timeout",
+               "502 bad gateway", "503 service unavailable")
+    if any(marker in lowered for marker in markers):
+        return True
+    try:
+        envelope = json.loads((text or "").lstrip("\ufeff"))
+    except (ValueError, AttributeError):
+        return False
+    if not isinstance(envelope, dict):
+        return False
+    for error in envelope.get("errors") or []:
+        if isinstance(error, dict) and "network error" in str(error.get("message", "")).lower():
+            return True
+    return False
 
 
 def validate_parameters(parameters):
@@ -188,9 +214,10 @@ class Unity:
         )
         if result.returncode:
             # Connection errors are blockers, never a successful validation.
-            if any(code in result.stdout + result.stderr for code in ("NO_INSTANCES", "UNREACHABLE", "CONNECTION", "ECONNREFUSED", "TIMEOUT",
-                                                      "502 Bad Gateway", "503 Service Unavailable")):
-                blocked("Unity CLI connection unavailable; see command evidence.")
+            if transport_failure(result.stdout + result.stderr):
+                blocked("Unity CLI connection unavailable; see command evidence. "
+                        "Entering Play Mode, a domain reload, or a busy Editor can drop the connection "
+                        "transiently; pollers retry, one-shot commands must be re-issued deliberately.")
             raise WorkflowError(f"Unity CLI exited with {result.returncode}; see command evidence.")
         return result.stdout
 
@@ -200,7 +227,12 @@ class Unity:
 
     def discover(self, require_ready=True):
         self.ready(require_ready)
-        value = decode_response(self.raw(["command", "--project-path", str(self.context.project)]))
+        project = str(self.context.project)
+        try:
+            value = decode_response(self.raw(["list", "--project-path", project]))
+        except WorkflowError:
+            # Older CLI builds expose discovery through `command` without a command name.
+            value = decode_response(self.raw(["command", "--project-path", project]))
         self.capabilities = command_names(value)
         return sorted(name for name in self.capabilities if name)
 
@@ -247,6 +279,15 @@ class Unity:
             time.sleep(interval)
         blocked(f"Timed out polling {command}. Operation may still be active; do not replay it.")
 
+    def console_logs(self):
+        """Read the captured console. Pipeline 0.8 registers `console`; older builds used `get_console_logs`."""
+        if self.capabilities is None:
+            self.discover()
+        for command in ("console", "get_console_logs"):
+            if command in self.capabilities:
+                return self.call(command)
+        blocked("No captured-console command is registered; compilation diagnostics are unavailable.")
+
     def recompile(self, timeout):
         self.ready()
         started = self.call("recompile", mutating=True)
@@ -258,7 +299,7 @@ class Unity:
             # Import/asmdef errors can prevent compilation callbacks entirely.
             # Collect the read-only console without hiding the original incomplete operation.
             try:
-                self.call("get_console_logs")
+                self.console_logs()
             except WorkflowError:
                 pass
             raise
@@ -266,7 +307,7 @@ class Unity:
             raise WorkflowError("Editor compilation reported errors.")
         self.ready()
         self.discover()
-        logs = self.call("get_console_logs")
+        logs = self.console_logs()
         return {"compilation": value, "console": logs}
 
     def tests(self, mode, query, filter_type, timeout):

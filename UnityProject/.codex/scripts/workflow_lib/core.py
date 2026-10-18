@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import tempfile as tempfile_module
 import time
 import uuid
 from datetime import datetime, timezone
@@ -50,19 +51,35 @@ def read_json(path):
         raise WorkflowError(f"Cannot read JSON {path}: {exc}") from exc
 
 
-def write_json(path, value):
+def write_json(path, value, attempts=6, delay=0.05):
+    """Atomically replace a JSON file, tolerating transient Windows sharing violations.
+
+    Antivirus and the search indexer briefly open freshly written files, which makes os.replace
+    fail with PermissionError even though nothing is wrong with the content. Retrying a few times
+    keeps a passing step from being reported as an unexpected failure; a persistent error still
+    propagates. The temporary file is removed on failure so a stale .tmp cannot be mistaken for
+    evidence.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(temporary, path)
+    for attempt in range(attempts):
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                temporary.unlink(missing_ok=True)
+                raise
+            time.sleep(delay * (attempt + 1))
 
 
 SECRET_KEY = re.compile(r"(token|password|authorization|secret|api.?key|cookie)", re.I)
 SECRET_TEXT = re.compile(
-    r'(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+|'
+    r'(?i)(bearer\s+|basic\s+)[A-Za-z0-9._~+/=-]+|'
     r'(["\']?(?:evalToken|access_token|api_key|password|authorization|secret)["\']?\s*[:=]\s*)'
-    r'("[^"]*"|\'[^\']*\'|[^\s,}]+)'
+    r'(?:(?:bearer|basic)\s+)?("[^"]*"|\'[^\']*\'|[^\s,}]+)'
 )
 
 
@@ -90,6 +107,58 @@ def within(path, root):
     return path
 
 
+def unity_package(context, name):
+    """Resolve one package's installed version and directory across embedded, local, and registry layouts.
+
+    Registry packages live under Library/PackageCache/<name>@<hash>, not Packages/<name>, so the
+    manifest declaration alone cannot be read as a path.
+    """
+    manifest = (read_json(context.project / "Packages" / "manifest.json").get("dependencies") or {})
+    lock_path = context.project / "Packages" / "packages-lock.json"
+    lock = read_json(lock_path).get("dependencies", {}).get(name, {}) if lock_path.is_file() else {}
+    declared = manifest.get(name)
+    if not lock and not declared:
+        blocked(f"Package {name} is not declared in Packages/manifest.json and has no packages-lock.json entry.")
+    directories = []
+    embedded = context.project / "Packages" / name
+    if embedded.is_dir():
+        directories.append(embedded)
+    if isinstance(declared, str) and declared.startswith("file:"):
+        local = (context.project / "Packages" / declared[len("file:"):].replace("\\", "/")).resolve()
+        if local.is_dir():
+            directories.append(local)
+    cache = context.project / "Library" / "PackageCache"
+    if cache.is_dir():
+        directories.extend(sorted(path for path in cache.glob(name + "@*") if path.is_dir()))
+    installed = [directory / "package.json" for directory in directories if (directory / "package.json").is_file()]
+    expected = lock.get("version")
+    matched = [path for path in installed if expected and read_json(path).get("version") == expected]
+    chosen = (matched or installed or [None])[0]
+    version = read_json(chosen).get("version") if chosen else expected
+    if not version:
+        blocked(f"Cannot determine the installed version of {name}; open the project in Unity so packages resolve.")
+    return {"name": name, "version": version,
+            "source": lock.get("source") or ("embedded" if chosen and chosen.parent == embedded else "declared"),
+            "expected": expected, "path": str(chosen.parent) if chosen else None}
+
+
+def locate_cli_for(project):
+    """Prefer the pinned project-local CLI, then an explicitly installed `unity` CLI on PATH.
+
+    The Editor's own Unity.exe is never a substitute; it lacks the `command`/`status` subcommands
+    this workflow drives.
+    """
+    local = Path(project) / "Tools" / "unity.exe"
+    if local.is_file():
+        return local, "project"
+    found = shutil.which("unity")
+    if found:
+        resolved = Path(found).resolve()
+        if resolved.parent.name.lower() != "editor":
+            return resolved, "path"
+    return local, "missing"
+
+
 class Context:
     def __init__(self, project=None):
         self.project = Path(project or Path(__file__).resolve().parents[3]).resolve()
@@ -99,13 +168,42 @@ class Context:
         self.repo = self.project.parent
         self.scripts = self.project / ".codex" / "scripts"
         self.runs = self.project / ".codex" / "runs"
-        self.cli = self.project / "Tools" / "unity.exe"
+        self.cli, self.cliSource = self.locate_cli()
         self.solution = self.project / "UnityProject.sln"
+
+    def locate_cli(self):
+        return locate_cli_for(self.project)
+
+
+def temp_environment(project):
+    """Return a TMP/TEMP override only when the inherited temp directory is unusable.
+
+    Some sandboxes deny child processes writes to the system temp directory. Build tools such as
+    MSBuild create a temp subdirectory at startup and fail hard when that is denied, so fall back
+    to a project-local directory instead of silently degrading the build step.
+    """
+    for key in ("TMP", "TEMP", "TMPDIR"):
+        candidate = os.environ.get(key)
+        if not candidate:
+            continue
+        try:
+            probe = tempfile_module.mkdtemp(prefix="workflow-probe-", dir=candidate)
+        except OSError:
+            continue
+        try:
+            os.rmdir(probe)
+        except OSError:
+            pass
+        return {}
+    fallback = Path(project) / ".codex" / "tmp"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return {"TMP": str(fallback), "TEMP": str(fallback), "TMPDIR": str(fallback)}
 
 
 class Run:
     def __init__(self, context, command):
         self.context = context
+        self.temp_env = None
         self.path = context.runs / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
         self.path.mkdir(parents=True)
         self.data = {
@@ -146,6 +244,11 @@ class Run:
         try:
             child_env = dict(os.environ if env is None else env)
             child_env["PYTHONUTF8"] = "1"
+            if self.temp_env is None:
+                self.temp_env = temp_environment(self.context.project)
+            if self.temp_env:
+                child_env.update(self.temp_env)
+                record["tempDir"] = self.temp_env["TMP"]
             completed = subprocess.run(
                 args, cwd=cwd, env=child_env, capture_output=True, timeout=timeout, shell=False,
             )

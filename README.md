@@ -100,9 +100,9 @@
 
 ## 🤖 AI 开发工作流
 
-TEngine 深度集成了一套面向 Claude Code 的 AI 辅助开发工作流，通过 **tengine-dev skill 按需查询架构**、**任务等级分级触发**和**会话内缓存机制**，实现规范驱动、高效的 AI 开发体验。
+TEngine 的 AI 辅助开发规范以 [`UnityProject/AGENTS.md`](UnityProject/AGENTS.md) 为唯一入口：技能存放在 `.codex/skills/`，验证入口为 `UnityProject/.codex/scripts/workflow.py`。
 
-详细规范请参考：[CLAUDE.md](UnityProject/CLAUDE.md) | [AI 开发工作流指南](Books/AI-Development-Workflow.md)
+详细规范请参考：[AGENTS.md](UnityProject/AGENTS.md) | [AI 开发工作流指南](Books/AI-Development-Workflow.md)
 
 ---
 
