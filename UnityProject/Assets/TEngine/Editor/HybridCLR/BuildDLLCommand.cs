@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using HybridCLR.Editor;
 #if OBFUZ_INSTALLED
 using Obfuz.Settings;
 using Obfuz4HybridCLR;
