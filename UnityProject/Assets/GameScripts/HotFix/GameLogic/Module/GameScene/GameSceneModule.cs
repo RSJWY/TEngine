@@ -526,7 +526,7 @@ namespace GameLogic
                 return;
             }
 
-            _initTasks.Add(new InitTaskEntry(task, progressProvider));
+            _initTasks.Add(new InitTaskEntry(WrapInitTask(task, label), progressProvider));
             Log.Info($"[GameScene] 注册初始化任务：{label}（当前 {_initTasks.Count} 项，{(progressProvider != null ? "带进度源" : "无进度源")}）");
         }
 
