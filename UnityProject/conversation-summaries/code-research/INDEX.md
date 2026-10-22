@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-10-22
+- [场景切换加载页与"等待场景准备完毕"机制研究](./2026-10-22-scene-switch-loading-ui-research.md)
+  - 关键词：GameSceneModule、SwitchSceneUI、三段式进度状态机、suspendLoad挂起加载、UnSuspend激活、IsSceneLoadDone轮询等待、IGameSceneEvent、OnSceneLoadOver、OnSceneReady、PostActivateFrames、100%停留、加载页关闭时机、纯展示UI、超时兜底
+  - 结论：并非只有广播事件；GameSceneModule 独占加载控制，关闭加载页前显式等待场景真实激活完成；同日落地阶段3初始化门闩（RegisterInitTask + Spawner LoadingWait 模式），加载页可等业务初始化资源。
+
 ## 2026-10-17
 - [BuildCLI 与 TEngine 打包工具对齐核查](./2026-10-17-buildcli-clibridge-alignment-check.md)
   - 关键词：BuildCLI、CLIBridge、BuildRequestDTO、BuildFormState、tengineConfig、tengineResult、日志哨兵、BUILD_TARGET_NAMES、BuildTarget=19/20/24、EBuildPipeline、ArchiveFileBuildPipeline=5、_map_enum_name、BuiltinBuildPipeline不存在、BundleName_HashName2不存在、静默回退
