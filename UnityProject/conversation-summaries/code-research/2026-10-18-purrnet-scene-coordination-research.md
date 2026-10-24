@@ -24,11 +24,17 @@
 
 ### 1.2 `GameSceneModule`（业务层，`Assets/GameScripts/HotFix/GameLogic/Module/GameScene/GameSceneModule.cs`）
 
-- **三段式进度状态机**：阶段 0 预热（0→10%，纯动画）→ 阶段 1 真实加载（10%→90%，进度来自 `GameModule.Scene.LoadSceneAsync(..., suspendLoad: true, progressCallBack: OnLoadProgress)`）→ 阶段 2 收尾（90%→100%）。
-- **加载调用**：`StartRealLoading()` 固定 `suspendLoad: true, priority: 100, gcCollect: true`（:503-507）。
-- **激活权**：`EnterFinishPhase()` 在阶段 1→2 调 `GameModule.Scene.UnSuspend(_sceneName)`（:543-559）。
-- **完成判定**：阶段 2 轮询 `GameModule.Scene.IsSceneLoadDone(_sceneName)` + 激活后 2 帧 + 100% 停留（:355-389）。
-- **并发保护**：`_isActive` 为真时拒绝新请求并报错（:444-451）。
+> ⚠️ **2026-10-24 更正**：用户合并 main 新提交后，本节原描述的「三段式」（0 预热 / 1 加载 / 2 收尾）**已过时**。
+> 当前实现为 **七阶段状态机**，且新增了初始化任务门闩 `RegisterInitTask`。下面保留原描述仅作历史对照，
+> **实施请以 `.plans/purrnet-ds-scene-coordination.md` 第二节（已按当前源码重新核实）为准。**
+
+- ~~**三段式进度状态机**~~ → **七阶段**：阶段 0 预热（0→10%）→ 阶段 1 加载（10%→80%，`progressCallBack` 映射 YooAsset 0~0.9）→ 阶段 2「80%」停帧检查点 → 阶段 3 激活（80%→90%，轮询 `IsSceneLoadDone`）→ 阶段 4「90%」停帧检查点 → 阶段 5 业务就绪（90%→100%，由 `RegisterInitTask` 注册的初始化任务进度驱动）→ 阶段 6 100% 帧等待。
+- **加载调用**：`StartRealLoading()` 固定 `suspendLoad: true, priority: 100, gcCollect: true`（现状 `:708-712`）。
+- **激活权**：`EnterFinishPhase()` 在**阶段 2 检查点结束**时调 `GameModule.Scene.UnSuspend(_sceneName)`（现状 `:749-762`）。
+- **完成判定**：阶段 6 需同时满足「初始化任务全完成 + 激活后 `PostActivateFrames`(2) 帧 + 100% 停留」才 `FinishAndClose()`。
+- **新增能力 `RegisterInitTask`**（原报告未覆盖）：`void RegisterInitTask(UniTask, string label = null)` / `void RegisterInitTask(UniTask, Func<float>, string label = null)`；`DynamicSceneSpawner.cs:215` 已接入。**在 `!_isActive` 时直接 `Forget()` 后台执行、不参与等待**——被动模式必须注意此语义。
+- **并发保护**：`_isActive` 为真时拒绝新请求并报错（现状 `:644-651`）。
+- **场景枚举**：`SceneType` / `SceneConstName` / `SceneTypeMapping` / `SceneTypeDisplayName` 已改为由 `SceneEnumConfig.asset` **自动生成**（`Module/GameScene/Generated/*.g.cs`），当前仅 `MainScene` 与 `dedicated_server`；不得手改生成产物。
 - **事件契约**（`IGameSceneEvent`，`Assets/GameScripts/HotFix/GameLogic/IEvent/IGameSceneEvent.cs`）：
   - `OnSceneLoadStart(sceneType)`（:454）
   - `OnSceneLoadOver()`（:552）

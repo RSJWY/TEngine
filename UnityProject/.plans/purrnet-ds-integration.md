@@ -694,13 +694,20 @@ private static void StartDedicatedServer()
 
 **背景**：
 - PurrNet `ScenesModule`：服务器权威场景 ID 分配、spawn/despawn、观察者管理，已有 YooAsset 集成
-- TEngine `GameSceneModule`：客户端驱动、三段式进度（预热/加载/收尾）、加载页 UI
+- TEngine `GameSceneModule`：客户端驱动、**七阶段进度状态机**（预热/加载/80%检查点/激活/90%检查点/业务就绪/100%帧等待，2026-10-24 前为三段式）、加载页 `SwitchSceneUI`、初始化任务门闩 `RegisterInitTask`
 
-**方案**（2026-10-18 研究后定稿：**服务器权威、客户端被动**）：
-- DS 端：服务器/房主唯一发起，走 PurrNet `ScenesModule.LoadYooAssetSceneAsync`；DS 不打开加载页。
+**方案**（2026-10-18 研究后定稿；2026-10-24 按合并 main 后的源码修订：**服务器权威、客户端被动**）：
+- DS 端：服务器/房主唯一发起，走 PurrNet `ScenesModule.LoadYooAssetSceneAsync(packageName, location, settings)`；DS 不打开加载页。
 - 客户端：**不自行加载**，只监听 PurrNet 场景事件（`onYooAssetSceneStartLoading` / `onYooAssetSceneLoaded`），复用 `GameSceneModule` 加载页做被动展示（伪进度），完成后照常派发 `OnSceneReady`。
 - 客户端发起切场景改为「请求服务器」，由服务器执行权威加载。
 - 桥接层新增业务侧 `NetworkSceneCoordinator`，不改 TEngine.Runtime、不改 PurrNet 包。
+
+> **2026-10-24 修订要点**（合并 main 后 `GameSceneModule` 已从三段式演进为**七阶段**状态机，并新增初始化任务门闩 `RegisterInitTask`）：
+> - 被动模式必须**逐阶段对齐七阶段**（预热 / 加载 / 80%检查点 / 激活 / 90%检查点 / 业务就绪 / 100%帧等待），不能沿用旧的三段式描述。
+> - 被动模式**不调** `StartRealLoading()`、**不调** `GameModule.Scene.UnSuspend()`、**不轮询** `IsSceneLoadDone`（PurrNet 客户端路径硬编码 `allowSceneActivation=true`，无挂起窗口、无对应句柄）。
+> - 被动模式**必须保留阶段 5 的 `RegisterInitTask` 门闩**（`DynamicSceneSpawner` 依赖它上报生成进度），且 `_isActive` 须在打开加载页前置位，否则注册静默失效。
+> - 场景枚举已改为由 `SceneEnumConfig` 自动生成（当前仅 `MainScene` / `dedicated_server`），新增场景走配置工具，不手写枚举。
+> - **详细实现细节以 [purrnet-ds-scene-coordination.md](./purrnet-ds-scene-coordination.md) 第二节（现状与约束，已按当前源码重新核实）与 S3 为准。**
 
 > **详细计划**：[purrnet-ds-scene-coordination.md](./purrnet-ds-scene-coordination.md)（含验收清单、实施步骤 S1~S6、接口草案、风险与未确认项）
 > **研究依据**：[PurrNet × TEngine 场景加载协调研究](../conversation-summaries/code-research/2026-10-18-purrnet-scene-coordination-research.md)

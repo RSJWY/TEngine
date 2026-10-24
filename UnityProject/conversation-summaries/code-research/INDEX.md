@@ -7,8 +7,8 @@
 
 ## 2026-10-18
 - [PurrNet × TEngine 场景加载协调研究（阶段四 4.2）](./2026-10-18-purrnet-scene-coordination-research.md)
-  - 关键词：ScenesModule、LoadYooAssetSceneAsync、仅服务器可加载卸载、allowSceneActivation、suspendLoad、UnSuspend、IsSceneLoadDone、GameSceneModule三段式、SwitchSceneUI、IGameSceneEvent、OnSceneReady、DynamicSceneSpawner、SceneHistory重放、SceneAction、purrnet-yooasset-v1、sceneModule访问器、NetworkSceneCoordinator、被动加载页
-  - 结论：服务器权威、客户端被动；DS/Host 走 PurrNet 加载，客户端只监听场景事件复用加载页展示，框架与包都不改。
+  - 关键词：ScenesModule、LoadYooAssetSceneAsync、仅服务器可加载卸载、allowSceneActivation、suspendLoad、UnSuspend、IsSceneLoadDone、GameSceneModule七阶段、RegisterInitTask、SwitchSceneUI、IGameSceneEvent、OnSceneReady、DynamicSceneSpawner、SceneHistory重放、SceneAction、purrnet-yooasset-v1、sceneModule访问器、NetworkSceneCoordinator、被动加载页
+  - 结论：服务器权威、客户端被动；DS/Host 走 PurrNet 加载，客户端只监听场景事件复用加载页展示，框架与包都不改。（2026-10-24 更正：GameSceneModule 已由三段式演进为七阶段 + RegisterInitTask 门闩）
 
 ## 2026-10-17
 - [BuildCLI 与 TEngine 打包工具对齐核查](./2026-10-17-buildcli-clibridge-alignment-check.md)
