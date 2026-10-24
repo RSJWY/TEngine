@@ -67,7 +67,12 @@ namespace GameLogic
 
         /// <summary>不自动触发，由外部手动调用 SpawnAsync()。</summary>
         [InspectorName("手动（外部调用 SpawnAsync）")]
-        Manual
+        Manual,
+
+        /// <summary>场景激活即开始加载（同 Awake），并注册到 GameSceneModule：加载页等待本加载完成后才关闭。</summary>
+        /// <remarks>追加在 Manual 之后以保持既有枚举 int 值不变（防止已序列化场景错位）。</remarks>
+        [InspectorName("LoadingWait（激活即加载，加载页等待完成）")]
+        LoadingWait
     }
 
     /// <summary>
@@ -80,9 +85,10 @@ namespace GameLogic
     /// <para>
     /// <b>释放</b>：Single 模式切场景时整场景卸载，<c>LoadGameObjectAsync</c> 引用计数自动归还，无需手动 UnloadAsset。
     /// </para>
-    /// <para>
-    /// <b>方案乙预留</b>：<see cref="SpawnAsync"/> 为 public，将来可由 GameSceneModule 在 finishCallBack 前 await 调用。
-    /// </para>
+        /// <para>
+        /// <b>方案乙（已实现）</b>：<see cref="SpawnInitMode.LoadingWait"/> 模式下 <see cref="SpawnAsync"/>
+        /// 通过 <c>GameModule.GameScene.RegisterInitTask</c> 注册给 GameSceneModule，加载页关闭前等待其完成。
+        /// </para>
     /// </remarks>
     public abstract class DynamicSceneSpawner : MonoBehaviour
     {
@@ -91,12 +97,13 @@ namespace GameLogic
         [SerializeField] protected int batchSize = 3;
 
         /// <summary>初始化模式：决定什么时候自动开始加载。</summary>
-        [Tooltip("Awake=最早 / Start=Awake后一帧 / OnEnable=每次激活 / SceneReady=SwitchUI关闭后 / Manual=手动调用")]
+        [Tooltip("Awake=最早 / Start=Awake后一帧 / OnEnable=每次激活 / SceneReady=SwitchUI关闭后 / Manual=手动调用 / LoadingWait=激活即加载且加载页等待完成")]
         [SerializeField] protected SpawnInitMode initMode = SpawnInitMode.Start;
 
         private CancellationTokenSource _cts;
         private bool _hasSpawned = false;
         private bool _isSpawnCompleted = false;
+        private float _spawnProgress = 0f;           // 已处理项/总项（0~1），LoadingWait 模式上报给加载页驱动 90→100%
 
         /// <summary>注册表：registerKey → 已加载的 GameObject 实例。</summary>
         private readonly Dictionary<string, GameObject> _registry = new Dictionary<string, GameObject>();
@@ -156,7 +163,7 @@ namespace GameLogic
                 GameEvent.AddEventListener<SceneType>(IGameSceneEvent_Event.OnSceneReady, OnSceneReady);
             }
 
-            if (initMode == SpawnInitMode.Awake)
+            if (initMode == SpawnInitMode.Awake || initMode == SpawnInitMode.LoadingWait)
             {
                 TrySpawn();
             }
@@ -200,6 +207,15 @@ namespace GameLogic
         private void TrySpawn()
         {
             if (_hasSpawned) return;
+
+            if (initMode == SpawnInitMode.LoadingWait)
+            {
+                // 注册给 GameSceneModule：加载页 90→100% 业务就绪段等待本加载并按其进度推进（阶段 5 门闩）。
+                // 加载会话未激活（编辑器直启测试场景）时模块内部自动 Forget，退化为普通 Awake 模式。
+                GameModule.GameScene.RegisterInitTask(SpawnAsync(), () => _spawnProgress, GetType().Name);
+                return;
+            }
+
             SpawnAsync().Forget();
         }
 
@@ -225,6 +241,7 @@ namespace GameLogic
             if (_hasSpawned) return;
             _hasSpawned = true;
             _isSpawnCompleted = false;
+            _spawnProgress = 0f;
 
             _cts?.Cancel();
             _cts?.Dispose();
@@ -246,6 +263,7 @@ namespace GameLogic
 
             int count = 0;
             int successCount = 0;
+            int processed = 0;
 
             foreach (var item in items)
             {
@@ -299,6 +317,10 @@ namespace GameLogic
                         await UniTask.Yield(PlayerLoopTiming.Update, token);
                     }
                 }
+
+                // 上报进度（成功/失败/跳过都算已处理，参与加载页 90→100% 段按任务数平分）
+                processed++;
+                _spawnProgress = (float)processed / items.Count;
             }
 
             if (token.IsCancellationRequested) return;

@@ -30,6 +30,11 @@ namespace GameLogic
         [SerializeField]
         private List<PhaseEntry> phaseEntries = new List<PhaseEntry>();
 
+        [Tooltip("初始化等待阶段（进度停在 100% 等待场景初始化资源）的富文本；留空用模块默认文案。")]
+        [TextArea(2, 4)]
+        [SerializeField]
+        private string initPhaseText = "";
+
         [Tooltip("小贴士列表，加载期间随机轮播。")]
         [TextArea(2, 4)]
         [SerializeField]
@@ -37,6 +42,9 @@ namespace GameLogic
 
         /// <summary>阶段文本表（只读视图）。</summary>
         public IReadOnlyList<PhaseEntry> PhaseEntries => phaseEntries;
+
+        /// <summary>初始化等待阶段文案（空串表示用模块默认文案）。</summary>
+        public string InitPhaseText => string.IsNullOrEmpty(initPhaseText) ? string.Empty : initPhaseText;
 
         /// <summary>小贴士列表（只读视图）。</summary>
         public IReadOnlyList<string> Tips => tips;
