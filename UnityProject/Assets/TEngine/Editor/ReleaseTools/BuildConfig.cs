@@ -72,6 +72,46 @@ namespace TEngine
         // 向导水印,回写 BrandWatermark;为空时回退用 Publisher
         public string InstallerWatermark = "";
 
+        // debkit 安装包设置（Linux；构建工具写入 Releases/Linux/appConfigs/<包名>.conf,打包仍在 WSL 里执行）
+        // 应用显示名,回写 APP_TITLE;为空时取 PlayerSettings.productName
+        public string DebkitAppTitle = "";
+        // Debian 包名,回写 PKG_NAME;默认由 productName 归一化(全小写,仅 a-z0-9 . + -)
+        public string DebkitPackageName = "";
+        // 主可执行文件名,回写 EXECUTABLE;默认取 Linux Player 产物名
+        public string DebkitExecutable = "";
+        // 图标源图(相对 SRC_DIR),回写 LOGO
+        public string DebkitLogo = "";
+        // 安装目录,回写 INSTALL_DIR;为空时用 /opt/<包名>
+        public string DebkitInstallDir = "";
+        // 打包源目录,回写 SRC_DIR;为空时用 Releases/Linux/build
+        public string DebkitSourceDir = "";
+        // 默认画质索引(none 表示不生成),回写 QUALITY_DEFAULT
+        public string DebkitQualityDefault = "none";
+        // 默认图形接口 opengl/vulkan/none,回写 GRAPHICS_DEFAULT
+        public string DebkitGraphicsDefault = "none";
+        // 装完默认开机自启 yes/no,回写 AUTOSTART_DEFAULT
+        public string DebkitAutostart = "yes";
+        // 自启延迟秒数,回写 AUTOSTART_DELAY
+        public string DebkitAutostartDelay = "3";
+        // 装包时是否建桌面快捷方式 yes/no,回写 CREATE_DESKTOP_ICON
+        public string DebkitCreateDesktopIcon = "yes";
+        // 压缩方式 auto/pigz/gzip/xz/zstd/none,回写 COMPRESS
+        public string DebkitCompress = "auto";
+        // 压缩级别 1-9,回写 COMPRESS_LEVEL
+        public string DebkitCompressLevel = "6";
+        // 依赖库(逗号分隔,| 表示二选一),回写 DEPENDS;为空时用 debkit 默认列表
+        public string DebkitDepends = "";
+        // 默认启动参数,回写 EXTRA_ARGS
+        public string DebkitExtraArgs = "";
+        // 需要交给运行用户写的安装目录子目录,回写 WRITABLE_DIRS
+        public string DebkitWritableDirs = "";
+        // 要从包里剔除的通配符,回写 EXCLUDE
+        public string DebkitExclude = "";
+        // 执行打包用的 WSL 发行版(wsl.exe -d 参数);为空表示用默认发行版。只影响面板命令,不写进 conf
+        public string DebkitWslDistro = "";
+        // 菜单分类,回写 CATEGORIES
+        public string DebkitCategories = "Utility;";
+
         // CLI/batchmode 模式：跳过一切交互对话框（如 pdb 残留确认，自动清理继续），日志哨兵照常输出
         public bool HeadlessMode;
 
@@ -90,6 +130,11 @@ namespace TEngine
                 PlayerOutputPath = GetDefaultPlayerOutputPath(EditorUserBuildSettings.activeBuildTarget),
                 InstallerAppName = PlayerSettings.productName ?? string.Empty,
                 InstallerPublisher = PlayerSettings.companyName ?? string.Empty,
+                // debkit 默认值全部由 productName 派生，与 Linux Player 产物名保持一致
+                DebkitAppTitle = PlayerSettings.productName ?? string.Empty,
+                DebkitPackageName = DebkitConfig.SanitizePackageName(PlayerSettings.productName),
+                DebkitExecutable = System.IO.Path.GetFileName(GetDefaultPlayerOutputPath(BuildTarget.StandaloneLinux64)),
+                DebkitLogo = "logo.jpg",
             };
         }
 

@@ -371,10 +371,10 @@ namespace TEngine
         private BuildTarget _installerPlatform = BuildTarget.StandaloneWindows64;
 
         [TabGroup("Pages", "安装包配置")]
-        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [BoxGroup("Pages/安装包配置/平台选择")]
         [LabelText("构建安装包")]
+        [Tooltip("勾选后参与「构建 AssetBundle + Player + 安装包」一键流程；Windows 走 InnoSetup，Linux 走 debkit（打包需在 WSL 里执行，见下方命令）")]
         [ToggleLeft]
-        [ShowIf(nameof(IsWindowsInstallerPlatform))]
         [OnValueChanged(nameof(OnSettingsChanged))]
         [SerializeField]
         private bool _buildInstaller;
@@ -667,6 +667,660 @@ namespace TEngine
         {
             SaveSettings();
             ExecuteBuildInstallerOnly();
+        }
+
+        // ============ 安装包配置 / debkit（Linux） ============
+        // debkit 位于 Releases/Linux，本面板只负责把字段写成 appConfigs/<包名>.conf；
+        // 真正的 .deb 打包仍在 WSL 里执行（面板给出可直接粘贴的命令）。
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("工具状态")]
+        [MultiLineProperty(4)]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private string DebkitStatusText
+        {
+            get
+            {
+                var scriptState = DebkitConfig.ScriptExists
+                    ? "已找到 debkit.sh"
+                    : "缺少 debkit.sh（请确认 Releases/Linux 下的工具目录完整）";
+                var confPath = DebkitConfig.GetConfPath(_debkitPackageName);
+                var confState = File.Exists(confPath) ? "配置已存在" : "配置尚未生成";
+                return $"{scriptState}\n工具目录：{DebkitConfig.ToolDir}\n配置文件：{confPath}（{confState}）";
+            }
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/WSL")]
+        [LabelText("WSL 发行版")]
+        [Tooltip("打包在哪个 WSL 发行版里执行（即 wsl.exe -d 的参数）；默认发行版 = wsl.exe 不加 -d 时用的那个")]
+        [ValueDropdown(nameof(DebkitWslDistroOptions))]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitWslDistro = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/WSL")]
+        [Button("刷新列表", ButtonSizes.Small)]
+        [Tooltip("重新执行 wsl.exe -l -v（新增 / 卸载发行版之后用）")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private void RefreshWslDistros()
+        {
+            DebkitConfig.InvalidateWslCache();
+            var distros = DebkitConfig.ListWslDistros(true);
+            if (distros.Count > 0)
+            {
+                AddLog($"[debkit] 检测到 {distros.Count} 个 WSL 发行版：{string.Join("、", distros.Select(item => item.DisplayName))}");
+            }
+            else
+            {
+                AddLog($"[debkit] 未检测到 WSL 发行版：{DebkitConfig.WslListError}");
+            }
+
+            Repaint();
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("WSL 环境")]
+        [MultiLineProperty(2)]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private string DebkitWslText
+        {
+            get
+            {
+                var distros = DebkitConfig.ListWslDistros();
+                if (distros.Count <= 0)
+                {
+                    var reason = string.IsNullOrEmpty(DebkitConfig.WslListError)
+                        ? "未安装 WSL 或还没有创建发行版"
+                        : DebkitConfig.WslListError;
+                    return "WSL：" + reason;
+                }
+
+                var names = string.Join("、", distros.Select(item => item.DisplayName));
+                var current = string.IsNullOrWhiteSpace(_debkitWslDistro) ? "默认发行版" : _debkitWslDistro;
+                return $"WSL 发行版：{names}\n当前选择：{current}";
+            }
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [LabelText("应用名称")]
+        [Tooltip("回写 APP_TITLE；显示在桌面图标与开始菜单里，可中文")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitAppTitle = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [LabelText("包名")]
+        [Tooltip("回写 PKG_NAME；Debian 包名规范：全小写，仅 a-z 0-9 . + -，同时是启动命令名")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitPackageName = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [LabelText("主可执行文件")]
+        [Tooltip("回写 EXECUTABLE；源目录里的主程序文件名，默认取 Linux Player 产物名")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitExecutable = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [LabelText("图标源图")]
+        [Tooltip("回写 LOGO；相对打包源目录的图片名（方形、四角纯白底效果最好，会自动去白底并生成 8 种尺寸）")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitLogo = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [LabelText("安装目录")]
+        [Tooltip("回写 INSTALL_DIR；留空则用 /opt/<包名>")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitInstallDir = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/运行时开关")]
+        [LabelText("默认画质")]
+        [Tooltip("回写 QUALITY_DEFAULT；数字索引，顺序同 Project Settings > Quality；none 表示不写明由程序决定")]
+        [ValueDropdown(nameof(DebkitQualityOptions))]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitQualityDefault = "none";
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/运行时开关")]
+        [LabelText("默认图形接口")]
+        [Tooltip("回写 GRAPHICS_DEFAULT；opengl 传 -force-glcore，vulkan 传 -force-vulkan，none 由 Unity 自己挑")]
+        [ValueDropdown(nameof(DebkitGraphicsOptions))]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitGraphicsDefault = "none";
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/自启")]
+        [LabelText("默认开机自启")]
+        [Tooltip("回写 AUTOSTART_DEFAULT；装完默认给每个本地用户开启自启，之后可用 <包名>-ctl autostart 切换")]
+        [ValueDropdown(nameof(DebkitYesNoOptions))]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitAutostart = "yes";
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/自启")]
+        [LabelText("自启延迟(秒)")]
+        [Tooltip("回写 AUTOSTART_DELAY；登录后等桌面就绪再拉起，Unity 程序一般 3 秒起")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitAutostartDelay = "3";
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/压缩")]
+        [LabelText("压缩方式")]
+        [Tooltip("回写 COMPRESS；auto 会按 pigz → zstd → gzip → xz 挑第一个可用的，大包建议 pigz")]
+        [ValueDropdown(nameof(DebkitCompressOptions))]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitCompress = "auto";
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/压缩")]
+        [LabelText("压缩级别")]
+        [Tooltip("回写 COMPRESS_LEVEL；1-9，默认 6")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitCompressLevel = "6";
+
+        [TabGroup("Pages", "安装包配置")]
+        [FoldoutGroup("Pages/安装包配置/debkit 高级", Expanded = false)]
+        [LabelText("打包源目录")]
+        [Tooltip("回写 SRC_DIR；留空用 Releases/Linux/build。填 Windows 路径会自动换算成 /mnt/<盘符>/...")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitSourceDir = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [FoldoutGroup("Pages/安装包配置/debkit 高级", Expanded = false)]
+        [LabelText("依赖库")]
+        [Tooltip("回写 DEPENDS；逗号分隔，| 表示二选一（如 libasound2 | libasound2t64）。留空用 debkit 默认列表")]
+        [MultiLineProperty(3)]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitDepends = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [FoldoutGroup("Pages/安装包配置/debkit 高级", Expanded = false)]
+        [LabelText("默认启动参数")]
+        [Tooltip("回写 EXTRA_ARGS；四个入口（桌面/菜单/自启/终端）共用，例：-screen-fullscreen 1")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitExtraArgs = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [FoldoutGroup("Pages/安装包配置/debkit 高级", Expanded = false)]
+        [LabelText("可写目录")]
+        [Tooltip("回写 WRITABLE_DIRS；相对安装目录、空格分隔，如 \"configs StreamingAssets/logs\"，装包后属主交给运行用户")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitWritableDirs = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [FoldoutGroup("Pages/安装包配置/debkit 高级", Expanded = false)]
+        [LabelText("剔除文件")]
+        [Tooltip("回写 EXCLUDE；要从包里剔除的通配符，空格分隔，例：\"*.pdb *.log\"")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitExclude = string.Empty;
+
+        [TabGroup("Pages", "安装包配置")]
+        [FoldoutGroup("Pages/安装包配置/debkit 高级", Expanded = false)]
+        [LabelText("菜单分类")]
+        [Tooltip("回写 CATEGORIES；desktop 文件的分类，例：Utility;Game;")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitCategories = "Utility;";
+
+        [TabGroup("Pages", "安装包配置")]
+        [FoldoutGroup("Pages/安装包配置/debkit 高级", Expanded = false)]
+        [LabelText("装包时建桌面图标")]
+        [Tooltip("回写 CREATE_DESKTOP_ICON；no 表示装包不建快捷方式，用户之后可自己执行 <包名>-ctl icon create")]
+        [ValueDropdown(nameof(DebkitYesNoOptions))]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _debkitCreateDesktopIcon = "yes";
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("安装包输出")]
+        [MultiLineProperty(2)]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private string DebkitOutputPreview =>
+            $"程序产物：{DebkitConfig.ToWindowsPath(DebkitConfig.DefaultSourceDirWsl())}\n安装包输出：{DebkitConfig.OutputDir}";
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [ShowInInspector]
+        [ReadOnly]
+        [LabelText("打包命令")]
+        [Tooltip("第 1 行可直接粘到 PowerShell / CMD；第 2 行是进入 WSL 后执行的原始命令")]
+        [MultiLineProperty(3)]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private string DebkitWslCommandText =>
+            DebkitConfig.BuildWindowsWslCommand(_debkitPackageName, _debkitWslDistro) + "\n" +
+            DebkitConfig.BuildWslCommand(_debkitPackageName);
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/操作")]
+        [Button("写入配置", ButtonSizes.Small)]
+        [Tooltip("把上方字段写成 Releases/Linux/appConfigs/<包名>.conf（已存在会直接覆盖）")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private void WriteDebkitConf()
+        {
+            try
+            {
+                SaveSettings();
+                var path = DebkitConfig.WriteConfig(CreateDebkitConfData());
+                Debug.Log($"[debkit] 已写入安装包配置：{path}");
+                AddLog($"[debkit] 已写入安装包配置：{path}");
+                Repaint();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                AddLog($"[错误] 写入 debkit 配置失败：{e.Message}");
+                Repaint();
+            }
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/操作")]
+        [Button("从配置回读", ButtonSizes.Small)]
+        [Tooltip("读取 appConfigs/<包名>.conf 的现有值回填上方字段（手工改过 conf 时用）")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private void ReadDebkitConf()
+        {
+            var path = DebkitConfig.GetConfPath(_debkitPackageName);
+            if (!DebkitConfig.TryReadConfig(path, out var data))
+            {
+                Debug.LogWarning($"[debkit] 配置不存在，无法回读：{path}");
+                return;
+            }
+
+            _debkitAppTitle = data.AppTitle;
+            _debkitPackageName = string.IsNullOrWhiteSpace(data.PackageName) ? _debkitPackageName : data.PackageName;
+            _debkitExecutable = data.Executable;
+            _debkitLogo = data.Logo;
+            _debkitInstallDir = data.InstallDir;
+            _debkitSourceDir = data.SourceDir;
+            _debkitQualityDefault = data.QualityDefault;
+            _debkitGraphicsDefault = data.GraphicsDefault;
+            _debkitAutostart = data.AutostartDefault;
+            _debkitAutostartDelay = data.AutostartDelay;
+            _debkitCompress = data.Compress;
+            _debkitCompressLevel = data.CompressLevel;
+            _debkitDepends = data.Depends;
+            _debkitExtraArgs = data.ExtraArgs;
+            _debkitWritableDirs = data.WritableDirs;
+            _debkitExclude = data.Exclude;
+            _debkitCategories = data.Categories;
+            _debkitCreateDesktopIcon = data.CreateDesktopIcon;
+
+            OnSettingsChanged();
+            Debug.Log($"[debkit] 已从配置回读：{path}");
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/操作")]
+        [Button("打开工具目录", ButtonSizes.Small)]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private void OpenDebkitToolDir()
+        {
+            var dir = DebkitConfig.ToolDir;
+            if (Directory.Exists(dir))
+            {
+                EditorUtility.RevealInFinder(dir);
+            }
+            else
+            {
+                Debug.LogWarning($"[debkit] 目录不存在：{dir}");
+            }
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/操作")]
+        [Button("复制 WSL 命令", ButtonSizes.Small)]
+        [Tooltip("复制「cd 工具目录 && ./debkit.sh -c appConfigs/<包名>.conf -w ~/debkit-work」到剪贴板")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private void CopyDebkitWslCommand()
+        {
+            var command = DebkitConfig.BuildWindowsWslCommand(_debkitPackageName, _debkitWslDistro);
+            EditorGUIUtility.systemCopyBuffer = command;
+            AddLog($"[debkit] 已复制打包命令：{command}");
+            Debug.Log($"[debkit] 已复制打包命令：{command}");
+            Repaint();
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [Button("构建安装包", ButtonSizes.Medium)]
+        [GUIColor(0.35f, 0.95f, 0.55f)]
+        [Tooltip("写入 conf 后在 WSL 里执行 debkit.sh，产物输出到 Releases/Linux/output")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [EnableIf(nameof(CanBuildDebkit))]
+        private void BuildDebkitInstaller()
+        {
+            SaveSettings();
+            try
+            {
+                var confPath = DebkitConfig.WriteConfig(CreateDebkitConfData());
+                _buildLogs.Clear();
+                AddLog("========== 构建 Linux 安装包（debkit）==========");
+                AddLog($"[debkit] 已写入配置：{confPath}");
+                StartDebkitProcess();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                AddLog($"[错误] 构建 Linux 安装包失败：{e.Message}");
+                Repaint();
+            }
+        }
+
+        /// <summary>打包进行中时禁用按钮，避免叠加多个 debkit 进程。</summary>
+        private bool CanBuildDebkit
+        {
+            get
+            {
+                if (_debkitBuildRunning && _debkitProcess == null)
+                {
+                    // 进程对象丢了（脚本重载 / 窗口重开），别让按钮永久禁用
+                    _debkitBuildRunning = false;
+                }
+
+                return !_debkitBuildRunning;
+            }
+        }
+
+        /// <summary>起 wsl.exe 执行 debkit；输出在编辑器主线程分帧回显到构建日志。</summary>
+        private void StartDebkitProcess()
+        {
+            if (_debkitBuildRunning)
+            {
+                AddLog("[跳过] 上一次 debkit 打包还没结束。");
+                Repaint();
+                return;
+            }
+
+            if (!DebkitConfig.ScriptExists)
+            {
+                AddLog($"[错误] 找不到打包脚本：{DebkitConfig.ScriptPath}");
+                Repaint();
+                return;
+            }
+
+            var config = CreateDebkitConfData();
+            var sourceDir = DebkitConfig.ToWindowsPath(config.SourceDir);
+            if (!Directory.Exists(sourceDir))
+            {
+                AddLog($"[错误] 找不到 Linux Player 产物：{sourceDir}");
+                AddLog("[提示] 先到「快速构建」把平台切到 Linux 64-bit 构建一次 Player，再回来打 .deb。");
+                Repaint();
+                return;
+            }
+
+            var distro = string.IsNullOrWhiteSpace(_debkitWslDistro) ? "默认发行版" : _debkitWslDistro;
+            var arguments = DebkitConfig.BuildWslProcessArguments(config.PackageName, _debkitWslDistro);
+            AddLog($"[debkit] WSL 发行版：{distro}");
+            AddLog($"[debkit] 源目录：{sourceDir}");
+            AddLog($"[debkit] 命令：wsl.exe {arguments}");
+
+            try
+            {
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "wsl.exe",
+                    Arguments = arguments,
+                    WorkingDirectory = DebkitConfig.ProjectRoot,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    // WSL 里程序的输出是 UTF-8；这与 wsl.exe -l 的 UTF-16LE 表格不同
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
+                    StandardErrorEncoding = System.Text.Encoding.UTF8,
+                };
+
+                var process = new System.Diagnostics.Process
+                {
+                    StartInfo = startInfo,
+                    EnableRaisingEvents = true,
+                };
+                process.OutputDataReceived += (sender, args) => EnqueueDebkitLine(args.Data);
+                process.ErrorDataReceived += (sender, args) => EnqueueDebkitLine(args.Data);
+                process.Exited += (sender, args) =>
+                {
+                    try
+                    {
+                        // 等异步读取把剩余输出刷完，再收尾
+                        process.WaitForExit();
+                        EnqueueDebkitFinish(process.ExitCode);
+                    }
+                    catch (Exception)
+                    {
+                        EnqueueDebkitFinish(-1);
+                    }
+                };
+
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                _debkitProcess = process;
+                _debkitBuildRunning = true;
+                EditorApplication.update -= PumpDebkitOutput;
+                EditorApplication.update += PumpDebkitOutput;
+                AddLog("[debkit] 已启动，日志会在打包过程中陆续输出……");
+            }
+            catch (Exception e)
+            {
+                _debkitBuildRunning = false;
+                AddLog($"[错误] 启动 wsl.exe 失败：{e.Message}");
+                AddLog("[提示] 确认本机已安装 WSL（命令行执行 wsl.exe -l -v 能看到发行版）。");
+            }
+
+            Repaint();
+        }
+
+        /// <summary>后台线程写队列，避免直接触碰编辑器 UI。</summary>
+        private void EnqueueDebkitLine(string line)
+        {
+            if (string.IsNullOrEmpty(line))
+            {
+                return;
+            }
+
+            lock (_debkitOutputLock)
+            {
+                _debkitOutputLines.Add(line);
+            }
+        }
+
+        private void EnqueueDebkitFinish(int exitCode)
+        {
+            lock (_debkitOutputLock)
+            {
+                _debkitExitCode = exitCode;
+                _debkitOutputFinished = true;
+            }
+        }
+
+        /// <summary>主线程泵：把队列里的输出搬进构建日志，结束后汇总产物。</summary>
+        private void PumpDebkitOutput()
+        {
+            if (this == null)
+            {
+                // 窗口已关闭，停止泵
+                EditorApplication.update -= PumpDebkitOutput;
+                return;
+            }
+
+            List<string> lines;
+            bool finished;
+            lock (_debkitOutputLock)
+            {
+                lines = new List<string>(_debkitOutputLines);
+                _debkitOutputLines.Clear();
+                finished = _debkitOutputFinished;
+            }
+
+            foreach (var line in lines)
+            {
+                AddLog("  " + line);
+            }
+
+            if (!finished)
+            {
+                return;
+            }
+
+            EditorApplication.update -= PumpDebkitOutput;
+
+            var exitCode = _debkitExitCode;
+            _debkitOutputFinished = false;
+            _debkitBuildRunning = false;
+
+            try
+            {
+                _debkitProcess?.Dispose();
+            }
+            catch (Exception)
+            {
+                // 进程对象可能已被回收，忽略
+            }
+
+            _debkitProcess = null;
+
+            if (exitCode == 0)
+            {
+                var debPath = DebkitConfig.GetDebPath(CreateDebkitConfData());
+                if (File.Exists(debPath))
+                {
+                    var sizeMb = new FileInfo(debPath).Length / 1024d / 1024d;
+                    AddLog($"[完成] 已生成安装包：{debPath}（{sizeMb:F1} MB）");
+                    Debug.Log($"[debkit] 已生成安装包：{debPath}");
+                }
+                else
+                {
+                    AddLog($"[完成] debkit 执行成功，但没在 {DebkitConfig.OutputDir} 找到预期的 .deb（{Path.GetFileName(debPath)}）。");
+                }
+            }
+            else
+            {
+                AddLog($"[失败] debkit 退出码 {exitCode}，请查看上方输出定位原因。");
+            }
+
+            Repaint();
+        }
+
+        /// <summary>debkit 进程与输出泵的运行时状态（不参与序列化）。</summary>
+        private System.Diagnostics.Process _debkitProcess;
+        private readonly List<string> _debkitOutputLines = new List<string>();
+        private readonly object _debkitOutputLock = new object();
+        private bool _debkitOutputFinished;
+        private int _debkitExitCode;
+        private bool _debkitBuildRunning;
+
+        /// <summary>把面板字段组装成 debkit 配置数据；版本取自 UpdateSetting（与 Windows 安装包口径一致）。</summary>
+        private DebkitConfData CreateDebkitConfData()
+        {
+            var versionText = InnoSetupBuilder.ResolveInstallerVersion(_cachedUpdateSetting);
+            var version = string.IsNullOrWhiteSpace(versionText) ? "1.0.0" : versionText.Trim();
+            var revision = "1";
+            var dashIndex = version.LastIndexOf('-');
+            if (dashIndex > 0 && dashIndex < version.Length - 1)
+            {
+                revision = version.Substring(dashIndex + 1);
+                version = version.Substring(0, dashIndex);
+            }
+
+            return new DebkitConfData
+            {
+                AppTitle = _debkitAppTitle,
+                PackageName = _debkitPackageName,
+                Version = version,
+                Revision = revision,
+                SourceDir = _debkitSourceDir,
+                Executable = _debkitExecutable,
+                Logo = _debkitLogo,
+                InstallDir = _debkitInstallDir,
+                Categories = _debkitCategories,
+                QualityDefault = _debkitQualityDefault,
+                GraphicsDefault = _debkitGraphicsDefault,
+                AutostartDefault = _debkitAutostart,
+                AutostartDelay = _debkitAutostartDelay,
+                CreateDesktopIcon = _debkitCreateDesktopIcon,
+                Compress = _debkitCompress,
+                CompressLevel = _debkitCompressLevel,
+                Depends = _debkitDepends,
+                ExtraArgs = _debkitExtraArgs,
+                WritableDirs = _debkitWritableDirs,
+                Exclude = _debkitExclude,
+            };
         }
 
         /// <summary>收集「脚本值 → 配置字段」的差异行；脚本未读到该键或值相同则不记录。</summary>
@@ -1158,7 +1812,7 @@ namespace TEngine
 
         /// <summary>
         /// 仅编译安装包：按「安装包配置」tab 的安装包平台分发到对应构建器。
-        /// 当前仅支持 Windows(InnoSetup)；后续 Linux 安装包实现后在此按平台自动分发。
+        /// Windows 走 InnoSetup 直接编译；Linux 的 .deb 由 debkit 生成，这里只提示配置与 WSL 命令。
         /// </summary>
         private void ExecuteBuildInstallerOnly()
         {
@@ -1179,9 +1833,27 @@ namespace TEngine
             AddLog("========== 一键构建安装包 ==========");
             AddLog($"安装包平台: {config.InstallerPlatform}");
 
+            if (config.InstallerPlatform == BuildTarget.StandaloneLinux64)
+            {
+                // Linux 的 .deb 由 Releases/Linux/debkit 在 WSL 里生成：先写 conf，再起 wsl.exe 打包
+                try
+                {
+                    var confPath = DebkitConfig.WriteConfig(CreateDebkitConfData());
+                    AddLog($"[debkit] 已写入配置：{confPath}");
+                    StartDebkitProcess();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                    AddLog($"[错误] 构建 Linux 安装包失败：{e.Message}");
+                    Repaint();
+                }
+
+                return;
+            }
+
             if (config.InstallerPlatform != BuildTarget.StandaloneWindows64)
             {
-                // 后续 Linux 安装包实现后,在此按平台分发到对应构建器
                 AddLog($"[跳过] 当前安装包平台 {config.InstallerPlatform} 暂未实现安装包构建。");
                 Repaint();
                 return;
@@ -1345,6 +2017,26 @@ namespace TEngine
             _installerPublisher = setting.InstallerPublisher;
             _installerPassword = setting.InstallerPassword;
             _installerWatermark = setting.InstallerWatermark;
+
+            _debkitAppTitle = setting.DebkitAppTitle;
+            _debkitWslDistro = setting.DebkitWslDistro;
+            _debkitPackageName = setting.DebkitPackageName;
+            _debkitExecutable = setting.DebkitExecutable;
+            _debkitLogo = setting.DebkitLogo;
+            _debkitInstallDir = setting.DebkitInstallDir;
+            _debkitSourceDir = setting.DebkitSourceDir;
+            _debkitQualityDefault = setting.DebkitQualityDefault;
+            _debkitGraphicsDefault = setting.DebkitGraphicsDefault;
+            _debkitAutostart = setting.DebkitAutostart;
+            _debkitAutostartDelay = setting.DebkitAutostartDelay;
+            _debkitCreateDesktopIcon = setting.DebkitCreateDesktopIcon;
+            _debkitCompress = setting.DebkitCompress;
+            _debkitCompressLevel = setting.DebkitCompressLevel;
+            _debkitDepends = setting.DebkitDepends;
+            _debkitExtraArgs = setting.DebkitExtraArgs;
+            _debkitWritableDirs = setting.DebkitWritableDirs;
+            _debkitExclude = setting.DebkitExclude;
+            _debkitCategories = setting.DebkitCategories;
 
             // 旧默认输出路径迁移(兼容 EditorPrefs 导入的历史数据)
             // 兼容三段历史默认值：更早的 ./Builds/、./Publish/；上一版 ./Output/Bundles/、./Output/Publish/。
@@ -1555,6 +2247,26 @@ namespace TEngine
             _setting.InstallerPublisher = _installerPublisher;
             _setting.InstallerPassword = _installerPassword;
             _setting.InstallerWatermark = _installerWatermark;
+
+            _setting.DebkitAppTitle = _debkitAppTitle;
+            _setting.DebkitWslDistro = _debkitWslDistro;
+            _setting.DebkitPackageName = _debkitPackageName;
+            _setting.DebkitExecutable = _debkitExecutable;
+            _setting.DebkitLogo = _debkitLogo;
+            _setting.DebkitInstallDir = _debkitInstallDir;
+            _setting.DebkitSourceDir = _debkitSourceDir;
+            _setting.DebkitQualityDefault = _debkitQualityDefault;
+            _setting.DebkitGraphicsDefault = _debkitGraphicsDefault;
+            _setting.DebkitAutostart = _debkitAutostart;
+            _setting.DebkitAutostartDelay = _debkitAutostartDelay;
+            _setting.DebkitCreateDesktopIcon = _debkitCreateDesktopIcon;
+            _setting.DebkitCompress = _debkitCompress;
+            _setting.DebkitCompressLevel = _debkitCompressLevel;
+            _setting.DebkitDepends = _debkitDepends;
+            _setting.DebkitExtraArgs = _debkitExtraArgs;
+            _setting.DebkitWritableDirs = _debkitWritableDirs;
+            _setting.DebkitExclude = _debkitExclude;
+            _setting.DebkitCategories = _debkitCategories;
 
             EditorUtility.SetDirty(_setting);
             _settingDirty = true;
@@ -1980,6 +2692,25 @@ namespace TEngine
                 InstallerPublisher = _installerPublisher,
                 InstallerPassword = _installerPassword,
                 InstallerWatermark = _installerWatermark,
+                DebkitAppTitle = _debkitAppTitle,
+                DebkitWslDistro = _debkitWslDistro,
+                DebkitPackageName = _debkitPackageName,
+                DebkitExecutable = _debkitExecutable,
+                DebkitLogo = _debkitLogo,
+                DebkitInstallDir = _debkitInstallDir,
+                DebkitSourceDir = _debkitSourceDir,
+                DebkitQualityDefault = _debkitQualityDefault,
+                DebkitGraphicsDefault = _debkitGraphicsDefault,
+                DebkitAutostart = _debkitAutostart,
+                DebkitAutostartDelay = _debkitAutostartDelay,
+                DebkitCreateDesktopIcon = _debkitCreateDesktopIcon,
+                DebkitCompress = _debkitCompress,
+                DebkitCompressLevel = _debkitCompressLevel,
+                DebkitDepends = _debkitDepends,
+                DebkitExtraArgs = _debkitExtraArgs,
+                DebkitWritableDirs = _debkitWritableDirs,
+                DebkitExclude = _debkitExclude,
+                DebkitCategories = _debkitCategories,
             };
             return config;
         }
@@ -2364,15 +3095,18 @@ namespace TEngine
         private bool IsPublishCopyEnabled => _enablePublishCopy;
         private bool HasBuildLogs => _buildLogs.Count > 0;
 
-        // 安装包配置独立 tab：Windows 平台下显示 InnoSetup 配置，后续可扩展 Linux 安装包
-        // 注意：仅控制 UI 显隐；实际编译仍由 ExecuteBuild 在 Player 构建成功后按 Windows 平台触发
+        // 安装包配置独立 tab：Windows 显示 InnoSetup 配置，Linux 显示 debkit 配置
+        // 注意：仅控制 UI 显隐；Windows 的编译由 ExecuteBuild 在 Player 构建成功后触发，Linux 需到 WSL 里执行
         private bool IsWindowsInstallerPlatform => _installerPlatform == BuildTarget.StandaloneWindows64;
+        private bool IsLinuxInstallerPlatform => _installerPlatform == BuildTarget.StandaloneLinux64;
+        // Windows 沿用「勾选构建安装包才展开」；Linux 只要选中平台就展开配置（打包在 WSL 里执行，与本开关无关）
         private bool IsInstallerEnabled => IsWindowsInstallerPlatform && _buildInstaller;
+        private bool IsDebkitPanelVisible => IsLinuxInstallerPlatform;
 
         private static ValueDropdownList<BuildTarget> InstallerPlatformOptions => new ValueDropdownList<BuildTarget>
         {
-            { "Windows 64-bit", BuildTarget.StandaloneWindows64 },
-            // 后续 Linux 安装包配置扩展位
+            { "Windows 64-bit（InnoSetup）", BuildTarget.StandaloneWindows64 },
+            { "Linux 64-bit（debkit .deb）", BuildTarget.StandaloneLinux64 },
         };
 
         private static ValueDropdownList<IssExtractSource> IssExtractSourceOptions => new ValueDropdownList<IssExtractSource>
@@ -2380,6 +3114,64 @@ namespace TEngine
             { "模板脚本 (setup.iss)", IssExtractSource.Template },
             { "实际编译脚本 (setup.generated.iss)", IssExtractSource.Generated },
         };
+
+        // debkit 面板下拉项：只提供 debkit 接受的取值，避免把非法值写进 conf
+        private static ValueDropdownList<string> DebkitQualityOptions => new ValueDropdownList<string>
+        {
+            { "none（由程序决定）", "none" },
+            { "索引 0", "0" },
+            { "索引 1", "1" },
+            { "索引 2", "2" },
+            { "索引 3", "3" },
+            { "索引 4", "4" },
+            { "索引 5", "5" },
+        };
+
+        private static ValueDropdownList<string> DebkitGraphicsOptions => new ValueDropdownList<string>
+        {
+            { "none（Unity 自动挑）", "none" },
+            { "opengl（-force-glcore）", "opengl" },
+            { "vulkan（-force-vulkan）", "vulkan" },
+        };
+
+        private static ValueDropdownList<string> DebkitYesNoOptions => new ValueDropdownList<string>
+        {
+            { "yes", "yes" },
+            { "no", "no" },
+        };
+
+        private static ValueDropdownList<string> DebkitCompressOptions => new ValueDropdownList<string>
+        {
+            { "auto（自动挑）", "auto" },
+            { "pigz（多线程 gzip，最快）", "pigz" },
+            { "gzip", "gzip" },
+            { "xz（最小，最慢）", "xz" },
+            { "zstd（需 dpkg ≥ 1.21）", "zstd" },
+            { "none（不压缩）", "none" },
+        };
+
+        /// <summary>WSL 发行版下拉项：默认 + 本机探测到的发行版（wsl.exe -l -v，缓存 10 分钟）。</summary>
+        private static ValueDropdownList<string> DebkitWslDistroOptions
+        {
+            get
+            {
+                var options = new ValueDropdownList<string> { { "（默认发行版）", string.Empty } };
+                try
+                {
+                    foreach (var distro in DebkitConfig.ListWslDistros())
+                    {
+                        options.Add(distro.DisplayName, distro.Name);
+                    }
+                }
+                catch (Exception e)
+                {
+                    // 探测失败不影响面板使用，退化为只有「默认发行版」
+                    Debug.LogWarning($"[debkit] 枚举 WSL 发行版失败：{e.Message}");
+                }
+
+                return options;
+            }
+        }
 
         private static ValueDropdownList<BuildTarget> BuildTargetOptions => new ValueDropdownList<BuildTarget>
         {

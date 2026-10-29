@@ -69,6 +69,28 @@ namespace TEngine
         // 向导水印,回写 BrandWatermark;为空时回退用 InstallerPublisher
         public string InstallerWatermark = "";
 
+        // debkit 安装包设置（Linux；写入 Releases/Linux/appConfigs/<包名>.conf）
+        public string DebkitAppTitle = "";
+        public string DebkitPackageName = "";
+        public string DebkitExecutable = "";
+        public string DebkitLogo = "";
+        public string DebkitInstallDir = "";
+        public string DebkitSourceDir = "";
+        public string DebkitQualityDefault = "none";
+        public string DebkitGraphicsDefault = "none";
+        public string DebkitAutostart = "yes";
+        public string DebkitAutostartDelay = "3";
+        public string DebkitCreateDesktopIcon = "yes";
+        public string DebkitCompress = "auto";
+        public string DebkitCompressLevel = "6";
+        public string DebkitDepends = "";
+        public string DebkitExtraArgs = "";
+        public string DebkitWritableDirs = "";
+        public string DebkitExclude = "";
+        public string DebkitCategories = "Utility;";
+        // 执行打包用的 WSL 发行版；为空表示默认发行版
+        public string DebkitWslDistro = "";
+
         public void ApplyDefaults()
         {
             var config = BuildConfig.CreateDefault();
@@ -103,6 +125,25 @@ namespace TEngine
             InstallerPublisher = config.InstallerPublisher;
             InstallerPassword = config.InstallerPassword;
             InstallerWatermark = config.InstallerWatermark;
+            DebkitAppTitle = config.DebkitAppTitle;
+            DebkitPackageName = config.DebkitPackageName;
+            DebkitExecutable = config.DebkitExecutable;
+            DebkitLogo = config.DebkitLogo;
+            DebkitInstallDir = config.DebkitInstallDir;
+            DebkitSourceDir = config.DebkitSourceDir;
+            DebkitQualityDefault = config.DebkitQualityDefault;
+            DebkitGraphicsDefault = config.DebkitGraphicsDefault;
+            DebkitAutostart = config.DebkitAutostart;
+            DebkitAutostartDelay = config.DebkitAutostartDelay;
+            DebkitCreateDesktopIcon = config.DebkitCreateDesktopIcon;
+            DebkitCompress = config.DebkitCompress;
+            DebkitWslDistro = config.DebkitWslDistro;
+            DebkitCompressLevel = config.DebkitCompressLevel;
+            DebkitDepends = config.DebkitDepends;
+            DebkitExtraArgs = config.DebkitExtraArgs;
+            DebkitWritableDirs = config.DebkitWritableDirs;
+            DebkitExclude = config.DebkitExclude;
+            DebkitCategories = config.DebkitCategories;
         }
 
         /// <summary>
