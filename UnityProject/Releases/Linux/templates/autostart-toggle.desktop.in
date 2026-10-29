@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=@APP_TITLE@ 开机自启动(点此切换)
+Comment=点击一次切换"开机自动启动"的开与关
+Exec=/usr/bin/@PKG_NAME@-ctl autostart toggle
+Icon=@PKG_NAME@
+Terminal=false
+StartupNotify=false
+Categories=@CATEGORIES@

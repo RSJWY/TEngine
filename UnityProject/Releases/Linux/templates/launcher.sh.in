@@ -1,0 +1,181 @@
+#!/bin/sh
+# @APP_TITLE@ - 启动器 (由 debkit 自动生成, 请勿手工修改)
+#
+# 用法:
+#   @PKG_NAME@ [应用参数...]
+#   @PKG_NAME@ --autostart          开机自启调用(等待桌面就绪后再启动)
+#
+set -u
+
+INSTALL_DIR="@INSTALL_DIR@"
+EXECUTABLE="@EXECUTABLE@"
+PKG_NAME="@PKG_NAME@"
+APP_TITLE="@APP_TITLE@"
+AUTOSTART_DELAY="@AUTOSTART_DELAY@"
+
+# 默认启动参数(打包时来自配置 EXTRA_ARGS, 见 appConfigs/*.conf)。
+# 桌面图标 / 开始菜单 / 开机自启 / 终端 四个入口统一从这里取,
+# 要临时改参可以 ./@PKG_NAME@ -screen-fullscreen 0 这样直接追加。
+EXTRA_ARGS="@EXTRA_ARGS@"
+
+AUTOSTART=0
+WAIT_SESSION=0
+NO_WAIT=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --autostart)    AUTOSTART=1; WAIT_SESSION=1; shift ;;
+        --wait-session) WAIT_SESSION=1; shift ;;
+        --no-wait)      NO_WAIT=1; shift ;;
+        --)             shift; break ;;
+        *)              break ;;
+    esac
+done
+
+# --- 运行环境 -------------------------------------------------------------
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$PKG_NAME"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+LOG_FILE="$LOG_DIR/launch.log"
+
+if [ ! -x "$INSTALL_DIR/$EXECUTABLE" ]; then
+    MSG="程序文件缺失或不可执行: $INSTALL_DIR/$EXECUTABLE"
+    echo "$MSG" >&2
+    command -v notify-send >/dev/null 2>&1 && notify-send -i "$PKG_NAME" "$APP_TITLE" "$MSG"
+    exit 127
+fi
+
+cd "$INSTALL_DIR" || exit 1
+
+# --- 开机自启: 等桌面/显示服务就绪 ---------------------------------------
+# 提权要带上 DISPLAY/XAUTHORITY, 所以必须等会话就绪之后再提权,
+# 顺序不能颠倒 —— 否则 root 进程拿不到显示, 表现为"开机后什么都没有"。
+if [ "$WAIT_SESSION" = "1" ] && [ "$NO_WAIT" = "0" ]; then
+    case "$AUTOSTART_DELAY" in ''|*[!0-9]*) AUTOSTART_DELAY=3 ;; esac
+    [ "$AUTOSTART_DELAY" -gt 0 ] && sleep "$AUTOSTART_DELAY"
+    # 若调用方(如 rc.local / systemd)没带 DISPLAY, 则等待并接管本地 X 会话
+    i=0
+    while [ "$i" -lt 120 ]; do
+        if [ -z "${DISPLAY:-}" ]; then
+            for sock in /tmp/.X11-unix/X*; do
+                [ -S "$sock" ] || continue
+                DISPLAY=":${sock##*/X}"
+                export DISPLAY
+                break
+            done
+        fi
+        [ -n "${DISPLAY:-}" ] && break
+        i=$((i + 1))
+        sleep 1
+    done
+fi
+
+# --- 运行身份 -------------------------------------------------------------
+# 本工具不做任何提权: 程序固定以当前登录用户运行。
+# 需要可写的安装目录内路径由 postinst 按配置的 WRITABLE_DIRS 移交属主。
+
+# --- 运行身份提醒 ---------------------------------------------------------
+# 被 sudo 拿着跑时, Unity 会把 ~/.config/unity3d 写成 root 属主,
+# 之后普通用户启动就写不进去(设置不保存、存档丢失、白屏)。
+if [ "$(id -u)" = "0" ]; then
+    ROOT_TIP="正在以 root 身份运行。配置会写入 $HOME/.config/unity3d 并属于 root, 之后普通用户启动可能无法保存设置。建议去掉 sudo, 直接用当前用户运行。"
+    printf '\n注意: %s\n\n' "$ROOT_TIP" >&2
+    printf '===== 注意: %s =====\n' "$ROOT_TIP" >>"$LOG_FILE" 2>&1
+fi
+
+# --- 单实例保护: 避免自启和用户双击重复打开 ------------------------------
+if command -v flock >/dev/null 2>&1; then
+    LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/${PKG_NAME}.lock"
+    exec 9>"$LOCK_FILE" 2>/dev/null && {
+        if ! flock -n 9; then
+            MSG="$APP_TITLE 已经在运行中"
+            echo "$MSG" >&2
+            command -v notify-send >/dev/null 2>&1 && notify-send -i "$PKG_NAME" "$APP_TITLE" "$MSG"
+            exit 0
+        fi
+    }
+fi
+
+# --- 启动 -----------------------------------------------------------------
+# 没带参数就用打包时固化的默认参数; 用户显式传参时以其为准(便于临时覆盖)。
+# 用 eval 是为了支持 $-变量(按当前用户展开)和引号包裹的含空格参数;
+# EXTRA_ARGS 由打包者写在配置里, 与包内其他脚本同等可信。
+if [ "$#" -eq 0 ] && [ -n "$EXTRA_ARGS" ]; then
+    eval "set -- $EXTRA_ARGS"
+fi
+
+# --- 画质 -----------------------------------------------------------------
+# <包名>-ctl quality 写入的档位索引(/etc/<包名>/quality)。启动参数 -picture-quality
+# 由主包 AOT ProcedureLaunch 解析, 只接受数字索引(0 .. QualitySettings 档位数-1),
+# 不依赖档位名称 —— 换项目更换档位名不用改这里。
+# 用户自己在命令行(或配置的 EXTRA_ARGS)里带了 -picture-quality 时以它为准。
+QUALITY_FILE="/etc/@PKG_NAME@/quality"
+# 打包时定的默认档位(postinst 会写进 QUALITY_FILE, 这里是文件缺失时的兜底; 空 = 不指定)
+QUALITY_DEFAULT="@QUALITY_DEFAULT@"
+QUALITY_LEVEL=""
+if [ -r "$QUALITY_FILE" ]; then
+    QUALITY_LEVEL="$(tr -d '[:space:]' <"$QUALITY_FILE" 2>/dev/null)"
+    case "$QUALITY_LEVEL" in
+        ''|*[!0-9]*) QUALITY_LEVEL="" ;;
+    esac
+else
+    # 未走 postinst(手工解开 deb)或文件被删时, 仍然按打包默认档位启动
+    QUALITY_LEVEL="$QUALITY_DEFAULT"
+fi
+if [ -n "$QUALITY_LEVEL" ]; then
+    for _arg in "$@"; do
+        case "$_arg" in
+            -picture-quality|-picture-quality=*) QUALITY_LEVEL=""; break ;;
+        esac
+    done
+fi
+if [ -n "$QUALITY_LEVEL" ]; then
+    set -- "$@" -picture-quality "$QUALITY_LEVEL"
+fi
+
+# --- 图形接口 -------------------------------------------------------------
+# <包名>-ctl graphics 写入的开关: opengl -> 补 -force-glcore, vulkan -> 补 -force-vulkan,
+# none -> 不传参数, 由 Unity 自己挑选(Graphics API Auto Graphics API 的顺序)。
+# 命令行里已经指定了任意 -force-*(vulkan/glcore/gles/d3d) 时以它为准, 不再追加,
+# 否则会出现两个互相矛盾的接口参数。
+GRAPHICS_FILE="/etc/@PKG_NAME@/graphics"
+# 打包时定的默认值(postinst 会写进 GRAPHICS_FILE, 这里是文件缺失时的兜底; 空 = 不指定)
+GRAPHICS_DEFAULT="@GRAPHICS_DEFAULT@"
+if [ -r "$GRAPHICS_FILE" ]; then
+    GRAPHICS_SETTING="$(tr -d '[:space:]' <"$GRAPHICS_FILE" 2>/dev/null)"
+else
+    GRAPHICS_SETTING="$GRAPHICS_DEFAULT"
+fi
+GRAPHICS_ARG=""
+case "$(printf '%s' "$GRAPHICS_SETTING" | tr 'A-Z' 'a-z')" in
+    opengl|gl|glcore) GRAPHICS_ARG="-force-glcore" ;;
+    vulkan|vk)        GRAPHICS_ARG="-force-vulkan" ;;
+    *)                GRAPHICS_ARG="" ;;
+esac
+if [ -n "$GRAPHICS_ARG" ]; then
+    for _arg in "$@"; do
+        case "$_arg" in
+            -force-vulkan|-force-glcore*|-force-gles*|-force-d3d*)
+                GRAPHICS_ARG=""; break ;;
+        esac
+    done
+fi
+if [ -n "$GRAPHICS_ARG" ]; then
+    set -- "$@" "$GRAPHICS_ARG"
+fi
+
+# 启动快照无论前台(tty)/后台(桌面双击/自启)都落盘: 段错误是 native 层崩溃, 现场只有
+# 这次启动的身份与环境; root 提权前后各写一份(uid/DISPLAY/XAUTHORITY/HOME/args),
+# 对比即知 sudo 传了什么、丢了什么。命令行启动时 shell 只报一行 "Segmentation fault",
+# 没有这个快照就什么上下文都不剩。
+{
+    echo "===== $(date '+%F %T') 启动 $APP_TITLE (autostart=$AUTOSTART) ====="
+    echo "uid=$(id -u)($(id -un)) cwd=$INSTALL_DIR"
+    echo "DISPLAY=${DISPLAY:-} WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-} XAUTHORITY=${XAUTHORITY:-}"
+    echo "HOME=$HOME XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-}"
+    echo "args=${*:-<无>}"
+} >>"$LOG_FILE" 2>&1
+
+if [ -t 1 ]; then
+    exec "$INSTALL_DIR/$EXECUTABLE" "$@"
+else
+    exec "$INSTALL_DIR/$EXECUTABLE" "$@" >>"$LOG_FILE" 2>&1
+fi

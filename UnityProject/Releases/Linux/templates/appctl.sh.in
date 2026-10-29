@@ -1,0 +1,362 @@
+#!/bin/sh
+# @APP_TITLE@ 控制工具 (由 debkit 自动生成)
+#
+# 用法:
+#   @PKG_NAME@-ctl autostart on|off|toggle|status   开机自启动开关
+#   @PKG_NAME@-ctl quality <索引>|status|reset     画质档位(启动器注入 -picture-quality <索引>)
+#   @PKG_NAME@-ctl graphics opengl|vulkan|none|status|reset  图形接口(启动器注入 -force-glcore / -force-vulkan)
+#   @PKG_NAME@-ctl icon create|remove               桌面快捷方式
+#   @PKG_NAME@-ctl run [参数...]                    启动程序
+#   @PKG_NAME@-ctl -h                               中文帮助
+#
+set -u
+
+PKG_NAME="@PKG_NAME@"
+APP_TITLE="@APP_TITLE@"
+BIN="/usr/bin/$PKG_NAME"
+# 画质档位(启动器读同一个文件并补 -picture-quality); 不存在 = 由程序自己决定
+QUALITY_FILE="/etc/@PKG_NAME@/quality"
+# 打包时定的默认档位(postinst 写入 quality); 为空 = 没有默认, 由程序自己决定
+QUALITY_DEFAULT="@QUALITY_DEFAULT@"
+# 图形接口开关(启动器读同一个文件: opengl/vulkan 时补 -force-glcore / -force-vulkan)
+GRAPHICS_FILE="/etc/@PKG_NAME@/graphics"
+# 打包时定的默认值(postinst 写入 graphics); 为空 = 没有默认, 由 Unity 自己挑
+GRAPHICS_DEFAULT="@GRAPHICS_DEFAULT@"
+SYS_AUTOSTART="/etc/xdg/autostart/$PKG_NAME.desktop"
+USER_AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+USER_AUTOSTART="$USER_AUTOSTART_DIR/$PKG_NAME.desktop"
+
+# 有终端就打印, 图形环境下尽量弹个通知
+say() {
+    if [ -t 1 ]; then
+        echo "$*"
+    else
+        command -v notify-send >/dev/null 2>&1 \
+            && notify-send -i "$PKG_NAME" "$APP_TITLE" "$*" 2>/dev/null
+        echo "$*" >&2
+    fi
+}
+
+# 中文帮助: 无参数 / -h / --help / help 都走这里, "<命令> -h" 同样可用
+usage() {
+    cat <<EOF
+$APP_TITLE 控制工具
+
+用法:
+  $PKG_NAME-ctl <命令> [参数]
+  $PKG_NAME-ctl -h                     显示本帮助
+
+命令:
+  autostart on|off|toggle|status       开机自启动开关(只影响当前用户)
+  quality <索引>                       画质档位索引(0 起, 对应 Unity QualitySettings 里的顺序)
+  quality status                       查看当前画质档位与来源
+  quality reset                        恢复打包时的默认档位(未配置则由程序自己决定)
+  graphics opengl|vulkan|none          图形接口: 强制 OpenGL / 强制 Vulkan / 不指定(由 Unity 自己挑)
+  graphics status                      查看当前图形接口设置
+  graphics reset                       恢复打包时的默认设置
+  icon create|remove                   桌面快捷方式
+  run [参数...]                        启动程序(参数原样透传给程序)
+  -h, --help, help                     显示本帮助
+
+说明:
+  画质写入 $QUALITY_FILE, 图形接口写入 $GRAPHICS_FILE, 都是整机生效;
+  设置与清除需要 root, 会自动提示提权。
+  启动器每次启动读这两个文件, 分别补 "-picture-quality <索引>" 与 "-force-glcore / -force-vulkan";
+  两个都有打包默认值, 文件缺失时启动器按默认值兜底(不传参则由程序自己决定)。
+  命令行里已经写了 -picture-quality, 或任意 -force-*(vulkan/glcore/gles/d3d) 时,
+  以命令行为准, 文件里的设置这次不生效。
+  画质只接受数字索引(0 起), 顺序与 Unity 的 Project Settings > Quality 列表一致,
+  这样换项目、改档位名都不影响; 具体范围以主程序的 QualitySettings 为准(通常 0-5)。
+  画质只影响 QualitySettings 档位(阴影/分辨率缩放等), 与显示分辨率、窗口模式无关;
+  graphics 切的是图形接口, 机器上没有可用的 Vulkan 驱动时设成 vulkan 会起不来。
+
+示例:
+  $PKG_NAME-ctl quality 4
+  $PKG_NAME-ctl graphics opengl
+  $PKG_NAME-ctl autostart status
+EOF
+}
+
+desktop_dir() {
+    if command -v xdg-user-dir >/dev/null 2>&1; then
+        d=$(xdg-user-dir DESKTOP 2>/dev/null)
+        [ -n "$d" ] && { echo "$d"; return; }
+    fi
+    for d in "$HOME/Desktop" "$HOME/桌面"; do
+        [ -d "$d" ] && { echo "$d"; return; }
+    done
+    echo "$HOME/Desktop"
+}
+
+write_autostart() {
+    # $1 = on|off
+    mkdir -p "$USER_AUTOSTART_DIR" || return 1
+    if [ "$1" = "on" ]; then
+        hidden=false; enabled=true
+    else
+        hidden=true; enabled=false
+    fi
+    cat >"$USER_AUTOSTART" <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=$APP_TITLE
+Comment=$APP_TITLE 开机自动启动
+Exec=$BIN --autostart
+Icon=$PKG_NAME
+Terminal=false
+StartupNotify=false
+Hidden=$hidden
+X-GNOME-Autostart-enabled=$enabled
+X-GNOME-Autostart-Delay=3
+X-KDE-autostart-after=panel
+EOF
+    chmod 644 "$USER_AUTOSTART"
+}
+
+current_state() {
+    f="$USER_AUTOSTART"
+    [ -f "$f" ] || f="$SYS_AUTOSTART"
+    if [ ! -f "$f" ]; then
+        echo "unknown"; return
+    fi
+    if grep -qiE '^Hidden[[:space:]]*=[[:space:]]*true' "$f"; then
+        echo "off"
+    elif grep -qiE '^X-GNOME-Autostart-enabled[[:space:]]*=[[:space:]]*false' "$f"; then
+        echo "off"
+    else
+        echo "on"
+    fi
+}
+
+cmd_autostart() {
+    action="${1:-status}"
+    case "$action" in
+        on)     write_autostart on  && say "开机自启动: 已开启";;
+        off)    write_autostart off && say "开机自启动: 已关闭";;
+        toggle)
+            if [ "$(current_state)" = "on" ]; then
+                write_autostart off && say "开机自启动: 已关闭"
+            else
+                write_autostart on && say "开机自启动: 已开启"
+            fi
+            ;;
+        status)
+            if [ "$(current_state)" = "on" ]; then
+                say "开机自启动: 已开启"
+            else
+                say "开机自启动: 已关闭"
+            fi
+            ;;
+        -h|--help|help) usage ;;
+        *) echo "用法: $PKG_NAME-ctl autostart on|off|toggle|status" >&2; exit 2;;
+    esac
+}
+
+cmd_icon() {
+    d=$(desktop_dir)
+    target="$d/$PKG_NAME.desktop"
+    case "${1:-create}" in
+        create)
+            [ -d "$d" ] || mkdir -p "$d"
+            if [ -f "/usr/share/applications/$PKG_NAME.desktop" ]; then
+                cp -f "/usr/share/applications/$PKG_NAME.desktop" "$target"
+            else
+                echo "系统菜单项不存在, 无法创建快捷方式" >&2; exit 1
+            fi
+            chmod 755 "$target"
+            # GNOME 系需要打上 trusted 标记才会显示为可执行快捷方式
+            command -v gio >/dev/null 2>&1 && \
+                gio set "$target" metadata::trusted true 2>/dev/null
+            say "已在桌面创建快捷方式: $target"
+            ;;
+        remove)
+            rm -f "$target"
+            say "已移除桌面快捷方式"
+            ;;
+        -h|--help|help) usage ;;
+        *) echo "用法: $PKG_NAME-ctl icon create|remove" >&2; exit 2;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# 画质: 写 /etc/<包名>/quality, 启动器读到就补 "-picture-quality <档位>"
+#   只接受数字索引(0 起), 与 ProcedureLaunch.ApplyQualityFromCommandLine 的解析规则一致:
+#   程序侧用 QualitySettings.SetQualityLevel(int), 因此不依赖档位名称, 换项目也不用改。
+# ---------------------------------------------------------------------------
+normalize_quality() {
+    case "$(printf '%s' "$1" | tr 'A-Z' 'a-z')" in
+        performant|low|0)         printf 'Performant\n' ;;
+        balanced|middle|medium|1) printf 'Balanced\n' ;;
+        highfidelity|high|2)      printf 'HighFidelity\n' ;;
+        *) return 1 ;;
+    esac
+}
+
+current_quality() {
+    [ -r "$QUALITY_FILE" ] || return 0
+    tr -d '[:space:]' <"$QUALITY_FILE" 2>/dev/null
+}
+
+# 写 /etc/<包名>/ 下的运行时开关(quality / graphics 共用):
+#   $1=目标文件  $2=要写入的内容(写 reset 表示删除该文件)
+#   $3=elevated 标记  $4=提权回来后重新执行的子命令名
+write_state_file() {
+    _file="$1"; _want="$2"; _via="${3:-}"; _cmd="$4"
+    if [ "$(id -u)" != 0 ]; then
+        if [ "$_via" = elevated ]; then
+            # 提权回来还不是 root, 再 exec 就是无限套娃
+            echo "提权后仍不是 root, 无法写入 $_file" >&2
+            exit 1
+        fi
+        if ! command -v sudo >/dev/null 2>&1; then
+            echo "本机没有 sudo, 无法提权写入 $_file" >&2
+            echo "改用 root 执行: su -c '$0 $_cmd $_want'" >&2
+            exit 1
+        fi
+        exec sudo "$0" "$_cmd" "$_want" elevated
+    fi
+    _d=$(dirname "$_file")
+    mkdir -p "$_d" || { echo "无法创建 $_d" >&2; exit 1; }
+    if [ "$_want" = reset ]; then
+        rm -f "$_file" || { echo "无法删除 $_file" >&2; exit 1; }
+        return 0
+    fi
+    # 同目录临时文件 + mv: 启动器随时可能在读, 不能让它看到写了一半的内容
+    _tmp="$_file.new.$$"
+    printf '%s\n' "$_want" >"$_tmp" || { rm -f "$_tmp"; echo "无法写入 $_tmp" >&2; exit 1; }
+    chown root:root "$_tmp" 2>/dev/null || true
+    chmod 644 "$_tmp"
+    mv -f "$_tmp" "$_file" || { rm -f "$_tmp"; echo "无法写入 $_file" >&2; exit 1; }
+}
+
+write_quality() {
+    write_state_file "$QUALITY_FILE" "$1" "${2:-}" quality
+}
+
+write_graphics() {
+    write_state_file "$GRAPHICS_FILE" "$1" "${2:-}" graphics
+}
+
+cmd_quality() {
+    action="${1:-status}"
+    _via="${2:-}"
+    case "$action" in
+        -h|--help|help) usage ;;
+        status)
+            _q=$(current_quality)
+            if [ -n "$_q" ]; then
+                say "画质: 索引 $_q (来源: $QUALITY_FILE)
+可选: 从 0 开始的数字索引, 顺序同 Unity Project Settings > Quality"
+            elif [ -n "$QUALITY_DEFAULT" ]; then
+                say "画质: 未设置, 按打包默认索引 $QUALITY_DEFAULT 启动 ($QUALITY_FILE 缺失)
+可选: 从 0 开始的数字索引, 顺序同 Unity Project Settings > Quality"
+            else
+                say "画质: 未设置, 由程序自己决定档位
+可选: 从 0 开始的数字索引, 顺序同 Unity Project Settings > Quality"
+            fi
+            ;;
+        reset|default|clear)
+            if [ -n "$QUALITY_DEFAULT" ]; then
+                write_quality "$QUALITY_DEFAULT" "$_via"
+                say "画质: 已恢复打包默认索引 $QUALITY_DEFAULT, 下次启动生效 ($QUALITY_FILE)"
+            else
+                write_quality reset "$_via"
+                say "画质: 已清除设置, 下次启动恢复程序默认"
+            fi
+            ;;
+        *)
+            if _q=$(normalize_quality "$action"); then
+                write_quality "$_q" "$_via"
+                say "画质: 已设为索引 $_q, 下次启动生效 ($QUALITY_FILE)"
+            else
+                echo "未知画质: $action" >&2
+                echo "用法: $PKG_NAME-ctl quality low|middle|high|status|reset" >&2
+                exit 2
+            fi
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# 图形接口: opengl -> -force-glcore, vulkan -> -force-vulkan, none -> 不传参数
+#   none 与"没设置"行为一样, 但分开记录, 排障时能看出是有人显式设过还是从未配过
+# ---------------------------------------------------------------------------
+current_graphics() {
+    [ -r "$GRAPHICS_FILE" ] || return 0
+    tr -d '[:space:]' <"$GRAPHICS_FILE" 2>/dev/null
+}
+
+# 有效状态: 文件缺失时按打包默认; 两者都没有则返回空(由程序自己选)
+effective_graphics() {
+    _ev=$(current_graphics)
+    [ -n "$_ev" ] || _ev="$GRAPHICS_DEFAULT"
+    case "$(printf '%s' "$_ev" | tr 'A-Z' 'a-z')" in
+        opengl|gl|glcore) echo opengl ;;
+        vulkan|vk)        echo vulkan ;;
+        *)                echo "" ;;
+    esac
+}
+
+cmd_graphics() {
+    action="${1:-status}"
+    _via="${2:-}"
+    case "$action" in
+        -h|--help|help) usage ;;
+        opengl|gl|glcore)
+            write_graphics opengl "$_via"
+            say "图形接口: 已改为强制 OpenGL (-force-glcore), 下次启动生效"
+            ;;
+        vulkan|vk)
+            write_graphics vulkan "$_via"
+            say "图形接口: 已改为强制 Vulkan (-force-vulkan), 下次启动生效"
+            ;;
+        none|auto|unset|off)
+            write_graphics none "$_via"
+            say "图形接口: 已改为不指定, 由 Unity 自己选择, 下次启动生效"
+            ;;
+        toggle)
+            # 按"实际生效"的状态轮换: none/opengl -> vulkan -> opengl, 方便现场快速试
+            case "$(effective_graphics)" in
+                vulkan) cmd_graphics opengl "$_via" ;;
+                *)      cmd_graphics vulkan "$_via" ;;
+            esac
+            ;;
+        reset|default|clear)
+            if [ -n "$GRAPHICS_DEFAULT" ]; then
+                write_graphics "$GRAPHICS_DEFAULT" "$_via"
+                say "图形接口: 已恢复打包默认 ($GRAPHICS_DEFAULT), 下次启动生效 ($GRAPHICS_FILE)"
+            else
+                write_graphics reset "$_via"
+                say "图形接口: 已清除设置, 下次启动由 Unity 自己选择"
+            fi
+            ;;
+        status)
+            _v=$(current_graphics)
+            case "$(printf '%s' "$_v" | tr 'A-Z' 'a-z')" in
+                opengl|gl|glcore) say "图形接口: 强制 OpenGL (-force-glcore)" ;;
+                vulkan|vk)        say "图形接口: 强制 Vulkan (-force-vulkan)" ;;
+                none|auto|off)    say "图形接口: 未指定 (由 Unity 自己选择)" ;;
+                *)
+                    if [ -n "$GRAPHICS_DEFAULT" ]; then
+                        say "图形接口: 未设置, 按打包默认 $GRAPHICS_DEFAULT ($GRAPHICS_FILE 缺失)"
+                    else
+                        say "图形接口: 未设置, 由 Unity 自己选择"
+                    fi ;;
+            esac
+            ;;
+        *) echo "未知参数: $action" >&2
+           echo "用法: $PKG_NAME-ctl graphics opengl|vulkan|none|status|reset" >&2
+           exit 2;;
+    esac
+}
+
+case "${1:-}" in
+    autostart)  shift; cmd_autostart "$@";;
+    quality)    shift; cmd_quality "$@";;
+    graphics)   shift; cmd_graphics "$@";;
+    icon)       shift; cmd_icon "$@";;
+    run)        shift; exec "$BIN" "$@";;
+    ""|-h|--help|help) usage ;;
+    *) echo "未知命令: $1 (试试 $PKG_NAME-ctl -h)" >&2; exit 2;;
+esac

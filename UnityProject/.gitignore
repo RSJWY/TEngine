@@ -123,6 +123,9 @@ yoo/
 /Releases/*/setup/
 /Releases/Publish/
 /Releases/Windows/setup.generated.iss
+# debkit(Releases/Linux) 运行产物: 生成的 .deb 与打包暂存, 体积可达数 GB
+/Releases/Linux/output/
+/Releases/Linux/work/
 
 #本地 Codex/CLI 权限配置
 .codex/settings.local.json

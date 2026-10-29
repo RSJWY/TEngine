@@ -1,0 +1,18 @@
+#!/bin/sh
+# @APP_TITLE@ - prerm (由 debkit 自动生成)
+set -e
+
+PKG_NAME="@PKG_NAME@"
+
+case "$1" in
+    remove|deconfigure)
+        # 彻底卸载(非升级)时, 先结束可能仍在运行的实例
+        if [ -z "${2:-}" ] || [ "$2" != "upgrade" ]; then
+            if [ -x "/usr/bin/$PKG_NAME" ]; then
+                pkill -TERM -f "@INSTALL_DIR@/@EXECUTABLE@" >/dev/null 2>&1 || true
+            fi
+        fi
+        ;;
+esac
+
+exit 0

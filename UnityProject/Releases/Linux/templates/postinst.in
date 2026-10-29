@@ -1,0 +1,116 @@
+#!/bin/sh
+# @APP_TITLE@ - postinst (由 debkit 自动生成)
+set -e
+
+PKG_NAME="@PKG_NAME@"
+
+case "$1" in
+    configure)
+        # 刷新图标缓存与菜单数据库
+        if [ -d /usr/share/icons/hicolor ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+        fi
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications >/dev/null 2>&1 || true
+        fi
+
+        # 为已存在的本地用户创建桌面快捷方式(可用 CREATE_DESKTOP_ICON="no" 关闭;
+        # 关掉后仍可让用户自己跑 -ctl icon create 手动建)
+        CREATE_DESKTOP_ICON="@CREATE_DESKTOP_ICON@"
+        case "$(printf '%s' "$CREATE_DESKTOP_ICON" | tr 'A-Z' 'a-z')" in
+            no|false|0|off)
+                echo "  桌面快捷方式:    按配置跳过 (CREATE_DESKTOP_ICON=no)"
+                ;;
+            *)
+                if [ -x "/usr/lib/$PKG_NAME/user-setup.sh" ]; then
+                    "/usr/lib/$PKG_NAME/user-setup.sh" create || true
+                fi
+                ;;
+        esac
+
+        # 旧版本写过免密提权规则(run-mode / sudoers / polkit), 本版已移除该功能,
+        # 升级时顺手清掉, 免得 /usr/bin/$PKG_NAME 还留着一条免密 root 的口子。
+        rm -f "/etc/sudoers.d/$(printf '%s' "$PKG_NAME" | tr '.' '_')" 2>/dev/null || true
+        rm -f "/usr/share/polkit-1/rules.d/49-$PKG_NAME.rules" 2>/dev/null || true
+        rm -f "/etc/$PKG_NAME/run-mode" 2>/dev/null || true
+
+        # 程序以普通用户运行、但需要往安装目录里写(配置文件 / StreamingAssets / 录像)时,
+        # 把 WRITABLE_DIRS 指定的这几处属主交给运行用户 —— 这样"能写"就不必等于"跑 root"。
+        # 每次 configure 都执行, 所以升级把文件换回 root:root 后会被自动纠正。
+        WRITABLE_DIRS="@WRITABLE_DIRS@"
+        if [ -n "$WRITABLE_DIRS" ]; then
+            _owner="${SUDO_USER:-}"
+            if [ -z "$_owner" ] || [ "$_owner" = root ]; then
+                _owner=$(awk -F: '$3 >= 1000 && $3 < 65534 && $7 !~ /(nologin|false|sync)$/ { print $1; exit }' /etc/passwd)
+            fi
+            if [ -n "$_owner" ]; then
+                for _rel in $WRITABLE_DIRS; do
+                    _path="@INSTALL_DIR@/$_rel"
+                    if [ -e "$_path" ]; then
+                        chown -R "$_owner": "$_path" 2>/dev/null ||
+                            echo "  注意: 无法把 $_path 的属主改为 $_owner" >&2
+                    else
+                        install -d -o "$_owner" -m 755 "$_path" 2>/dev/null ||
+                            echo "  注意: 无法创建 $_path" >&2
+                    fi
+                done
+                echo "  运行时可写:      $WRITABLE_DIRS  (属主: $_owner)"
+            else
+                echo "  注意: 找不到可授权的本地用户, 可写路径仍归 root" >&2
+            fi
+        fi
+
+        # 默认画质档位: 第一次启动就是这一档, 不必每台机器手工 -ctl quality。
+        # 只接受数字索引(0 起), 由主程序 ProcedureLaunch 用 SetQualityLevel(int) 应用。
+        # 只在文件不存在时写 —— 升级不能把管理员已经改过的档位改回去。
+        QUALITY_DEFAULT="@QUALITY_DEFAULT@"
+        QUALITY_FILE="/etc/$PKG_NAME/quality"
+        if [ -n "$QUALITY_DEFAULT" ] && [ ! -e "$QUALITY_FILE" ]; then
+            if { install -d -m 755 "/etc/$PKG_NAME" &&
+                 printf '%s\n' "$QUALITY_DEFAULT" >"$QUALITY_FILE" &&
+                 chown root:root "$QUALITY_FILE" &&
+                 chmod 644 "$QUALITY_FILE"; } 2>/dev/null; then
+                echo "  默认画质:        $QUALITY_DEFAULT  ($QUALITY_FILE, 可用 -ctl quality 修改)"
+            else
+                echo "  注意: 无法写入默认画质 $QUALITY_FILE" >&2
+            fi
+        fi
+
+        # 默认图形接口: opengl/vulkan 时启动器补 -force-glcore / -force-vulkan, 空 = 不指定。
+        # 同样只在文件不存在时写, 升级不会覆盖现场用 -ctl graphics 改过的选择。
+        GRAPHICS_DEFAULT="@GRAPHICS_DEFAULT@"
+        GRAPHICS_FILE="/etc/$PKG_NAME/graphics"
+        if [ -n "$GRAPHICS_DEFAULT" ] && [ ! -e "$GRAPHICS_FILE" ]; then
+            if { install -d -m 755 "/etc/$PKG_NAME" &&
+                 printf '%s\n' "$GRAPHICS_DEFAULT" >"$GRAPHICS_FILE" &&
+                 chown root:root "$GRAPHICS_FILE" &&
+                 chmod 644 "$GRAPHICS_FILE"; } 2>/dev/null; then
+                echo "  默认图形接口:    $GRAPHICS_DEFAULT  ($GRAPHICS_FILE, 可用 -ctl graphics 修改)"
+            else
+                echo "  注意: 无法写入默认图形接口 $GRAPHICS_FILE" >&2
+            fi
+        fi
+
+        echo ""
+        echo "  @APP_TITLE@ 安装完成"
+        echo "  ------------------------------------------------------------"
+        echo "  启动:            /usr/bin/$PKG_NAME   (或桌面/开始菜单图标)"
+        echo "  开机自启动:      /usr/bin/$PKG_NAME-ctl autostart on|off|status"
+        echo "  画质切换:        /usr/bin/$PKG_NAME-ctl quality <索引>|status   (索引 0 起, 同 Unity Quality 列表)"
+        echo "  图形接口:        /usr/bin/$PKG_NAME-ctl graphics opengl|vulkan|none|status"
+        echo "  桌面快捷方式:    /usr/bin/$PKG_NAME-ctl icon create|remove"
+        echo "  运行身份:        当前登录用户(不提权)"
+        echo "  安装位置:        @INSTALL_DIR@"
+        echo ""
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst 未知参数: $1" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
