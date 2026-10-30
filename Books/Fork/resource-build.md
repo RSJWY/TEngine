@@ -218,7 +218,7 @@ Releases/
 
 - `setup.iss` 需用户自行放入 `Releases/Windows/setup.iss` 后 InnoSetup 流程才可用；缺失时 `InnoSetupBuilder.BuildInstaller` 抛 `FileNotFoundException` 并提示路径。
 - `setup.iss` 的 `OutputDir` 需指向 `Releases/Windows/setup`，`Source` 需指向 `Releases/Windows/build`（脚本内容由用户维护，本工具回写 `MyAppName`/`MyAppVersion`/`MyAppPublisher`/`MyAppExeName`/`MyAppPassword`/`BrandWatermark` 六项，`MyAppId` 不回写，详见下文「iss 变量输入补全」）。
-- Linux 安装包方案待定，本次仅建好 `Releases/Linux/build/` 的 Player 输出。
+- Linux 安装包方案当时待定，仅建好 `Releases/Linux/build/` 的 Player 输出（2026-10-29 起已由 `Releases/Linux/` 下的 debkit 落地，见下文「Linux debkit 安装包」一节）。
 - YooAsset 内置资源复制链路（`BuildinFileRoot = GetStreamingAssetsRoot()` → `Assets/StreamingAssets/package/`）不受影响，与 `OutputRoot` 相互独立。
 
 ### 关键文件
@@ -314,6 +314,95 @@ Releases/
 ### 相关记录
 
 - `UnityProject/conversation-summaries/2026-08-24-innosetup-build-hardening-plan.md`
+
+## 安装包版本统一与 iss 参数提取回填
+
+### 背景
+
+安装包版本原先是窗口里的独立覆盖字段，与工程版本号脱节，容易出现「Player 一个版本、安装包另一个版本」的错位；iss 脚本参数此前只支持面板 → 脚本单向回写，手工改过脚本后无法把改动带回面板。
+
+### 改动摘要
+
+- `UpdateSetting` 新增 `Version` 字段与 `GetVersion()`，改动时同步写入 `PlayerSettings.bundleVersion`（Project Settings 的 TEngine/UpdateSettings 页可见）。
+- 安装包「安装包版本」取消独立覆盖，固定取 `UpdateSetting.Version`，由 `InnoSetupBuilder.ResolveInstallerVersion()` 回写 iss 的 `MyAppVersion`；窗口只保留一行只读显示，`BuildConfig`/`BuildPipelineSetting`/`CLIBridge`/BuildCLI 表单中的 `InstallerVersion` 字段与持久化配置一并移除。
+- 「安装包配置」InnoSetup 安装包区新增「提取来源 + 从脚本提取」：来源可选模板 `setup.iss` 或实际编译脚本 `setup.generated.iss`，解析 `#define` 值并弹出差异预览，确认后回填应用名称/软件英文名/发布者/安装密码/发布者水印五个字段；缺失或重复的键不阻断提取、逐条警告并跳过。该项为「多配置档案按所选脚本回填」铺路。
+
+### 关键文件
+
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
+- `UnityProject/Assets/TEngine/Runtime/Core/UpdateSetting.cs`
+
+## Linux debkit 安装包（WSL 一键打 deb）
+
+### 背景
+
+Linux Player 产物原先只有裸目录，缺少与 Windows Inno Setup 对应的安装包形态：无开始菜单项、无桌面快捷方式，卸载与开机自启无从谈起。
+
+### 改动摘要
+
+- 新增 `Releases/Linux/` 下的 debkit：`debkit.sh` 唯一入口 + `lib/`（common/icons/wizard/progress）+ `templates/`（launcher/appctl/desktop/postinst/prerm/postrm）+ `appConfigs/` 配置示例 + README/NOTES。把 Unity Linux Player 目录封装成 `.deb`，装完自带开始菜单项、桌面快捷方式、可开关的开机自启、画质档位与图形接口切换。
+- 打包窗口「安装包配置」平台选 Linux 后，debkit 面板新增 WSL 发行版下拉：调 `wsl.exe -l -v` 探测（UTF-16LE 解码、缓存 10 分钟），带「刷新列表」按钮。
+- 新增「构建安装包」按钮：写 `appConfigs/<包名>.conf` 后在选定发行版里执行 `debkit.sh`，stdout/stderr 分帧回显到构建日志，结束后校验并报出 `output/<包名>_<版本>_<架构>.deb` 路径与体积；「快速构建」的 Linux 安装包阶段改走同一条执行链路，不再只打印提示。
+- 打包命令同时给出 Windows 侧（`wsl.exe -d ... -- bash -lc`）与 WSL 内两种形态，复制按钮复制前者；补 WSL↔Windows 路径互转与产物路径校验；源目录缺失时提示先构建 Linux Player。
+- `.gitattributes` 补 `*.sh` / `*.in` / `*.conf` 的 `eol=lf`（CRLF 会破坏脚本与配置），`.gitignore` 忽略 debkit 的 `output/` 与 `work/` 运行产物。
+
+### 使用方式
+
+面板路径：`Build/打包工具窗口 → 安装包配置 → 平台选择 Linux`。选发行版、填好 debkit 参数后点「构建安装包」；命令行走 BuildCLI 的 `buildLinuxInstaller` 动作。debkit 自身用法见 `Releases/Linux/` 内的 README 与 NOTES。
+
+### 注意事项
+
+- 需要本机已安装 WSL 且至少一个发行版；debkit 在 WSL 内执行，依赖发行版自带的打包基础工具。
+- 打包输入是 `Releases/Linux/build/` 的 Linux Player 产物，目录缺失时先构建 Linux Player。
+- `appConfigs/*.conf` 是唯一变体来源；conf 里的手工改动会被「写入配置」按当前面板字段覆盖，改字段前先「从配置回读」。
+
+### 关键文件
+
+- `UnityProject/Releases/Linux/debkit.sh`、`UnityProject/Releases/Linux/lib/`、`UnityProject/Releases/Linux/templates/`、`UnityProject/Releases/Linux/appConfigs/example.conf`
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/DebkitConfig.cs`
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`
+
+## 安装包多配置档案（Windows 多 iss / Linux 多 conf）
+
+### 背景
+
+此前 Windows 只有一份 `setup.generated.iss`、Linux conf 文件名被包名绑定，一套工程无法同时维护多份安装包变体（不同客户/渠道的应用名、密码、水印），差异只能靠构建前来回手改。
+
+### 改动摘要
+
+- 原则：**文件即变体，模板只读**。两平台各自用原生文件格式承载变体，工具只负责「选哪一份 + 编译」，差异直接 `git diff` 对应文件即可。
+- Windows：`setup.iss` 保留为唯一模板，构建过程永不回写；每份配置对应一份编辑脚本 `setup.<配置名>.iss`（默认配置名 `generated`，与历史 `setup.generated.iss` 一致、无需迁移）。面板「iss 配置」切换后按落盘脚本回填 6 项 `#define`，构建只回写所选脚本。
+- Linux：`appConfigs/*.conf` 即变体，写入 / 回读 / 预览 / WSL 打包全部作用于所选 conf，实际执行为 `debkit.sh -c appConfigs/<配置名>.conf`。
+- 两平台均新增「从模板创建」：弹窗填配置名即生成并切换。Windows 以 `setup.iss` 为模板生成 `setup.<配置名>.iss`（同名只切换、不覆盖）；Linux 以 `example.conf` 键集为模板、用面板字段生成 `appConfigs/<配置名>.conf`（同名先确认覆盖）。
+- `BuildConfig`/`BuildPipelineSetting` 新增 `InstallerIssScript`（存配置名）/ `DebkitConfFile` 持久化字段；未选择时分别回退默认配置 `generated` 与 `<包名>.conf`，与旧行为一致。
+- BuildCLI：新增 `installerIssScript` / `debkitConfFile` / `debkitDistro` 三字段（随预设与 `_last_session` 保存）与 `buildLinuxInstaller` 动作，CLI 增加 `--iss-script` / `--debkit-conf` / `--debkit-distro` 参数。
+
+### 使用方式
+
+新增变体：面板「从模板创建」填配置名生成，或手工放一份同名文件；删除变体 = 删除文件。命令行示例：
+
+```powershell
+python -m tengine_build --no-gui run --action buildInstaller --iss-script customer-a
+python -m tengine_build --no-gui run --action buildLinuxInstaller --debkit-conf example.conf --debkit-distro ai-dev
+```
+
+### 注意事项
+
+- `MyAppId` 仍只在脚本中手工维护、不由面板覆盖；切换变体后先按所选脚本载入参数再回写，避免抹掉该变体自带的身份信息。
+- iss/conf 均不做继承或 include 合成，也不支持跨平台共用一份变体定义与批量矩阵出包。
+- Windows 侧一切写入仍只落在 `setup.<配置名>.iss` 编辑脚本，「模板不回写」的不变量保持不变。
+
+### 关键文件
+
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`（`ListIssConfigs` / `SelectIssConfig` / `GetIssFileName` / `BuildInstaller` 按所选配置参数化）
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/DebkitConfig.cs`（`ListConfFiles` / `GetConfPathByFile` / `WriteConfig` / `BuildWslCommand`）
+- `UnityProject/Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`、`BuildConfig.cs`、`BuildPipelineSetting.cs`、`CLIBridge.cs`
+- `UnityProject/BuildCLI/tengine_build/`（app / cli / config_store / dto）
+
+### 相关记录
+
+- `UnityProject/.plans/2026-10-30-installer-profiles-multi-config.md`（方案归档，含命名定案与验证记录）
 
 ## 资源清单加密（Manifest Encryption）
 
@@ -561,7 +650,7 @@ python -m tengine_build --no-gui run --action buildAb --target StandaloneWindows
 - batchmode 是独立 Unity 进程：**必须先关闭已打开的 Unity Editor**（Library 锁互斥），否则启动失败。
 - Player 构建需要 GPU，batchmode 不加 `-nographics`。
 - Python 侧配置（预设/会话）存 `BuildCLI/presets/*.json`，不回写 `BuildPipelineSetting.asset`；「从 Unity 窗口配置读取」为单向导入。
-- 安装包（InnoSetup）构建暂未纳入 CLI，仍走打包窗口。
+- 安装包已纳入 CLI：Windows 走 `buildInstaller` 动作（`--iss-script` 选 iss 配置），Linux 走 `buildLinuxInstaller` 动作（`--debkit-conf` / `--debkit-distro` 选 conf 与 WSL 发行版），三字段随预设与 `_last_session` 保存，见上文「安装包多配置档案」。
 - `.venv/`、`logs/*`、`presets/_last_session.json` 已在 `BuildCLI/.gitignore` 中忽略。
 
 ### 关键文件

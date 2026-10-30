@@ -1,6 +1,6 @@
 # Fork 构建与调试工具
 
-本文汇总当前 fork 的打包窗口、发布目录、Inno Setup、AOT/Obfuz 辅助工具、场景枚举和调试入口。详细迁移历史见 [Fork 定制改动总览](../../../../../Books/Fork/README.md)。
+本文汇总当前 fork 的打包窗口、发布目录、Windows/Linux 安装包（Inno Setup / debkit+WSL）、AOT/Obfuz 辅助工具、场景枚举和调试入口。详细迁移历史见 [Fork 定制改动总览](../../../../../Books/Fork/README.md)。
 
 ## 打包工具窗口
 
@@ -12,7 +12,7 @@
 
 ```text
 编译热更 DLL -> 构建资源包 -> 发布整理 -> 最小包处理
--> 构建 Player -> 编译 Inno Setup 安装包
+-> 构建 Player -> 编译安装包（Windows: Inno Setup / Linux: debkit 经 WSL 打 deb）
 ```
 
 规则：
@@ -39,7 +39,7 @@
 - batchmode 是独立 Unity 进程，**必须先关闭已打开的 Editor**（Library 锁互斥）；切平台走独立进程冷启动，避开窗口模式切平台的 domain reload。
 - Player 构建需要 GPU，不使用 `-nographics`。
 - 每次构建在 `BuildCLI/logs/<时间戳>/` 留存 `unity.log` + `build_request.json`。
-- 安装包（InnoSetup）构建暂未纳入，仍走打包窗口。
+- 安装包已纳入 CLI：`buildInstaller` 动作用 `--iss-script` 选 iss 配置；`buildLinuxInstaller` 动作用 `--debkit-conf` / `--debkit-distro` 选 conf 与 WSL 发行版。三个字段随预设与 `_last_session` 保存。
 
 ### 批量执行（多步骤队列）
 
@@ -59,10 +59,14 @@ Releases/
 ├── Bundles/
 ├── Windows/
 │   ├── setup.iss
-│   ├── setup.generated.iss
+│   ├── setup.<配置名>.iss    # 每份配置的编辑脚本，默认配置名 generated
 │   ├── build/
 │   └── setup/
-├── Linux/build/
+├── Linux/
+│   ├── build/               # Linux Player 产物
+│   ├── debkit.sh            # 一键打 deb 入口
+│   ├── appConfigs/           # deb 变体配置（*.conf）
+│   └── output/               # .deb 产物
 ├── Android/build/
 ├── IOS/build/
 ├── MacOS/build/
@@ -84,6 +88,23 @@ Releases/
 - `MyAppEnglishName` 用于默认安装目录，`MyAppName` 用于展示。
 - ISCC 查找顺序为：用户路径 -> 注册表 -> PATH -> Program Files。
 - 超时、异常和构建失败路径都必须清理 Unity 进度条。
+
+详细说明见 [resource-build.md](../../../../../Books/Fork/resource-build.md)。
+
+## Linux 安装包（debkit + WSL）
+
+- `Releases/Linux/debkit.sh` 把 Linux Player 目录封装成 `.deb`：装完自带开始菜单项、桌面快捷方式、可开关的开机自启、画质档位与图形接口切换；`lib/`、`templates/`、`appConfigs/` 随脚本分发，用法见目录内 README/NOTES。
+- 打包窗口「安装包配置 → 平台选择 Linux」提供 WSL 发行版下拉（调 `wsl.exe -l -v` 探测，UTF-16LE 解码、缓存 10 分钟、带「刷新列表」）与「构建安装包」按钮：写 `appConfigs/<包名>.conf` 后在选定发行版执行 debkit，stdout/stderr 分帧回显到构建日志，结束后校验并报出 `output/<包名>_<版本>_<架构>.deb` 路径与体积。
+- 「快速构建」的 Linux 安装包阶段走同一条执行链路；打包命令同时给出 Windows 侧（`wsl.exe -d ... -- bash -lc`）与 WSL 内两种形态。
+- 前置条件：本机 WSL 至少一个发行版；`Releases/Linux/build/` 已有 Linux Player 产物（缺失时先构建 Linux Player）。
+- CLI：`python -m tengine_build --no-gui run --action buildLinuxInstaller --debkit-conf example.conf --debkit-distro ai-dev`。
+
+## 安装包多配置（setup.<配置名>.iss / appConfigs/*.conf）
+
+- **Windows**：`setup.iss` 是唯一模板，永不回写；每份配置对应一份编辑脚本 `setup.<配置名>.iss`（默认配置名 `generated`）。面板「iss 配置」下拉切换后，先按落盘脚本载入 6 项 `#define`（应用名 / 英文名 / 发布者 / 密码 / 水印），版本与 exe 名由构建自动写入；构建只回写 `setup.<配置名>.iss`，因此选中哪份就改哪份。
+- **Linux**：`Releases/Linux/appConfigs/*.conf` 每份 conf 是一个变体。面板「构建配置」下拉切换后按落盘文件回填字段；「写入配置 / 从配置回读 / 打包」三处都作用于当前选中的 conf，实际执行为 `debkit.sh -c appConfigs/<配置名>.conf`。
+- **从模板创建（两平台一致）**：两个下拉旁边的「从模板创建」按钮会先弹命名框，填好配置名后——Windows 以 `setup.iss` 为模板生成 `setup.<配置名>.iss` 并切换过去（同名只切换、不覆盖）；Linux 以 `example.conf` 的键集为模板、用当前面板字段生成 `appConfigs/<配置名>.conf` 并切换过去（同名会先确认是否覆盖）。
+- 两个选择分别保存在 `BuildPipelineSetting.asset` 的 `InstallerIssScript`（配置名）/ `DebkitConfFile`，BuildCLI 预设同名保存。
 
 详细说明见 [resource-build.md](../../../../../Books/Fork/resource-build.md)。
 
@@ -147,4 +168,4 @@ Releases/
 - 热更组件 Inspector 放在 `Assets/Editor/`。
 - 框架构建工具放在 `Assets/TEngine/Editor/`。
 - 运行时程序集不能引用 Odin Editor 类型。
-- 自动生成文件、构建产物和 `setup.generated.iss` 不作为手工源文件维护。
+- 自动生成文件、构建产物和 `setup.generated.iss`（默认配置的编辑脚本，由面板/构建写入）不作为手工源文件维护；其余 `setup.<配置名>.iss` 变体与 `appConfigs/*.conf` 可直接手工编辑。

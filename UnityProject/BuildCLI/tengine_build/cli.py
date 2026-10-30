@@ -33,6 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--output-root", default=None, help="AB 输出根目录")
     run_p.add_argument("--package", default=None, help="只构建指定资源包（默认全部）")
     run_p.add_argument("--preset", default=None, help="预设名（BuildCLI/presets 下的 json）")
+    run_p.add_argument("--iss-script", default=None,
+                       help="Windows 安装包配置名：编辑脚本是 Releases/Windows/setup.<配置名>.iss（默认 generated）")
+    run_p.add_argument("--debkit-conf", default=None,
+                       help="Linux 安装包用的 conf 文件名（Releases/Linux/appConfigs/*.conf，默认按包名）")
+    run_p.add_argument("--debkit-distro", default=None, help="Linux 安装包用的 WSL 发行版（空 = 默认发行版）")
     run_p.add_argument("--unity-exe", default=None, help="Unity 可执行文件路径")
     run_p.add_argument("--project", default=None, help="Unity 工程目录（默认自动推导 / 会话记录）")
     run_p.add_argument("--dry-run", action="store_true", help="只打印将要下发的请求 JSON，不启动 Unity")
@@ -109,6 +114,12 @@ def _assemble_state(args) -> tuple[BuildFormState | None, int]:
         state.packageVersion = args.version
     if args.output_root:
         state.outputRoot = args.output_root
+    if getattr(args, "iss_script", None):
+        state.installerIssScript = args.iss_script
+    if getattr(args, "debkit_conf", None):
+        state.debkitConfFile = args.debkit_conf
+    if getattr(args, "debkit_distro", None):
+        state.debkitDistro = args.debkit_distro
     if getattr(args, "package", None) is not None:
         state.packageName = args.package
     return state, 0, actions, stop_on_failure

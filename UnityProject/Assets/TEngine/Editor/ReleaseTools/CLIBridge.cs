@@ -91,6 +91,12 @@ namespace TEngine
             public string installerPublisher = "";
             public string installerPassword = "";
             public string installerWatermark = "";
+            // 选中的 InnoSetup 脚本（Releases/Windows/<name>.iss）；空 = setup.iss
+            public string issScript = "";
+            // Linux debkit：选中的 conf 文件名（appConfigs/<name>.conf）；空 = 按包名
+            public string debkitConfFile = "";
+            // Linux debkit：WSL 发行版；空 = 默认发行版
+            public string debkitDistro = "";
         }
 
         [Serializable]
@@ -345,6 +351,8 @@ namespace TEngine
                 }
                 case "buildInstaller":
                     return ExecuteInstaller(request, result);
+                case "buildLinuxInstaller":
+                    return ExecuteLinuxInstaller(request, result);
                 case "publish":
                 {
                     var config = ToBuildConfig(request);
@@ -415,7 +423,7 @@ namespace TEngine
                 };
 
                 Debug.Log("[TEngineCLI] ========== 开始编译 InnoSetup 安装包 ==========");
-                InnoSetupBuilder.BuildInstaller(issConfig, NullIfEmpty(request.isccPath));
+                InnoSetupBuilder.BuildInstaller(issConfig, NullIfEmpty(request.isccPath), NullIfEmpty(request.issScript));
                 result.installerOutputPath = InnoSetupBuilder.InstallerOutputDir;
                 Debug.Log($"[TEngineCLI] ========== 安装包构建完成：{result.installerOutputPath} ==========");
                 return true;
@@ -424,6 +432,61 @@ namespace TEngine
             {
                 Debug.LogError($"[TEngineCLI] 安装包构建失败：{e.Message}");
                 result.error = $"安装包构建失败：{e.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Linux debkit 安装包：用所选 conf 在 WSL 里执行 debkit.sh，与打包窗口的 debkit 按钮同一条命令。
+        /// 需已有 Linux Player 产物；产物落在 Releases/Linux/output。
+        /// </summary>
+        private static bool ExecuteLinuxInstaller(BuildRequestDTO request, BuildResultDTO result)
+        {
+            try
+            {
+                if (!DebkitConfig.ScriptExists)
+                {
+                    throw new FileNotFoundException($"未找到 debkit 打包脚本：{DebkitConfig.ScriptPath}");
+                }
+
+                var confFile = NullIfEmpty(request.debkitConfFile);
+                var arguments = DebkitConfig.BuildWslProcessArguments(string.Empty, request.debkitDistro, confFile);
+                Debug.Log($"[TEngineCLI] ========== 开始构建 Linux 安装包：wsl.exe {arguments} ==========");
+
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "wsl.exe",
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
+                    StandardErrorEncoding = System.Text.Encoding.UTF8,
+                };
+
+                using (var process = System.Diagnostics.Process.Start(startInfo))
+                {
+                    var stdout = process.StandardOutput.ReadToEnd();
+                    var stderr = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (!string.IsNullOrEmpty(stdout)) Debug.Log("[debkit][stdout]\n" + stdout);
+                    if (!string.IsNullOrEmpty(stderr)) Debug.LogWarning("[debkit][stderr]\n" + stderr);
+                    if (process.ExitCode != 0)
+                    {
+                        throw new Exception($"debkit 退出码 {process.ExitCode}\nstderr:\n{stderr}");
+                    }
+                }
+
+                result.installerOutputPath = DebkitConfig.OutputDir;
+                Debug.Log($"[TEngineCLI] ========== Linux 安装包构建完成：{result.installerOutputPath} ==========");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[TEngineCLI] Linux 安装包构建失败：{e.Message}");
+                result.error = $"Linux 安装包构建失败：{e.Message}";
                 return false;
             }
         }

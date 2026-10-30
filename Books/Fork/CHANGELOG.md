@@ -2,9 +2,28 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-10-30
+
+- 安装包多配置档案（Windows 多 iss / Linux 多 conf）：Windows 侧 `setup.iss` 保留为唯一模板、构建过程永不回写，每份配置对应一份编辑脚本 `setup.<配置名>.iss`（默认配置名 `generated`，与历史 `setup.generated.iss` 一致），面板「iss 配置」切换后按落盘脚本回填 6 项 `#define`，构建只回写所选脚本，并新增「从模板创建」；Linux 侧 `Releases/Linux/appConfigs/*.conf` 即变体，写入/回读/预览/WSL 打包全部作用于所选 conf，同样支持「从模板创建」（以 `example.conf` 键集为模板生成，同名先确认覆盖）。BuildCLI 新增 `installerIssScript` / `debkitConfFile` / `debkitDistro` 三字段（随预设与 `_last_session` 保存）与 `buildLinuxInstaller` 动作，CLI 增加 `--iss-script` / `--debkit-conf` / `--debkit-distro`。详见 [resource-build.md](resource-build.md)。
+
+## 2026-10-29
+
+- 新增 Linux `debkit` 一键打 deb 工具（`Releases/Linux/`）：`debkit.sh` 唯一入口 + `lib/`（common/icons/wizard/progress）+ `templates/`（launcher/appctl/desktop/postinst/prerm/postrm）+ `appConfigs/` 配置示例 + README/NOTES。把 Unity Linux Player 目录封装成 `.deb`，装完自带开始菜单项、桌面快捷方式、可开关的开机自启、画质档位与图形接口切换；`.gitattributes` 补 `*.sh` / `*.in` / `*.conf` 的 `eol=lf`，`.gitignore` 忽略 `output/` 与 `work/` 运行产物。
+- Linux 安装包支持 WSL 发行版选择与一键打包：打包窗口「安装包配置」平台选 Linux 后，debkit 面板新增 WSL 发行版下拉（调 `wsl.exe -l -v` 探测，UTF-16LE 解码、缓存 10 分钟，带「刷新列表」）与「构建安装包」按钮——写 `appConfigs/<包名>.conf` 后在选定发行版执行 `debkit.sh`，stdout/stderr 分帧回显到构建日志，结束后校验并报出 `output/<包名>_<版本>_<架构>.deb` 路径与体积；「快速构建」的 Linux 安装包阶段改走同一执行链路。打包命令同时给出 Windows 侧（`wsl.exe -d ... -- bash -lc`）与 WSL 内两种形态，并补 WSL↔Windows 路径互转与产物校验；源目录缺失时提示先构建 Linux Player。详见 [resource-build.md](resource-build.md)。
+
 ## 2026-10-17
 
 - YooAsset 本地化：`com.tuyoogame.yooasset` 从 openupm registry 依赖转为 `Packages/` 下的本地（embedded）包，锁定原版本 `3.0.6`（tag 即 package.json 记录的 commit `3b4cfb36…`，内容与原 registry 包一致，零行为变化）。新增一键同步脚本 `Packages/sync-yooasset-local.sh` / `.bat`（与前四个本地包脚本同一套约定：不传参自动解析最新稳定 tag，可指定 tag/分支/commit，`SYNC_YOOASSET_REPO` 切镜像，幂等重同步并改写 manifest）。YooAsset 包根为仓库子目录 `Assets/YooAsset`；上游自带 `.meta` 且 `YooAsset` / `YooAsset.Editor` 两个 asmdef GUID 与工程一致，`TEngine.Runtime` / `TEngine.Editor` / `GameLogic` / `RuntimeTools` / `YooAsset.Custom.Editor` 五个按 GUID 引用的程序集不受影响。详见 [local-packages.md](local-packages.md)。
+- InnoSetup 安装包阶段排除 Unity 不可发布目录并增加兜底校验：打包前剔除 Unity 侧不可发布的崩溃/临时产物目录，并对安装包输入做兜底校验，避免把无法运行的目录封进安装包。
+- InnoSetup 安装向导许可协议页默认勾选「我同意」，减少安装步骤。
+
+## 2026-10-16
+
+- 安装包配置支持从 iss 脚本提取回填：打包窗口「安装包配置」InnoSetup 安装包区新增「提取来源 + 从脚本提取」，来源可选模板 `setup.iss` 或实际编译脚本 `setup.generated.iss`；解析脚本 `#define` 值并弹出差异预览，确认后回填应用名称/软件英文名/发布者/安装密码/发布者水印五个配置字段；缺失或重复的键不阻断提取、逐条警告并跳过。该项为 2026-10-30「多配置档案按所选脚本回填」铺路。
+
+## 2026-10-15
+
+- `UpdateSetting` 新增 `Version` 配置并打通安装包版本：改动时同步到 `PlayerSettings.bundleVersion`，Project Settings 的 TEngine/UpdateSettings 页补出该字段；安装包「安装包版本」取消独立覆盖，固定取 `UpdateSetting.Version`，由 `InnoSetupBuilder.ResolveInstallerVersion()` 回写 iss 的 `MyAppVersion`，窗口只保留一行只读显示；`BuildConfig`/`BuildPipelineSetting`/`CLIBridge`/BuildCLI 表单中的 `InstallerVersion` 字段与持久化配置一并移除。
 
 ## 2026-10-11
 

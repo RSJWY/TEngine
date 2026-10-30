@@ -1,0 +1,50 @@
+#!/bin/sh
+# @APP_TITLE@ - postrm (由 debkit 自动生成)
+set -e
+
+PKG_NAME="@PKG_NAME@"
+
+case "$1" in
+    remove|purge)
+        # 旧版本(1.0.2 及以前)写过免密提权规则和运行身份开关, 本版已移除该功能。
+        # 这些文件不归 dpkg 管, 必须自己删 —— 留着就是个"程序已经卸了,
+        # 但随时能免密以 root 运行"的口子。
+        rm -f "/etc/sudoers.d/$(printf '%s' "$PKG_NAME" | tr '.' '_')" 2>/dev/null || true
+        rm -f "/usr/share/polkit-1/rules.d/49-$PKG_NAME.rules" 2>/dev/null || true
+        rm -f "/etc/$PKG_NAME/run-mode" 2>/dev/null || true
+        # 画质档位同理: 留着会让重装后的机器静默沿用上一台/上一次的档位
+        rm -f "/etc/$PKG_NAME/quality" 2>/dev/null || true
+        # 图形接口开关: 留着会让重装后的机器在没有 Vulkan 驱动时直接起不来
+        rm -f "/etc/$PKG_NAME/graphics" 2>/dev/null || true
+        # 旧版本(1.0.x)用的文件名, 一并清掉
+        rm -f "/etc/$PKG_NAME/vulkan" 2>/dev/null || true
+        rmdir "/etc/$PKG_NAME" 2>/dev/null || true
+
+        # 清理用户家目录下的残留(自启动项 / 桌面快捷方式 / 运行日志)
+        awk -F: '$3>=1000 && $3<65534 && $7 !~ /(nologin|false|sync)$/ {print $6}' /etc/passwd |
+        while read -r uhome; do
+            [ -n "${uhome:-}" ] && [ -d "$uhome" ] || continue
+            rm -f "$uhome/.config/autostart/$PKG_NAME.desktop" 2>/dev/null || true
+            for d in "$uhome/Desktop" "$uhome/桌面"; do
+                rm -f "$d/$PKG_NAME.desktop" 2>/dev/null || true
+            done
+            rm -rf "$uhome/.local/state/$PKG_NAME" 2>/dev/null || true
+        done
+        ;;
+
+    purge)
+        rm -rf "/usr/lib/$PKG_NAME" 2>/dev/null || true
+        ;;
+
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+esac
+
+if [ -d /usr/share/icons/hicolor ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+fi
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q /usr/share/applications >/dev/null 2>&1 || true
+fi
+
+exit 0

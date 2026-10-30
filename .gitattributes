@@ -6,6 +6,10 @@
 *.cs text eol=lf
 *.asmdef text eol=lf
 *.asmref text eol=lf
+*.sh text eol=lf
+*.in text eol=lf
+*.desktop.in text eol=lf
+*.conf text eol=lf
 *.shader text eol=lf
 *.hlsl text eol=lf
 *.cginc text eol=lf

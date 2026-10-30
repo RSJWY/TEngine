@@ -22,6 +22,7 @@ RESULT_FILENAME = "unity_result.json"
 ALL_ACTIONS = [
     "build", "buildAb", "buildPlayer", "publish", "hotfixDll",
     "generateAll", "syncAotManifest", "copyAotDll", "switchPlatform", "buildInstaller",
+    "buildLinuxInstaller",
 ]
 
 

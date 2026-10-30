@@ -1,0 +1,67 @@
+#!/bin/sh
+# @APP_TITLE@ - 用户桌面快捷方式维护 (由 postinst/postrm 以 root 调用)
+#
+# 用法: user-setup.sh create|remove
+#
+set -u
+
+PKG_NAME="@PKG_NAME@"
+APP_TITLE="@APP_TITLE@"
+MENU_FILE="/usr/share/applications/$PKG_NAME.desktop"
+ACTION="${1:-create}"
+
+# 取某个用户的桌面目录(优先遵循 XDG 配置, 兼容中文"桌面")
+user_desktop_dir() {
+    _home="$1"
+    _cfg="$_home/.config/user-dirs.dirs"
+    if [ -r "$_cfg" ]; then
+        _line=$(sed -n 's/^[[:space:]]*XDG_DESKTOP_DIR[[:space:]]*=[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p' "$_cfg" | head -n1)
+        if [ -n "$_line" ]; then
+            case "$_line" in
+                '$HOME'*) _line="$_home${_line#\$HOME}" ;;
+            esac
+            echo "$_line"
+            return
+        fi
+    fi
+    if [ -d "$_home/Desktop" ]; then
+        echo "$_home/Desktop"
+    elif [ -d "$_home/桌面" ]; then
+        echo "$_home/桌面"
+    else
+        echo "$_home/Desktop"
+    fi
+}
+
+[ -f /etc/passwd ] || exit 0
+
+awk -F: '$3>=1000 && $3<65534 && $7 !~ /(nologin|false|sync)$/ {print $1" "$3" "$6}' /etc/passwd |
+while read -r uname uid uhome; do
+    [ -n "${uhome:-}" ] || continue
+    [ -d "$uhome" ] || continue
+
+    desktop_dir=$(user_desktop_dir "$uhome")
+    target="$desktop_dir/$PKG_NAME.desktop"
+
+    case "$ACTION" in
+        create)
+            # 从未登录过的账号(没有 .config)不创建, 避免污染
+            if [ ! -d "$desktop_dir" ] && [ ! -d "$uhome/.config" ]; then
+                continue
+            fi
+            mkdir -p "$desktop_dir" 2>/dev/null || continue
+            [ -f "$MENU_FILE" ] || continue
+            cp -f "$MENU_FILE" "$target" || continue
+            chmod 755 "$target"
+            chown "$uid:$uid" "$target" 2>/dev/null || true
+            echo "  桌面快捷方式 -> $target"
+            ;;
+        remove)
+            if [ -f "$target" ]; then
+                rm -f "$target" && echo "  已移除 $target"
+            fi
+            ;;
+    esac
+done
+
+exit 0

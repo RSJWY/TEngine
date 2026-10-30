@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=@APP_TITLE@
+Comment=@APP_TITLE@ 开机自动启动
+Exec=/usr/bin/@PKG_NAME@ --autostart
+Icon=@PKG_NAME@
+Terminal=false
+StartupNotify=false
+NoDisplay=true
+Hidden=@AUTOSTART_HIDDEN@
+X-GNOME-Autostart-enabled=@AUTOSTART_ENABLED@
+X-GNOME-Autostart-Delay=@AUTOSTART_DELAY@
+X-KDE-autostart-after=panel

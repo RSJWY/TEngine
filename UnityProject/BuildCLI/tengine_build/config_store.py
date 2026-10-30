@@ -18,6 +18,40 @@ PRESETS_DIR = unity_locator.REPO_ROOT / "BuildCLI" / "presets"
 LAST_SESSION_PATH = PRESETS_DIR / "_last_session.json"
 BATCHES_DIR = unity_locator.REPO_ROOT / "BuildCLI" / "batches"
 
+# 安装包配置名：Windows 侧编辑脚本是 setup.<配置名>.iss（setup.iss 只是模板）
+ISS_TEMPLATE_NAME = "setup.iss"
+ISS_NAME_PREFIX = "setup."
+ISS_EXTENSION = ".iss"
+DEFAULT_ISS_CONFIG = "generated"
+
+
+def list_iss_configs(project_dir: Path | None = None) -> list[str]:
+    """列出已有安装包配置名（扫 setup.*.iss，排除模板 setup.iss）；默认配置恒在首位。"""
+    root = (project_dir or unity_locator.PROJECT_DIR) / "Releases" / "Windows"
+    configs: list[str] = []
+    if root.is_dir():
+        for path in sorted(root.glob(f"{ISS_NAME_PREFIX}*{ISS_EXTENSION}")):
+            name = path.name
+            if name.lower() == ISS_TEMPLATE_NAME:
+                continue
+            if name.lower().endswith(ISS_EXTENSION):
+                name = name[: -len(ISS_EXTENSION)]
+            if name.lower().startswith(ISS_NAME_PREFIX):
+                name = name[len(ISS_NAME_PREFIX):]
+            if name and name not in configs:
+                configs.append(name)
+    if DEFAULT_ISS_CONFIG not in configs:
+        configs.insert(0, DEFAULT_ISS_CONFIG)
+    return configs
+
+
+def list_debkit_confs(project_dir: Path | None = None) -> list[str]:
+    """列出 Releases/Linux/appConfigs 下可选 conf 文件名。"""
+    root = (project_dir or unity_locator.PROJECT_DIR) / "Releases" / "Linux" / "appConfigs"
+    if not root.is_dir():
+        return []
+    return sorted(p.name for p in root.glob("*.conf"))
+
 
 def _project_settings_dir(project_dir: Path | None = None) -> Path:
     return (project_dir or unity_locator.PROJECT_DIR) / "Assets" / "TEngine" / "Settings"
@@ -124,6 +158,12 @@ class BuildFormState:
     installerPublisher: str = ""
     installerPassword: str = ""
     installerWatermark: str = ""
+    # 选中的安装包配置名；编辑脚本是 Releases/Windows/setup.<配置名>.iss；空 = generated
+    installerIssScript: str = ""
+    # Linux debkit：选中的 conf 文件名（appConfigs/<name>.conf）；空 = 按包名
+    debkitConfFile: str = ""
+    # Linux debkit：WSL 发行版；空 = 默认发行版
+    debkitDistro: str = ""
     # 构建超时（分钟，0 = 不限）
     buildTimeoutMinutes: int = 0
     # 批量执行：绑定预设名（空 = 使用当前表单）；执行时 Python 侧专用，不下发 CLIBridge

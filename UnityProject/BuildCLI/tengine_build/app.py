@@ -478,7 +478,7 @@ class MainWindow(QMainWindow):
         player_form.addRow(self.clean_player_output_check)
         layout.addWidget(player)
 
-        installer = QGroupBox("InnoSetup 安装包（仅 Windows）")
+        installer = QGroupBox("安装包（Windows InnoSetup / Linux debkit）")
         inst_form = QFormLayout(installer)
         self.installer_check = QCheckBox("一键构建后串联编译安装包")
         self.installer_check.toggled.connect(lambda v: self._set_state("buildInstaller", v))
@@ -487,6 +487,20 @@ class MainWindow(QMainWindow):
         self.iscc_edit.setPlaceholderText("ISCC.exe 路径（空 = 自动定位注册表/PATH）")
         self.iscc_edit.textChanged.connect(lambda v: self._set_state("isccPath", v))
         inst_form.addRow("ISCC 路径：", self.iscc_edit)
+        self.iss_combo = QComboBox()
+        self.iss_combo.setEditable(True)
+        self.iss_combo.setToolTip("配置名：编辑脚本是 Releases/Windows/setup.<配置名>.iss；setup.iss 只是模板")
+        self.iss_combo.currentTextChanged.connect(lambda v: self._set_state("installerIssScript", v))
+        inst_form.addRow("iss 配置：", self.iss_combo)
+        self.debkit_conf_combo = QComboBox()
+        self.debkit_conf_combo.setEditable(True)
+        self.debkit_conf_combo.setToolTip("Releases/Linux/appConfigs 下的一份 conf = 一个 deb 变体；空 = 按包名")
+        self.debkit_conf_combo.currentTextChanged.connect(lambda v: self._set_state("debkitConfFile", v))
+        inst_form.addRow("Linux 构建配置：", self.debkit_conf_combo)
+        self.debkit_distro_edit = QLineEdit()
+        self.debkit_distro_edit.setPlaceholderText("WSL 发行版（空 = 默认发行版）")
+        self.debkit_distro_edit.textChanged.connect(lambda v: self._set_state("debkitDistro", v))
+        inst_form.addRow("WSL 发行版：", self.debkit_distro_edit)
         layout.addWidget(installer)
 
         timeout_box = QGroupBox("稳定性")
@@ -809,6 +823,25 @@ class MainWindow(QMainWindow):
         self.clean_player_output_check.setChecked(s.cleanPlayerOutputDirectory)
         self.installer_check.setChecked(s.buildInstaller)
         self.iscc_edit.setText(s.isccPath)
+
+        project_dir = self._current_project_dir()
+        self.iss_combo.blockSignals(True)
+        self.iss_combo.clear()
+        self.iss_combo.addItem("")
+        for name in config_store.list_iss_configs(project_dir):
+            self.iss_combo.addItem(name)
+        self.iss_combo.setCurrentText(s.installerIssScript or "")
+        self.iss_combo.blockSignals(False)
+
+        self.debkit_conf_combo.blockSignals(True)
+        self.debkit_conf_combo.clear()
+        self.debkit_conf_combo.addItem("")
+        for name in config_store.list_debkit_confs(project_dir):
+            self.debkit_conf_combo.addItem(name)
+        self.debkit_conf_combo.setCurrentText(s.debkitConfFile or "")
+        self.debkit_conf_combo.blockSignals(False)
+
+        self.debkit_distro_edit.setText(s.debkitDistro)
         self.timeout_spin.setValue(s.buildTimeoutMinutes)
 
     def _reload_package_name_combo(self, selected: str = "") -> None:

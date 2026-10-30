@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=@APP_TITLE@
+GenericName=@GENERIC_NAME@
+Comment=@DESC_SHORT@
+Exec=/usr/bin/@PKG_NAME@
+TryExec=/usr/bin/@PKG_NAME@
+Icon=@PKG_NAME@
+Terminal=false
+StartupNotify=false
+StartupWMClass=@EXECUTABLE@
+Categories=@CATEGORIES@
+Keywords=@KEYWORDS@
