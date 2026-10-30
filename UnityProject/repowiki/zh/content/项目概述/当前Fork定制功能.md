@@ -17,7 +17,7 @@
 | 清单加密 | 按包开关 `ManifestEncrypted`（ChaCha20），密钥与 Bundle 用密钥相互独立；密钥以代码常量存储于 `KeyStore`（`TEngine.CryptoKeys` 程序集），不再随 Resources 打入运行时包 |
 | 轻量配置 | 使用 `GameModule.Config` 加载 TOML/JSON，支持 `persistentDataPath/Configs` 覆盖 `StreamingAssets/Configs`；项目默认不使用 Luban |
 | 模块访问 | 热更业务通过 `GameModule.XXX` 访问模块 |
-| 构建工具 | 使用 `Build/打包工具窗口`，运行时包配置与构建配置共用 `UpdateSetting.RuntimePackages`；外置命令行/GUI 构建走 `UnityProject/BuildCLI/`（Python，复用同一套 `ReleaseTools` 链路，支持批量任务多步骤队列 + 分段合并省冷启动，见 [Fork构建与调试工具](../编辑器工具/Fork构建与调试工具.md)） |
+| 构建工具 | 使用 `Build/打包工具窗口`，运行时包配置与构建配置共用 `UpdateSetting.RuntimePackages`；外置命令行/GUI 构建走 `UnityProject/BuildCLI/`（Python，复用同一套 `ReleaseTools` 链路，支持批量任务多步骤队列 + 分段合并省冷启动，见 [Fork构建与调试工具](../编辑器工具/Fork构建与调试工具.md)）；安装包支持 Windows Inno Setup（多 iss 档案）与 Linux debkit 经 WSL 打 deb（多 conf 档案） |
 
 ## 资源与热更新
 
@@ -113,7 +113,7 @@ GameModule.Resource.UnloadAsset(raw);
 
 ```text
 编译热更 DLL -> 构建资源包 -> 发布整理 -> 最小包处理
--> 构建 Player -> 编译 Inno Setup 安装包
+-> 构建 Player -> 编译安装包（Windows: Inno Setup / Linux: debkit 经 WSL 打 deb）
 ```
 
 主要产物目录：
@@ -121,8 +121,8 @@ GameModule.Resource.UnloadAsset(raw);
 ```text
 Releases/
 ├── Bundles/
-├── Windows/{setup.iss, setup.generated.iss, build/, setup/}
-├── Linux/build/
+├── Windows/{setup.iss, setup.<配置名>.iss, build/, setup/}
+├── Linux/{build/, debkit.sh, appConfigs/, output/}
 ├── Android/build/
 ├── IOS/build/
 ├── MacOS/build/
@@ -131,6 +131,8 @@ Releases/
 ```
 
 所有平台 Player 产物统一归到 `Releases/{平台}/build/`。Player 输出路径使用项目根相对路径（`./` 前缀），由构建链路在使用处转为绝对路径；旧的 `Output/Player/` 路径会自动迁移。AssetBundle 或 Player 构建失败时，安装包阶段必须停止，不能复用旧产物。
+
+安装包采用「文件即变体、模板只读」的多配置档案约定：Windows 以 `setup.iss` 为唯一模板，每份配置对应编辑脚本 `setup.<配置名>.iss`（默认配置名 `generated`），面板「iss 配置」切换后按落盘脚本回填 6 项 `#define`，构建只回写所选脚本；Linux 以 `appConfigs/<配置名>.conf` 为变体，选中即打包该 conf（`debkit.sh -c`），debkit 面板支持 WSL 发行版选择与一键打包，产物为 `Releases/Linux/output/<包名>_<版本>_<架构>.deb`。两平台均可「从模板创建」新变体，BuildCLI 对应 `buildInstaller` / `buildLinuxInstaller` 动作与 `--iss-script` / `--debkit-conf` / `--debkit-distro` 参数。详见 [Fork构建与调试工具](../编辑器工具/Fork构建与调试工具.md) 与 [资源构建与发布](../../../../../Books/Fork/resource-build.md)。
 
 场景枚举使用 `TEngine/场景枚举配置` 打开 Odin 配置窗口维护（配置资产在 `Assets/Editor/SceneTools/SceneEnumGenerator/` 下，Editor-only），通过 GUID 跟踪场景并生成 `SceneType.g.cs`、`SceneConstName.g.cs` 和 `SceneTypeMapping.g.cs`。
 

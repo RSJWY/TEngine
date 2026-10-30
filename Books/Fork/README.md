@@ -18,7 +18,7 @@
 | 数据绑定 | 纯数据 DataBinding 运行时、生成器和 Odin 面板 | [data-binding.md](data-binding.md) |
 | 运行时配置 | RuntimeConfig、DeployConfig、TOML/JSON 轻量配置 | [runtime-config.md](runtime-config.md) |
 | 热更新 | CodePackage、归档二进制加载、版本确认、AOT 元数据 | [hot-update.md](hot-update.md) |
-| 资源打包 | 按包构建、ArchiveFile 管线、发布整理、打包工具优化 | [resource-build.md](resource-build.md) |
+| 资源打包 | 按包构建、ArchiveFile 管线、发布整理、打包工具优化、Windows/Linux 安装包（InnoSetup 多 iss 档案 / WSL debkit 打 deb） | [resource-build.md](resource-build.md) |
 | 场景系统 | DynamicSpawn 通用化与 GUID 弱引用寻址、GameSceneModule 进度下沉 | [scene-system.md](scene-system.md) |
 | 窗口管理 | Windows Standalone 窗口布局控制 | [window-management.md](window-management.md) |
 | 代码混淆 | Obfuz 接入、dnlib 冲突解决、本地包同步脚本、运行时静态密钥初始化、多态 DLL 热更产物 | [obfuscation.md](obfuscation.md) |
@@ -38,6 +38,7 @@
 
 ## 最近重点
 
+- 安装包链路补齐：新增 `Releases/Linux` 下的 debkit（`debkit.sh` 一键把 Linux Player 目录封装成 `.deb`，装完自带开始菜单项、桌面快捷方式、可开关的开机自启、画质档位与图形接口切换），打包窗口接入 WSL 发行版选择与一键打包；Windows/Linux 安装包均支持多配置档案（`setup.<配置名>.iss` / `appConfigs/<配置名>.conf`，文件即变体、模板只读、可「从模板创建」），BuildCLI 增加 `buildInstaller` / `buildLinuxInstaller` 动作与 `--iss-script` / `--debkit-conf` / `--debkit-distro` 参数。详见 [resource-build.md](resource-build.md)。
 - 第三方包本地化补齐：`com.code-philosophy.obfuz4hybridclr` 与 `com.cysharp.unitask` 从 Git URL 依赖转为 `Packages/` 本地包，新增配套一键同步脚本 `sync-obfuz4hybridclr-local.sh` / `sync-unitask-local.sh`（及 `.bat` 包装），与既有 `sync-hybridclr-local.sh` / `sync-obfuz-local.sh` 同一套约定（自动解析最新稳定 tag、支持指定 tag/分支/commit、gitee 镜像切换、幂等重同步）。详见 [local-packages.md](local-packages.md)。
 - 新增模块级自定义异步操作 `AsyncOperationModule`：借鉴 YooAsset 3.0.6 `CustomAsyncOperation` 体系抽成 TEngine 框架自有模块，不依赖 YooAsset 运行时。`GameAsyncOperation` 基类提供状态机/`Completed` 事件/优先级/进度/子任务树/协程/awaiter/同步等待；`OperationScheduler` 双队列+时间切片预算；多调度器管理绑定业务域生命周期；abort-on-cancel 重载（`StartOperation(op, token)` 取消即中止操作，注明独占要求）；UniTask 完整支持（`ToUniTask`/`WithCancellation`/进度上报/池化零分配）；`AsyncOperationMonitor` 编辑器可视化监控组件（`#if UNITY_EDITOR` 打包剥离）；热更 `GameModule` 新增 `AsyncOperation` 访问器。
 - `CodePackage` 接入 YooAsset 3.0.5 `ArchiveFileBuildPipeline`：构建类型改为 `ArchiveBundle`，编辑器模拟使用 `VirtualArchiveBundle`；运行时文件系统注册归档内存解密器，DLL/PDB/AOT 元数据和 Obfuz 动态密钥按归档语义读取 `RawFileObject`；修复 ChaCha20 变换与密钥配置 Player 编译问题。上游 TEngine 支持 YooAsset 3.x 后继续收敛资源模块和二进制加载抽象。
