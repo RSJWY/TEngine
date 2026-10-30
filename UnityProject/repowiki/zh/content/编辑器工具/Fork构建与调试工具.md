@@ -148,3 +148,11 @@ Releases/
 - 框架构建工具放在 `Assets/TEngine/Editor/`。
 - 运行时程序集不能引用 Odin Editor 类型。
 - 自动生成文件、构建产物和 `setup.generated.iss` 不作为手工源文件维护。
+
+<!-- installer-multi-config -->
+### 安装包多配置（setup.<配置名>.iss / appConfigs/*.conf）
+
+- **Windows**：`setup.iss` 是唯一模板，永不回写；每份配置对应一份编辑脚本 `setup.<配置名>.iss`（默认配置名 `generated`）。面板「iss 配置」下拉切换后，先按落盘脚本载入 6 项 `#define`（应用名 / 英文名 / 发布者 / 密码 / 水印），版本与 exe 名由构建自动写入；构建只回写 `setup.<配置名>.iss`，因此选中哪份就改哪份。
+- **Linux**：`Releases/Linux/appConfigs/*.conf` 每份 conf 是一个变体。面板「构建配置」下拉切换后按落盘文件回填字段；「写入配置 / 从配置回读 / 打包」三处都作用于当前选中的 conf，实际执行为 `debkit.sh -c appConfigs/<配置名>.conf`。
+- **从模板创建（两平台一致）**：两个下拉旁边的「从模板创建」按钮会先弹命名框，填好配置名后——Windows 以 `setup.iss` 为模板生成 `setup.<配置名>.iss` 并切换过去（同名只切换、不覆盖）；Linux 以 `example.conf` 的键集为模板、用当前面板字段生成 `appConfigs/<配置名>.conf` 并切换过去（同名会先确认是否覆盖）。
+- 两个选择分别保存在 `BuildPipelineSetting.asset` 的 `InstallerIssScript`（配置名）/ `DebkitConfFile`，BuildCLI 预设同名保存。

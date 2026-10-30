@@ -71,6 +71,8 @@ namespace TEngine
         public string InstallerPassword = "";
         // 向导水印,回写 BrandWatermark;为空时回退用 Publisher
         public string InstallerWatermark = "";
+        // 选中的 Inno Setup 脚本(Releases/Windows/<name>.iss);为空回退 setup.iss
+        public string InstallerIssScript = "";
 
         // debkit 安装包设置（Linux；构建工具写入 Releases/Linux/appConfigs/<包名>.conf,打包仍在 WSL 里执行）
         // 应用显示名,回写 APP_TITLE;为空时取 PlayerSettings.productName
@@ -111,6 +113,8 @@ namespace TEngine
         public string DebkitWslDistro = "";
         // 菜单分类,回写 CATEGORIES
         public string DebkitCategories = "Utility;";
+        // 选中的 debkit 构建配置(Releases/Linux/appConfigs/<name>.conf);为空回退 <包名>.conf
+        public string DebkitConfFile = "";
 
         // CLI/batchmode 模式：跳过一切交互对话框（如 pdb 残留确认，自动清理继续），日志哨兵照常输出
         public bool HeadlessMode;

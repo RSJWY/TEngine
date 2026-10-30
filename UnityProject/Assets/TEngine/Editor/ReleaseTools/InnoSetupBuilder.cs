@@ -18,8 +18,100 @@ namespace TEngine
 
         public static string ReleasesDir => Path.GetFullPath(Application.dataPath + "/../Releases");
         public static string WindowsDir => Path.Combine(ReleasesDir, "Windows");
-        public static string IssPath => Path.Combine(WindowsDir, "setup.iss");
-        public static string GeneratedIssPath => Path.Combine(WindowsDir, "setup.generated.iss");
+        /// <summary>Inno Setup 模板脚本名（唯一，手工维护，构建流程永不回写）。</summary>
+        public const string TemplateIssName = "setup.iss";
+
+        /// <summary>默认配置名，对应编辑脚本 setup.generated.iss（与历史文件名一致，无需迁移）。</summary>
+        public const string DefaultIssConfig = "generated";
+
+        private const string IssNamePrefix = "setup.";
+        private const string IssExtension = ".iss";
+
+        /// <summary>当前选中的安装包配置名；编辑与编译的都是 setup.&lt;配置名&gt;.iss。</summary>
+        public static string ActiveIssConfig { get; private set; } = DefaultIssConfig;
+
+        /// <summary>模板脚本（唯一）：Releases/Windows/setup.iss。</summary>
+        public static string IssPath => Path.Combine(WindowsDir, TemplateIssName);
+
+        /// <summary>当前配置的编辑脚本：Releases/Windows/setup.&lt;配置名&gt;.iss。</summary>
+        public static string GeneratedIssPath => Path.Combine(WindowsDir, GetIssFileName(ActiveIssConfig));
+
+        /// <summary>切换安装包配置；接受配置名或 setup.&lt;名&gt;.iss 文件名，空/非法回退 generated。</summary>
+        public static void SelectIssConfig(string configName)
+        {
+            ActiveIssConfig = NormalizeIssConfig(configName);
+        }
+
+        /// <summary>配置名 -> setup.&lt;配置名&gt;.iss。</summary>
+        public static string GetIssFileName(string configName)
+        {
+            return IssNamePrefix + NormalizeIssConfig(configName) + IssExtension;
+        }
+
+        /// <summary>归一化配置名：去路径与 setup./.iss 前后缀、替换非法字符；空值回退 generated。</summary>
+        public static string NormalizeIssConfig(string configName)
+        {
+            var name = string.IsNullOrWhiteSpace(configName) ? string.Empty : Path.GetFileName(configName.Trim());
+            if (name.EndsWith(IssExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                name = name.Substring(0, name.Length - IssExtension.Length);
+            }
+
+            if (name.StartsWith(IssNamePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                name = name.Substring(IssNamePrefix.Length);
+            }
+
+            name = name.Trim();
+            // 旧设置里存的是脚本文件名（setup.iss），归一后会剩 "setup"，统一回默认配置名
+            if (string.Equals(name, "setup", StringComparison.OrdinalIgnoreCase))
+            {
+                return DefaultIssConfig;
+            }
+
+            if (name.Length <= 0 || name == "." || name == "..")
+            {
+                return DefaultIssConfig;
+            }
+
+            foreach (var invalid in Path.GetInvalidFileNameChars())
+            {
+                name = name.Replace(invalid, '_');
+            }
+
+            return name;
+        }
+
+        /// <summary>列出已有配置名（扫 setup.*.iss 并排除模板）；默认配置恒在首位。</summary>
+        public static List<string> ListIssConfigs()
+        {
+            var configs = new List<string>();
+            if (Directory.Exists(WindowsDir))
+            {
+                foreach (var path in Directory.GetFiles(WindowsDir, IssNamePrefix + "*" + IssExtension, SearchOption.TopDirectoryOnly))
+                {
+                    var fileName = Path.GetFileName(path);
+                    if (string.Equals(fileName, TemplateIssName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var config = NormalizeIssConfig(fileName);
+                    if (!configs.Contains(config))
+                    {
+                        configs.Add(config);
+                    }
+                }
+            }
+
+            configs.Sort(StringComparer.OrdinalIgnoreCase);
+            if (!configs.Contains(DefaultIssConfig))
+            {
+                configs.Insert(0, DefaultIssConfig);
+            }
+
+            return configs;
+        }
         public static string PlayerBuildDir => Path.Combine(WindowsDir, "build");
         public static string InstallerOutputDir => Path.Combine(WindowsDir, "setup");
 
@@ -67,9 +159,11 @@ namespace TEngine
             }
         }
 
-        public static void BuildInstaller(IssInstallerConfig config, string isccPathOverride = null)
+        public static void BuildInstaller(IssInstallerConfig config, string isccPathOverride = null, string issConfig = null)
         {
             if (config == null) throw new ArgumentNullException(nameof(config));
+            // 指定安装包配置名时先切换：后续 GeneratedIssPath 即 setup.<配置名>.iss
+            if (!string.IsNullOrWhiteSpace(issConfig)) SelectIssConfig(issConfig);
 
             var sw = Stopwatch.StartNew();
             try

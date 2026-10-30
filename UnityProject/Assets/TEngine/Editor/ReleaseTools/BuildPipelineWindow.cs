@@ -379,6 +379,100 @@ namespace TEngine
         [SerializeField]
         private bool _buildInstaller;
 
+        // 一份配置 = 一份编辑脚本：setup.iss 是唯一模板，编辑/编译的是 setup.<配置名>.iss。
+        // 切换配置时以落盘脚本为准载入面板，构建时再回写同名脚本。
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [HorizontalGroup("Pages/安装包配置/InnoSetup 安装包/IssRow")]
+        [LabelText("iss 配置")]
+        [Tooltip("配置名 = 编辑脚本 setup.<配置名>.iss 里的 <配置名>。setup.iss 只作模板，构建只读它、回写 setup.<配置名>.iss（默认配置名 generated）。")]
+        [ValueDropdown(nameof(IssConfigOptions))]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        [OnValueChanged(nameof(OnIssScriptChanged))]
+        [SerializeField]
+        private string _installerIssScript = InnoSetupBuilder.DefaultIssConfig;
+
+        private IEnumerable<string> IssConfigOptions => InnoSetupBuilder.ListIssConfigs();
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/InnoSetup 安装包")]
+        [HorizontalGroup("Pages/安装包配置/InnoSetup 安装包/IssRow")]
+        [Button("从模板创建", ButtonSizes.Small)]
+        [Tooltip("填一个配置名，以 setup.iss 为模板生成 setup.<配置名>.iss 并切换过去；同名已存在时只切换、不覆盖")]
+        [ShowIf(nameof(IsInstallerEnabled))]
+        private void CreateIssConfigFromTemplate()
+        {
+            InstallerNameDialog.Show("新建 iss 配置", "配置名", _installerIssScript, name =>
+            {
+                InnoSetupBuilder.SelectIssConfig(name);
+                _installerIssScript = InnoSetupBuilder.ActiveIssConfig;
+                LoadInstallerConfigFromActiveIss();
+
+                try
+                {
+                    InnoSetupBuilder.EnsureGeneratedIss(CreateInstallerIssConfig());
+                    Debug.Log($"[InnoSetup] 已从模板创建/切换配置：{_installerIssScript} -> {InnoSetupBuilder.GeneratedIssPath}");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[InnoSetup] 从模板创建编辑脚本失败：{e.Message}");
+                }
+
+                SaveSettings();
+                Repaint();
+            });
+        }
+
+        private void OnIssScriptChanged()
+        {
+            InnoSetupBuilder.SelectIssConfig(_installerIssScript);
+            LoadInstallerConfigFromActiveIss();
+
+            // 新配置首次选中时立即落地 setup.<配置名>.iss，便于马上编辑（已存在则不动）
+            try
+            {
+                InnoSetupBuilder.EnsureGeneratedIss(CreateInstallerIssConfig());
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[InnoSetup] 初始化编辑脚本失败：{e.Message}");
+            }
+
+            SaveSettings();
+            Repaint();
+        }
+
+        /// <summary>读取当前配置编辑脚本的 #define 回填面板：只覆盖脚本里确实存在的键，未读到的保持原值。</summary>
+        private void LoadInstallerConfigFromActiveIss()
+        {
+            // 以编辑脚本（setup.<配置名>.iss）为准；尚未生成时回退模板
+            var issPath = InnoSetupBuilder.GeneratedIssPath;
+            if (!File.Exists(issPath))
+            {
+                issPath = InnoSetupBuilder.IssPath;
+            }
+
+            if (!File.Exists(issPath))
+            {
+                return;
+            }
+
+            try
+            {
+                var extracted = InnoSetupBuilder.ExtractIssConfig(issPath);
+                if (extracted.AppName != null) _installerAppName = extracted.AppName;
+                if (extracted.AppEnglishName != null) _installerAppEnglishName = extracted.AppEnglishName;
+                if (extracted.Publisher != null) _installerPublisher = extracted.Publisher;
+                if (extracted.Password != null) _installerPassword = extracted.Password;
+                if (extracted.Watermark != null) _installerWatermark = extracted.Watermark;
+                Debug.Log($"[InnoSetup] 已按落盘文件载入脚本参数：{Path.GetFileName(issPath)}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[InnoSetup] 载入脚本参数失败（{Path.GetFileName(issPath)}）：{e.Message}");
+            }
+        }
+
         // 安装包版本不可在此覆盖：固定取 UpdateSetting.Version（已同步到 ProjectSettings 的 Version），
         // 构建时写入 setup.iss 的 MyAppVersion。改版本请改 UpdateSetting。
         [TabGroup("Pages", "安装包配置")]
@@ -672,6 +766,73 @@ namespace TEngine
         // ============ 安装包配置 / debkit（Linux） ============
         // debkit 位于 Releases/Linux，本面板只负责把字段写成 appConfigs/<包名>.conf；
         // 真正的 .deb 打包仍在 WSL 里执行（面板给出可直接粘贴的命令）。
+        // 多份 conf 并存：一份 conf = 一个变体。切换时按落盘文件回填面板。
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/ConfRow")]
+        [LabelText("构建配置")]
+        [Tooltip("Releases/Linux/appConfigs 下可选的 conf。切换后按该文件回填上方字段；写入/回读/打包都作用于这份 conf。")]
+        [ValueDropdown(nameof(DebkitConfOptions))]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        [OnValueChanged(nameof(OnDebkitConfChanged))]
+        [SerializeField]
+        private string _debkitConfFile = string.Empty;
+
+        private IEnumerable<string> DebkitConfOptions => DebkitConfig.ListConfFiles();
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/ConfRow")]
+        [Button("从模板创建", ButtonSizes.Small)]
+        [Tooltip("填一个配置名，以 example.conf 的键集为模板、用当前面板字段生成 appConfigs/<配置名>.conf 并切换过去；同名已存在会先确认覆盖")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private void CreateDebkitConfFromTemplate()
+        {
+            var defaultName = string.IsNullOrWhiteSpace(_debkitConfFile)
+                ? DebkitConfig.SanitizePackageName(_debkitPackageName) + DebkitConfig.ConfExtension
+                : _debkitConfFile;
+
+            InstallerNameDialog.Show("新建 debkit 配置", "配置名", defaultName, name =>
+            {
+                try
+                {
+                    var path = DebkitConfig.GetConfPathByFile(name);
+                    if (File.Exists(path) &&
+                        !EditorUtility.DisplayDialog("配置已存在",
+                            $"{Path.GetFileName(path)} 已存在，是否用当前面板字段覆盖？", "覆盖", "取消"))
+                    {
+                        return;
+                    }
+
+                    var written = DebkitConfig.WriteConfig(CreateDebkitConfData(), name);
+                    _debkitConfFile = Path.GetFileName(written);
+                    SaveSettings();
+                    Repaint();
+                    Debug.Log($"[debkit] 已从模板创建配置：{written}");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                    AddLog($"[错误] 从模板创建 debkit 配置失败：{e.Message}");
+                    Repaint();
+                }
+            });
+        }
+
+        private void OnDebkitConfChanged()
+        {
+            if (!string.IsNullOrWhiteSpace(_debkitConfFile) &&
+                DebkitConfig.TryReadConfig(DebkitConfig.GetConfPathByFile(_debkitConfFile), out var data))
+            {
+                ApplyDebkitConfData(data);
+                OnSettingsChanged();
+                Debug.Log($"[debkit] 已按落盘文件载入配置：{_debkitConfFile}");
+            }
+
+            SaveSettings();
+            Repaint();
+        }
+
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/debkit 安装包")]
         [ShowInInspector]
@@ -957,8 +1118,10 @@ namespace TEngine
         [MultiLineProperty(3)]
         [ShowIf(nameof(IsDebkitPanelVisible))]
         private string DebkitWslCommandText =>
-            DebkitConfig.BuildWindowsWslCommand(_debkitPackageName, _debkitWslDistro) + "\n" +
-            DebkitConfig.BuildWslCommand(_debkitPackageName);
+            DebkitConfig.BuildWindowsWslCommand(_debkitPackageName, _debkitWslDistro,
+                string.IsNullOrWhiteSpace(_debkitConfFile) ? null : _debkitConfFile) + "\n" +
+            DebkitConfig.BuildWslCommand(_debkitPackageName,
+                string.IsNullOrWhiteSpace(_debkitConfFile) ? null : _debkitConfFile);
 
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/debkit 安装包")]
@@ -971,7 +1134,8 @@ namespace TEngine
             try
             {
                 SaveSettings();
-                var path = DebkitConfig.WriteConfig(CreateDebkitConfData());
+                var path = DebkitConfig.WriteConfig(CreateDebkitConfData(),
+                    string.IsNullOrWhiteSpace(_debkitConfFile) ? null : _debkitConfFile);
                 Debug.Log($"[debkit] 已写入安装包配置：{path}");
                 AddLog($"[debkit] 已写入安装包配置：{path}");
                 Repaint();
@@ -984,18 +1148,11 @@ namespace TEngine
             }
         }
 
-        [TabGroup("Pages", "安装包配置")]
-        [BoxGroup("Pages/安装包配置/debkit 安装包")]
-        [HorizontalGroup("Pages/安装包配置/debkit 安装包/操作")]
-        [Button("从配置回读", ButtonSizes.Small)]
-        [Tooltip("读取 appConfigs/<包名>.conf 的现有值回填上方字段（手工改过 conf 时用）")]
-        [ShowIf(nameof(IsDebkitPanelVisible))]
-        private void ReadDebkitConf()
+        /// <summary>把一份 conf 的解析结果回填到面板字段（写入/切换/回读共用）。</summary>
+        private void ApplyDebkitConfData(DebkitConfData data)
         {
-            var path = DebkitConfig.GetConfPath(_debkitPackageName);
-            if (!DebkitConfig.TryReadConfig(path, out var data))
+            if (data == null)
             {
-                Debug.LogWarning($"[debkit] 配置不存在，无法回读：{path}");
                 return;
             }
 
@@ -1009,6 +1166,7 @@ namespace TEngine
             _debkitGraphicsDefault = data.GraphicsDefault;
             _debkitAutostart = data.AutostartDefault;
             _debkitAutostartDelay = data.AutostartDelay;
+            _debkitCreateDesktopIcon = data.CreateDesktopIcon;
             _debkitCompress = data.Compress;
             _debkitCompressLevel = data.CompressLevel;
             _debkitDepends = data.Depends;
@@ -1016,7 +1174,26 @@ namespace TEngine
             _debkitWritableDirs = data.WritableDirs;
             _debkitExclude = data.Exclude;
             _debkitCategories = data.Categories;
-            _debkitCreateDesktopIcon = data.CreateDesktopIcon;
+        }
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/debkit 安装包")]
+        [HorizontalGroup("Pages/安装包配置/debkit 安装包/操作")]
+        [Button("从配置回读", ButtonSizes.Small)]
+        [Tooltip("读取 appConfigs/<包名>.conf 的现有值回填上方字段（手工改过 conf 时用）")]
+        [ShowIf(nameof(IsDebkitPanelVisible))]
+        private void ReadDebkitConf()
+        {
+            var path = string.IsNullOrWhiteSpace(_debkitConfFile)
+                ? DebkitConfig.GetConfPath(_debkitPackageName)
+                : DebkitConfig.GetConfPathByFile(_debkitConfFile);
+            if (!DebkitConfig.TryReadConfig(path, out var data))
+            {
+                Debug.LogWarning($"[debkit] 配置不存在，无法回读：{path}");
+                return;
+            }
+
+            ApplyDebkitConfData(data);
 
             OnSettingsChanged();
             Debug.Log($"[debkit] 已从配置回读：{path}");
@@ -1124,7 +1301,8 @@ namespace TEngine
             }
 
             var distro = string.IsNullOrWhiteSpace(_debkitWslDistro) ? "默认发行版" : _debkitWslDistro;
-            var arguments = DebkitConfig.BuildWslProcessArguments(config.PackageName, _debkitWslDistro);
+            var arguments = DebkitConfig.BuildWslProcessArguments(config.PackageName, _debkitWslDistro,
+                string.IsNullOrWhiteSpace(_debkitConfFile) ? null : _debkitConfFile);
             AddLog($"[debkit] WSL 发行版：{distro}");
             AddLog($"[debkit] 源目录：{sourceDir}");
             AddLog($"[debkit] 命令：wsl.exe {arguments}");
@@ -1961,6 +2139,13 @@ namespace TEngine
 
             LoadFromSetting(_setting);
 
+            // iss / conf 选择：先按落盘设置选中脚本，再初始化它的生成副本
+            _installerIssScript = string.IsNullOrWhiteSpace(_setting.InstallerIssScript)
+                ? InnoSetupBuilder.DefaultIssConfig
+                : _setting.InstallerIssScript;
+            InnoSetupBuilder.SelectIssConfig(_installerIssScript);
+            _debkitConfFile = _setting.DebkitConfFile ?? string.Empty;
+
             try
             {
                 InnoSetupBuilder.EnsureGeneratedIss(CreateInstallerIssConfig());
@@ -2247,6 +2432,7 @@ namespace TEngine
             _setting.InstallerPublisher = _installerPublisher;
             _setting.InstallerPassword = _installerPassword;
             _setting.InstallerWatermark = _installerWatermark;
+            _setting.InstallerIssScript = _installerIssScript;
 
             _setting.DebkitAppTitle = _debkitAppTitle;
             _setting.DebkitWslDistro = _debkitWslDistro;
@@ -2267,6 +2453,7 @@ namespace TEngine
             _setting.DebkitWritableDirs = _debkitWritableDirs;
             _setting.DebkitExclude = _debkitExclude;
             _setting.DebkitCategories = _debkitCategories;
+            _setting.DebkitConfFile = _debkitConfFile;
 
             EditorUtility.SetDirty(_setting);
             _settingDirty = true;
@@ -3438,5 +3625,61 @@ namespace TEngine
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// 安装包配置命名对话框：给「从模板创建」提供名称输入。
+    /// 用独立小窗口而不是往面板里塞临时字段，避免污染设置与面板布局。
+    /// </summary>
+    public sealed class InstallerNameDialog : EditorWindow
+    {
+        private string _label = string.Empty;
+        private string _value = string.Empty;
+        private Action<string> _onConfirm;
+
+        /// <summary>弹出命名框；确认且名称非空时回调（已 Trim）。</summary>
+        public static void Show(string title, string label, string defaultValue, Action<string> onConfirm)
+        {
+            var window = CreateInstance<InstallerNameDialog>();
+            window.titleContent = new GUIContent(title);
+            window._label = label;
+            window._value = defaultValue ?? string.Empty;
+            window._onConfirm = onConfirm;
+            window.minSize = new Vector2(380f, 84f);
+            window.maxSize = new Vector2(380f, 84f);
+            window.ShowUtility();
+            window.Focus();
+        }
+
+        private void OnGUI()
+        {
+            EditorGUILayout.Space(8f);
+            _value = EditorGUILayout.TextField(_label, _value);
+
+            EditorGUILayout.Space(10f);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("创建", GUILayout.Width(80f)))
+                {
+                    var name = (_value ?? string.Empty).Trim();
+                    if (name.Length <= 0)
+                    {
+                        EditorUtility.DisplayDialog("名称为空", "请填写配置名。", "好");
+                        return;
+                    }
+
+                    var callback = _onConfirm;
+                    Close();
+                    callback?.Invoke(name);
+                    return;
+                }
+
+                if (GUILayout.Button("取消", GUILayout.Width(80f)))
+                {
+                    Close();
+                }
+            }
+        }
     }
 }

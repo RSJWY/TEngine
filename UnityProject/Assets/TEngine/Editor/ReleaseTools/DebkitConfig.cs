@@ -49,6 +49,34 @@ namespace TEngine
             return Path.Combine(ConfDir, SanitizePackageName(packageName) + ConfExtension);
         }
 
+        /// <summary>列出 appConfigs 下所有 conf 文件名，按名称排序。</summary>
+        public static string[] ListConfFiles()
+        {
+            if (!Directory.Exists(ConfDir)) return Array.Empty<string>();
+
+            var files = new List<string>();
+            foreach (var path in Directory.GetFiles(ConfDir, "*" + ConfExtension, SearchOption.TopDirectoryOnly))
+            {
+                var name = Path.GetFileName(path);
+                if (!string.IsNullOrEmpty(name)) files.Add(name);
+            }
+
+            files.Sort(StringComparer.OrdinalIgnoreCase);
+            return files.ToArray();
+        }
+
+        /// <summary>按文件名取 conf 绝对路径；只取文件名（拒绝目录穿越），无扩展名时补 .conf。</summary>
+        public static string GetConfPathByFile(string confFileName)
+        {
+            if (string.IsNullOrWhiteSpace(confFileName)) return GetConfPath(string.Empty);
+
+            var name = Path.GetFileName(confFileName.Trim());
+            if (string.IsNullOrEmpty(name) || name == "." || name == "..") return GetConfPath(string.Empty);
+
+            if (!name.EndsWith(ConfExtension, StringComparison.OrdinalIgnoreCase)) name += ConfExtension;
+            return Path.Combine(ConfDir, name);
+        }
+
         /// <summary>
         /// Debian 包名归一化：全小写，只保留 a-z 0-9 . + -，其余（含中文、空格、下划线）替换为 '-'。
         /// 为空时回退 "my-application"，以数字开头时补 "app-" 前缀。
@@ -156,9 +184,11 @@ namespace TEngine
         }
 
         /// <summary>可直接粘贴到 WSL 的打包命令（配置已在 appConfigs 下时）。</summary>
-        public static string BuildWslCommand(string packageName)
+        public static string BuildWslCommand(string packageName, string confFileName = null)
         {
-            var confFile = Path.GetFileName(GetConfPath(packageName));
+            var confFile = string.IsNullOrWhiteSpace(confFileName)
+                ? Path.GetFileName(GetConfPath(packageName))
+                : Path.GetFileName(GetConfPathByFile(confFileName));
             return $"cd {ToWslPath(ToolDir)} && ./{ScriptFileName} -c {ConfDirName}/{confFile} -w ~/debkit-work";
         }
 
@@ -166,15 +196,15 @@ namespace TEngine
         /// 可直接粘贴到 Windows 终端（PowerShell / CMD）的命令：按需指定 WSL 发行版进入打包。
         /// distro 为空表示用 WSL 默认发行版。
         /// </summary>
-        public static string BuildWindowsWslCommand(string packageName, string distro)
+        public static string BuildWindowsWslCommand(string packageName, string distro, string confFileName = null)
         {
-            return "wsl.exe " + BuildWslProcessArguments(packageName, distro);
+            return "wsl.exe " + BuildWslProcessArguments(packageName, distro, confFileName);
         }
 
         /// <summary>wsl.exe 的参数部分（不含可执行文件名），供 Process.Start 直接使用。</summary>
-        public static string BuildWslProcessArguments(string packageName, string distro)
+        public static string BuildWslProcessArguments(string packageName, string distro, string confFileName = null)
         {
-            var inner = BuildWslCommand(packageName);
+            var inner = BuildWslCommand(packageName, confFileName);
             var target = string.IsNullOrWhiteSpace(distro) ? string.Empty : "-d \"" + distro.Trim() + "\" ";
             return $"{target}-- bash -lc \"{inner}\"";
         }
@@ -378,10 +408,12 @@ namespace TEngine
             return builder.ToString();
         }
 
-        /// <summary>写入 appConfigs/&lt;包名&gt;.conf，返回写入路径。</summary>
-        public static string WriteConfig(DebkitConfData data)
+        /// <summary>写入 appConfigs/&lt;confFileName&gt;；文件名为空时按包名写入，返回写入路径。</summary>
+        public static string WriteConfig(DebkitConfData data, string confFileName = null)
         {
-            var path = GetConfPath(data.PackageName);
+            var path = string.IsNullOrWhiteSpace(confFileName)
+                ? GetConfPath(data.PackageName)
+                : GetConfPathByFile(confFileName);
             var dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir))
             {

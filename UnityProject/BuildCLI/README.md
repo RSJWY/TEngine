@@ -110,3 +110,31 @@ GUI 在「批量执行」标签页管理任务（新建/编辑/删除/运行）�
 
 - 安装包（InnoSetup）构建暂未纳入 CLI（Unity 窗口已有完整实现），后续按需加 action。
 - Web 构建请自行确认平台模块安装；切平台首次会触发较长时间的平台库导入。
+
+<!-- installer-multi-config -->
+## 安装包多配置（Windows 多 iss / Linux 多 conf）
+
+一份文件 = 一个变体，构建时选一份，差异直接 `git diff` 对应文件。
+
+| 平台 | 模板 | 每份配置的编辑文件 |
+|---|---|---|
+| Windows | `Releases/Windows/setup.iss`（唯一，手工维护，构建永不回写） | `Releases/Windows/setup.<配置名>.iss` |
+| Linux | 无 | `Releases/Linux/appConfigs/<配置名>.conf` |
+
+Windows 的默认配置名叫 `generated`，即 `setup.generated.iss`（与历史文件名一致，无需迁移）。
+新增 Windows 变体：新建配置名 → 生成 `setup.<配置名>.iss` → 直接编辑它；「从模板重新生成」会用模板内容覆盖回所选配置。
+
+GUI：安装包分组的「iss 配置 / Linux 构建配置 / WSL 发行版」三行；每行旁边的「从模板创建」可填配置名直接生成对应文件（Unity 打包窗口里同样有这两个按钮）。
+
+命令行：
+
+```powershell
+# Windows 安装包（已有 Windows Player 产物）
+python -m tengine_build --no-gui run --action buildInstaller --iss-script customer-a
+
+# Linux 安装包（WSL 里执行 debkit）
+python -m tengine_build --no-gui run --action buildLinuxInstaller --debkit-conf example.conf --debkit-distro ai-dev
+```
+
+三个字段（`installerIssScript` / `debkitConfFile` / `debkitDistro`）随预设 `presets/*.json` 与 `_last_session.json` 保存，
+Unity 侧对应 `BuildPipelineSetting.asset` 的同名字段（`installerIssScript` 存的是配置名）。
