@@ -284,7 +284,11 @@ namespace TEngine.SceneTools
 
         private static void AddDuplicateEnumValueIssues(List<HealthItem> result, List<SceneEnumConfig.SceneEntry> active)
         {
-            var duplicates = active.GroupBy(e => e.EnumValue).Where(g => g.Count() > 1);
+            // 排除 0（未初始化哨兵值）：GUID 缺失的条目由「场景资源引用缺失」检查单独报错，避免误报哈希碰撞
+            var duplicates = active
+                .Where(e => e.EnumValue != 0)
+                .GroupBy(e => e.EnumValue)
+                .Where(g => g.Count() > 1);
             foreach (var group in duplicates)
             {
                 result.Add(new HealthItem

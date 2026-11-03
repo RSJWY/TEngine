@@ -45,12 +45,12 @@ namespace TEngine.SceneTools
             HashSet<string> matchedGuids = new HashSet<string>();
 
             // 1. 处理已有条目：检测删除/改名，刷新引用
+            //    RefreshSceneGuid 统一按 SceneAsset 实际路径取 GUID：
+            //    手动拖入后未同步的条目就地补全；手动替换场景资源的条目对齐新身份（旧 GUID 仅在资源为空时保留，用于识别删除/改名）。
             foreach (SceneEnumConfig.SceneEntry entry in entries)
             {
-                if (string.IsNullOrEmpty(entry.SceneGuid) && entry.SceneAsset != null)
-                {
-                    entry.SceneGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(entry.SceneAsset));
-                }
+                entry.Owner = config;
+                entry.RefreshSceneGuid();
 
                 if (string.IsNullOrEmpty(entry.SceneGuid))
                 {

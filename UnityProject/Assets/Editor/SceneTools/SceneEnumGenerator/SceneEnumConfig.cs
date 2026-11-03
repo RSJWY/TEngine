@@ -34,6 +34,7 @@ namespace TEngine.SceneTools
         [ListDrawerSettings(ShowItemCount = true, ShowPaging = false, DraggableItems = true)]
         [LabelText("场景列表")]
         [PropertySpace(8)]
+        [OnValueChanged(nameof(OnScenesChanged))]
         [ValidateInput(nameof(ValidateChineseNameUnique), "中文名重复，无法生成代码，请先修正后再生成。", InfoMessageType.Error)]
         public List<SceneEntry> Scenes = new List<SceneEntry>();
 
@@ -45,9 +46,41 @@ namespace TEngine.SceneTools
         [GUIColor(0.4f, 0.9f, 0.4f)]
         public void GenerateCode() => SceneEnumCodeGenerator.Generate(this);
 
+        private void OnEnable()
+        {
+            InjectOwner();
+        }
+
         private void OnFolderChanged()
         {
             Debug.Log("[场景枚举] 场景资源目录已变更，请点击「同步场景资源」刷新列表");
+        }
+
+        /// <summary>
+        /// 列表级兜底回调（增删/移动/复制条目时触发）：注入宿主引用，
+        /// 使条目内 <see cref="SceneEntry.OnSceneAssetChanged"/> 能正确 SetDirty 宿主配置。
+        /// </summary>
+        private void OnScenesChanged()
+        {
+            InjectOwner();
+            EditorUtility.SetDirty(this);
+        }
+
+        /// <summary>向所有条目注入宿主引用（Owner 不序列化，加载与列表变更时补注入）。</summary>
+        private void InjectOwner()
+        {
+            if (Scenes == null)
+            {
+                return;
+            }
+
+            foreach (SceneEntry entry in Scenes)
+            {
+                if (entry != null)
+                {
+                    entry.Owner = this;
+                }
+            }
         }
 
         /// <summary>
@@ -130,6 +163,7 @@ namespace TEngine.SceneTools
             [HorizontalGroup("行1", 0.4f)]
             [LabelText("场景资源")]
             [LabelWidth(70)]
+            [OnValueChanged(nameof(OnSceneAssetChanged))]
             public SceneAsset SceneAsset;
 
             [HorizontalGroup("行1", 0.4f)]
@@ -147,12 +181,62 @@ namespace TEngine.SceneTools
             [LabelText("枚举值")]
             [LabelWidth(50)]
             [ReadOnly]
-            [Tooltip("由场景 GUID 确定性派生（非本地计数器）：多人协同各自新增场景不会撞值，且随场景身份固定、改名不变；无需占位。")]
-            public int EnumValue => SceneEnumIdentity.DeriveValue(SceneGuid);
+            [GUIColor("$EnumValueColor")]
+            [Tooltip("由场景 GUID 确定性派生（非本地计数器）：多人协同各自新增场景不会撞值，且随场景身份固定、改名不变；无需占位。\n显示 0（红色）= 场景资源缺失，GUID 未初始化。")]
+            public int EnumValue => SceneEnumIdentity.DeriveValue(EffectiveSceneGuid);
+
+            /// <summary>枚举值显示 0（未初始化哨兵）时红色提示，便于及时发现场景资源缺失的条目。</summary>
+            private Color EnumValueColor => EnumValue == 0 ? new Color(1f, 0.55f, 0.45f) : Color.white;
+
+            /// <summary>
+            /// 读路径兜底：<see cref="SceneGuid"/> 未落盘（手动拖入后尚未同步/保存）时，
+            /// 实时按资源路径取 GUID，保证任何读路径（面板/体检/生成）都拿不到 0。
+            /// </summary>
+            private string EffectiveSceneGuid => string.IsNullOrEmpty(SceneGuid) && SceneAsset != null
+                ? AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(SceneAsset))
+                : SceneGuid;
 
             /// <summary>冗余存 GUID，SceneAsset 变 missing 时仍可追踪身份（删除/改名识别）。</summary>
             [HideInInspector]
             public string SceneGuid;
+
+            /// <summary>宿主配置引用（不序列化）：条目级回调中 SetDirty 用，由配置在加载/列表变更时注入。</summary>
+            [NonSerialized]
+            public SceneEnumConfig Owner;
+
+            /// <summary>
+            /// 按当前 <see cref="SceneAsset"/> 实际路径刷新 GUID；资源为空时保留旧 GUID
+            /// （用于识别删除/改名）。手动替换场景资源后调用可对齐真实身份。
+            /// </summary>
+            /// <returns>GUID 是否发生变化（调用方可据此 SetDirty）。</returns>
+            public bool RefreshSceneGuid()
+            {
+                if (SceneAsset == null)
+                {
+                    return false;
+                }
+
+                string guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(SceneAsset));
+                if (guid == SceneGuid)
+                {
+                    return false;
+                }
+
+                SceneGuid = guid;
+                return true;
+            }
+
+            /// <summary>拖入/替换场景资源时立即补全 GUID，无需依赖「同步场景资源」。</summary>
+            private void OnSceneAssetChanged()
+            {
+                bool changed = RefreshSceneGuid();
+                SceneEnumConfig owner = Owner ?? SceneEnumConfig.Load();
+                if (owner != null && (changed || owner != Owner))
+                {
+                    owner.InjectOwner();
+                    EditorUtility.SetDirty(owner);
+                }
+            }
 
             [HorizontalGroup("行2", 0.4f)]
             [LabelText("枚举名")]

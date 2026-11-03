@@ -31,9 +31,32 @@ namespace TEngine.SceneTools
                 Debug.Log($"[场景枚举] 已创建代码输出目录：{outputFolder}");
             }
 
+            // 生成前统一刷新 GUID：手动拖入/替换场景资源但未点「同步场景资源」的条目也能对齐真实身份
+            bool guidChanged = false;
+            foreach (SceneEnumConfig.SceneEntry entry in config.Scenes)
+            {
+                guidChanged |= entry.RefreshSceneGuid();
+            }
+            if (guidChanged)
+            {
+                EditorUtility.SetDirty(config);
+            }
+
             List<SceneEnumConfig.SceneEntry> activeEntries = config.Scenes
                 .Where(e => e.Active && e.SceneAsset != null && !string.IsNullOrEmpty(e.EnumName))
                 .ToList();
+
+            // 兜底：GUID 刷新后仍为 0 值（资源存在但 AssetDatabase 取不到 GUID 的异常情况）时明确拒绝，
+            // 不静默生成 SceneType.Xxx = 0（0 是「未初始化」哨兵值）。
+            var zeroValueEntries = activeEntries.Where(e => e.EnumValue == 0).ToList();
+            if (zeroValueEntries.Count > 0)
+            {
+                EditorUtility.DisplayDialog("生成失败",
+                    "以下条目的枚举值为 0（场景 GUID 未能初始化）：\n" +
+                    string.Join("\n", zeroValueEntries.Select(e => $"{e.EnumName}（{AssetDatabase.GetAssetPath(e.SceneAsset)}）")) +
+                    "\n\n请重新指定场景资源后重试。", "确定");
+                return;
+            }
 
             // 校验枚举名唯一
             var duplicateGroups = activeEntries.GroupBy(e => e.EnumName).Where(g => g.Count() > 1).ToList();
