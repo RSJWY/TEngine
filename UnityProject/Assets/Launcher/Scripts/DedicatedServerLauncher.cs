@@ -3,22 +3,21 @@ using System;
 namespace Launcher
 {
     /// <summary>
-    /// 专用服务器启动器。解析命令行参数，提供 DS 模式判断和启动场景/端口/地址指定。
-    /// <para>用法示例：GameServer -batchmode -scene dedicated_server --port 7777 --address 0.0.0.0</para>
+    /// 专用服务器启动器。解析命令行参数，提供 DS 模式判断和监听端口/绑定地址指定。
+    /// <para>用法示例：GameServer -batchmode --port 7777 --address 0.0.0.0</para>
     /// <para>
     /// <b>口径说明</b>：<see cref="IsDedicatedServerBuild"/> 走 <c>#if UNITY_SERVER &amp;&amp; !UNITY_EDITOR</c>，
     /// 与 PurrNet <c>ApplicationContext.isServerBuild</c> 同口径但独立——
     /// 框架流程（Procedure 链/GameApp）只管"跳不跳 UI/语言/声音"，PurrNet 侧管 NM 是否 AutoStart。
     /// </para>
+    /// <para>
+    /// <b>不决定加载哪个场景</b>：目标场景（房间/关卡）属于业务侧决策，由业务在运行时下发
+    /// （例如由中控分配到房间后再调 <c>NetworkSceneCoordinator.LoadSceneServer</c>），
+    /// 因此本类**不提供** <c>--scene</c> / <c>--scene-type</c> 之类的场景参数。
+    /// </para>
     /// </summary>
     public static class DedicatedServerLauncher
     {
-        /// <summary>启动场景名参数（值如 <c>dedicated_server</c>）。</summary>
-        public const string SceneArgumentName = "--scene";
-
-        /// <summary>启动场景类型参数（值如 <c>MainScene</c>，对应 <see cref="GameLogic.SceneType"/> 枚举名）。</summary>
-        public const string SceneTypeArgumentName = "--scene-type";
-
         /// <summary>服务器监听端口参数。</summary>
         public const string PortArgumentName = "--port";
 
@@ -40,24 +39,6 @@ namespace Launcher
                 return false;
 #endif
             }
-        }
-
-        /// <summary>
-        /// 解析命令行指定的启动场景名。未传参时返回 null。
-        /// <para>业务可据此选择走 <c>GameModule.Scene.LoadSceneAsync(location)</c>。</para>
-        /// </summary>
-        public static string ResolveStartupScene()
-        {
-            return ResolveArgument(SceneArgumentName);
-        }
-
-        /// <summary>
-        /// 解析命令行指定的启动场景类型字符串。未传参时返回 null。
-        /// <para>业务可按 <see cref="GameLogic.SceneType"/> TryParse 后走 <c>GameModule.GameScene.LoadScene(SceneType)</c>。</para>
-        /// </summary>
-        public static string ResolveStartupSceneType()
-        {
-            return ResolveArgument(SceneTypeArgumentName);
         }
 
         /// <summary>

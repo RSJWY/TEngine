@@ -172,6 +172,12 @@ namespace GameLogic
             PreviousSceneType = null;
             CurrentSceneType = null;
             _initTasks.Clear();
+            _isPassive = false;
+            _passiveStarted = false;
+            _localLoadAllowed = true;
+            _externalLoadActive = false;
+            _externalSnapshotPrevious = null;
+            _externalSnapshotCurrent = null;
         }
 
         /// <summary>
@@ -248,6 +254,11 @@ namespace GameLogic
         private Action _finishCallBack = null;       // 场景激活后的完成回调（来自跳转入口）
         private bool _skipMode = false;              // 快速跳过模式（由 SkipLoadingAnimation 决定）
 
+        // ===== 被动模式（联机客户端跟随服务器加载） =====
+        private bool _isPassive = false;          // 当前会话是否被动模式（StartSceneLoad 重置为 false，BeginPassiveLoad 置 true）
+        private bool _passiveStarted = false;     // 是否已收到 NotifyPassiveLoadStarted（伪进度门闩）
+        private bool _localLoadAllowed = true;    // 是否允许本端主动发起加载（联机纯客户端由协调器关 false）
+
         // ===== 多阶段进度控制 =====
         private int _currentPhase = 0;               // 当前阶段（0=预热, 1=加载, 2=80%停帧, 3=激活, 4=90%停帧, 5=业务就绪, 6=100%帧等待）
 
@@ -302,6 +313,12 @@ namespace GameLogic
         /// <summary>阶段 5/6 等待业务初始化任务的绝对超时：超过则强制收尾关页，防业务异常卡死玩家，秒。</summary>
         private const float Phase3AbsoluteTimeout = 30f;
 
+        /// <summary>被动模式阶段 1 伪进度爬行速度：进度/秒。0.10→0.79 约 7s，慢爬覆盖服务器加载时间（联调期可调）。</summary>
+        private const float PassiveFakeSpeed = 0.10f;
+
+        /// <summary>被动模式阶段 1 绝对超时：伪进度等待服务器加载完成的兜底上限，秒。被动模式下 _lastLoadProgress 恒 0，Phase1StallTimeout 的停滞分支永不触发，故单独设短超时。</summary>
+        private const float PassiveLoadAbsoluteTimeout = 30f;
+
         /// <summary>初始化等待阶段的默认文案（<see cref="SceneLoadTipsConfig.InitPhaseText"/> 未配置时使用）。</summary>
         private const string DefaultInitPhaseText = "正在初始化场景资源…";
 
@@ -349,6 +366,11 @@ namespace GameLogic
         private bool _isClosing = false;             // 防重复关闭加载页
         private bool _isFinished = false;            // 防重复触发完成回调（统一终结出口防重标志）
 
+        // ===== 服务器侧外部加载状态（NotifyExternalScene* 使用） =====
+        private bool _externalLoadActive = false;             // 外部加载会话进行中（防重复快照/重复派发）
+        private SceneType? _externalSnapshotPrevious = null; // 进入前 Previous 快照（失败回滚用）
+        private SceneType? _externalSnapshotCurrent = null;  // 进入前 Current 快照（失败回滚用）
+
         /// <summary>
         /// 框架每帧轮询：按当前阶段驱动进度条平滑动画。
         /// </summary>
@@ -383,6 +405,28 @@ namespace GameLogic
 
                 case 1: // 阶段 1 加载（10%→80%）
                     _phase1ElapsedTime += dt;
+                    if (_isPassive)
+                    {
+                        // 被动模式：伪进度慢爬覆盖服务器加载时间；完成信号（_sceneLoadComplete）到达后冲线
+                        if (_passiveStarted)
+                        {
+                            _targetProgress = Mathf.MoveTowards(_targetProgress, 0.79f, PassiveFakeSpeed * dt);
+                            _displayProgress = Mathf.MoveTowards(_displayProgress, _targetProgress, LoadingSpeed * dt);
+                        }
+                        if (_phase1ElapsedTime >= PassiveLoadAbsoluteTimeout && !_sceneLoadComplete)
+                        {
+                            Log.Warning($"[GameScene] 被动模式阶段 1 超时（{_phase1ElapsedTime:F1}s）：{_sceneName}，强制视为完成继续收尾。");
+                            _sceneLoadComplete = true;
+                        }
+                        if (_sceneLoadComplete && _displayProgress >= 0.79f)
+                        {
+                            _displayProgress = 0.80f;
+                            _currentPhase = 2;
+                            _checkpointFrames = 0;
+                        }
+                        break;
+                    }
+
                     // 仅当真实进度已 >0 后才累计停滞时间（冷启动解压时 progress 可能长期停在 0，不能按停滞误杀）
                     if (_lastLoadProgress > 0f && !_sceneLoadComplete)
                     {
@@ -425,7 +469,9 @@ namespace GameLogic
                     {
                         // UnSuspend 只是把 allowSceneActivation 置 true，
                         // 场景整合、Awake/OnEnable、首帧渲染仍异步进行，句柄 IsDone 才代表激活完毕
-                        _sceneActivated = GameModule.Scene.IsSceneLoadDone(_sceneName);
+                        _sceneActivated = _isPassive
+                            ? _sceneLoadComplete // 被动：以完成信号为准（loaded 到达时 PurrNet 已完成 AddScene/注册，场景已激活）
+                            : GameModule.Scene.IsSceneLoadDone(_sceneName); // 主动：轮询句柄 IsDone
                         if (!_sceneActivated && _phase2Elapsed >= Phase2AbsoluteTimeout)
                         {
                             Log.Warning($"[GameScene] 阶段 3 等待场景激活超时：scene={_sceneName}, elapsed={_phase2Elapsed:F1}s，强制进入下一阶段");
@@ -612,6 +658,12 @@ namespace GameLogic
         public void LoadScene(SceneType sceneType, Action finishCallBack = null,
             float? warmupDuration = null, float? finishDuration = null, float? holdAt100Duration = null)
         {
+            if (!_localLoadAllowed)
+            {
+                Log.Error($"[GameScene] 本地主动加载被拒绝：{sceneType}。联机客户端场景切换请走 NetworkSceneCoordinator.RequestSceneChange。");
+                return;
+            }
+
             StartSceneLoad(sceneType, finishCallBack, warmupDuration, finishDuration, holdAt100Duration);
         }
 
@@ -623,11 +675,90 @@ namespace GameLogic
         /// </remarks>
         public void JumpToMainScene()
         {
+            if (!_localLoadAllowed)
+            {
+                Log.Error($"[GameScene] 本地主动加载被拒绝：{SceneType.MainScene}。联机客户端场景切换请走 NetworkSceneCoordinator.RequestSceneChange。");
+                return;
+            }
+
             StartSceneLoad(SceneType.MainScene, () =>
             {
                 GameModule.UI.CloseAll();
                 _jumpControl?.JumpToMain();
             });
+        }
+
+        /// <summary>
+        /// 外部加载方（服务器）发起加载前写回场景状态：写 CurrentSceneType / GameValueStatic，不启动会话、不开加载页。
+        /// </summary>
+        /// <param name="sceneType">即将由外部（PurrNet）加载的目标场景类型。</param>
+        public void NotifyExternalSceneLoadStarting(SceneType sceneType)
+        {
+            if (_externalLoadActive)
+            {
+                Log.Warning($"[GameScene] NotifyExternalSceneLoadStarting：已有外部加载进行中，忽略重复写回 {sceneType}。");
+                return;
+            }
+
+            _externalLoadActive = true;
+            _externalSnapshotPrevious = PreviousSceneType;
+            _externalSnapshotCurrent = CurrentSceneType;
+            RecordScene(sceneType); // 须早于场景 Awake：DynamicSceneSpawner.IsNormalBoot 依赖 CurrentSceneType
+            Log.Info($"[GameScene] 外部加载状态写回：{sceneType}:{GetSceneName(sceneType)}（快照 Previous={_externalSnapshotPrevious}, Current={_externalSnapshotCurrent}）");
+        }
+
+        /// <summary>外部加载失败：回滚到进入前快照，不派发 OnSceneReady。</summary>
+        public void NotifyExternalSceneLoadFailed()
+        {
+            if (!_externalLoadActive)
+            {
+                Log.Warning("[GameScene] NotifyExternalSceneLoadFailed：无外部加载快照可回滚，忽略。");
+                return;
+            }
+
+            PreviousSceneType = _externalSnapshotPrevious;
+            CurrentSceneType = _externalSnapshotCurrent;
+            GameValueStatic.PreviousSceneType = PreviousSceneType;
+            GameValueStatic.CurrentSceneType = CurrentSceneType;
+            _externalLoadActive = false;
+            Log.Error($"[GameScene] 外部加载失败，场景状态已回滚：Current={CurrentSceneType}");
+        }
+
+        /// <summary>
+        /// 外部加载完成：派发 OnSceneReady（服务器侧无加载页会话，不关页）。
+        /// <para>_externalLoadActive 防重保证 Host 下 server/client 两次 loaded 只派发一次。</para>
+        /// </summary>
+        public void NotifyExternalSceneLoaded()
+        {
+            if (!_externalLoadActive)
+            {
+                Log.Warning("[GameScene] NotifyExternalSceneLoaded：无外部加载会话（重复或乱序），忽略。");
+                return;
+            }
+
+            _externalLoadActive = false;
+            if (CurrentSceneType.HasValue)
+            {
+                Log.Info($"[GameScene] 外部加载完成：派发 OnSceneReady({CurrentSceneType.Value})");
+                GameEvent.Get<IGameSceneEvent>().OnSceneReady(CurrentSceneType.Value);
+            }
+            else
+            {
+                Log.Error("[GameScene] NotifyExternalSceneLoaded：CurrentSceneType 为空，跳过派发。");
+            }
+        }
+
+        /// <summary>是否允许本端主动发起场景加载（联机纯客户端由协调器关闭；单机/服务器/Host 保持允许）。</summary>
+        /// <param name="allowed">true 允许；false 拒绝本地主动加载。</param>
+        public void SetLocalLoadAllowed(bool allowed)
+        {
+            if (_localLoadAllowed == allowed)
+            {
+                return;
+            }
+
+            _localLoadAllowed = allowed;
+            Log.Info($"[GameScene] 本地主动加载许可 = {allowed}");
         }
 
         /// <summary>
@@ -673,6 +804,8 @@ namespace GameLogic
             _lastInitTarget = 0.90f;
             _initTimeoutHit = false;
             _initTasks.Clear();
+            _isPassive = false;      // 主动加载会话：清除被动标志
+            _passiveStarted = false;
             _isActive = true;
 
             // 会话级时长：传参覆盖默认值
@@ -700,6 +833,91 @@ namespace GameLogic
 
             // 打开加载页（纯展示，不传 UserData；进度由本模块 Update 驱动，UI 每帧读取 DisplayProgress）
             GameModule.UI.ShowUI<SwitchSceneUI>();
+        }
+
+        /// <summary>
+        /// 被动模式入口：不发起真实加载，只展示进度并等待外部（协调器）完成通知。
+        /// 由协调器在 onYooAssetSceneStartLoading 回调中同步调用，必须早于场景 Awake。
+        /// </summary>
+        /// <param name="sceneType">服务器正在加载的目标场景类型。</param>
+        public void BeginPassiveLoad(SceneType sceneType)
+        {
+            if (_isActive)
+            {
+                Log.Error($"[GameScene] 被动加载被拒绝：当前会话进行中（{_sceneType}:{_sceneName}），忽略 {sceneType}。");
+                return;
+            }
+
+            RecordScene(sceneType);
+            GameEvent.Get<IGameSceneEvent>().OnSceneLoadStart(sceneType);
+
+            // 重置会话（与 StartSceneLoad 相同字段集，无 finishCallBack）
+            _sceneType = sceneType;
+            _sceneName = GetSceneName(sceneType);
+            _finishCallBack = null;
+            _isSendLoadOver = false;
+            _isClosing = false;
+            _isFinished = false;
+            _sceneLoadComplete = false;
+            _phase1ElapsedTime = 0f;
+            _lastLoadProgress = 0f;
+            _phase1StallElapsed = 0f;
+            _holdAt100Time = 0f;
+            _sceneActivated = false;
+            _postActivateFrames = 0;
+            _phase2Elapsed = 0f;
+            _checkpointFrames = 0;
+            _phase3Elapsed = 0f;
+            _lastInitTarget = 0.90f;
+            _initTimeoutHit = false;
+            _initTasks.Clear();
+            _isPassive = true;
+            _passiveStarted = false;
+            _isActive = true;    // 必须在 ShowUI 之前：RegisterInitTask 门闩依赖 _isActive
+
+            _warmupDuration = DefaultWarmupDuration;
+            _finishDuration = DefaultFinishDuration;
+            _holdAt100Duration = DefaultHoldAt100Duration;
+            _skipMode = SkipLoadingAnimation;
+            if (_skipMode)
+            {
+                _currentPhase = 1;
+                _displayProgress = 0.10f;
+                _targetProgress = 0.10f;
+            }
+            else
+            {
+                _currentPhase = 0;
+                _displayProgress = 0f;
+                _targetProgress = 0.10f;
+            }
+
+            GameModule.UI.ShowUI<SwitchSceneUI>();
+            Log.Info($"[GameScene] 被动加载会话开启：{sceneType}:{_sceneName}（等待服务器加载信号）");
+        }
+
+        /// <summary>被动模式：外部通知「服务器已开始加载」，放行伪进度。</summary>
+        public void NotifyPassiveLoadStarted()
+        {
+            if (!_isPassive || !_isActive)
+            {
+                Log.Warning("[GameScene] NotifyPassiveLoadStarted：无活跃被动会话，忽略。");
+                return;
+            }
+            _passiveStarted = true;
+            Log.Info($"[GameScene] 被动加载开始信号：{_sceneName}，伪进度启动。");
+        }
+
+        /// <summary>被动模式：外部通知「服务器场景已加载完成并激活」，收口阶段 1 并作为阶段 3 激活依据。</summary>
+        public void NotifyPassiveLoadCompleted()
+        {
+            if (!_isPassive || !_isActive)
+            {
+                Log.Warning("[GameScene] NotifyPassiveLoadCompleted：无活跃被动会话（Host 或乱序），忽略。");
+                return;
+            }
+            _sceneLoadComplete = true; // 阶段 1 判定进 2；阶段 3 被动分支以此为激活依据
+            Log.Info($"[GameScene] 被动加载完成信号：{_sceneName}（进度将收口 80%→90%→100%）");
         }
 
         /// <summary>
@@ -754,7 +972,8 @@ namespace GameLogic
                 // 通知观察方：场景资源已加载到可激活状态
                 GameEvent.Get<IGameSceneEvent>().OnSceneLoadOver();
                 // 激活挂起的目标场景（数据归属与操作归属统一在本模块）
-                if (!string.IsNullOrEmpty(_sceneName))
+                // 被动模式无挂起可解（PurrNet 已完成激活），不调 UnSuspend
+                if (!_isPassive && !string.IsNullOrEmpty(_sceneName))
                 {
                     GameModule.Scene.UnSuspend(_sceneName);
                 }

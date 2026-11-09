@@ -29,6 +29,9 @@ namespace GameLogic
     {
         private PurrNet.NetworkManager _networkManager;
 
+        /// <summary>场景协调器：服务器权威加载 / 客户端请求切换。NM 未就绪时为 null。</summary>
+        private NetworkSceneCoordinator _sceneCoordinator;
+
         /// <inheritdoc />
         public PurrNet.NetworkManager NetworkManager
         {
@@ -56,6 +59,9 @@ namespace GameLogic
             && (_networkManager.isServer || _networkManager.isClient);
 
         /// <inheritdoc />
+        public NetworkSceneCoordinator SceneCoordinator => _sceneCoordinator;
+
+        /// <inheritdoc />
         public override void OnInit()
         {
             _networkManager = ResolveNetworkManager();
@@ -68,11 +74,19 @@ namespace GameLogic
             {
                 Log.Info("[NetworkModule] 初始化时未找到 NetworkManager，等待注入或首次访问时懒查找。");
             }
+
+            _sceneCoordinator = new NetworkSceneCoordinator();
+            if (_networkManager != null)
+            {
+                _sceneCoordinator.Bind(_networkManager); // 自动启动场景下网络已就绪，立即绑定
+            }
         }
 
         /// <inheritdoc />
         public override void Shutdown()
         {
+            _sceneCoordinator?.Unbind();
+            _sceneCoordinator = null;
             _networkManager = null;
         }
 
@@ -89,6 +103,8 @@ namespace GameLogic
             {
                 Log.Warning("[NetworkModule] BindNetworkManager 传入 null，已清空绑定。");
             }
+
+            _sceneCoordinator?.Bind(_networkManager); // 注入 NM 后（重新）绑定协调器
         }
 
         /// <inheritdoc />

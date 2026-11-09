@@ -1,6 +1,19 @@
 # PurrNet DS 场景加载协调（阶段四 4.2）实施计划
 
-> **状态**：计划已落盘，**未实施**
+> **状态**：S0/S1/S1.5/S2/S3/S4/S5 **已实施**（2026-10-31，`code` 档编译通过）；**S6 运行时联调待用户在场**
+>
+> **2026-11-09 架构收敛：DS 待机 + 场景决策剥离**
+> - DS 不再用命令行决定场景。`--scene` / `--scene-type` 已从 `DedicatedServerLauncher` 删除（含两个常量与两个 `ResolveStartupScene*` 方法）。理由：目标房间/关卡属于业务决策（将由中控分配），框架不应硬编码。
+> - `GameApp.StartDedicatedServer()` 改为**只进待机**：不做任何场景加载，停在 `dedicated_server_boot.unity`（NM 所在，DDOL），日志打印待机状态并校验 NM 是否就绪。
+> - `NetworkSceneCoordinator` 作为业务开局入口：拿到目标场景后调 `LoadSceneServer(sceneType)`；新增 `ActiveServerScene` 只读属性（null = 仍在待机），loaded 时写回。
+> - 验证：`code` 档 passed（`20261109T080104Z-3020c2c0`）、`unity` 档 `editor-compilation` passed（`20261109T080650Z-86e6487b`）。
+>
+> **2026-10-31 S1 实施记录（拓扑按用户指示调整为“双启动壳场景”）**
+> - 客户端启动壳：`Assets/Scenes/main.unity` —— `NetworkManager`(UDPTransport) `_dontDestroyOnLoad=1`、`_startServerFlags=0`/`_startClientFlags=0`（不自动起服/不自动连，业务显式 `StartClient`）。
+> - DS 启动壳：**新增** `Assets/Scenes/dedicated_server_boot.unity` —— 仅 `NetworkManager`(UDPTransport) `_dontDestroyOnLoad=1`、`_startServerFlags=9`(ServerBuild|Editor)、`_startClientFlags=0`。
+> - `Assets/AssetRaw/Scenes/dedicated_server.unity` 改为**纯 world 场景**：已移除其中的 `NetworkManager`（避免目标场景与 DDOL 启动壳出现两个 NM）。
+> - 未改动 Build Settings：目前仅 `main.unity` 为 index 0。要让 DS 包引导 `dedicated_server_boot.unity`，需按构建目标分别配置场景列表（属项目设置/构建配置变更，待单独授权）。
+> - S1.5：新增 `Assets/AssetRaw/Scenes/network_test.unity`（`SpawnPointSceneSpawner` `initMode=LoadingWait`、3 个 `DynamicSpawnPoint` → `Cube`），经 `SceneEnumConfig` 同步生成，`SceneType.network_test = 491863203`。
 > **来源**：`.plans/purrnet-ds-integration.md` 阶段四 步骤 4.2
 > **研究依据**：[PurrNet × TEngine 场景加载协调研究](../conversation-summaries/code-research/2026-10-18-purrnet-scene-coordination-research.md)
 > **创建时间**：2026-10-18

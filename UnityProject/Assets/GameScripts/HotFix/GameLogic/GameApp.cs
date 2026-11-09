@@ -60,43 +60,36 @@ public partial class GameApp
 
     /// <summary>
     /// Dedicated Server 启动入口。
-    /// <para>按命令行参数决定加载哪个场景；NetworkManager 启动交给业务自行处理：</para>
-    /// <para>  方式 A：场景预挂 NM（dedicated_server.unity），PurrNet <c>StartFlags.ServerBuild</c> 自动启动；</para>
-    /// <para>  方式 B：<c>LoadGameObjectAsync</c> 出 NM 预制体 → <c>BindNetworkManager</c> → <c>StartServer</c>。</para>
-    /// <para>框架侧不主动调用 <c>StartServer()</c>，最大化业务自由度。</para>
+    /// <para><b>只进待机，不决定场景</b>：DS 启动后停在当前启动场景（预挂 <c>NetworkManager</c>，
+    /// PurrNet <c>StartFlags.ServerBuild</c> 自动起服），等待业务侧下发目标场景后再
+    /// 调 <c>NetworkSceneCoordinator.LoadSceneServer</c> 推进游戏场景。</para>
+    /// <para>
+    /// 为何不在命令行决定场景：目标房间/关卡属于业务决策（例如由中控分配），框架不应硬编码。
+    /// 因此已移除 <c>--scene</c> / <c>--scene-type</c> 两个参数。
+    /// </para>
     /// </summary>
     private static void StartDedicatedServer()
     {
-        Log.Warning("======= Dedicated Server 启动 =======");
+        Log.Warning("======= Dedicated Server 启动 ======");
 
-        string sceneName = Launcher.DedicatedServerLauncher.ResolveStartupScene();
-        string sceneTypeStr = Launcher.DedicatedServerLauncher.ResolveStartupSceneType();
+        // 不做任何场景加载：就停在当前启动场景（NetworkManager 所在，已 DontDestroyOnLoad）。
+        // 目标场景由业务在运行时决定，取得后调用：
+        //     GameModule.Network.SceneCoordinator.LoadSceneServer(sceneType);
+        //
+        // NetworkManager 启动方式：
+        //   方式 A（当前）：启动场景预挂 NM，PurrNet StartFlags.ServerBuild 自动 StartServer
+        //   方式 B：业务异步加载 NM 预制体 → GameModule.Network.BindNetworkManager(nm) → StartServer
+        Log.Warning("[DS] 已进入待机，等待业务下发目标场景（收到后调 SceneCoordinator.LoadSceneServer）。");
 
-        // 优先按 scene-type 加载（走 GameSceneModule.LoadScene(SceneType)）
-        if (!string.IsNullOrEmpty(sceneTypeStr)
-            && System.Enum.TryParse<SceneType>(sceneTypeStr, true, out var sceneType))
+        if (GameModule.Network.NetworkManager == null)
         {
-            Log.Info($"[DS] 按命令行 scene-type 加载场景：{sceneType}");
-            GameModule.GameScene.LoadScene(sceneType);
-        }
-        else if (!string.IsNullOrEmpty(sceneName))
-        {
-            // 其次按场景名加载（走 SceneModule.LoadSceneAsync(location)）
-            Log.Info($"[DS] 按命令行 scene 加载场景：{sceneName}");
-            GameModule.Scene.LoadSceneAsync(sceneName).Forget();
+            Log.Error("[DS] 待机时未找到 NetworkManager：服务器未起服，中控/客户端都无法连接。" +
+                      "请确认 DS 启动场景已预挂 NetworkManager（dedicated_server_boot.unity）且已加入 Build Settings。");
         }
         else
         {
-            // 未指定启动场景时 fallback 到 MainScene
-            Log.Warning("[DS] 未指定启动场景，加载默认 MainScene。");
-            GameModule.GameScene.LoadScene(SceneType.MainScene);
+            Log.Info($"[DS] NetworkManager 就绪：IsServer={GameModule.Network.IsServer}, IsClient={GameModule.Network.IsClient}");
         }
-
-        // NetworkManager 启动由业务自行处理：
-        //   方式 A：场景预挂 NM（dedicated_server.unity），PurrNet StartFlags.ServerBuild 自动启动
-        //   方式 B：LoadGameObjectAsync 出 NM 预制体 → BindNetworkManager → StartServer
-        // 框架侧不主动调用 StartServer()，最大化业务自由度。
-        Log.Info("[DS] NetworkManager 启动由业务自行处理（场景预挂或代码动态注入）。");
     }
     
     private static void Release()

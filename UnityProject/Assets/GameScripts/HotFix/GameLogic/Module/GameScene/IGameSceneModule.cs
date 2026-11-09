@@ -71,5 +71,45 @@ namespace GameLogic
             float? warmupDuration = null, float? finishDuration = null, float? holdAt100Duration = null);
 
         void JumpToMainScene();
+
+        #region 被动模式（联机客户端跟随服务器加载）
+
+        /// <summary>
+        /// 被动模式入口：不发起真实加载，只展示进度并等待外部完成通知。
+        /// <para>须由协调器在 PurrNet <c>onYooAssetSceneStartLoading</c> 回调中<b>同步</b>调用，保证早于场景 Awake。</para>
+        /// </summary>
+        /// <param name="sceneType">服务器正在加载的目标场景类型。</param>
+        void BeginPassiveLoad(SceneType sceneType);
+
+        /// <summary>被动模式：外部通知「服务器已开始加载」，启动伪进度。</summary>
+        void NotifyPassiveLoadStarted();
+
+        /// <summary>被动模式：外部通知「服务器场景已加载完成并激活」，由协调器在 <c>onYooAssetSceneLoaded</c> 时调用。</summary>
+        void NotifyPassiveLoadCompleted();
+
+        #endregion
+
+        #region 服务器侧外部加载状态（由协调器调用）
+
+        /// <summary>
+        /// 外部加载方（服务器）在发起加载前写回场景状态，不启动加载会话、不打开加载页。
+        /// <para>必须早于场景 Awake，否则 <c>DynamicSceneSpawner.IsNormalBoot</c> 判定失败。</para>
+        /// </summary>
+        /// <param name="sceneType">即将加载的目标场景类型。</param>
+        void NotifyExternalSceneLoadStarting(SceneType sceneType);
+
+        /// <summary>外部加载失败时回滚到进入前的场景状态，不派发 OnSceneReady。</summary>
+        void NotifyExternalSceneLoadFailed();
+
+        /// <summary>外部加载完成：派发 OnSceneReady，不关页、不结束会话。</summary>
+        void NotifyExternalSceneLoaded();
+
+        /// <summary>
+        /// 是否允许本端主动发起场景加载（联机纯客户端由 NetworkModule 关闭；单机/服务器/Host 保持开启）。
+        /// </summary>
+        /// <param name="allowed">true 允许；false 拒绝本地主动加载。</param>
+        void SetLocalLoadAllowed(bool allowed);
+
+        #endregion
     }
 }

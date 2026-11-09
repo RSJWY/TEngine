@@ -33,6 +33,9 @@ namespace GameLogic
         /// </summary>
         bool IsAutoStarted { get; }
 
+        /// <summary>场景协调器：服务器权威加载 / 客户端请求切换。NM 未就绪时为 null。</summary>
+        NetworkSceneCoordinator SceneCoordinator { get; }
+
         /// <summary>
         /// 注入 NetworkManager 实例（跳过懒查找）。
         /// <para>业务动态实例化 NetworkManager 预制体后调用此方法注入。
