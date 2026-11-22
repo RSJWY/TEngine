@@ -171,8 +171,10 @@ namespace Procedure
             string line3 = Utility.Text.Format("当前网速 {0}/s，剩余时间 {1}", speed,
                 GetRemainingTime(downloadUpdateData.TotalDownloadBytes, downloadUpdateData.CurrentDownloadBytes, speedValue));
 
-            LauncherMgr.RefreshProgress(downloader.Progress);
+            // 顺序约定：先 ShowUI（OnInit 会把进度条重置为 0），再 RefreshProgress 写入真实进度；
+            // 反过来调会立刻被 OnInit 清零，进度条永远停在 0。
             LauncherMgr.ShowUI<LoadUpdateUI>($"{line0}\n{line1}\n{line2}\n{line3}");
+            LauncherMgr.RefreshProgress(downloader.Progress);
             Log.Info($"{line0} {line1} {line2} {line3}");
         }
 

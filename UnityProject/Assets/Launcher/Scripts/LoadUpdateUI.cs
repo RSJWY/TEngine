@@ -33,6 +33,9 @@ namespace Launcher
         {
             base.OnInit(param);
             m_textUpdateDesc.text = param?.ToString();
+            // 注意：每次 ShowUI 都会把进度条重置为 0（新阶段从零开始）。
+            // 因此调用方必须遵循「先 ShowUI(text) 再 LauncherMgr.RefreshProgress(progress)」的顺序，
+            // 否则刚写入的进度会立刻被清零（ProcedureDownloadFile 曾因此进度条恒为 0）。
             RefreshProgress(0f);
         }
 
