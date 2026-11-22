@@ -346,6 +346,7 @@ namespace GameLogic
 
         // ===== 防重标志 =====
         private bool _isSendLoadOver = false;        // 防重复激活场景 + 派发 OnSceneLoadOver（收尾阶段一次）
+        private bool _isSendProgressFull = false;    // 防重复派发 OnSceneLoadProgressFull（展示进度首次到 100% 时一次）
         private bool _isClosing = false;             // 防重复关闭加载页
         private bool _isFinished = false;            // 防重复触发完成回调（统一终结出口防重标志）
 
@@ -479,6 +480,12 @@ namespace GameLogic
 
                     if (_displayProgress >= 1.0f)
                     {
+                        // 100% 时刻广播一次（阶段 5→6 过渡处，skip 模式同样触发；关页前业务可介入）
+                        if (!_isSendProgressFull)
+                        {
+                            _isSendProgressFull = true;
+                            GameEvent.Get<IGameSceneEvent>().OnSceneLoadProgressFull(_sceneType);
+                        }
                         _displayProgress = 1.0f;
                         _currentPhase = 6;
                         _holdAt100Time = 0f;
@@ -606,7 +613,8 @@ namespace GameLogic
         /// <c>GameModule.UI.ShowUI&lt;SwitchUI&gt;</c> 打开加载页；本模块 <see cref="Update"/> 每帧推进进度，
         /// 加载就绪后经「80% 停帧检查点」由 <see cref="EnterFinishPhase"/> UnSuspend 激活场景，
         /// 依次经过「激活段（80→90，等句柄 IsDone）→ 90% 停帧检查点 → 业务就绪段（90→100，初始化任务进度驱动）→
-        /// 100% 帧等待（激活后数帧 + 停留 + 任务全部完成）」，
+        /// 100% 帧等待（激活后数帧 + 停留 + 任务全部完成）」；
+        /// 展示进度首次到 100% 时派发一次 <see cref="IGameSceneEvent.OnSceneLoadProgressFull"/>，
         /// <see cref="FinishAndClose"/> 执行完成回调、派发 <see cref="IGameSceneEvent.OnSceneReady"/> 并关闭加载页。
         /// </remarks>
         public void LoadScene(SceneType sceneType, Action finishCallBack = null,
@@ -658,6 +666,7 @@ namespace GameLogic
             _sceneName = GetSceneName(sceneType);
             _finishCallBack = finishCallBack;
             _isSendLoadOver = false;
+            _isSendProgressFull = false;
             _isClosing = false;
             _isFinished = false;
             _sceneLoadComplete = false;

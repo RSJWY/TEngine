@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using TouchSocket.Core;
@@ -11,7 +13,10 @@ namespace TEngine
     /// <summary>
     /// Unity 日志到 TouchSocket 文件日志的桥接器。
     /// <remarks>
-    /// 输出路径是示范：logs\[2024-09-08]\0000.log
+    /// 输出路径是示范：logs\default\[2024-09-08]\0000.log；
+    /// 传 <c>--log-instance</c> 时隔离到 logs\instance-{实例标识}\[2024-09-08]\0000.log（日志多实例，独立于资源多开的 <c>--yoo-instance</c>）。
+    /// 默认进程与各实例进程各管各的目录，互不统计、互不清理。
+    /// 清理策略：保留天数清理 + 日志总量上限自清理（从最旧日期目录开始删除），启动时执行一次，运行期按间隔定时重复。
     /// </remarks>
     /// </summary>
     public static class UnityLoggerBridge
@@ -29,6 +34,10 @@ namespace TEngine
         /// </summary>
         private const string LOG_DIRECTORY_NAME = "Logs";
         /// <summary>
+        /// 未传 <c>--log-instance</c> 时的默认实例目录名：默认日志与 instance-{id} 实例目录分家，互不混放。
+        /// </summary>
+        private const string DEFAULT_INSTANCE_FOLDER_NAME = "default";
+        /// <summary>
         /// 输出天格式（Log下的子文件夹）
         /// </summary>
         private const string LOG_DATE_FORMAT = "yyyy-MM-dd";
@@ -40,15 +49,35 @@ namespace TEngine
         /// 文件名，滚动增加
         /// </summary>
         private const string LOG_FILE_NAME_FORMAT = "0000";
+        /// <summary>
+        /// 日志总量上限（字节）：所有日期目录累计超过此值时，从最旧的日期目录开始整目录删除，直至低于上限。
+        /// </summary>
+        private const long TOTAL_LOG_SIZE_LIMIT = 200L * 1024 * 1024;
+        /// <summary>
+        /// 运行期定时清理间隔（秒）：启动清理一次后，运行期间按此间隔由写日志路径触发后台重复清理。
+        /// </summary>
+        private const double CLEANUP_INTERVAL_SECONDS = 600;
+        /// <summary>
+        /// 日志多实例实例标识启动参数名（独立于资源多开的 <c>--yoo-instance</c>，二者可单独使用）。
+        /// </summary>
+        private const string INSTANCE_ARGUMENT_NAME = "--log-instance";
 
         private static readonly object s_Lock = new object();
 
         private static bool s_Initialized;
         private static string s_LogRootPath;
         private static FileLogger s_FileLogger;
+        private static long s_LastCleanupUtcTicks;   // 上次（或本次启动）执行清理的 UTC 时间（Ticks），用于运行期定时触发
+        private static int s_CleanupScheduled;       // 后台清理防重入标志（Interlocked 0/1）
 
         [ThreadStatic]
         private static bool s_IsWriting;
+
+        /// <summary>
+        /// 当前日志多实例实例标识（命令行 <c>--log-instance</c> 传入；未传参或非桌面平台为空串）。
+        /// </summary>
+        /// <remarks>仅诊断用途；日志目录在 <see cref="Init"/> 时一次性确定，运行期修改不会重定向输出。</remarks>
+        public static string InstanceId { get; private set; } = string.Empty;
 
         /// <summary>
         /// 重置静态状态，兼容关闭 Domain Reload 的编辑器播放模式。
@@ -59,6 +88,9 @@ namespace TEngine
             Shutdown();
             s_LogRootPath = null;
             s_IsWriting = false;
+            InstanceId = string.Empty;
+            s_LastCleanupUtcTicks = 0L;
+            s_CleanupScheduled = 0;
         }
 
         /// <summary>
@@ -80,7 +112,23 @@ namespace TEngine
                 try
                 {
                     s_LogRootPath = Path.Combine(Application.persistentDataPath, LOG_DIRECTORY_NAME);
-                    CleanUpOldLogs();
+
+                    // 日志多实例：传 --log-instance 时隔离到 instance-{id}（独立于资源多开的 --yoo-instance）；
+                    // 未传时也隔离到 default 子目录，避免默认日志与各实例目录混在 Logs 根下。
+                    // 必须在 BeforeSplashScreen 解析命令行，保证整个会话（含最早日志）落进同一实例目录。
+                    string instanceId = ResolveInstanceId();
+                    if (!string.IsNullOrEmpty(instanceId))
+                    {
+                        InstanceId = instanceId;
+                        s_LogRootPath = Path.Combine(s_LogRootPath, $"instance-{instanceId}");
+                    }
+                    else
+                    {
+                        s_LogRootPath = Path.Combine(s_LogRootPath, DEFAULT_INSTANCE_FOLDER_NAME);
+                    }
+
+                    RunCleanup();
+                    s_LastCleanupUtcTicks = DateTime.UtcNow.Ticks;
 
                     s_FileLogger = new FileLogger
                     {
@@ -141,6 +189,73 @@ namespace TEngine
             return Path.Combine(s_LogRootPath, dateFolderName);
         }
 
+        /// <summary>
+        /// 解析命令行中的日志多实例实例标识（<c>--log-instance</c>）。未传参返回空串。
+        /// </summary>
+        /// <remarks>日志桥接在 BeforeSplashScreen 初始化（早于主包启动流程），故在桥接内部自带解析；
+        /// 实例标识独立于资源多开的 <c>--yoo-instance</c>，仅隔离日志目录。</remarks>
+        private static string ResolveInstanceId()
+        {
+#if UNITY_STANDALONE || UNITY_EDITOR
+            string[] arguments = Environment.GetCommandLineArgs();
+            for (int i = 0; i < arguments.Length - 1; i++)
+            {
+                if (arguments[i] == INSTANCE_ARGUMENT_NAME && !string.IsNullOrWhiteSpace(arguments[i + 1]))
+                {
+                    return arguments[i + 1].Trim();
+                }
+            }
+#endif
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// 清理套件：保留天数清理 + 日志总量上限自清理。启动时同步执行一次；运行期由 <see cref="ScheduleCleanup"/> 定时后台执行。
+        /// </summary>
+        private static void RunCleanup()
+        {
+            CleanUpOldLogs();
+            EnforceTotalSizeLimit();
+        }
+
+        /// <summary>
+        /// 运行期定时清理：距上次清理超过间隔时调度一次后台清理（不阻塞日志写入，Interlocked 防重入）。
+        /// </summary>
+        private static void ScheduleCleanup()
+        {
+            long lastTicks = Interlocked.Read(ref s_LastCleanupUtcTicks);
+            if ((DateTime.UtcNow.Ticks - lastTicks) < TimeSpan.FromSeconds(CLEANUP_INTERVAL_SECONDS).Ticks)
+            {
+                return;
+            }
+
+            // 先推进时间戳再调度：即使并发多触发一次，也只会成功调度一个后台任务
+            Interlocked.Exchange(ref s_LastCleanupUtcTicks, DateTime.UtcNow.Ticks);
+            if (Interlocked.CompareExchange(ref s_CleanupScheduled, 1, 0) != 0)
+            {
+                return;
+            }
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    RunCleanup();
+                }
+                catch
+                {
+                    // 清理失败不落日志，避免日志系统自身递归。
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref s_CleanupScheduled, 0);
+                }
+            });
+        }
+
+        /// <summary>
+        /// 保留天数清理：删除超过保留天数的日期目录。
+        /// </summary>
         private static void CleanUpOldLogs()
         {
             if (string.IsNullOrEmpty(s_LogRootPath) || !Directory.Exists(s_LogRootPath))
@@ -163,6 +278,84 @@ namespace TEngine
                     TryDeleteDirectory(directory);
                 }
             }
+        }
+
+        /// <summary>
+        /// 日志总量上限自清理：统计根目录下所有日期目录的总大小，超过 <see cref="TOTAL_LOG_SIZE_LIMIT"/> 时
+        /// 从最旧的日期目录开始整目录删除，直至低于上限；今天的活动目录正在写入，永不删除。
+        /// </summary>
+        private static void EnforceTotalSizeLimit()
+        {
+            if (string.IsNullOrEmpty(s_LogRootPath) || !Directory.Exists(s_LogRootPath))
+            {
+                return;
+            }
+
+            DateTime today = DateTime.Now.Date;
+            var folders = new List<(string Path, DateTime Date, long Size)>();
+            long totalSize = 0;
+            foreach (string directory in Directory.EnumerateDirectories(s_LogRootPath))
+            {
+                string directoryName = Path.GetFileName(directory);
+                if (!DateTime.TryParseExact(directoryName, LOG_DATE_FORMAT, CultureInfo.InvariantCulture,
+                        DateTimeStyles.None, out DateTime directoryDate))
+                {
+                    continue;
+                }
+
+                long size = GetDirectorySize(directory);
+                folders.Add((directory, directoryDate, size));
+                totalSize += size;
+            }
+
+            if (totalSize <= TOTAL_LOG_SIZE_LIMIT)
+            {
+                return;
+            }
+
+            folders.Sort((a, b) => a.Date.CompareTo(b.Date)); // 从最旧的日期开始删
+            foreach (var folder in folders)
+            {
+                if (folder.Date >= today)
+                {
+                    continue; // 今天正在写入的目录不删
+                }
+
+                TryDeleteDirectory(folder.Path);
+                totalSize -= folder.Size;
+                if (totalSize <= TOTAL_LOG_SIZE_LIMIT)
+                {
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 递归统计目录大小（字节）。个别文件/子目录访问失败按 0 计，不中断统计。
+        /// </summary>
+        private static long GetDirectorySize(string directory)
+        {
+            long size = 0;
+            try
+            {
+                foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        size += new FileInfo(file).Length;
+                    }
+                    catch
+                    {
+                        // 单个文件访问失败（被占用/已删除）不计入，继续统计。
+                    }
+                }
+            }
+            catch
+            {
+                // 目录访问失败时返回已统计到的部分。
+            }
+
+            return size;
         }
 
         private static void TryDeleteDirectory(string directory)
@@ -230,6 +423,9 @@ namespace TEngine
                 {
                     s_FileLogger?.Log(logLevel, source, message, exception);
                 }
+
+                // 定时清理触发点：写日志路径上做低成本到期检查（时间戳比较），到期后台执行，不阻塞写入。
+                ScheduleCleanup();
             }
             catch
             {
