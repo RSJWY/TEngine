@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: a925c89acdfddda40a4341eb0d21293a
+guid: 8773c4c9db4675b4095e4b0fba6110a6
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Smiley Sans
+  - Hanazono Mincho B
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0

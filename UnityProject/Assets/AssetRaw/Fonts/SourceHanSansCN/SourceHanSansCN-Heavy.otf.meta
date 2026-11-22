@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 0b6706db4da5e3a47a063af35afb807d
+guid: 8d7fce19333997446986593d89297188
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Source Han Sans SC
+  - Source Han Sans CN
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0
