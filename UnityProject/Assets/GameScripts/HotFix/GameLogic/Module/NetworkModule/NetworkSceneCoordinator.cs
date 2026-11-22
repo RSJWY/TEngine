@@ -22,6 +22,15 @@ namespace GameLogic
         /// <summary>YooAsset 包名：与 AssetReference 默认包一致；传空串会被 PurrNet 直接拒绝。</summary>
         private const string PackageName = "DefaultPackage";
 
+        static NetworkSceneCoordinator()
+        {
+            // PurrNet ILPP 只织入 PlayersManager/BroadcastModule/PlayersBroadcaster 三类 Subscribe 调用点的
+            // 消息类型；本协调器走 NetworkManager.Subscribe/Send 转发层，不在织入名单内，
+            // 自定义网络消息必须在首次使用前手动注册 Hasher，否则联机启动即抛
+            // "Type is not registered"（2026-11-22 S6 联调发现）。
+            PurrNet.Utils.Hasher.PrepareType<SceneChangeRequest>();
+        }
+
         private PurrNet.NetworkManager _nm;
         private ScenesModule _serverScenes;
         private ScenesModule _clientScenes;
@@ -94,7 +103,19 @@ namespace GameLogic
         private void OnNetworkStarted(PurrNet.NetworkManager nm, bool asServer)
         {
             Log.Info($"[NetworkScene] onNetworkStarted(asServer={asServer})：补订阅场景事件。");
-            SubscribeSceneEvents();
+            // 注意：本回调触发时 NM 的 isServer/isHost 标志可能尚未置位（2026-11-22 S6 联调发现），
+            // 不能用它们判断角色；必须用回调自带的 asServer 参数路由：
+            //   asServer=true  → 只补订阅服务器模块（Host 的 client 侧稍后由 asServer=false 回调覆盖）
+            //   asServer=false → 纯客户端/Host 的 client 侧，补订阅 client 模块
+            if (asServer)
+            {
+                SubscribeServerSceneEvents();
+            }
+            else
+            {
+                SubscribeClientSceneEvents();
+            }
+
             SyncLocalLoadAllowed(); // 启动前后角色可能变化，重新同步
         }
 
@@ -118,6 +139,23 @@ namespace GameLogic
                 return;
             }
 
+            SubscribeServerSceneEvents();
+
+            // Host 的 client 模块不开被动加载页（见 S2 Host 行为）；纯客户端才订阅 client 模块。
+            // 此路径仅在 Bind 时网络已就绪（自动启动）才会进入；启动中场景由 OnNetworkStarted 按 asServer 路由。
+            if (!_nm.isHost && !_nm.isServer)
+            {
+                SubscribeClientSceneEvents();
+            }
+        }
+
+        private void SubscribeServerSceneEvents()
+        {
+            if (_nm == null)
+            {
+                return;
+            }
+
             if (_serverScenes == null)
             {
                 _serverScenes = _nm.GetModule<ScenesModule>(true);
@@ -135,27 +173,31 @@ namespace GameLogic
             {
                 Log.Warning("[NetworkScene] server ScenesModule 未创建（服务器未启动？），稍后由事件补订阅。");
             }
+        }
 
-            // Host 的 client 模块不开被动加载页（见 S2 Host 行为）；纯客户端才订阅 client 模块
-            if (!_nm.isHost && !_nm.isServer)
+        private void SubscribeClientSceneEvents()
+        {
+            if (_nm == null)
             {
-                if (_clientScenes == null)
-                {
-                    _clientScenes = _nm.GetModule<ScenesModule>(false);
-                }
+                return;
+            }
 
-                if (_clientScenes != null)
-                {
-                    _clientScenes.onYooAssetSceneStartLoading -= HandleStartLoading;
-                    _clientScenes.onYooAssetSceneLoaded -= HandleLoaded;
-                    _clientScenes.onYooAssetSceneStartLoading += HandleStartLoading;
-                    _clientScenes.onYooAssetSceneLoaded += HandleLoaded;
-                    Log.Info("[NetworkScene] 已订阅 client ScenesModule 场景事件。");
-                }
-                else
-                {
-                    Log.Warning("[NetworkScene] client ScenesModule 未创建（客户端未启动？），稍后由事件补订阅。");
-                }
+            if (_clientScenes == null)
+            {
+                _clientScenes = _nm.GetModule<ScenesModule>(false);
+            }
+
+            if (_clientScenes != null)
+            {
+                _clientScenes.onYooAssetSceneStartLoading -= HandleStartLoading;
+                _clientScenes.onYooAssetSceneLoaded -= HandleLoaded;
+                _clientScenes.onYooAssetSceneStartLoading += HandleStartLoading;
+                _clientScenes.onYooAssetSceneLoaded += HandleLoaded;
+                Log.Info("[NetworkScene] 已订阅 client ScenesModule 场景事件。");
+            }
+            else
+            {
+                Log.Warning("[NetworkScene] client ScenesModule 未创建（客户端未启动？），稍后由事件补订阅。");
             }
         }
 

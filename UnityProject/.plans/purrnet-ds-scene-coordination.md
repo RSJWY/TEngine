@@ -1,6 +1,6 @@
 # PurrNet DS 场景加载协调（阶段四 4.2）实施计划
 
-> **状态**：S0/S1/S1.5/S2/S3/S4/S5 **已实施**（2026-10-31，`code` 档编译通过）；**S6 运行时联调待用户在场**
+> **状态**：S0/S1/S1.5/S2/S3/S4/S5 **已实施**（2026-10-31，`code` 档编译通过）；**S6 运行时联调进行中**——C-1（Host 双向冒烟）与 C-5（单机回归）已于 2026-11-22 通过（编辑器 Host 形态），并修复联调暴露的 3 个缺陷（见 8.7 节）；**C-2/C-3/C-4/C-6 待第二进程（纯客户端/DS 产物）**。
 >
 > **2026-11-09 架构收敛：DS 待机 + 场景决策剥离**
 > - DS 不再用命令行决定场景。`--scene` / `--scene-type` 已从 `DedicatedServerLauncher` 删除（含两个常量与两个 `ResolveStartupScene*` 方法）。理由：目标房间/关卡属于业务决策（将由中控分配），框架不应硬编码。
@@ -60,7 +60,7 @@
 - [ ] 服务器侧场景加载完成后 `GameModule.GameScene.CurrentSceneType` 与目标场景一致，场景内 `DynamicSceneSpawner` 在非编辑器构建下仍走 YooAsset 分支。
 - [ ] 客户端中途加入：进服后自动恢复服务器当前场景，并走同一套被动加载页。
 - [ ] 客户端断线重连：场景状态恢复，不出现双场景并存。
-- [ ] 未联机（单机）流程完全不受影响：`GameApp` 启动仍走 `GameModule.GameScene.LoadScene(SceneType.MainScene)`。
+- [x] 未联机（单机）流程完全不受影响：`GameApp` 启动仍走 `GameModule.GameScene.LoadScene(SceneType.MainScene)`。（2026-11-22 C-5 通过：全会话 0 异常，`[NetworkScene]` 仅 5 条初始化信息日志、零干预；规则修复后引导期 `InvalidOperationException` 消失）
 - [ ] 客户端在本地直接调用场景切换 API 时被拒绝并给出明确日志（不允许绕过服务器）。
 - [ ] **各客户端加载页独立关闭**（不互相等待、互不阻塞）。
 
@@ -1300,6 +1300,27 @@ python -m tengine_build run --preset dedicated_server_linux --json
 | S5 DS 入口 | 编译零错 + Editor 编译 | A 组 `code` + `unity` |
 | S6 联调 | 8.3 C-1~C-6 全过 | MCP 观察 + CLI 只读复核；对照 8.5 清单 |
 | 交付 | 全量 | `python .codex/scripts/workflow.py verify --profile full` |
+
+### 8.7 S6 联调执行记录（2026-11-22）
+
+**范围**：编辑器 Host 形态的 C-1（双向冒烟）+ C-5（单机回归）。MCP `execute_code` 运行时探针（无落盘测试代码）+ `Editor.log` 取证；MCP 控制台桥当日不可用，日志证据全部取自 `Editor.log`（基线行号分段过滤）。
+
+**联调暴露并已修复的 3 个缺陷**：
+
+| # | 缺陷 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | NM Awake 抛 `NetworkRules is not set` → DDOL 迁移中断 → 首次切场景 NM 被销毁，联机不可能建立；DS 构建自动起服（flags=9）会同样炸 | 两个启动场景 NM 的 `_networkRules` 均为空（阶段四 4.3 欠账） | `main.unity` / `dedicated_server_boot.unity` 的 NM 赋包自带 `Unsafe.asset`（用户授权写入；上线前按 4.3 换 ServerStrict） |
+| 2 | `StartHost` 抛 `Type 'SceneChangeRequest' is not registered` | PurrNet ILPP 只织入 PlayersManager/BroadcastModule/PlayersBroadcaster 三类 `Subscribe` 调用点的消息类型；`NetworkManager.Subscribe/Send` 转发层不在名单（上游盲区，可考虑报上游） | `NetworkSceneCoordinator` 静态构造函数手动 `Hasher.PrepareType<SceneChangeRequest>()` |
+| 3 | `StartHost` 抛 `Module ScenesModule not found - asServer: False` | `onNetworkStarted` 回调触发时 NM 的 `isServer/isHost` 标志尚未置位，旧代码用它们判断角色 → asServer=true 回调误入客户端分支取不存在的 client 模块 | `OnNetworkStarted` 改用回调自带的 `asServer` 参数路由订阅（`SubscribeServerSceneEvents` / `SubscribeClientSceneEvents` 拆分）；Host 侧多订的 client 事件由 handler 内既有守卫兜底 |
+
+**C-1 结果（PASS）**：正向 MainScene→network_test 与反向各跑一次，8.5 清单 Host 列全部命中（#3/#4/#5/#8/#9 及 Host 分支收口日志；#9 仅派发一次，防重守卫正确忽略重复通知）；`CurrentSceneType` / `ActiveServerScene` 与目标一致、`IsTransitioning` 正常复位；两次 Single 切场景后 NM 始终 DDOL 存活、服务器连接保持。截图：`.plans/evidence/2026-11-22-s6/c1_forward_network_test.png`。
+
+**C-5 结果（PASS）**：修复后单机启动全会话 0 异常；`[NetworkScene]` 仅初始化阶段 5 条信息日志（Bind 于未启动 NM，属设计内），零加载干预。截图：`.plans/evidence/2026-11-22-s6/c5_single_machine_main.png`。
+
+**备注**：
+- 探针路径：`GameModule.Network.StartHost()` → `SceneCoordinator.LoadSceneServer(SceneType)`，全部运行时调用。编辑器下 GameLogic 程序集由 TEngine 引导流程直接以编译产物运行（非 HybridCLR DLL 字节加载），源码修复即改即生效。
+- 运行时缝补 NM（赋 Rules 后重启 Awake）不可行：PurrNet 模块注册对半初始化状态不鲁棒（`RPCModule.Disable` NRE），缺陷必须从场景配置层修——已按缺陷 #1 修复。
+- 待办：C-2/C-3/C-4/C-6 需第二进程（纯客户端或 DS 产物）；缺陷 #2 建议整理后报 PurrNet 上游。
 
 ---
 
