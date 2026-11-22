@@ -9,3 +9,8 @@ FallbackResDownloadPath = "http://127.0.0.1:80/ProjectHotupdate"
 # 调试器激活策略：
 # AlwaysOpen / OnlyOpenWhenDevelopment / OnlyOpenInEditor / AlwaysClose / HotkeyToggle
 DebuggerActiveWindow = "AlwaysOpen"
+
+# 资源初始化模式覆盖（仅 Windows/OSX/Linux 桌面平台且非编辑器时生效，其他平台忽略）：
+# Offline = 单机内置模式 / Host = 联机热更模式。
+# 留空时使用打包内置模式（UpdateSetting / ResourceModuleDriver 配置）。
+YooPlayMode = ""

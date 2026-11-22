@@ -26,5 +26,12 @@ namespace TEngine
         /// 留空或无法解析时回退 Inspector 配置。
         /// </summary>
         public string DebuggerActiveWindow { get; set; }
+
+        /// <summary>
+        /// YooAsset 资源初始化模式覆盖（仅桌面平台且非编辑器时生效）。
+        /// 取值：Offline（单机内置）/ Host（联机热更）。
+        /// 留空或无法解析时回退打包内置模式（UpdateSetting / ResourceModuleDriver 配置）。
+        /// </summary>
+        public string YooPlayMode { get; set; }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using Cysharp.Threading.Tasks;
 using Launcher;
 using TEngine;
+using UnityEngine;
 using YooAsset;
 using ProcedureOwner = TEngine.IFsm<TEngine.IProcedureModule>;
 
@@ -45,13 +46,11 @@ namespace Procedure
             // 声音配置：根据用户配置数据，设置即将使用的声音选项
             InitSoundSettings();
 
+            // 画质档位：解析 -picture-quality <索引>，未传参或越界时保持 QualitySettings 默认
+            ApplyQualityFromCommandLine();
+
             // 桌面多开：解析命令行实例标识，资源包初始化前注入（未传参时保持单开默认行为）
-            string instanceId = MultiInstanceLauncher.ResolveInstanceId();
-            if (!string.IsNullOrEmpty(instanceId))
-            {
-                _resourceModule.InstanceId = instanceId;
-                Log.Info($"桌面多开实例标识：{instanceId}，资源缓存将隔离到 instance-{instanceId} 目录。");
-            }
+            ApplyMultiInstanceFromCommandLine();
 
             // 资源初始化前加载运行时配置（现场可覆盖热更地址），主包侧通过 ModuleSystem 访问
             LoadDeployConfigAsync().Forget();
@@ -76,6 +75,7 @@ namespace Procedure
             {
                 await ModuleSystem.GetModule<IRuntimeConfigModule>().LoadAllAsync();
                 ApplyDebuggerConfig();
+                ApplyResourcePlayModeConfig();
             }
             catch (Exception exception)
             {
@@ -114,6 +114,56 @@ namespace Procedure
             {
                 Log.Warning("[Debugger] DeployConfig.DebuggerActiveWindow 取值无法解析：{0}，保留 Inspector 配置。", deployConfig.DebuggerActiveWindow);
             }
+        }
+
+        /// <summary>
+        /// 读取 DeployConfig 的资源初始化模式覆盖并注入资源模块。
+        /// 仅桌面平台（Windows/OSX/Linux Standalone Player）且非编辑器时生效——编辑器保持 EditorPrefs/模拟模式，
+        /// 移动端与 WebGL 保持打包内置模式。取值 Offline / Host（Web 模式与桌面平台不适用，不做白名单），
+        /// 留空或无法解析时保留内置模式。
+        /// 时序上先于 Splash 后的 InitPackage（真正按模式初始化资源包的位置），覆盖必然生效。
+        /// </summary>
+        private void ApplyResourcePlayModeConfig()
+        {
+            if (Application.platform != RuntimePlatform.WindowsPlayer
+                && Application.platform != RuntimePlatform.OSXPlayer
+                && Application.platform != RuntimePlatform.LinuxPlayer)
+            {
+                return;
+            }
+
+            IRuntimeConfigModule configModule = ModuleSystem.GetModule<IRuntimeConfigModule>();
+            if (configModule == null
+                || !configModule.TryGet<DeployConfig>(out DeployConfig deployConfig, "DeployConfig")
+                || deployConfig == null
+                || string.IsNullOrWhiteSpace(deployConfig.YooPlayMode))
+            {
+                return;
+            }
+
+            string value = deployConfig.YooPlayMode.Trim();
+            EPlayMode? playMode;
+            switch (value.ToLowerInvariant())
+            {
+                case "offline":
+                    playMode = EPlayMode.OfflinePlayMode;
+                    break;
+                case "host":
+                    playMode = EPlayMode.HostPlayMode;
+                    break;
+                default:
+                    playMode = null;
+                    break;
+            }
+
+            if (playMode == null)
+            {
+                Log.Warning("[Resource] DeployConfig.YooPlayMode 取值无法解析：{0}（仅支持 Offline / Host），保留内置模式。", value);
+                return;
+            }
+
+            _resourceModule.PlayMode = playMode.Value;
+            Log.Info("[Resource] 已按 DeployConfig 覆盖资源初始化模式：{0}。", playMode.Value);
         }
 
         private void InitLanguageSettings()
@@ -163,6 +213,72 @@ namespace Procedure
             _audioModule.UISoundEnable = !Utility.PlayerPrefs.GetBool(Constant.Setting.UISoundMuted, false);
             _audioModule.UISoundVolume = Utility.PlayerPrefs.GetFloat(Constant.Setting.UISoundVolume, 1f);
             Log.Info("Init sound settings complete.");
+        }
+
+        /// <summary>
+        /// 解析命令行参数 -picture-quality 并应用画质档位。
+        /// 只接受数字索引（0 .. QualitySettings.names.Length-1），不依赖档位名称，换项目更换档位名无需改代码。
+        /// 支持 "-picture-quality 3" 与 "-picture-quality=3" 两种写法。
+        /// 未传参、越界或非数字时保持 QualitySettings 现有设置并告警，不打断启动流程。
+        /// </summary>
+        private void ApplyQualityFromCommandLine()
+        {
+            const string Key = "-picture-quality";
+
+            string value = null;
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == Key)
+                {
+                    value = i + 1 < args.Length ? args[i + 1] : string.Empty;
+                    break;
+                }
+
+                if (args[i].StartsWith(Key + "=", StringComparison.Ordinal))
+                {
+                    value = args[i].Substring(Key.Length + 1);
+                    break;
+                }
+            }
+
+            if (value == null)
+            {
+                return;
+            }
+
+            if (!int.TryParse(value, out int level))
+            {
+                Log.Warning("[Quality] {0} 只接受数字索引（未使用名字匹配），忽略取值：{1}", Key, value);
+                return;
+            }
+
+            int count = QualitySettings.names.Length;
+            if (level < 0 || level >= count)
+            {
+                Log.Warning("[Quality] {0} 取值越界：{1}，可用范围 0-{2}，保持当前档位。", Key, level, count - 1);
+                return;
+            }
+
+            // 启动早期场景与资源均未加载，applyExpensiveChanges 设为 true 可让后续加载的一切都按新档位生效
+            QualitySettings.SetQualityLevel(level, true);
+            Log.Info("[Quality] 已按命令行切换画质档位：{0} ({1})", level, QualitySettings.names[level]);
+        }
+
+        /// <summary>
+        /// 解析命令行参数 --yoo-instance 并把实例标识注入资源模块，实现桌面多开的缓存隔离。
+        /// 未传参时保持单开默认行为。
+        /// </summary>
+        private void ApplyMultiInstanceFromCommandLine()
+        {
+            string instanceId = MultiInstanceLauncher.ResolveInstanceId();
+            if (string.IsNullOrEmpty(instanceId))
+            {
+                return;
+            }
+
+            _resourceModule.InstanceId = instanceId;
+            Log.Info($"桌面多开实例标识：{instanceId}，资源缓存将隔离到 instance-{instanceId} 目录。");
         }
     }
 }
