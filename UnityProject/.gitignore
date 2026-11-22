@@ -123,7 +123,7 @@ yoo/
 
 #Releases 构建产物（保留 setup.iss 等脚本，忽略产物）
 /Releases/Bundles/
-/Releases/*/build/
+/Releases/**/build/
 /Releases/*/setup/
 /Releases/Publish/
 /Releases/Windows/setup.generated.iss

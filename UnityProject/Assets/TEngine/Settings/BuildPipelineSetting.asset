@@ -34,8 +34,8 @@ MonoBehaviour:
   GenerateCatalogInOutput: 0
   BuildHotFixDll: 1
   BuildPlayer: 1
-  PlayerOutputPath: ./Releases/Windows_DS/build/hotUnitydemo.exe
-  subtarget: Server
+  PlayerOutputPath: .\Releases\Windows\Windows_DS\build\hotUnitydemo.exe
+  subtarget: Player
   CleanPlayerOutputDirectory: 1
   BuildInstaller: 1
   InstallerPlatform: 19
@@ -45,3 +45,24 @@ MonoBehaviour:
   InstallerPublisher: DefaultCompany
   InstallerPassword: 
   InstallerWatermark: 
+  InstallerIssScript: generated
+  DebkitAppTitle: 
+  DebkitPackageName: 
+  DebkitExecutable: 
+  DebkitLogo: 
+  DebkitInstallDir: 
+  DebkitSourceDir: 
+  DebkitQualityDefault: none
+  DebkitGraphicsDefault: none
+  DebkitAutostart: yes
+  DebkitAutostartDelay: 3
+  DebkitCreateDesktopIcon: yes
+  DebkitCompress: auto
+  DebkitCompressLevel: 6
+  DebkitDepends: 
+  DebkitExtraArgs: 
+  DebkitWritableDirs: 
+  DebkitExclude: 
+  DebkitCategories: Utility;
+  DebkitConfFile: 
+  DebkitWslDistro: 

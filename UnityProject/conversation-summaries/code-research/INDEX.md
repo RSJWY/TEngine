@@ -1,5 +1,10 @@
 # 代码研究索引
 
+## 2026-11-22
+- [PurrNet 原始项目多人联机 Scenario 测试机制研究](./2026-11-22-purrnet-scenarios-multiplayer-testing-research.md)
+  - 关键词：PurrNet、MPPM、ScenarioConfig、Bootstrap、ScenarioSequencer、ScenarioBarrier、RunSplit、Host/Client、DedicatedServer、多进程、JSON结果、NetTestRunner
+  - 结论：MPPM只起多实例，自研Scenario负责调度；本项目已有移植但未接启动入口。
+
 ## 2026-10-22
 - [场景切换加载页与"等待场景准备完毕"机制研究](./2026-10-22-scene-switch-loading-ui-research.md)
   - 关键词：GameSceneModule、SwitchSceneUI、三段式进度状态机、suspendLoad挂起加载、UnSuspend激活、IsSceneLoadDone轮询等待、IGameSceneEvent、OnSceneLoadOver、OnSceneReady、PostActivateFrames、100%停留、加载页关闭时机、纯展示UI、超时兜底

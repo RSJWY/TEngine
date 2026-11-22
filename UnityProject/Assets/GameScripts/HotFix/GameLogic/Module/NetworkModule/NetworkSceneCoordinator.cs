@@ -29,6 +29,25 @@ namespace GameLogic
             // 自定义网络消息必须在首次使用前手动注册 Hasher，否则联机启动即抛
             // "Type is not registered"（2026-11-22 S6 联调发现）。
             PurrNet.Utils.Hasher.PrepareType<SceneChangeRequest>();
+
+            // 仅注册 Hasher 不够：没有 ILPP 生成的序列化器时，Packer 走 Fallback 读写，
+            // 其写端（PackUIntegers 变长）与读端（NativePacker 定长）格式不匹配，
+            // 字段会被静默读成 0（2026-11-22 NetTest 联调实证）。手动注册精确字段读写。
+            // 注意：ReadFunc<T> 带 ref 参数，lambda 不支持 ref 形参，必须用显式方法组。
+            PurrNet.Packing.Packer<SceneChangeRequest>.RegisterWriter(WriteSceneChangeRequest);
+            PurrNet.Packing.Packer<SceneChangeRequest>.RegisterReader(ReadSceneChangeRequest);
+        }
+
+        private static void WriteSceneChangeRequest(PurrNet.Packing.BitPacker packer, SceneChangeRequest v)
+        {
+            PurrNet.Packing.Packer<int>.Write(packer, v.sceneTypeValue);
+        }
+
+        private static void ReadSceneChangeRequest(PurrNet.Packing.BitPacker packer, ref SceneChangeRequest v)
+        {
+            int value = 0;
+            PurrNet.Packing.Packer<int>.Read(packer, ref value);
+            v.sceneTypeValue = value;
         }
 
         private PurrNet.NetworkManager _nm;

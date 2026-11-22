@@ -399,7 +399,10 @@ namespace GameLogic
                     if (_displayProgress >= 0.10f)
                     {
                         _currentPhase = 1;
-                        StartRealLoading();
+                        if (!_isPassive)
+                        {
+                            StartRealLoading();
+                        }
                     }
                     break;
 

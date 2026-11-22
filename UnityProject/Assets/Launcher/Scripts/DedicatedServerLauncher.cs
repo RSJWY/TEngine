@@ -25,9 +25,24 @@ namespace Launcher
         public const string AddressArgumentName = "--address";
 
         /// <summary>
+        /// 环境变量名：<c>TENGINE_FORCE_DS=1</c>（或 true）时强制按 DS 分支启动。
+        /// <para>用途：编辑器 batchmode / CI 联调 DS 启动流程，无需打 DS 产物。</para>
+        /// </summary>
+        public const string ForceDsEnvironmentVariable = "TENGINE_FORCE_DS";
+
+#if UNITY_EDITOR
+        /// <summary>编辑器 SessionState 键：「DS 模拟模式」菜单开关（会话级，重启编辑器自动复位）。</summary>
+        public const string ForceDsSessionKey = "Launcher.DedicatedServerLauncher.ForceDs";
+#endif
+
+        /// <summary>
         /// 是否为专用服务器构建（UNITY_SERVER define 且非 Editor）。
         /// <para>严格口径：仅在真 DS 包返回 true。普通客户端即使 batchmode 也返回 false，
         /// 走完整客户端流程（普通客户端支持 host 模式，与 DS 代码路径不同）。</para>
+        /// <para>编辑器联调逃生门：菜单「TEngine/联调/DS 模拟模式」或环境变量 <c>TENGINE_FORCE_DS=1</c>
+        /// 可在编辑器/普通包里强制返回 true（Procedure 链与 GameApp 都走 DS 分支）。
+        /// 注意逃生门只影响框架流程分支：PurrNet 的 <c>ApplicationContext.isServerBuild</c> 是包内编译期口径，
+        /// 不受影响；NM 是否自动起服仍由所在场景的 StartFlags 配置决定。</para>
         /// </summary>
         public static bool IsDedicatedServerBuild
         {
@@ -35,9 +50,30 @@ namespace Launcher
             {
 #if UNITY_SERVER && !UNITY_EDITOR
                 return true;
+#elif UNITY_EDITOR
+                if (UnityEditor.SessionState.GetBool(ForceDsSessionKey, false))
+                {
+                    return true;
+                }
+                return IsForceDsEnvironmentSet();
 #else
-                return false;
+                return IsForceDsEnvironmentSet();
 #endif
+            }
+        }
+
+        /// <summary>环境变量 TENGINE_FORCE_DS 是否设置为 1/true。</summary>
+        private static bool IsForceDsEnvironmentSet()
+        {
+            try
+            {
+                string value = Environment.GetEnvironmentVariable(ForceDsEnvironmentVariable);
+                return string.Equals(value, "1", StringComparison.Ordinal)
+                       || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
             }
         }
 
