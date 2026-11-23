@@ -70,6 +70,10 @@ namespace TEngine
         public string InstallerWatermark = "";
         // 选中的 Inno Setup 脚本(Releases/Windows/<name>.iss);为空回退 setup.iss
         public string InstallerIssScript = "";
+        // 安装包输出根目录(工程根相对或绝对路径);空表示沿用历史默认 Releases/Windows/setup
+        public string InstallerOutputRoot = BuildConfig.DefaultInstallerOutputRoot;
+        // 是否在输出根目录下按平台分 Windows / Linux 子目录
+        public bool InstallerPlatformSubfolder = true;
 
         // debkit 安装包设置（Linux；写入 Releases/Linux/appConfigs/<包名>.conf）
         public string DebkitAppTitle = "";
@@ -130,6 +134,8 @@ namespace TEngine
             InstallerPassword = config.InstallerPassword;
             InstallerWatermark = config.InstallerWatermark;
             InstallerIssScript = config.InstallerIssScript;
+            InstallerOutputRoot = config.InstallerOutputRoot;
+            InstallerPlatformSubfolder = config.InstallerPlatformSubfolder;
             DebkitAppTitle = config.DebkitAppTitle;
             DebkitPackageName = config.DebkitPackageName;
             DebkitExecutable = config.DebkitExecutable;

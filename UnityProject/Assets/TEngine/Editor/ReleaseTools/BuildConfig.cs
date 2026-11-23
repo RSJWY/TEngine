@@ -19,6 +19,9 @@ namespace TEngine
 
     public class BuildConfig
     {
+        /// <summary>安装包输出根目录默认值（工程根相对路径）。</summary>
+        public const string DefaultInstallerOutputRoot = "./Releases/Installer/";
+
         // 基础设置
         public BuildTarget BuildTarget;
         public EBuildPipeline BuildPipeline = EBuildPipeline.ScriptableBuildPipeline;
@@ -73,6 +76,10 @@ namespace TEngine
         public string InstallerWatermark = "";
         // 选中的 Inno Setup 脚本(Releases/Windows/<name>.iss);为空回退 setup.iss
         public string InstallerIssScript = "";
+        // 安装包输出根目录(相对工程根或绝对路径);空表示用历史默认 Releases/Windows/setup
+        public string InstallerOutputRoot = "";
+        // 是否在安装包输出根目录下按平台再分子目录(Windows/Linux),默认开启实现平台化隔离
+        public bool InstallerPlatformSubfolder = true;
 
         // debkit 安装包设置（Linux；构建工具写入 Releases/Linux/appConfigs/<包名>.conf,打包仍在 WSL 里执行）
         // 应用显示名,回写 APP_TITLE;为空时取 PlayerSettings.productName
@@ -134,6 +141,8 @@ namespace TEngine
                 PlayerOutputPath = GetDefaultPlayerOutputPath(EditorUserBuildSettings.activeBuildTarget),
                 InstallerAppName = PlayerSettings.productName ?? string.Empty,
                 InstallerPublisher = PlayerSettings.companyName ?? string.Empty,
+                InstallerOutputRoot = DefaultInstallerOutputRoot,
+                InstallerPlatformSubfolder = true,
                 // debkit 默认值全部由 productName 派生，与 Linux Player 产物名保持一致
                 DebkitAppTitle = PlayerSettings.productName ?? string.Empty,
                 DebkitPackageName = DebkitConfig.SanitizePackageName(PlayerSettings.productName),

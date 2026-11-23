@@ -108,6 +108,17 @@ Releases/
 
 详细说明见 [resource-build.md](../../../../../Books/Fork/resource-build.md)。
 
+## 安装包输出目录平台化
+
+- Inno Setup 产物目录不再写死 `Releases/Windows/setup`，改为「输出根目录 + 按平台分子目录」两项配置：默认根目录 `./Releases/Installer/`，开启分子目录时最终落在 `Releases/Installer/Windows`、`Releases/Installer/Linux`。
+- 输出根目录支持工程根相对路径（如 `./Releases/Installer/`）与绝对路径（如 `D:/BuildOut/Setup`）；**留空则完全回到历史行为** `Releases/Windows/setup`，老工程不受影响。
+- 打包窗口「安装包配置 → 安装包输出目录」提供根目录输入（浏览 / 默认值 / 打开）与「按平台分子目录」开关；「安装包输出」预览、构建日志与实际产物目录三者一致。
+- 构建时会把生成脚本 `setup.<配置名>.iss` 的 `OutputDir=` 改写成解析后的绝对路径（等于历史默认时仍写 `setup`；模板缺该行则自动补在 `[Setup]` 之后），只改值、保留原行尾。
+- 两字段持久化在 `BuildPipelineSetting.asset`（`InstallerOutputRoot` / `InstallerPlatformSubfolder`），CLI 对应请求字段 `installerOutputRoot` / `installerPlatformSubfolder`。
+- 仅覆盖 Inno Setup；Linux `debkit` 产物仍为 `Releases/Linux/output`。
+
+详细说明见 [resource-build.md](../../../../../Books/Fork/resource-build.md)。
+
 ## 构建模式与 Obfuz
 
 | 工具 | 菜单 |

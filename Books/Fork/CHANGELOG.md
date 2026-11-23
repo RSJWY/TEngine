@@ -2,6 +2,10 @@
 
 本文件按时间记录 fork 中的重要定制改动。专题设计和使用说明见同目录下对应文档。
 
+## 2026-11-23
+
+- 安装包输出目录平台化：Inno Setup 产物目录不再写死 `Releases/Windows/setup`，`BuildConfig`/`BuildPipelineSetting` 新增 `InstallerOutputRoot`（默认 `./Releases/Installer/`，支持工程根相对路径与绝对路径，留空回退历史目录）与 `InstallerPlatformSubfolder`（默认开，按 `Windows`/`Linux` 分子目录）；`ReleaseTools` 补 `GetResolvedInstallerOutputRoot`/`GetInstallerPlatformOutputRoot`/`GetInstallerPlatformFolderName`，`InnoSetupBuilder` 新增 `ResolveInstallerOutputDir` 与 `SyncIssOutputDir`（构建前把 `OutputDir=` 改写成解析后的绝对路径并保留原行尾，等于历史默认时仍写 `setup`，模板缺行时自动补在 `[Setup]` 后），`BuildInstaller` 增加 `buildConfig` 参数。打包窗口「安装包配置」新增「安装包输出目录」BoxGroup（根目录 浏览/默认值/打开 + 按平台分子目录开关），预览、构建日志与「从模板重新生成」都走同一解析结果；`CLIBridge` 新增 `installerOutputRoot`/`installerPlatformSubfolder` 两字段并回传解析后的 `installerOutputPath`。Linux debkit 产物目录未纳入本次改动。详见 [resource-build.md](resource-build.md)。
+
 ## 2026-10-30
 
 - 安装包多配置档案（Windows 多 iss / Linux 多 conf）：Windows 侧 `setup.iss` 保留为唯一模板、构建过程永不回写，每份配置对应一份编辑脚本 `setup.<配置名>.iss`（默认配置名 `generated`，与历史 `setup.generated.iss` 一致），面板「iss 配置」切换后按落盘脚本回填 6 项 `#define`，构建只回写所选脚本，并新增「从模板创建」；Linux 侧 `Releases/Linux/appConfigs/*.conf` 即变体，写入/回读/预览/WSL 打包全部作用于所选 conf，同样支持「从模板创建」（以 `example.conf` 键集为模板生成，同名先确认覆盖）。BuildCLI 新增 `installerIssScript` / `debkitConfFile` / `debkitDistro` 三字段（随预设与 `_last_session` 保存）与 `buildLinuxInstaller` 动作，CLI 增加 `--iss-script` / `--debkit-conf` / `--debkit-distro`。详见 [resource-build.md](resource-build.md)。

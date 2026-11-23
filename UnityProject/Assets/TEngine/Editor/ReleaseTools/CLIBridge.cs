@@ -92,6 +92,10 @@ namespace TEngine
             public string installerWatermark = "";
             // 选中的 InnoSetup 脚本（Releases/Windows/<name>.iss）；空 = setup.iss
             public string issScript = "";
+            // 安装包输出根目录（工程根相对或绝对）；空 = 沿用历史 Releases/Windows/setup
+            public string installerOutputRoot = "";
+            // 是否在输出根目录下按平台分 Windows / Linux 子目录
+            public bool installerPlatformSubfolder = true;
             // Linux debkit：选中的 conf 文件名（appConfigs/<name>.conf）；空 = 按包名
             public string debkitConfFile = "";
             // Linux debkit：WSL 发行版；空 = 默认发行版
@@ -421,8 +425,15 @@ namespace TEngine
                 };
 
                 Debug.Log("[TEngineCLI] ========== 开始编译 InnoSetup 安装包 ==========");
-                InnoSetupBuilder.BuildInstaller(issConfig, NullIfEmpty(request.isccPath), NullIfEmpty(request.issScript));
-                result.installerOutputPath = InnoSetupBuilder.InstallerOutputDir;
+                // 安装包输出目录由请求下发；为空时 ResolveInstallerOutputDir 回退历史 Releases/Windows/setup
+                var buildConfig = new BuildConfig
+                {
+                    InstallerPlatform = BuildTarget.StandaloneWindows64,
+                    InstallerOutputRoot = request.installerOutputRoot ?? string.Empty,
+                    InstallerPlatformSubfolder = request.installerPlatformSubfolder,
+                };
+                InnoSetupBuilder.BuildInstaller(issConfig, NullIfEmpty(request.isccPath), NullIfEmpty(request.issScript), buildConfig);
+                result.installerOutputPath = InnoSetupBuilder.ResolveInstallerOutputDir(buildConfig);
                 Debug.Log($"[TEngineCLI] ========== 安装包构建完成：{result.installerOutputPath} ==========");
                 return true;
             }

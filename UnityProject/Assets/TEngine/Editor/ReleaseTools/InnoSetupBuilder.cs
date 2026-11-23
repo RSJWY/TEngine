@@ -113,7 +113,22 @@ namespace TEngine
             return configs;
         }
         public static string PlayerBuildDir => Path.Combine(WindowsDir, "build");
+        /// <summary>安装包输出目录（历史默认：Releases/Windows/setup）。平台化输出请用 ResolveInstallerOutputDir。</summary>
         public static string InstallerOutputDir => Path.Combine(WindowsDir, "setup");
+
+        /// <summary>
+        /// 按构建配置解析安装包实际输出目录；未配置 InstallerOutputRoot 时回退历史默认 InstallerOutputDir。
+        /// <para>配置了输出根目录且开启 InstallerPlatformSubfolder 时，会在根目录下再分 Windows / Linux 平台文件夹。</para>
+        /// </summary>
+        public static string ResolveInstallerOutputDir(BuildConfig config)
+        {
+            if (config == null || string.IsNullOrWhiteSpace(config.InstallerOutputRoot))
+            {
+                return InstallerOutputDir;
+            }
+
+            return ReleaseTools.GetInstallerPlatformOutputRoot(config, config.InstallerPlatform);
+        }
 
         /// <summary>Unity 生成于 Player 输出目录、不可随包发布的目录名后缀。</summary>
         private static readonly string[] UnshippableDirectorySuffixes =
@@ -159,28 +174,65 @@ namespace TEngine
             }
         }
 
-        public static void BuildInstaller(IssInstallerConfig config, string isccPathOverride = null, string issConfig = null)
+        public static void BuildInstaller(IssInstallerConfig config, string isccPathOverride = null, string issConfig = null, BuildConfig buildConfig = null)
         {
             if (config == null) throw new ArgumentNullException(nameof(config));
             // 指定安装包配置名时先切换：后续 GeneratedIssPath 即 setup.<配置名>.iss
             if (!string.IsNullOrWhiteSpace(issConfig)) SelectIssConfig(issConfig);
+
+            // 安装包输出目录：未配置 InstallerOutputRoot 时沿用历史 Releases/Windows/setup
+            var outputDir = ResolveInstallerOutputDir(buildConfig);
 
             var sw = Stopwatch.StartNew();
             try
             {
                 EnsureGeneratedIss();
                 SyncIssDefines(config);
+                SyncIssOutputDir(outputDir);
                 ValidatePlayerBuild(config.ExeName);
-                Directory.CreateDirectory(InstallerOutputDir);
+                Directory.CreateDirectory(outputDir);
                 Debug.Log("[InnoSetup] 开始编译安装包...");
                 EditorUtility.DisplayProgressBar("一键出安装包", "Inno Setup 安装包编译中...", 0.9f);
                 CompileSetup(isccPathOverride);
-                Debug.Log($"[InnoSetup] 编译完成，耗时 {sw.Elapsed.TotalSeconds:F1} 秒，安装包位于：{InstallerOutputDir}");
+                Debug.Log($"[InnoSetup] 编译完成，耗时 {sw.Elapsed.TotalSeconds:F1} 秒，安装包位于：{outputDir}");
             }
             finally
             {
                 EditorUtility.ClearProgressBar();
             }
+        }
+
+        /// <summary>
+        /// 回写生成脚本的 <c>OutputDir</c>（iss 的 OutputDir 相对脚本所在目录，故写绝对路径）。
+        /// 目录与历史默认一致时写回 "setup"，保持脚本可读且不随工程路径变化。
+        /// </summary>
+        public static void SyncIssOutputDir(string outputDir)
+        {
+            if (!File.Exists(GeneratedIssPath))
+            {
+                return;
+            }
+
+            var normalized = (string.IsNullOrWhiteSpace(outputDir) ? InstallerOutputDir : outputDir)
+                .Replace('\\', '/').TrimEnd('/');
+            var isDefault = string.Equals(normalized, InstallerOutputDir.Replace('\\', '/').TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+            var value = isDefault ? "setup" : normalized;
+
+            var content = File.ReadAllText(GeneratedIssPath);
+            // 只吃值部分，保留行尾 \r，避免把模板的 CRLF 改成 LF 造成换行混用
+            var pattern = @"(?m)^(\s*OutputDir\s*=)[^\r\n]*";
+            var newline = content.Contains("\r\n") ? "\r\n" : "\n";
+            if (!Regex.IsMatch(content, pattern))
+            {
+                // 模板缺失 OutputDir 行时补一行在 [Setup] 段后，避免自定义目录静默失效
+                content = Regex.Replace(content, @"(?m)^(\[Setup\][ \t]*)$", "$1" + newline + "OutputDir=" + value);
+            }
+            else
+            {
+                content = Regex.Replace(content, pattern, m => m.Groups[1].Value + value);
+            }
+
+            File.WriteAllText(GeneratedIssPath, content, new UTF8Encoding(false));
         }
 
         public static void ValidatePlayerBuild(string exeName)

@@ -732,6 +732,8 @@ namespace TEngine
             try
             {
                 InnoSetupBuilder.RegenerateGeneratedIss(CreateInstallerIssConfig());
+                // 重新生成会带回模板里的 OutputDir=setup，这里同步成当前配置的输出目录，保证预览与构建一致
+                InnoSetupBuilder.SyncIssOutputDir(InnoSetupBuilder.ResolveInstallerOutputDir(CreateConfig()));
                 Debug.Log($"[InnoSetup] 已从模板重新生成：{InnoSetupBuilder.GeneratedIssPath}");
                 Repaint();
             }
@@ -742,6 +744,28 @@ namespace TEngine
         }
 
         [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/安装包输出目录")]
+        [LabelText("输出根目录")]
+        [Tooltip("安装包最终产物根目录；相对路径基于工程根，也可填绝对路径。留空回退历史默认 Releases/Windows/setup。")]
+        [InlineButton(nameof(ChooseInstallerOutputRoot), "浏览")]
+        [InlineButton(nameof(ResetInstallerOutputRoot), "默认值")]
+        [InlineButton(nameof(OpenInstallerOutputRoot), "打开")]
+        [DelayedProperty]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private string _installerOutputRoot = BuildConfig.DefaultInstallerOutputRoot;
+
+        [TabGroup("Pages", "安装包配置")]
+        [BoxGroup("Pages/安装包配置/安装包输出目录")]
+        [LabelText("按平台分子目录")]
+        [Tooltip("开启后在输出根目录下再分 Windows / Linux 平台文件夹，避免同机多平台安装包互相覆盖。")]
+        [ToggleLeft]
+        [ShowIf(nameof(IsInstallerOutputRootCustomized))]
+        [OnValueChanged(nameof(OnSettingsChanged))]
+        [SerializeField]
+        private bool _installerPlatformSubfolder = true;
+
+        [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/ISCC 编译")]
         [ShowInInspector]
         [ReadOnly]
@@ -749,7 +773,7 @@ namespace TEngine
         [MultiLineProperty(2)]
         [ShowIf(nameof(IsInstallerEnabled))]
         private string InstallerOutputPreview =>
-            $"主程序产物：{InnoSetupBuilder.PlayerBuildDir}\n安装包输出：{InnoSetupBuilder.InstallerOutputDir}";
+            $"主程序产物：{InnoSetupBuilder.PlayerBuildDir}\n安装包输出：{InnoSetupBuilder.ResolveInstallerOutputDir(CreateConfig())}";
 
         [TabGroup("Pages", "安装包配置")]
         [BoxGroup("Pages/安装包配置/ISCC 编译")]
@@ -2070,8 +2094,8 @@ namespace TEngine
 
                 AddLog("========== 编译 InnoSetup 安装包 ==========");
                 AddLog($"安装包版本: {InnoSetupBuilder.ResolveInstallerVersion()}");
-                InnoSetupBuilder.BuildInstaller(issConfig, config.IsccPath);
-                AddLog($"安装包输出: {InnoSetupBuilder.InstallerOutputDir}");
+                InnoSetupBuilder.BuildInstaller(issConfig, config.IsccPath, null, config);
+                AddLog($"安装包输出: {InnoSetupBuilder.ResolveInstallerOutputDir(config)}");
                 AddLog("========== 安装包构建完成 ==========");
             }
             catch (Exception e)
@@ -2202,6 +2226,8 @@ namespace TEngine
             _installerPublisher = setting.InstallerPublisher;
             _installerPassword = setting.InstallerPassword;
             _installerWatermark = setting.InstallerWatermark;
+            _installerOutputRoot = setting.InstallerOutputRoot ?? string.Empty;
+            _installerPlatformSubfolder = setting.InstallerPlatformSubfolder;
 
             _debkitAppTitle = setting.DebkitAppTitle;
             _debkitWslDistro = setting.DebkitWslDistro;
@@ -2432,6 +2458,8 @@ namespace TEngine
             _setting.InstallerPublisher = _installerPublisher;
             _setting.InstallerPassword = _installerPassword;
             _setting.InstallerWatermark = _installerWatermark;
+            _setting.InstallerOutputRoot = _installerOutputRoot;
+            _setting.InstallerPlatformSubfolder = _installerPlatformSubfolder;
             _setting.InstallerIssScript = _installerIssScript;
 
             _setting.DebkitAppTitle = _debkitAppTitle;
@@ -2879,6 +2907,8 @@ namespace TEngine
                 InstallerPublisher = _installerPublisher,
                 InstallerPassword = _installerPassword,
                 InstallerWatermark = _installerWatermark,
+                InstallerOutputRoot = _installerOutputRoot,
+                InstallerPlatformSubfolder = _installerPlatformSubfolder,
                 DebkitAppTitle = _debkitAppTitle,
                 DebkitWslDistro = _debkitWslDistro,
                 DebkitPackageName = _debkitPackageName,
@@ -3081,6 +3111,43 @@ namespace TEngine
         private void OpenPublishRoot()
         {
             EditorUtility.RevealInFinder(ReleaseTools.GetPublishOutputRoot(CreateConfig()));
+        }
+
+        /// <summary>是否自定义了安装包输出根目录（未自定义时不显示平台子目录开关）。</summary>
+        private bool IsInstallerOutputRootCustomized => !string.IsNullOrWhiteSpace(_installerOutputRoot);
+
+        private void ChooseInstallerOutputRoot()
+        {
+            var start = string.IsNullOrWhiteSpace(_installerOutputRoot)
+                ? ToAbsolutePath(BuildConfig.DefaultInstallerOutputRoot)
+                : ToAbsolutePath(_installerOutputRoot);
+            var selected = EditorUtility.OpenFolderPanel("选择安装包输出根目录", start, string.Empty);
+            if (string.IsNullOrEmpty(selected))
+            {
+                return;
+            }
+
+            _installerOutputRoot = ToProjectRelativePath(selected);
+            OnSettingsChanged();
+        }
+
+        private void ResetInstallerOutputRoot()
+        {
+            _installerOutputRoot = BuildConfig.DefaultInstallerOutputRoot;
+            _installerPlatformSubfolder = true;
+            OnSettingsChanged();
+        }
+
+        private void OpenInstallerOutputRoot()
+        {
+            var dir = InnoSetupBuilder.ResolveInstallerOutputDir(CreateConfig());
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            {
+                Debug.LogWarning($"[BuildPipeline] 安装包输出目录不存在：{dir}");
+                return;
+            }
+
+            EditorUtility.RevealInFinder(dir);
         }
 
         private void OpenPlayerOutputPath()

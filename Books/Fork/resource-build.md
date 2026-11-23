@@ -659,3 +659,54 @@ python -m tengine_build --no-gui run --action buildAb --target StandaloneWindows
 - `UnityProject/BuildCLI/batches/`（批量任务 JSON：有序动作队列 + 绑定预设，随仓库提交）
 - `UnityProject/BuildCLI/build_gui.bat` / `build_gui.sh` / `requirements.txt` / `README.md`
 - `Assets/TEngine/Editor/ReleaseTools/CLIBridge.cs`（新增，Unity 侧唯一入口）
+
+## 安装包输出目录平台化
+
+### 背景
+
+Inno Setup 的产物目录此前写死在 `Releases/Windows/setup`：iss 模板里是相对路径 `OutputDir=setup`，`InnoSetupBuilder.InstallerOutputDir` 也是常量。多平台/多配置出包时所有安装包都堆在同一个 Windows 目录里，既没法把产物导到工程外的发布盘，也没法按平台分目录归档。本次把「安装包输出根目录 + 是否按平台分子目录」提升为可配置项，默认改为平台化的 `Releases/Installer/<平台>`。
+
+### 改动摘要
+
+- `BuildConfig` 新增 `DefaultInstallerOutputRoot = "./Releases/Installer/"`、`InstallerOutputRoot`、`InstallerPlatformSubfolder`（默认 `true`），`CreateDefault()` 带默认值；`BuildPipelineSetting` 同步两个持久化字段并纳入 `ApplyDefaults`。
+- `ReleaseTools` 新增 `GetResolvedInstallerOutputRoot` / `GetInstallerPlatformOutputRoot` / `GetInstallerPlatformFolderName`：根目录留空回退历史 `Releases/Windows/setup`；非空时支持工程根相对路径与绝对路径，平台子目录名取 `Windows` / `Linux`（其余平台回落 `BuildTarget` 名）。
+- `InnoSetupBuilder` 保留 `InstallerOutputDir` 作为历史默认，新增 `ResolveInstallerOutputDir(config)`；`BuildInstaller` 增加 `buildConfig` 参数，构建前先 `SyncIssOutputDir` 把 `OutputDir=` 改写成解析后的绝对路径（等于历史默认时仍写回 `setup`，模板缺该行时自动补在 `[Setup]` 段后），再创建目录并输出。
+- 打包窗口「安装包配置」tab 新增 BoxGroup「安装包输出目录」：**输出根目录**（浏览 / 默认值 / 打开三个 InlineButton）、**按平台分子目录**开关（根目录留空时自动隐藏）；「安装包输出」预览与构建日志都改用解析结果。
+- 「从模板重新生成」在覆盖生成脚本后立即同步一次 `OutputDir`，避免面板预览与实际构建不一致。
+- `CLIBridge` 请求 DTO 新增 `installerOutputRoot` / `installerPlatformSubfolder`，安装包动作按请求组装临时 `BuildConfig`，`installerOutputPath` 回传解析后的目录。
+
+### 使用方式
+
+「打包工具窗口 → 安装包配置 → 安装包输出目录」：
+
+- **输出根目录**：默认 `./Releases/Installer/`（相对工程根），也可填 `D:/BuildOut/Setup` 这类绝对路径；清空则完全回到旧行为 `Releases/Windows/setup`。
+- **按平台分子目录**：开启时最终目录为 `<根目录>/Windows`、`<根目录>/Linux`；关闭时直接落在根目录。
+
+解析结果对照：
+
+| 输出根目录 | 分子目录 | 结果 |
+| --- | --- | --- |
+| 默认 `./Releases/Installer/` | 开 | `<工程根>/Releases/Installer/Windows` |
+| 留空 | — | `<工程根>/Releases/Windows/setup`（历史行为） |
+| `D:/BuildOut/Setup` | 关 | `D:/BuildOut/Setup` |
+| `D:/BuildOut/Setup` | 开（Linux 平台） | `D:/BuildOut/Setup/Linux` |
+
+### 注意事项
+
+- 兼容性优先：老工程 `BuildPipelineSetting.asset` 没有新字段时按 C# 初始化器取默认值，即**新行为默认开启**；要保留旧目录，把输出根目录清空即可。
+- 只影响 Inno Setup 产物。Linux `debkit` 仍写 `Releases/Linux/output`，未纳入本次重定向。
+- `SyncIssOutputDir` 只改 `OutputDir=` 的值部分并保留原行尾，不会把模板的 CRLF 改成 LF。
+- 目录支持绝对路径，但产物落在工程外时不受 `Releases/` 的忽略规则保护，注意别误提交。
+
+### 关键文件
+
+- `Assets/TEngine/Editor/ReleaseTools/BuildConfig.cs`（默认常量 + 2 字段 + `CreateDefault`）
+- `Assets/TEngine/Editor/ReleaseTools/ReleaseTools.cs`（3 个解析方法）
+- `Assets/TEngine/Editor/ReleaseTools/InnoSetupBuilder.cs`（`ResolveInstallerOutputDir` / `SyncIssOutputDir` / `BuildInstaller` 新参数）
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineWindow.cs`（输出目录 BoxGroup + 预览 + 重新生成后同步）
+- `Assets/TEngine/Editor/ReleaseTools/BuildPipelineSetting.cs`（持久化）
+- `Assets/TEngine/Editor/ReleaseTools/CLIBridge.cs`（DTO + 安装包动作）
+
+### 相关记录
+
+- Issue [#6](https://github.com/RSJWY/TEngine/issues/6) 优化计划第 1 项「安装包输出目录平台化」。

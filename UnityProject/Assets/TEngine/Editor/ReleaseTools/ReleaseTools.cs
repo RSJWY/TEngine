@@ -371,6 +371,55 @@ namespace TEngine
             return Path.Combine(outputRoot, GetRemotePlatformName(config.BuildTarget)).Replace('\\', '/');
         }
 
+        /// <summary>
+        /// 解析安装包输出根目录（绝对路径）：配置为空时回退历史默认 Releases/Windows/setup 的父级语义，
+        /// 由调用方决定是否再拼平台子目录。
+        /// </summary>
+        public static string GetResolvedInstallerOutputRoot(BuildConfig config)
+        {
+            var root = config == null ? string.Empty : config.InstallerOutputRoot;
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                // 兼容历史配置：未填写时沿用 Releases/Windows/setup，不做平台化拆分
+                return Path.GetFullPath(Path.Combine(Application.dataPath + "/../", "./Releases/Windows/setup")).Replace('\\', '/');
+            }
+
+            if (!Path.IsPathRooted(root))
+            {
+                root = Path.Combine(Application.dataPath + "/../", root);
+            }
+
+            return Path.GetFullPath(root).Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// 解析某个安装包平台最终的产物目录（绝对路径）。
+        /// <para>InstallerPlatformSubfolder 开启时在输出根下拼 Installer/Windows、Installer/Linux 之类的平台文件夹。</para>
+        /// </summary>
+        /// <param name="config">构建配置。</param>
+        /// <param name="installerPlatform">安装包目标平台（Windows / Linux）。</param>
+        public static string GetInstallerPlatformOutputRoot(BuildConfig config, BuildTarget installerPlatform)
+        {
+            var root = GetResolvedInstallerOutputRoot(config);
+            if (config != null && !string.IsNullOrWhiteSpace(config.InstallerOutputRoot) && config.InstallerPlatformSubfolder)
+            {
+                root = Path.Combine(root, GetInstallerPlatformFolderName(installerPlatform));
+            }
+
+            return root.Replace('\\', '/');
+        }
+
+        /// <summary>安装包平台子目录名。</summary>
+        public static string GetInstallerPlatformFolderName(BuildTarget installerPlatform)
+        {
+            return installerPlatform switch
+            {
+                BuildTarget.StandaloneWindows64 or BuildTarget.StandaloneWindows => "Windows",
+                BuildTarget.StandaloneLinux64 => "Linux",
+                _ => installerPlatform.ToString(),
+            };
+        }
+
         public static string GetPublishOutputRoot(BuildConfig config)
         {
             var publishRoot = string.IsNullOrWhiteSpace(config.PublishRoot) ? "./Releases/Publish/" : config.PublishRoot;
